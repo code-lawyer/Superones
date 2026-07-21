@@ -1,0 +1,10 @@
+.next/
+node_modules/
+.npm-cache/
+.env*
+!.env.example
+npm-debug.log*
+dev.err.log
+dev.out.log
+*.tsbuildinfo
+data/mvp-store.json
