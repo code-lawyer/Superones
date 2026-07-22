@@ -1,0 +1,9 @@
+[
+  {
+    "id": "approved-source-id",
+    "name": "已批准来源名称",
+    "url": "https://example.com/feed.xml",
+    "category": "研究文章",
+    "approved": false
+  }
+]

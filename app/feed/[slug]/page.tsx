@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { events } from "@/lib/data";
+import { getPublicContent } from "@/lib/public-content";
 
-export function generateStaticParams() {
-  return events.map((event) => ({ slug: event.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const event = events.find((item) => item.slug === slug);
+  const content = await getPublicContent();
+  const event = content.events.find((item) => item.slug === slug);
   return { title: event?.title ?? "事件记录" };
 }
 
 export default async function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const event = events.find((item) => item.slug === slug);
+  const content = await getPublicContent();
+  const event = content.events.find((item) => item.slug === slug);
   if (!event) notFound();
 
   return (

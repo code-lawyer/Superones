@@ -8,3 +8,6 @@ dev.err.log
 dev.out.log
 *.tsbuildinfo
 data/mvp-store.json
+data/content-store.json
+config/feed-sources.json
+.collector-rss.json

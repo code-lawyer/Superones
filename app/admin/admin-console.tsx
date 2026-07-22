@@ -15,27 +15,42 @@ type Submission = {
   lastSnapshotAt: string | null;
 };
 
+type ContentState = {
+  mode: "demo" | "live";
+  updatedAt: string | null;
+  sourceCount: number;
+  eventCount: number;
+  projectCount: number;
+};
+
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; state?: ContentState; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "请求暂时无法完成。");
   return body;
 }
 
 export function AdminConsole() {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
+  const [contentState, setContentState] = useState<ContentState | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
 
   const load = useCallback(async () => {
-    const response = await fetch("/api/admin/frontier", { cache: "no-store" });
-    if (response.status === 401) {
+    const [response, contentResponse] = await Promise.all([
+      fetch("/api/admin/frontier", { cache: "no-store" }),
+      fetch("/api/admin/content", { cache: "no-store" }),
+    ]);
+    if (response.status === 401 || contentResponse.status === 401) {
       setSubmissions(null);
+      setContentState(null);
       return;
     }
     const body = await jsonMessage(response);
+    const content = await jsonMessage(contentResponse);
     setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
+    setContentState(content?.state ?? null);
   }, []);
 
   useEffect(() => { void load().catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。")); }, [load]);
@@ -75,6 +90,7 @@ export function AdminConsole() {
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
     setSubmissions(null);
+    setContentState(null);
     setNotice("");
   }
 
@@ -114,6 +130,19 @@ export function AdminConsole() {
           </div>
         ))}
       </div>
+      <section className="admin-pipeline" aria-label="信息管道状态">
+        <p className="eyebrow mono">CONTENT PIPELINE / DOMESTIC VIEW</p>
+        <h2>信息管道状态</h2>
+        {contentState ? (
+          <div className="admin-pipeline__metrics mono">
+            <span>MODE <strong>{contentState.mode.toUpperCase()}</strong></span>
+            <span>SOURCES <strong>{contentState.sourceCount}</strong></span>
+            <span>EVENTS <strong>{contentState.eventCount}</strong></span>
+            <span>PROJECTS <strong>{contentState.projectCount}</strong></span>
+            <span>LAST RUN <strong>{contentState.updatedAt ? new Date(contentState.updatedAt).toLocaleString("zh-CN", { hour12: false }) : "—"}</strong></span>
+          </div>
+        ) : <p className="ranking-empty">暂时无法读取信息管道状态。</p>}
+      </section>
     </section>
   );
 }

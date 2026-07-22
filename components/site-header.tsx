@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const navItems = [
-  { href: "/feed", label: "信息流" },
-  { href: "/opc", label: "OPC 服务台" },
-  { href: "/sic", label: "SiC 学院" },
-  { href: "/frontier", label: "边境计划" },
+  { href: "/feed", code: "INTEL", label: "信息流" },
+  { href: "/opc", code: "OPERATE", label: "OPC 服务台" },
+  { href: "/sic", code: "EVOLVE", label: "SiC 学院" },
+  { href: "/frontier", code: "BUILD", label: "边境计划" },
 ];
 
 export function SiteHeader() {
@@ -21,7 +21,7 @@ export function SiteHeader() {
     <header className="site-header">
       <div className="site-header__inner shell">
         <Link className="wordmark" href="/" aria-label="Vault2077 首页">
-          VAULT2077
+          <span>VAULT</span><span>2077</span>
         </Link>
         <button
           className="menu-toggle text-link"
@@ -36,8 +36,8 @@ export function SiteHeader() {
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
-              <Link key={item.href} className={active ? "nav-link is-active" : "nav-link"} href={item.href}>
-                {item.label}
+              <Link key={item.href} className={active ? "nav-link is-active" : "nav-link"} href={item.href} aria-current={active ? "page" : undefined}>
+                <span className="nav-code mono">{item.code}</span><span>{item.label}</span>
               </Link>
             );
           })}

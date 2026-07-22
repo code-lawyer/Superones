@@ -43,6 +43,7 @@ export type TrendProject = {
   updated: string;
   captured: string;
   fit: string;
+  readmeSha?: string;
 };
 
 export type FrontierEntry = {
@@ -53,4 +54,12 @@ export type FrontierEntry = {
   current: number;
   delta: number;
   submitted: string;
+};
+
+export type ContentState = {
+  mode: "demo" | "live";
+  updatedAt: string | null;
+  sourceCount: number;
+  eventCount: number;
+  projectCount: number;
 };

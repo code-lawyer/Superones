@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatNumber, projects } from "@/lib/data";
+import { formatNumber } from "@/lib/data";
+import { getPublicContent } from "@/lib/public-content";
 
-export function generateStaticParams() {
-  return projects.map((project) => ({ owner: project.owner, repo: project.repo }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ owner: string; repo: string }> }): Promise<Metadata> {
   const { owner, repo } = await params;
-  const project = projects.find((item) => item.owner === owner && item.repo === repo);
+  const content = await getPublicContent();
+  const project = content.projects.find((item) => item.owner === owner && item.repo === repo);
   return { title: project ? `${owner}/${repo}` : "SiC 项目" };
 }
 
 export default async function ProjectPage({ params }: { params: Promise<{ owner: string; repo: string }> }) {
   const { owner, repo } = await params;
-  const project = projects.find((item) => item.owner === owner && item.repo === repo);
+  const content = await getPublicContent();
+  const project = content.projects.find((item) => item.owner === owner && item.repo === repo);
   if (!project) notFound();
 
   return (
