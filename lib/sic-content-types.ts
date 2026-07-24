@@ -20,7 +20,7 @@ export type SicContentItem = {
 
 export type SicSourceCollectionReport = {
   sourceId: string;
-  status: "success" | "empty" | "failure";
+  status: "success" | "partial" | "empty" | "failure";
   collectedAt: string;
   itemCount: number;
   error?: string;

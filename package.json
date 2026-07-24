@@ -17,7 +17,8 @@
     "sources:extract": "node scripts/build-source-registry.mjs",
     "sources:classify": "node scripts/classify-source-registry.mjs",
     "sources:audit": "node scripts/audit-source-registry.mjs",
-    "sources:bundle": "node scripts/build-source-bundle.mjs"
+    "sources:bundle": "node scripts/build-source-bundle.mjs",
+    "acquisition:collect": "node --conditions=react-server --experimental-strip-types scripts/collect-unified-acquisition.ts"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",

@@ -69,13 +69,37 @@ export async function fetchTextBounded(
   options: BoundedFetchOptions = {},
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await (options.fetcher ?? fetch)(url, {
-      ...init,
-      signal: controller.signal,
-      cache: init.cache ?? "no-store",
-    });
+    let response: Response;
+    try {
+      response = await (options.fetcher ?? fetch)(url, {
+        ...init,
+        signal: controller.signal,
+        cache: init.cache ?? "no-store",
+      });
+    } catch (error) {
+      const cause = error && typeof error === "object" && "cause" in error
+        ? error.cause
+        : undefined;
+      const code = cause && typeof cause === "object" && "code" in cause
+        ? String(cause.code)
+        : "";
+      const detail = cause instanceof Error
+        ? cause.message
+        : error instanceof Error
+          ? error.message
+          : String(error);
+      const host = new URL(url).hostname;
+      if (controller.signal.aborted) {
+        throw new Error(`${host} 请求在 ${timeoutMs}ms 后超时。`, { cause: error });
+      }
+      throw new Error(
+        `${host} 网络请求失败${code ? `（${code}）` : ""}：${detail.slice(0, 240)}`,
+        { cause: error },
+      );
+    }
     if (!response.ok) throw new Error(`${new URL(url).hostname} 返回 HTTP ${response.status}。`);
     return {
       response,

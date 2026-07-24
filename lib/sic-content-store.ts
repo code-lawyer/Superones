@@ -52,7 +52,9 @@ export async function mergeSicStoredContent(input: { items: SicContentItem[]; re
   const operation = writeChain.then(async () => {
     const current = await readStore();
     const currentById = new Map(current.items.map((item) => [item.id, item]));
-    const successful = new Set(input.reports.filter((report) => report.status === "success").map((report) => report.sourceId));
+    const successful = new Set(input.reports
+      .filter((report) => report.status === "success" || report.status === "partial")
+      .map((report) => report.sourceId));
     const merged = new Map<string, SicContentItem>();
     for (const item of current.items) {
       if (!successful.has(item.sourceId)) merged.set(item.id, item);

@@ -30,13 +30,13 @@ export type SicExtensionRankings = {
 
 export type ExtensionTotal = SicExtensionItem & { total: number };
 
-type SkillProviderSnapshot = {
+export type SkillProviderSnapshot = {
   capturedAt: string;
   selected: SicExtensionItem[];
   totals: ExtensionTotal[];
 };
 
-type McpProviderSnapshot = {
+export type McpProviderSnapshot = {
   capturedAt: string;
   selected: SicExtensionItem[];
   totals: ExtensionTotal[];
@@ -369,32 +369,18 @@ export async function getSicExtensionRankings(): Promise<SicExtensionRankings> {
   };
 }
 
-export async function refreshSicExtensionSnapshots() {
-  const skillsShToken = process.env.VERCEL_OIDC_TOKEN;
-  const smitheryApiKey = process.env.VAULT2077_SMITHERY_API_KEY;
-  const skillsRequest = skillsShToken
-    ? fetchSkillsSh(skillsShToken)
-    : smitheryApiKey
-      ? fetchSmitherySkills(smitheryApiKey)
-      : Promise.reject(new Error("未配置 skills.sh OIDC 或 Smithery API 密钥。"));
-  const mcpsRequest = smitheryApiKey
-    ? fetchSmitheryMcps(smitheryApiKey)
-    : Promise.reject(new Error("未配置 Smithery API 密钥。"));
-  const [skills, mcps] = await Promise.allSettled([skillsRequest, mcpsRequest]);
-  if (skills.status === "rejected" && mcps.status === "rejected") {
-    throw new Error("Skill 与 MCP 榜单上游均不可用。");
-  }
-
-  const capturedAt = new Date().toISOString();
+export async function persistSicExtensionSnapshot(input: {
+  capturedAt: string;
+  skills?: Omit<SkillProviderSnapshot, "capturedAt">;
+  mcps?: Omit<McpProviderSnapshot, "capturedAt">;
+}) {
+  const capturedAt = new Date(input.capturedAt).toISOString();
   const snapshot: ExtensionSnapshot = {
     capturedAt,
-    skills: skills.status === "fulfilled"
-      ? { capturedAt, selected: skills.value.selected, totals: skills.value.totals }
-      : null,
-    mcps: mcps.status === "fulfilled"
-      ? { capturedAt, selected: mcps.value.selected, totals: mcps.value.totals }
-      : null,
+    skills: input.skills ? { capturedAt, ...input.skills } : null,
+    mcps: input.mcps ? { capturedAt, ...input.mcps } : null,
   };
+  if (!snapshot.skills && !snapshot.mcps) throw new Error("Skill/MCP 榜单快照不能为空。");
 
   const operation = writeChain.then(async () => {
     const store = await readStore();
@@ -411,16 +397,57 @@ export async function refreshSicExtensionSnapshots() {
       capturedAt,
       skills: snapshot.skills?.selected.length ?? 0,
       mcps: snapshot.mcps?.selected.length ?? 0,
-      errors: {
-        skills: skills.status === "rejected"
-          ? skills.reason instanceof Error ? skills.reason.message : "Skill 榜单失败。"
-          : null,
-        mcps: mcps.status === "rejected"
-          ? mcps.reason instanceof Error ? mcps.reason.message : "MCP 榜单失败。"
-          : null,
-      },
     };
   });
   writeChain = operation.then(() => undefined, () => undefined);
   return operation;
+}
+
+export async function refreshSicExtensionSnapshots() {
+  const skillsShToken = process.env.VERCEL_OIDC_TOKEN;
+  const smitheryApiKey = process.env.VAULT2077_SMITHERY_API_KEY;
+  const skillsRequest = skillsShToken
+    ? fetchSkillsSh(skillsShToken)
+    : smitheryApiKey
+      ? fetchSmitherySkills(smitheryApiKey)
+      : Promise.reject(new Error("未配置 skills.sh OIDC 或 Smithery API 密钥。"));
+  const mcpsRequest = smitheryApiKey
+    ? fetchSmitheryMcps(smitheryApiKey)
+    : Promise.reject(new Error("未配置 Smithery API 密钥。"));
+  const [skills, mcps] = await Promise.allSettled([skillsRequest, mcpsRequest]);
+  const capturedAt = new Date().toISOString();
+  const snapshot: ExtensionSnapshot = {
+    capturedAt,
+    skills: skills.status === "fulfilled"
+      ? { capturedAt, selected: skills.value.selected, totals: skills.value.totals }
+      : null,
+    mcps: mcps.status === "fulfilled"
+      ? { capturedAt, selected: mcps.value.selected, totals: mcps.value.totals }
+      : null,
+  };
+
+  if (snapshot.skills || snapshot.mcps) {
+    await persistSicExtensionSnapshot({
+      capturedAt,
+      skills: snapshot.skills
+        ? { selected: snapshot.skills.selected, totals: snapshot.skills.totals }
+        : undefined,
+      mcps: snapshot.mcps
+        ? { selected: snapshot.mcps.selected, totals: snapshot.mcps.totals }
+        : undefined,
+    });
+  }
+  return {
+    capturedAt,
+    skills: snapshot.skills?.selected.length ?? 0,
+    mcps: snapshot.mcps?.selected.length ?? 0,
+    errors: {
+      skills: skills.status === "rejected"
+        ? skills.reason instanceof Error ? skills.reason.message : "Skill 榜单失败。"
+        : null,
+      mcps: mcps.status === "rejected"
+        ? mcps.reason instanceof Error ? mcps.reason.message : "MCP 榜单失败。"
+        : null,
+    },
+  };
 }

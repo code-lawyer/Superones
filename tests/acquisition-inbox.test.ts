@@ -149,3 +149,54 @@ test("rejects stale timestamps", async (context) => {
     (error) => error instanceof AcquisitionReceiveError && error.code === "STALE_TIMESTAMP",
   );
 });
+
+test("claims, fails, retries, and completes a durable batch", async (context) => {
+  const { root, receiver } = await fixture();
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await receiver.receive(submission());
+
+  const first = await receiver.claimNext();
+  assert.equal(first?.batch.batchId, batch().batchId);
+  assert.equal(first?.attempt, 1);
+  assert.deepEqual(await receiver.stats(), {
+    pending: 0,
+    processing: 1,
+    succeeded: 0,
+    failed: 0,
+  });
+
+  await receiver.fail(batch().batchId, new Error("temporary model failure"));
+  const retry = await receiver.claimNext();
+  assert.equal(retry?.attempt, 2);
+  await receiver.complete(batch().batchId);
+  assert.equal(await receiver.claimNext(), null);
+  assert.deepEqual(await receiver.stats(), {
+    pending: 0,
+    processing: 0,
+    succeeded: 1,
+    failed: 0,
+  });
+});
+
+test("recovers an expired processing lease after restart", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-lease-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  let current = new Date("2026-07-24T01:00:00.000Z");
+  const firstReceiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => current,
+    processingLeaseMs: 60_000,
+  });
+  await firstReceiver.receive(submission());
+  assert.equal((await firstReceiver.claimNext())?.attempt, 1);
+
+  current = new Date("2026-07-24T01:01:01.000Z");
+  const restarted = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => current,
+    processingLeaseMs: 60_000,
+  });
+  assert.equal((await restarted.claimNext())?.attempt, 2);
+});

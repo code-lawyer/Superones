@@ -128,8 +128,8 @@
       "name": "OpenAI Release Notes",
       "publisher": "OpenAI",
       "kind": "official_dated_index",
-      "homeUrl": "https://openai.com/products/release-notes/",
-      "endpoint": "https://openai.com/products/release-notes/",
+      "homeUrl": "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
+      "endpoint": "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
       "admissionRule": "仅接入该页面明确按日期发布的全部版本条目。",
       "rationale": "把正式模型、产品与平台能力变化作为档案事件，而不把整站文档改动误作更新。"
     },
@@ -140,11 +140,8 @@
       "name": "Anthropic Release Notes",
       "publisher": "Anthropic",
       "kind": "official_dated_index",
-      "homeUrl": "https://docs.anthropic.com/en/release-notes/overview",
-      "endpoint": "https://docs.anthropic.com/en/release-notes/overview",
-      "allowedRedirectOrigins": [
-        "https://platform.claude.com"
-      ],
+      "homeUrl": "https://platform.claude.com/docs/en/release-notes/overview",
+      "endpoint": "https://platform.claude.com/docs/en/release-notes/overview",
       "admissionRule": "仅接入该页面明确按日期发布的全部版本条目。",
       "rationale": "直接呈现 Claude、API、工具调用与开发平台的正式能力变更。"
     },
@@ -167,8 +164,8 @@
       "name": "Azure AI Foundry What's New",
       "publisher": "Microsoft",
       "kind": "official_dated_index",
-      "homeUrl": "https://learn.microsoft.com/en-us/azure/ai-foundry/whats-new",
-      "endpoint": "https://learn.microsoft.com/en-us/azure/ai-foundry/whats-new",
+      "homeUrl": "https://learn.microsoft.com/en-us/azure/foundry/whats-new-foundry",
+      "endpoint": "https://learn.microsoft.com/en-us/azure/foundry/whats-new-foundry",
       "admissionRule": "仅接入该页面明确按日期发布的全部版本条目。",
       "rationale": "补齐模型平台、企业 AI 工程和部署能力的官方变更记录。"
     },

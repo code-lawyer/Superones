@@ -1,4 +1,4 @@
-name: Collect public content
+name: Collect and deliver all public sources
 
 on:
   workflow_dispatch:
@@ -8,11 +8,12 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,55 +29,27 @@ jobs:
           cache: pip
       - run: pip install -r collector/requirements.txt
       - run: python -m unittest discover -s collector/tests -p "test_*.py"
-      - run: python -m collector.horizon_raw_export
+      - id: google_auth
+        name: Authenticate to Google Cloud for GH Archive
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          access_token_lifetime: 3600s
+          workload_identity_provider: ${{ secrets.VAULT2077_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.VAULT2077_GCP_SERVICE_ACCOUNT }}
+      - name: Collect every registered source and deliver unified batches
+        run: npm run acquisition:collect
         env:
           GITHUB_TOKEN: ${{ secrets.VAULT2077_GITHUB_READ_TOKEN || github.token }}
-          VAULT2077_SOURCE_BUNDLE_FILE: config/source-bundle.json
           VAULT2077_COLLECTOR_OUTPUT_DIR: .collector-output
-          VAULT2077_DOMESTIC_INGEST_URL: ${{ secrets.VAULT2077_DOMESTIC_INGEST_URL }}
-          VAULT2077_DOMESTIC_PROCESS_URL: ${{ secrets.VAULT2077_DOMESTIC_PROCESS_URL }}
+          VAULT2077_DOMESTIC_ACQUISITION_URL: ${{ secrets.VAULT2077_DOMESTIC_ACQUISITION_URL }}
+          VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL: ${{ secrets.VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL }}
           VAULT2077_PIPELINE_SHARED_SECRET: ${{ secrets.VAULT2077_PIPELINE_SHARED_SECRET }}
-      - name: Capture official SiC model snapshots
-        id: sic_snapshot
-        continue-on-error: true
-        env:
-          VAULT2077_SIC_SNAPSHOT_URL: ${{ secrets.VAULT2077_SIC_SNAPSHOT_URL }}
-          VAULT2077_SIC_COLLECTOR_SECRET: ${{ secrets.VAULT2077_SIC_COLLECTOR_SECRET }}
-        run: |
-          if [ -z "$VAULT2077_SIC_SNAPSHOT_URL" ] || [ -z "$VAULT2077_SIC_COLLECTOR_SECRET" ]; then
-            echo "SiC snapshot endpoint is not configured; skipping."
-            exit 0
-          fi
-          response=$(curl --fail-with-body --silent --show-error --request POST \
-            --header "Authorization: Bearer $VAULT2077_SIC_COLLECTOR_SECRET" \
-            "$VAULT2077_SIC_SNAPSHOT_URL")
-          echo "$response"
-          if [ "$(echo "$response" | jq -r '.ok')" != "true" ]; then
-            echo "SiC snapshot collection completed with partial failures."
-            exit 1
-          fi
-      - name: Collect approved SiC fixed sources
-        id: sic_content
-        continue-on-error: true
-        env:
-          VAULT2077_SIC_CONTENT_URL: ${{ secrets.VAULT2077_SIC_CONTENT_URL }}
-          VAULT2077_SIC_COLLECTOR_SECRET: ${{ secrets.VAULT2077_SIC_COLLECTOR_SECRET }}
-        run: |
-          if [ -z "$VAULT2077_SIC_CONTENT_URL" ] || [ -z "$VAULT2077_SIC_COLLECTOR_SECRET" ]; then
-            echo "SiC content endpoint is not configured; skipping."
-            exit 0
-          fi
-          node --conditions=react-server --experimental-strip-types scripts/collect-sic-overseas.ts .collector-output/sic-content.json
-          response=$(curl --fail-with-body --silent --show-error --request POST \
-            --header "Authorization: Bearer $VAULT2077_SIC_COLLECTOR_SECRET" \
-            --header "Content-Type: application/json" \
-            --data-binary @.collector-output/sic-content.json \
-            "$VAULT2077_SIC_CONTENT_URL")
-          echo "$response"
-          if [ "$(echo "$response" | jq -r '.ok')" != "true" ]; then
-            echo "SiC fixed-source collection completed with partial failures."
-            exit 1
-          fi
+          VAULT2077_PIPELINE_WORKER_SECRET: ${{ secrets.VAULT2077_PIPELINE_WORKER_SECRET }}
+          VAULT2077_REQUIRE_DOMESTIC_DELIVERY: "true"
+          VAULT2077_SMITHERY_API_KEY: ${{ secrets.VAULT2077_SMITHERY_API_KEY }}
+          VAULT2077_GHARCHIVE_BIGQUERY_PROJECT: ${{ secrets.VAULT2077_GHARCHIVE_BIGQUERY_PROJECT }}
+          VAULT2077_GHARCHIVE_BIGQUERY_ACCESS_TOKEN: ${{ steps.google_auth.outputs.access_token }}
       - name: Preserve packets and collection report
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,8 +58,3 @@ jobs:
           path: .collector-output
           if-no-files-found: warn
           retention-days: 14
-      - name: Report SiC partial failures
-        if: always() && (steps.sic_snapshot.outcome == 'failure' || steps.sic_content.outcome == 'failure')
-        run: |
-          echo "One or more SiC collectors reported a partial failure. Inspect the responses and artifact."
-          exit 1

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { link, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AcquisitionContractError,
@@ -33,6 +33,15 @@ export type AcquisitionReceipt = {
   kinds: Partial<Record<AcquisitionRecordKind, number>>;
 };
 
+export type AcquisitionWorkItem = {
+  batch: AcquisitionBatch;
+  payloadHash: string;
+  rawPayload: string;
+  attempt: number;
+};
+
+export type AcquisitionInboxStats = Record<AcquisitionInboxStatus, number>;
+
 type AcquisitionInboxRecord = {
   version: 1;
   batchId: string;
@@ -46,6 +55,9 @@ type AcquisitionInboxRecord = {
   recordCount: number;
   sourceCount: number;
   kinds: Partial<Record<AcquisitionRecordKind, number>>;
+  processingStartedAt?: string;
+  completedAt?: string;
+  lastError?: string;
   rawPayload: string;
 };
 
@@ -66,9 +78,11 @@ export type AcquisitionReceiverOptions = {
   sharedSecret: string;
   now?: () => Date;
   maxClockSkewMs?: number;
+  processingLeaseMs?: number;
 };
 
 const DEFAULT_CLOCK_SKEW_MS = 5 * 60 * 1000;
+const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
 
 function persistedPath(inboxDirectory: string, batchId: string) {
   const filename = `${createHash("sha256").update(batchId).digest("hex")}.json`;
@@ -163,6 +177,20 @@ async function persistNew(target: string, record: AcquisitionInboxRecord) {
   }
 }
 
+async function replacePersisted(target: string, record: AcquisitionInboxRecord) {
+  const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(record)}\n`, { encoding: "utf8", flag: "wx" });
+  await rename(temporary, target);
+}
+
+function cleanError(value: unknown) {
+  return (value instanceof Error ? value.message : String(value))
+    .replace(/[\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
 export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
   if (!path.isAbsolute(options.inboxDirectory)) {
     throw new Error("acquisition inboxDirectory 必须是绝对路径。");
@@ -172,6 +200,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
   }
   const clock = options.now ?? (() => new Date());
   const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
+  const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
   let queue: Promise<unknown> = Promise.resolve();
 
   function serialized<T>(operation: () => Promise<T>) {
@@ -246,7 +275,85 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
     });
   }
 
-  return { receive };
+  async function records() {
+    await mkdir(options.inboxDirectory, { recursive: true });
+    return Promise.all((await readdir(options.inboxDirectory, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+      .map(async (entry) => ({
+        target: path.join(options.inboxDirectory, entry.name),
+        record: await readPersisted(path.join(options.inboxDirectory, entry.name)),
+      })));
+  }
+
+  function claimNext(excludedBatchIds: ReadonlySet<string> = new Set()): Promise<AcquisitionWorkItem | null> {
+    return serialized(async () => {
+      const now = clock();
+      const available = await records();
+      available.sort((left, right) => Date.parse(left.record.receivedAt) - Date.parse(right.record.receivedAt));
+      const eligible = available.filter(({ record }) => !excludedBatchIds.has(record.batchId));
+      const candidate = eligible.find(({ record }) => record.status === "pending")
+        ?? eligible.find(({ record }) => record.status === "failed")
+        ?? available.find(({ record }) => record.status === "processing"
+          && !excludedBatchIds.has(record.batchId)
+          && Date.parse(record.processingStartedAt ?? record.updatedAt) < now.getTime() - processingLeaseMs);
+      if (!candidate) return null;
+      const claimed: AcquisitionInboxRecord = {
+        ...candidate.record,
+        status: "processing",
+        attempts: candidate.record.attempts + 1,
+        processingStartedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        lastError: undefined,
+      };
+      await replacePersisted(candidate.target, claimed);
+      return {
+        batch: validateAcquisitionBatch(JSON.parse(claimed.rawPayload) as unknown),
+        payloadHash: claimed.payloadHash,
+        rawPayload: claimed.rawPayload,
+        attempt: claimed.attempts,
+      };
+    });
+  }
+
+  function complete(batchId: string) {
+    return serialized(async () => {
+      const target = persistedPath(options.inboxDirectory, batchId);
+      const record = await readPersisted(target);
+      if (record.status !== "processing") throw new Error(`批次 ${batchId} 当前不可完成。`);
+      const now = clock().toISOString();
+      await replacePersisted(target, {
+        ...record,
+        status: "succeeded",
+        updatedAt: now,
+        completedAt: now,
+        lastError: undefined,
+      });
+    });
+  }
+
+  function fail(batchId: string, error: unknown) {
+    return serialized(async () => {
+      const target = persistedPath(options.inboxDirectory, batchId);
+      const record = await readPersisted(target);
+      if (record.status !== "processing") throw new Error(`批次 ${batchId} 当前不可标记失败。`);
+      await replacePersisted(target, {
+        ...record,
+        status: "failed",
+        updatedAt: clock().toISOString(),
+        lastError: cleanError(error),
+      });
+    });
+  }
+
+  async function stats(): Promise<AcquisitionInboxStats> {
+    const available = await records();
+    return Object.fromEntries(
+      (["pending", "processing", "succeeded", "failed"] as const)
+        .map((status) => [status, available.filter(({ record }) => record.status === status).length]),
+    ) as AcquisitionInboxStats;
+  }
+
+  return { receive, claimNext, complete, fail, stats };
 }
 
 let configuredReceiver: ReturnType<typeof createAcquisitionReceiver> | undefined;

@@ -27,6 +27,10 @@ type SicEditorial = {
   contentSummary: string;
 };
 
+export type SicRawContentItem = SicContentItem & {
+  sourceMaterial?: string;
+};
+
 function text(value: unknown, limit: number) {
   return String(value ?? "")
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -91,7 +95,12 @@ function editorialItems(value: unknown, expectedIds: Set<string>) {
   });
 }
 
-async function enrichLatestItems(items: SicContentItem[], fetcher: Fetcher, sources: SicSource[]) {
+async function enrichItems(
+  items: SicRawContentItem[],
+  fetcher: Fetcher,
+  sources: SicSource[],
+  options: { requireCompleteEditorial?: boolean } = {},
+) {
   const stored = await getSicStoredContent();
   const previousById = new Map(stored.items.map((item) => [item.id, item]));
   const retained = items.map((item) => {
@@ -103,13 +112,14 @@ async function enrichLatestItems(items: SicContentItem[], fetcher: Fetcher, sour
       contentSummary: item.contentSummary ?? previous?.contentSummary,
     };
   });
-  const latest = latestItemsBySource(retained).filter((item) => !item.translatedTitle || !item.description || !item.contentSummary);
-  if (latest.length === 0) return retained;
+  const pending = retained.filter((item) => !item.translatedTitle || !item.description || !item.contentSummary);
+  if (pending.length === 0) return retained;
 
   let client: ReturnType<typeof createOpenAICompatibleClient>;
   try {
     client = createOpenAICompatibleClient(loadOpenAICompatibleConfig());
-  } catch {
+  } catch (error) {
+    if (options.requireCompleteEditorial) throw error;
     return retained;
   }
 
@@ -117,9 +127,13 @@ async function enrichLatestItems(items: SicContentItem[], fetcher: Fetcher, sour
   const materialById = new Map<string, string>();
   let nextMaterial = 0;
   const materialWorker = async () => {
-    while (nextMaterial < latest.length) {
-      const item = latest[nextMaterial];
+    while (nextMaterial < pending.length) {
+      const item = pending[nextMaterial];
       nextMaterial += 1;
+      if (item.sourceMaterial) {
+        materialById.set(item.id, text(item.sourceMaterial, 12_000));
+        continue;
+      }
       const source = sourceById.get(item.sourceId);
       if (!source) continue;
       try {
@@ -130,11 +144,11 @@ async function enrichLatestItems(items: SicContentItem[], fetcher: Fetcher, sour
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(4, latest.length) }, materialWorker));
+  await Promise.all(Array.from({ length: Math.min(4, pending.length) }, materialWorker));
 
   const editorialById = new Map<string, SicEditorial>();
-  for (let start = 0; start < latest.length; start += 6) {
-    const batch = latest.slice(start, start + 6);
+  for (let start = 0; start < pending.length; start += 6) {
+    const batch = pending.slice(start, start + 6);
     try {
       const result = await client.completeJson({
         task: "sic-latest-source-editorial",
@@ -155,9 +169,16 @@ async function enrichLatestItems(items: SicContentItem[], fetcher: Fetcher, sour
         })),
       });
       for (const editorial of editorialItems(result, new Set(batch.map((item) => item.id)))) editorialById.set(editorial.id, editorial);
-    } catch {
+    } catch (error) {
+      if (options.requireCompleteEditorial) {
+        throw new Error(`SiC 境内 LLM 未完成 ${batch.length} 条内容处理。`, { cause: error });
+      }
       // Editorial enrichment is optional at collection time; a later run can retry it.
     }
+  }
+  if (options.requireCompleteEditorial) {
+    const missing = pending.filter((item) => !editorialById.has(item.id));
+    if (missing.length > 0) throw new Error(`SiC 境内 LLM 缺少 ${missing.length} 条编辑结果。`);
   }
   return retained.map((item) => {
     const editorial = editorialById.get(item.id);
@@ -363,7 +384,7 @@ async function fetchText(fetcher: Fetcher, url: string, source: SicSource) {
   return payload;
 }
 
-async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: string): Promise<SicContentItem[]> {
+async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: string) {
   const payload = await fetchText(fetcher, source.endpoint, source);
   let candidates: Candidate[];
   if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
@@ -385,7 +406,7 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
   } else {
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
-  return dedupe(candidates).map((candidate) => ({
+  const items: SicRawContentItem[] = dedupe(candidates).map((candidate) => ({
     id: createHash("sha256").update(`${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
     group: source.group,
@@ -397,22 +418,61 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
     publishedAt: candidate.publishedAt ?? null,
     collectedAt,
   }));
+  let materialFailures = 0;
+  let nextItem = 0;
+  const materialWorker = async () => {
+    while (nextItem < items.length) {
+      const index = nextItem;
+      nextItem += 1;
+      const item = items[index];
+      try {
+        const material = item.url === source.endpoint
+          ? readablePageText(payload)
+          : readablePageText(await fetchText(fetcher, item.url, source));
+        item.sourceMaterial = material || item.summary;
+      } catch {
+        materialFailures += 1;
+        item.sourceMaterial = item.summary;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, items.length) }, materialWorker));
+  return { items, materialFailures };
 }
 
 export type SicRawCollection = {
   version: 1;
   collectedAt: string;
-  items: SicContentItem[];
+  items: SicRawContentItem[];
   reports: SicSourceCollectionReport[];
 };
 
-export async function collectSicRawContent(fetcher: Fetcher = fetch): Promise<SicRawCollection> {
+export async function collectSicRawContent(
+  fetcher: Fetcher = fetch,
+  options: { allowAllFailed?: boolean } = {},
+): Promise<SicRawCollection> {
   const collectedAt = new Date().toISOString();
   const sources = listApprovedSicSources();
   const collectOutcome = async (source: SicSource) => {
     try {
-      const sourceItems = await collectSource(source, fetcher, collectedAt);
-      return { items: sourceItems, report: { sourceId: source.id, status: sourceItems.length ? "success" : "empty", collectedAt, itemCount: sourceItems.length } satisfies SicSourceCollectionReport };
+      const outcome = await collectSource(source, fetcher, collectedAt);
+      const status = outcome.items.length === 0
+        ? "empty"
+        : outcome.materialFailures > 0
+          ? "partial"
+          : "success";
+      return {
+        items: outcome.items,
+        report: {
+          sourceId: source.id,
+          status,
+          collectedAt,
+          itemCount: outcome.items.length,
+          ...(outcome.materialFailures > 0
+            ? { error: `${outcome.materialFailures} 条原页材料获取失败，已保留来源摘要。` }
+            : {}),
+        } satisfies SicSourceCollectionReport,
+      };
     } catch (error) {
       return {
         items: [],
@@ -438,20 +498,25 @@ export async function collectSicRawContent(fetcher: Fetcher = fetch): Promise<Si
   await Promise.all(Array.from({ length: Math.min(SOURCE_CONCURRENCY, sources.length) }, worker));
   const items = outcomes.flatMap((outcome) => outcome.items);
   const reports = outcomes.map((outcome) => outcome.report);
-  if (reports.length > 0 && reports.every((report) => report.status === "failure")) {
+  if (!options.allowAllFailed && reports.length > 0 && reports.every((report) => report.status === "failure")) {
     throw new Error("所有 SiC 固定来源均暂时不可用。 ");
   }
   return { version: 1, collectedAt, items, reports };
 }
 
-function validateRawCollection(value: unknown): SicRawCollection {
+function validateRawCollection(value: unknown, options: {
+  enforceAge: boolean;
+  requireCompleteReports: boolean;
+}): SicRawCollection {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("SiC 境外采集包格式无效。");
   const packet = value as Partial<SicRawCollection>;
   if (packet.version !== 1 || !validDate(packet.collectedAt) || !Array.isArray(packet.items) || !Array.isArray(packet.reports)) {
     throw new Error("SiC 境外采集包格式无效。");
   }
   const collectedAt = validDate(packet.collectedAt) as string;
-  if (Math.abs(Date.now() - Date.parse(collectedAt)) > 48 * 60 * 60 * 1000) throw new Error("SiC 境外采集包已过期。");
+  if (options.enforceAge && Math.abs(Date.now() - Date.parse(collectedAt)) > 48 * 60 * 60 * 1000) {
+    throw new Error("SiC 境外采集包已过期。");
+  }
   if (packet.items.length > 2_000 || packet.reports.length > 200) throw new Error("SiC 境外采集包超过数量限制。");
   const sources = new Map(listApprovedSicSources().map((source) => [source.id, source]));
   const items = packet.items.flatMap((raw) => {
@@ -470,6 +535,7 @@ function validateRawCollection(value: unknown): SicRawCollection {
       publisher: source.publisher,
       title,
       summary: summary || source.rationale,
+      sourceMaterial: text(raw.sourceMaterial, 12_000) || undefined,
       url,
       publishedAt: validDate(raw.publishedAt),
       collectedAt,
@@ -479,7 +545,7 @@ function validateRawCollection(value: unknown): SicRawCollection {
     if (!raw || typeof raw !== "object") return [];
     const sourceId = text(raw.sourceId, 180);
     if (!sources.has(sourceId)) return [];
-    const status = ["success", "empty", "failure"].includes(raw.status) ? raw.status : "failure";
+    const status = ["success", "partial", "empty", "failure"].includes(raw.status) ? raw.status : "failure";
     return [[sourceId, {
       sourceId,
       status,
@@ -488,20 +554,35 @@ function validateRawCollection(value: unknown): SicRawCollection {
       ...(raw.error ? { error: text(raw.error, 240) } : {}),
     } satisfies SicSourceCollectionReport] as const];
   }));
-  const reports = [...sources.keys()].map((sourceId) => reportBySource.get(sourceId) ?? ({
-    sourceId,
-    status: "failure" as const,
-    collectedAt,
-    itemCount: 0,
-    error: "境外采集包缺少该来源报告。",
-  }));
+  const reports = options.requireCompleteReports
+    ? [...sources.keys()].map((sourceId) => reportBySource.get(sourceId) ?? ({
+      sourceId,
+      status: "failure" as const,
+      collectedAt,
+      itemCount: 0,
+      error: "境外采集包缺少该来源报告。",
+    }))
+    : [...reportBySource.values()];
   return { version: 1, collectedAt, items, reports };
 }
 
 export async function ingestSicRawContent(value: unknown, fetcher: Fetcher = fetch) {
-  const packet = validateRawCollection(value);
+  const packet = validateRawCollection(value, { enforceAge: true, requireCompleteReports: true });
   const sources = listApprovedSicSources();
-  const items = await enrichLatestItems(packet.items, fetcher, sources);
+  const enriched = await enrichItems(packet.items, fetcher, sources);
+  const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
+  return mergeSicStoredContent({
+    items,
+    reports: packet.reports,
+    updatedAt: packet.collectedAt,
+  });
+}
+
+export async function ingestSicAcquisitionContent(value: unknown, fetcher: Fetcher) {
+  const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
+  const sources = listApprovedSicSources();
+  const enriched = await enrichItems(packet.items, fetcher, sources, { requireCompleteEditorial: true });
+  const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
   return mergeSicStoredContent({
     items,
     reports: packet.reports,

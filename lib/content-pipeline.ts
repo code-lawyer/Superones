@@ -256,7 +256,11 @@ async function compileProjects(repositories: RepositoryEnvelope[], previous: Tre
 
 let processChain: Promise<unknown> = Promise.resolve();
 
-export function processInboundContent(value: unknown, bodyHash: string) {
+export function processInboundContent(
+  value: unknown,
+  bodyHash: string,
+  options: { requireNoQuarantine?: boolean } = {},
+) {
   const operation = processChain.then(async () => {
     const batch = validateContentBatch(value);
     const previous = await getStoredContent();
@@ -276,6 +280,9 @@ export function processInboundContent(value: unknown, bodyHash: string) {
     });
     const projectResult = await compileProjects(batch.repositories, previous.projects, batch.batchId, batch.generatedAt);
     const quarantine = [...compiled.quarantine, ...projectResult.quarantine];
+    if (options.requireNoQuarantine && quarantine.length > 0) {
+      throw new Error(`境内 LLM 未完成 ${quarantine.length} 条内容处理，批次保持可重试状态。`);
+    }
     const nextReceipt: BatchReceipt = {
       batchId: batch.batchId,
       payloadHash: bodyHash,

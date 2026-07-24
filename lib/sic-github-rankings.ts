@@ -5,7 +5,7 @@ import path from "node:path";
 import { fetchJsonBounded } from "./sic-fetch.ts";
 import type { SicBoard, SicBoardItem } from "./sic.ts";
 
-type GithubRankItem = {
+export type GithubRankItem = {
   owner: string;
   repo: string;
   stars: number;
@@ -20,7 +20,7 @@ type GithubBoardSnapshot = {
   items: GithubRankItem[];
 };
 
-type GithubRankingSnapshot = {
+export type GithubRankingSnapshot = {
   capturedAt: string;
   trending: GithubBoardSnapshot | null;
   daily: GithubBoardSnapshot | null;
@@ -363,6 +363,40 @@ function orderedItems(candidates: Candidate[], hydrated: Map<string, GithubRankI
   });
 }
 
+export async function persistGithubRankingSnapshot(snapshot: GithubRankingSnapshot) {
+  const capturedAt = new Date(snapshot.capturedAt).toISOString();
+  if (!snapshot.trending && !snapshot.daily && !snapshot.weekly) {
+    throw new Error("GitHub 榜单快照不能为空。");
+  }
+  const normalized: GithubRankingSnapshot = {
+    capturedAt,
+    trending: snapshot.trending ? { capturedAt, items: snapshot.trending.items } : null,
+    daily: snapshot.daily ? { capturedAt, items: snapshot.daily.items } : null,
+    weekly: snapshot.weekly ? { capturedAt, items: snapshot.weekly.items } : null,
+  };
+  const operation = writeChain.then(async () => {
+    const store = await readStore();
+    const day = capturedAt.slice(0, 10);
+    const existing = store.snapshots.find((item) => item.capturedAt.slice(0, 10) === day);
+    const merged: GithubRankingSnapshot = {
+      capturedAt,
+      trending: normalized.trending ?? existing?.trending ?? null,
+      daily: normalized.daily ?? existing?.daily ?? null,
+      weekly: normalized.weekly ?? existing?.weekly ?? null,
+    };
+    const history = store.snapshots.filter((item) => item.capturedAt.slice(0, 10) !== day);
+    await writeStore({ version: 2, snapshots: [...history, merged].slice(-31) });
+    return {
+      capturedAt,
+      trending: normalized.trending?.items.length ?? 0,
+      daily: normalized.daily?.items.length ?? 0,
+      weekly: normalized.weekly?.items.length ?? 0,
+    };
+  });
+  writeChain = operation.then(() => undefined, () => undefined);
+  return operation;
+}
+
 export async function refreshGithubRankingSnapshot() {
   const capturedAt = new Date().toISOString();
   const [trendingResult, dailyResult, weeklyResult] = await Promise.allSettled([
@@ -404,33 +438,19 @@ export async function refreshGithubRankingSnapshot() {
       : null,
   };
 
-  const operation = writeChain.then(async () => {
-    const store = await readStore();
-    const day = capturedAt.slice(0, 10);
-    const existing = store.snapshots.find((item) => item.capturedAt.slice(0, 10) === day);
-    const merged: GithubRankingSnapshot = {
-      capturedAt,
-      trending: snapshot.trending ?? existing?.trending ?? null,
-      daily: snapshot.daily ?? existing?.daily ?? null,
-      weekly: snapshot.weekly ?? existing?.weekly ?? null,
-    };
-    const history = store.snapshots.filter((item) => item.capturedAt.slice(0, 10) !== day);
-    await writeStore({ version: 2, snapshots: [...history, merged].slice(-31) });
-    return {
-      capturedAt,
-      trending: snapshot.trending
-        ? { count: snapshot.trending.items.length }
-        : { error: trendingResult.status === "rejected" && trendingResult.reason instanceof Error ? trendingResult.reason.message : "Trending 榜单失败。" },
-      daily: snapshot.daily
-        ? { count: snapshot.daily.items.length }
-        : { error: dailyResult.status === "rejected" && dailyResult.reason instanceof Error ? dailyResult.reason.message : "24H 榜单失败。" },
-      weekly: snapshot.weekly
-        ? { count: snapshot.weekly.items.length }
-        : { error: weeklyResult.status === "rejected" && weeklyResult.reason instanceof Error ? weeklyResult.reason.message : "7D 榜单失败。" },
-    };
-  });
-  writeChain = operation.then(() => undefined, () => undefined);
-  return operation;
+  await persistGithubRankingSnapshot(snapshot);
+  return {
+    capturedAt,
+    trending: snapshot.trending
+      ? { count: snapshot.trending.items.length }
+      : { error: trendingResult.status === "rejected" && trendingResult.reason instanceof Error ? trendingResult.reason.message : "Trending 榜单失败。" },
+    daily: snapshot.daily
+      ? { count: snapshot.daily.items.length }
+      : { error: dailyResult.status === "rejected" && dailyResult.reason instanceof Error ? dailyResult.reason.message : "24H 榜单失败。" },
+    weekly: snapshot.weekly
+      ? { count: snapshot.weekly.items.length }
+      : { error: weeklyResult.status === "rejected" && weeklyResult.reason instanceof Error ? weeklyResult.reason.message : "7D 榜单失败。" },
+  };
 }
 
 export const sicGithubRankingTestUtils = {

@@ -6,7 +6,7 @@ import { fetchJsonBounded } from "./sic-fetch.ts";
 import type { SicBoardItem } from "./sic.ts";
 
 export type HuggingFaceModelSnapshot = { id: string; name: string; downloadsAllTime: number };
-type OpenRouterModelSnapshot = { id: string; name: string };
+export type OpenRouterModelSnapshot = { id: string; name: string };
 type HuggingFaceProviderSnapshot = { capturedAt: string; models: HuggingFaceModelSnapshot[] };
 type OpenRouterProviderSnapshot = { capturedAt: string; models: OpenRouterModelSnapshot[] };
 
@@ -171,20 +171,22 @@ async function fetchOpenRouterSnapshot(capturedAt: string): Promise<OpenRouterPr
   return { capturedAt, models };
 }
 
-export async function refreshOfficialSicSnapshots() {
-  const capturedAt = new Date().toISOString();
-  const [huggingFace, openRouter] = await Promise.allSettled([
-    fetchHuggingFaceSnapshot(capturedAt),
-    fetchOpenRouterSnapshot(capturedAt),
-  ]);
-  if (huggingFace.status === "rejected" && openRouter.status === "rejected") {
-    throw new Error("Hugging Face 与 OpenRouter 上游均不可用。");
-  }
+export async function persistOfficialSicSnapshot(input: {
+  capturedAt: string;
+  huggingFace?: HuggingFaceModelSnapshot[];
+  openRouter?: OpenRouterModelSnapshot[];
+}) {
+  const capturedAt = new Date(input.capturedAt).toISOString();
   const snapshot: SicSnapshot = {
     capturedAt,
-    huggingFace: huggingFace.status === "fulfilled" ? huggingFace.value : null,
-    openRouter: openRouter.status === "fulfilled" ? openRouter.value : null,
+    huggingFace: input.huggingFace?.length
+      ? { capturedAt, models: input.huggingFace }
+      : null,
+    openRouter: input.openRouter?.length
+      ? { capturedAt, models: input.openRouter }
+      : null,
   };
+  if (!snapshot.huggingFace && !snapshot.openRouter) throw new Error("模型榜单快照不能为空。");
 
   const operation = writeChain.then(async () => {
     const current = await readStore();
@@ -199,14 +201,35 @@ export async function refreshOfficialSicSnapshots() {
     await writeStore({ version: 2, snapshots: [...history, merged].slice(-31) });
     return {
       capturedAt,
-      huggingFace: snapshot.huggingFace
-        ? { count: snapshot.huggingFace.models.length }
-        : { error: huggingFace.status === "rejected" && huggingFace.reason instanceof Error ? huggingFace.reason.message : "Hugging Face 快照失败。" },
-      openRouter: snapshot.openRouter
-        ? { count: snapshot.openRouter.models.length }
-        : { error: openRouter.status === "rejected" && openRouter.reason instanceof Error ? openRouter.reason.message : "OpenRouter 快照失败。" },
+      huggingFace: snapshot.huggingFace?.models.length ?? 0,
+      openRouter: snapshot.openRouter?.models.length ?? 0,
     };
   });
   writeChain = operation.then(() => undefined, () => undefined);
   return operation;
+}
+
+export async function refreshOfficialSicSnapshots() {
+  const capturedAt = new Date().toISOString();
+  const [huggingFace, openRouter] = await Promise.allSettled([
+    fetchHuggingFaceSnapshot(capturedAt),
+    fetchOpenRouterSnapshot(capturedAt),
+  ]);
+  if (huggingFace.status === "rejected" && openRouter.status === "rejected") {
+    throw new Error("Hugging Face 与 OpenRouter 上游均不可用。");
+  }
+  await persistOfficialSicSnapshot({
+    capturedAt,
+    huggingFace: huggingFace.status === "fulfilled" ? huggingFace.value.models : undefined,
+    openRouter: openRouter.status === "fulfilled" ? openRouter.value.models : undefined,
+  });
+  return {
+    capturedAt,
+    huggingFace: huggingFace.status === "fulfilled"
+      ? { count: huggingFace.value.models.length }
+      : { error: huggingFace.reason instanceof Error ? huggingFace.reason.message : "Hugging Face 快照失败。" },
+    openRouter: openRouter.status === "fulfilled"
+      ? { count: openRouter.value.models.length }
+      : { error: openRouter.reason instanceof Error ? openRouter.reason.message : "OpenRouter 快照失败。" },
+  };
 }

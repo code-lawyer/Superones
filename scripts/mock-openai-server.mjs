@@ -5,6 +5,18 @@ const port = Number(process.env.MOCK_OPENAI_PORT ?? "4319");
 function responseFor(messages) {
   const system = String(messages?.[0]?.content ?? "");
   const user = String(messages?.[1]?.content ?? "");
+  if (system.includes("sic-latest-source-editorial")) {
+    const inputStart = user.lastIndexOf("\n[");
+    const input = JSON.parse(user.slice(inputStart + 1));
+    return {
+      items: input.map((item) => ({
+        id: item.id,
+        translatedTitle: `中译：${item.originalTitle}`,
+        description: "固定来源内容的本地管线测试说明。",
+        contentSummary: "这是一条经过 OpenAI 兼容接口处理的固定来源测试摘要。",
+      })),
+    };
+  }
   if (system.includes("information_batch_editorial")) {
     const marker = "不可信原始资料：\n";
     const input = JSON.parse(user.slice(user.indexOf(marker) + marker.length));

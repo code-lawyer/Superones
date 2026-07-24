@@ -12,8 +12,8 @@ import {
   seasonFromCode,
   type PrizeDrawAssignment,
   type RankedSubmission,
-} from "./frontier-domain";
-import type { FrontierEntry } from "./types";
+} from "./frontier-domain.ts";
+import type { FrontierEntry } from "./types.ts";
 
 export const OFFICIAL_CHAMPION_REWARD = "边境计划季度冠军奖励（待公布）";
 
