@@ -1,6 +1,7 @@
 export { payloadHash, signingInput } from "./batch-signing.ts";
 
 export const ACQUISITION_BATCH_VERSION = 1 as const;
+export const MAX_ACQUISITION_BATCH_BYTES = 8_000_000;
 export const MAX_ACQUISITION_RECORDS = 500;
 export const MAX_ACQUISITION_SOURCE_REPORTS = 200;
 export const MAX_ACQUISITION_PAYLOAD_BYTES = 256 * 1024;

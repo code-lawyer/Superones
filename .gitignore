@@ -12,6 +12,7 @@ dev.out.log
 data/mvp-store.json
 data/content-store.json
 data/inbound-batches/
+data/acquisition-inbox/
 data/sic-content-store.json
 data/sic-snapshots.json
 data/sic-github-rankings.json

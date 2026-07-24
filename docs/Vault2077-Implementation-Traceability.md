@@ -97,9 +97,9 @@
 | 批次 v2 与重放保护 | 系统交付规格 §3/§4 | `content-contract.ts`, ingest route, raw batch store | 已实现并验证 | P0 | 契约测试与真实 HTTP E2E 覆盖错误签名、202 接收、持久化和发布；并发重放可继续加压测试 |
 | PostgreSQL/Redis/对象存储 | 系统交付规格 §7 | 本地文件 | 未实现 | P0 | 生产适配器集成测试 |
 | 队列、隔离与失败重试 | 系统交付规格 §2.3/§8 | `inbound-batch-store.ts`、`content-worker.ts`、process route | 已实现并验证（单实例文件适配器） | P0 | Ingest 返回 202；Worker 租约、失败保留、重试、新任务优先和逐记录隔离已有测试 |
-| 统一无状态境外采集器 | ADR-0003/0004 | 当前 Python Vault collector、Node SiC collector、`lib/acquisition-contract.ts` v1 契约和多个兼容入口 | 部分实现 | P0 | 实现统一 HMAC 接收与持久化 adapter，提取单一 collector 仓库和小时工作流，补齐全类型状态追踪；迁移后删除境内主动抓取 |
+| 统一无状态境外采集器 | ADR-0003/0004 | 当前 Python Vault collector、Node SiC collector、`AcquisitionBatch` v1、统一 HMAC 接收路由、单实例持久化收件箱和多个兼容入口 | 部分实现 | P0 | 实现统一 Worker、注册表修订白名单与兼容 adapter，提取单一 collector 仓库和小时工作流，补齐全类型状态追踪；迁移后删除境内主动抓取 |
 | 监控、备份和恢复 | 系统交付规格 §11 | 无 | 未实现 | P0 | 告警和恢复演练 |
-| 自动化测试套件 | 系统交付规格 §13 | Node/Python 单测、typecheck、production build、HTTP E2E | 已实现待持续扩展 | P0 | 当前 47 项 Node 测试、collector 测试、类型检查、文档检查与生产构建通过；SiC 存储/API 级集成测试仍需扩展 |
+| 自动化测试套件 | 系统交付规格 §13 | Node/Python 单测、typecheck、production build、HTTP E2E | 已实现待持续扩展 | P0 | 当前 58 项 Node 测试、collector 测试、类型检查、文档检查、生产构建和统一入口 HTTP E2E 通过；SiC 存储/API 级集成测试仍需扩展 |
 
 ## 8. 当前实施顺序
 

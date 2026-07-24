@@ -26,7 +26,7 @@
 
 `AcquisitionBatch` 的公共字段至少包含 `schemaVersion`、`batchId`、`runId`、`registryRevision`、采集窗口、`collectedAt`、`records` 和 `sourceReports`。每条记录包含稳定 `kind`、`sourceId`、外部身份、规范 URL、`observedAt`、内容哈希和版本化 payload；记录类型可以扩展，认证、大小限制、幂等、状态报告和错误语义不得分叉。排名数值必须保留可复算原始观测，LLM 不得修改数值或排序。
 
-统一批次 v1 契约及来源计数一致性校验位于 `lib/acquisition-contract.ts`，旧内容入口与新入口共享 `lib/batch-signing.ts` 的签名输入规则。该契约先作为迁移窄腰落地；在统一接收路由、持久化与兼容 adapter 完成前，不替换现有生产入口。
+统一批次 v1 契约及来源计数一致性校验位于 `lib/acquisition-contract.ts`，旧内容入口与新入口共享 `lib/batch-signing.ts` 的签名输入规则。统一接收路由与单实例文件收件箱已作为迁移窄腰落地；在 Worker、注册表修订白名单和兼容 adapter 完成前，不替换现有生产入口。
 
 生产连接器只允许 RSS、Atom、JSON Feed、文档化 HTTP API、远程结构化协议或逐源批准的机器可读入口。SiC 可使用逐源批准的 sitemap、日期化版本页、官方课程目录和官方节目索引，并使用有界、来源专属的静态解析规则；不允许泛站扫描或 CSS/DOM 易碎选择器扩散到未批准路径。统一采集模块禁止 Playwright、Selenium、无头浏览器、Cookies 会话复刻和页面点击模拟。MCP 只有在提供无状态远程传输、稳定结构化输出且确实优于直接 API 时才接入。
 
@@ -35,6 +35,8 @@
 ### 2.3 Ingest Gateway
 
 生产目标由单一 `POST /api/internal/acquisition` 接收统一 HMAC 签名批次，完成认证、大小限制、Schema 校验、注册表修订校验、重放保护、原始对象落盘和处理任务登记，随即返回批次 ID、各记录类型数量与接受状态。它不在 HTTP 请求中调用 LLM、不生成事件、不计算排名，也不直接修改公开读模型；境内 Worker 异步领取已持久化任务。
+
+当前迁移实现已经完成 8 MB 有界读取、五分钟时间窗、HMAC、Schema、来源计数对账、同 ID 异文冲突、并发无覆盖持久化与重启后重复识别。原始批次写入 `VAULT2077_DATA_DIR/acquisition-inbox`；该文件 adapter 仅允许境内单写实例。Worker 领取、注册表修订白名单、PostgreSQL adapter 和旧协议转换仍是后续批次，尚未接入生产 Actions。
 
 现有 `/api/internal/content`、`/api/internal/sic/content` 和 `/api/internal/sic/snapshot` 是迁移期兼容入口。兼容入口必须尽快转换为同一内部批次与状态机，完成调用方迁移后删除；不得把兼容入口继续发展成独立队列、认证或监控体系。
 

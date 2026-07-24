@@ -11,6 +11,7 @@
     "docs:check": "node scripts/check-docs.mjs",
     "test": "node --test --conditions=react-server --experimental-strip-types tests/*.test.ts",
     "test:pipeline:e2e": "npm run build && node scripts/run-content-pipeline-e2e.mjs",
+    "test:acquisition:e2e": "npm run build && node scripts/run-acquisition-inbox-e2e.mjs",
     "content:validate-packets": "node --experimental-strip-types scripts/validate-content-packets.ts",
     "dev:check": "node scripts/check-dev-server.mjs",
     "sources:extract": "node scripts/build-source-registry.mjs",

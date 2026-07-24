@@ -144,6 +144,8 @@ SiC 内容编辑复用同一组 LLM 变量，但不进入 Vault 信息流 Worker
 
 ## 4. 接口契约
 
+统一迁移入口 `POST /api/internal/acquisition` 已可接收 `AcquisitionBatch` v1。它复用下述 HMAC 请求头与签名输入，限制原始正文不超过 8 MB，验签和 Schema 通过后把不可变正文写入 `VAULT2077_DATA_DIR/acquisition-inbox` 并返回 `202`。同 ID、同正文重投返回重复状态；同 ID、不同正文返回 `409`。该入口目前尚未连接 Worker 或 GitHub Actions，不能替代以下兼容入口；部署时仍须保持单写实例。
+
 境外发送：
 
 - `X-Vault2077-Batch-Id`
@@ -251,6 +253,7 @@ npm.cmd test
 npm.cmd run typecheck
 npm.cmd run build
 npm.cmd run test:pipeline:e2e
+npm.cmd run test:acquisition:e2e
 python -m unittest discover -s collector/tests -p "test_*.py"
 git submodule update --init --recursive
 python -m collector.horizon_raw_export
@@ -259,6 +262,8 @@ npm.cmd run content:validate-packets -- .collector-output
 ```
 
 `test:pipeline:e2e` 会在随机本地端口启动生产构建和模拟 OpenAI 兼容服务，验证错误签名返回 `401`、正确包返回 `202`、Worker 完成事件沉淀，以及 `/feed` 公开发布。它使用临时目录并在结束后清理。
+
+`test:acquisition:e2e` 会启动生产构建，向统一入口发送真实 HMAC 请求，验证首次 `202`、同正文重复识别、同 ID 异文 `409` 和原始签名正文落盘。该演练同样使用临时目录并自动清理。
 
 ## 7. 来源变更
 

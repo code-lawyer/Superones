@@ -21,6 +21,7 @@ npm.cmd run typecheck
 npm.cmd run docs:check
 npm.cmd test
 npm.cmd run test:pipeline:e2e
+npm.cmd run test:acquisition:e2e
 ```
 
 ## 主要内容
