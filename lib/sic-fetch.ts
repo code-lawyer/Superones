@@ -4,6 +4,8 @@ type BoundedFetchOptions = {
   timeoutMs?: number;
   maxBytes?: number;
   fetcher?: (input: string, init?: RequestInit) => Promise<Response>;
+  attempts?: number;
+  retryDelayMs?: number;
 };
 
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -68,46 +70,60 @@ export async function fetchTextBounded(
   init: RequestInit = {},
   options: BoundedFetchOptions = {},
 ) {
-  const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
+  const attempts = Math.max(1, Math.min(3, options.attempts ?? 2));
+  const retryableStatuses = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
-      response = await (options.fetcher ?? fetch)(url, {
-        ...init,
-        signal: controller.signal,
-        cache: init.cache ?? "no-store",
-      });
-    } catch (error) {
-      const cause = error && typeof error === "object" && "cause" in error
-        ? error.cause
-        : undefined;
-      const code = cause && typeof cause === "object" && "code" in cause
-        ? String(cause.code)
-        : "";
-      const detail = cause instanceof Error
-        ? cause.message
-        : error instanceof Error
-          ? error.message
-          : String(error);
-      const host = new URL(url).hostname;
-      if (controller.signal.aborted) {
-        throw new Error(`${host} 请求在 ${timeoutMs}ms 后超时。`, { cause: error });
+      try {
+        response = await (options.fetcher ?? fetch)(url, {
+          ...init,
+          signal: controller.signal,
+          cache: init.cache ?? "no-store",
+        });
+      } catch (error) {
+        if (attempt + 1 < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? 200));
+          continue;
+        }
+        const cause = error && typeof error === "object" && "cause" in error
+          ? error.cause
+          : undefined;
+        const code = cause && typeof cause === "object" && "code" in cause
+          ? String(cause.code)
+          : "";
+        const detail = cause instanceof Error
+          ? cause.message
+          : error instanceof Error
+            ? error.message
+            : String(error);
+        const host = new URL(url).hostname;
+        if (controller.signal.aborted) {
+          throw new Error(`${host} 请求在 ${timeoutMs}ms 后超时。`, { cause: error });
+        }
+        throw new Error(
+          `${host} 网络请求失败${code ? `（${code}）` : ""}：${detail.slice(0, 240)}`,
+          { cause: error },
+        );
       }
-      throw new Error(
-        `${host} 网络请求失败${code ? `（${code}）` : ""}：${detail.slice(0, 240)}`,
-        { cause: error },
-      );
+      if (!response.ok && retryableStatuses.has(response.status) && attempt + 1 < attempts) {
+        await response.body?.cancel();
+        await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? 200));
+        continue;
+      }
+      if (!response.ok) throw new Error(`${new URL(url).hostname} 返回 HTTP ${response.status}。`);
+      return {
+        response,
+        text: await readBoundedBody(response, options.maxBytes ?? DEFAULT_MAX_BYTES),
+      };
+    } finally {
+      clearTimeout(timeout);
     }
-    if (!response.ok) throw new Error(`${new URL(url).hostname} 返回 HTTP ${response.status}。`);
-    return {
-      response,
-      text: await readBoundedBody(response, options.maxBytes ?? DEFAULT_MAX_BYTES),
-    };
-  } finally {
-    clearTimeout(timeout);
   }
+  throw new Error(`${new URL(url).hostname} 请求未完成。`);
 }
 
 export async function fetchJsonBounded<T>(

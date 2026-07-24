@@ -124,7 +124,8 @@
     {
       "id": "openai-release-notes",
       "group": "archive",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "The official Help Center page blocks unattended GitHub Actions collection and has no stable machine-readable release-notes endpoint; OpenAI News remains active.",
       "name": "OpenAI Release Notes",
       "publisher": "OpenAI",
       "kind": "official_dated_index",
@@ -272,8 +273,8 @@
       "name": "Dwarkesh Podcast",
       "publisher": "Dwarkesh Patel",
       "kind": "hosted_podcast",
-      "homeUrl": "https://www.dwarkesh.com/about",
-      "endpoint": "https://api.substack.com/feed/podcast/69345.rss",
+      "homeUrl": "https://www.dwarkesh.com",
+      "endpoint": "https://www.dwarkesh.com/feed",
       "admissionRule": "完整接入该节目官方 RSS 的全部新一期节目。",
       "rationale": "主理人以长时、深度访谈持续连接前沿 AI、芯片、科学与技术产业的重要研究者和建设者。"
     },

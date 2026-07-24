@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const registry = JSON.parse(readFileSync(new URL("../config/sic-source-registry.json", import.meta.url), "utf8")) as { version: number; sources: unknown[] };
 
 export const SIC_SOURCE_GROUPS = ["papers", "archive", "courses", "podcasts"] as const;
-export const SIC_SOURCE_STATUSES = ["pending_review", "approved", "paused", "rejected"] as const;
+export const SIC_SOURCE_STATUSES = ["pending_review", "approved", "paused", "retired", "rejected"] as const;
 
 export type SicSourceGroup = (typeof SIC_SOURCE_GROUPS)[number];
 export type SicSourceStatus = (typeof SIC_SOURCE_STATUSES)[number];
@@ -14,6 +14,7 @@ export type SicSource = {
   id: string;
   group: SicSourceGroup;
   status: SicSourceStatus;
+  statusReason?: string;
   name: string;
   publisher: string;
   kind:
@@ -37,6 +38,7 @@ export type SicSource = {
 function assertSource(source: SicSource) {
   if (!SIC_SOURCE_GROUPS.includes(source.group)) throw new Error(`SiC 来源 ${source.id} 的内容组无效。`);
   if (!SIC_SOURCE_STATUSES.includes(source.status)) throw new Error(`SiC 来源 ${source.id} 的审批状态无效。`);
+  if (source.status === "retired" && !source.statusReason?.trim()) throw new Error(`SiC 来源 ${source.id} 缺少退役原因。`);
   for (const field of [source.id, source.name, source.publisher, source.homeUrl, source.endpoint, source.admissionRule, source.rationale]) {
     if (!field.trim()) throw new Error("SiC 来源缺少必填字段。");
   }

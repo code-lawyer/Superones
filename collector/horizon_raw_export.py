@@ -73,13 +73,23 @@ class RecordingHttpClient:
         self.error: str | None = None
 
     async def get(self, *args, **kwargs):
-        try:
-            response = await self._client.get(*args, **kwargs)
-        except httpx.HTTPError as error:
-            self.error = f"{type(error).__name__}: {error}"
-            raise
-        self.statuses.append(response.status_code)
-        return response
+        retryable_statuses = {403, 408, 425, 429, 500, 502, 503, 504}
+        for attempt in range(3):
+            try:
+                response = await self._client.get(*args, **kwargs)
+            except httpx.HTTPError as error:
+                if attempt < 2:
+                    await asyncio.sleep(0.25 * (2 ** attempt))
+                    continue
+                self.error = f"{type(error).__name__}: {error}"
+                raise
+            if response.status_code not in retryable_statuses or attempt == 2:
+                self.statuses.append(response.status_code)
+                return response
+            await response.aread()
+            await response.aclose()
+            await asyncio.sleep(0.25 * (2 ** attempt))
+        raise RuntimeError("unreachable retry state")
 
 
 def repair_utf8_mojibake(value: str | None) -> str:

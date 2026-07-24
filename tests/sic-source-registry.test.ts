@@ -9,7 +9,9 @@ test("SiC source registry contains the approved fixed source catalog", () => {
   assert.equal(sources.filter((source) => source.group === "archive").length, 12);
   assert.equal(sources.filter((source) => source.group === "courses").length, 8);
   assert.equal(sources.filter((source) => source.group === "podcasts").length, 5);
-  assert.equal(listApprovedSicSources().length, sources.length);
+  assert.equal(listApprovedSicSources().length, 26);
+  assert.equal(sources.filter((source) => source.status === "retired").length, 1);
+  assert.ok(sources.find((source) => source.id === "openai-release-notes")?.statusReason);
   assert.ok(sources.every((source) => source.rationale.length > 0));
   assert.ok(sources.every((source) => source.endpoint.startsWith("https://")));
 });

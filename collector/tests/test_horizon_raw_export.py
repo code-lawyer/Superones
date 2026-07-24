@@ -89,6 +89,48 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(outcome.status, "failure")
         self.assertIn("HTTP 503", outcome.error)
 
+    async def test_horizon_rss_retries_a_transient_upstream_failure(self):
+        source = {
+            "id": "source-rss-retry",
+            "name": "Recovering official feed",
+            "connector": "rss",
+            "endpoint": "https://feeds.example.test/recovering.xml",
+            "primaryLanguage": "en",
+            "contentCapability": "feed-content",
+            "evidenceNature": "primary",
+            "publisherKind": "organization",
+            "classificationConfidence": "high",
+        }
+        calls = 0
+        body = """<?xml version='1.0'?>
+        <feed xmlns='http://www.w3.org/2005/Atom'>
+          <title>Recovering feed</title>
+          <entry>
+            <id>tag:example.test,2026:retry</id>
+            <title>Recovered upstream headline</title>
+            <link href='https://example.test/articles/retry'/>
+            <updated>2026-07-22T10:00:00Z</updated>
+            <summary>Available after one transient failure.</summary>
+          </entry>
+        </feed>"""
+
+        async def handler(_request):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return httpx.Response(503, text="temporary failure")
+            return httpx.Response(200, content=body.encode(), headers={"content-type": "application/atom+xml"})
+
+        start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            information, candidates, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+
+        self.assertEqual(calls, 2)
+        self.assertEqual(candidates, [])
+        self.assertEqual(outcome.status, "success")
+        self.assertEqual(len(information), 1)
+
     async def test_hacker_news_keeps_story_when_comment_request_fails(self):
         source = {
             "id": "source-hn-test",

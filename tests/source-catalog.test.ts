@@ -19,11 +19,11 @@ test("source catalog mirrors every active acquisition registry", () => {
   const result = catalog();
   const counts = Object.fromEntries(result.sections.map((section) => [section.id, sourceCount(section)]));
 
-  assert.equal(result.total, 107);
+  assert.equal(result.total, 106);
   assert.deepEqual(counts, {
     "information-flow": 38,
     statements: 34,
-    "sic-library": 27,
+    "sic-library": 26,
     "sic-rankings": 8,
   });
 });
