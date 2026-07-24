@@ -16,7 +16,7 @@ test("X policy is fail-closed, explicit, and contains no duplicate handles", () 
   );
 
   assert.equal(policy.defaultStatus, "excluded");
-  assert.equal(policy.accounts.size, 107);
+  assert.equal(policy.accounts.size, 34);
   assert.ok([...policy.accounts.keys()].every((handle) => registered.has(handle)));
 });
 
@@ -25,30 +25,18 @@ test("runtime X stream contains only policy-approved authoritative accounts", ()
   const statements = bundle.sources.filter((source: { sourceStream: string }) => source.sourceStream === "statements");
   const handles = statements.map((source: { channelIdentifier: string }) => normalizeXHandle(source.channelIdentifier));
 
-  assert.equal(statements.length, 107);
+  assert.equal(statements.length, 34);
   assert.equal(new Set(handles).size, statements.length);
   assert.ok(handles.every((handle: string) => policy.accounts.has(handle)));
   assert.ok(statements.every((source: { originPlatform: string }) => source.originPlatform === "x"));
   assert.ok(statements.every((source: { classificationConfidence: string }) => source.classificationConfidence === "high"));
-  assert.deepEqual(
-    Object.fromEntries(
-      [...new Set(statements.map((source: { publisherKind: string }) => source.publisherKind))]
-        .sort()
-        .map((kind) => [kind, statements.filter((source: { publisherKind: string }) => source.publisherKind === kind).length]),
-    ),
-    {
-      editorial_media: 3,
-      open_source_project: 14,
-      organization: 56,
-      person: 34,
-    },
-  );
+  assert.ok(statements.every((source: { publisherKind: string }) => source.publisherKind === "person"));
 });
 
 test("X cleanup accounting distinguishes candidates, removals, and merged directory declarations", () => {
   assert.equal(bundle.counts.xCandidates, 179);
   assert.equal(bundle.counts.xRunnableCandidates, 160);
-  assert.equal(bundle.counts.statements, 107);
-  assert.equal(bundle.counts.xExcludedFromRuntime, 53);
+  assert.equal(bundle.counts.statements, 34);
+  assert.equal(bundle.counts.xExcludedFromRuntime, 126);
   assert.equal(bundle.counts.xDuplicateDiscoveriesMerged, 9);
 });

@@ -21,8 +21,6 @@ from typing import Any
 import httpx
 
 from collector.feed_collector import (
-    MAX_ITEMS_PER_SOURCE,
-    MAX_TREND_PROJECTS,
     PROCESS_TIMEOUT_SECONDS,
     WORKERS,
     build_packets,
@@ -30,7 +28,6 @@ from collector.feed_collector import (
     collect_generic,
     document,
     fetch_json,
-    github_project,
     now_iso,
     packet_payload,
     send_packet,
@@ -42,10 +39,9 @@ if not HORIZON_ROOT.is_dir():
     raise RuntimeError("Horizon submodule is missing. Run: git submodule update --init --recursive")
 sys.path.insert(0, str(HORIZON_ROOT))
 
-from src.models import GitHubSourceConfig, HackerNewsConfig, OSSInsightConfig, RSSSourceConfig  # noqa: E402
+from src.models import GitHubSourceConfig, HackerNewsConfig, RSSSourceConfig  # noqa: E402
 from src.scrapers.github import GitHubScraper  # noqa: E402
 from src.scrapers.hackernews import HackerNewsScraper  # noqa: E402
-from src.scrapers.ossinsight import OSSInsightScraper  # noqa: E402
 from src.scrapers.rss import RSSScraper  # noqa: E402
 
 
@@ -65,7 +61,6 @@ class SourceOutcome:
 @dataclass
 class CollectionResult:
     information: list[dict]
-    repository_candidates: list[dict]
     outcomes: list[SourceOutcome]
 
 
@@ -128,15 +123,11 @@ def horizon_scraper_for(source: dict, client: httpx.AsyncClient):
     if connector == "github-user-events":
         config = GitHubSourceConfig(type="user_events", username=source["channelIdentifier"], category="vault")
         return "horizon-github", GitHubScraper([config], client)
-    if connector == "json" and source.get("channelType") == "github-trending":
-        config = OSSInsightConfig(enabled=True, period="past_24_hours", languages=[source["channelIdentifier"]], min_stars=0, max_items=MAX_TREND_PROJECTS, category="vault")
-        return "horizon-ossinsight", OSSInsightScraper(config, client)
     return None
 
 
-def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict], list[dict], int]:
+def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict], int]:
     information: list[dict] = []
-    candidates: list[dict] = []
     rejected = 0
     for item in items:
         normalized = document(
@@ -151,11 +142,7 @@ def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict],
             rejected += 1
             continue
         information.append(normalized)
-        repo_name = item.metadata.get("repo") if isinstance(item.metadata, dict) else None
-        if item.source_type.value == "ossinsight" and isinstance(repo_name, str) and "/" in repo_name:
-            owner, name = repo_name.split("/", 1)
-            candidates.append({"owner": owner, "name": name, "delta24": int(item.metadata.get("stars_gained") or 0)})
-    return information, candidates, rejected
+    return information, rejected
 
 
 async def collect_one(source: dict, since: datetime, until: datetime, client: httpx.AsyncClient, semaphore: asyncio.Semaphore) -> tuple[list[dict], list[dict], SourceOutcome]:
@@ -173,13 +160,12 @@ async def collect_one(source: dict, since: datetime, until: datetime, client: ht
         adapter_name, scraper = adapter
         async with semaphore:
             fetched_items = await scraper.fetch(since)
-        items = fetched_items[:MAX_ITEMS_PER_SOURCE]
-        information, candidates, rejected = normalize_horizon_items(source, items)
+        information, rejected = normalize_horizon_items(source, fetched_items)
         transport_error = recording_client.error or (f"upstream returned HTTP {max(recording_client.statuses)}" if any(value >= 400 for value in recording_client.statuses) else None)
         status = "partial" if fetched_items and transport_error else ("failure" if transport_error else ("success" if fetched_items else "empty"))
         error = transport_error
         outcome = SourceOutcome(source["id"], source["name"], adapter_name, status, len(fetched_items), len(information), rejected, round((time.perf_counter() - started) * 1000), error)
-        return information, candidates, outcome
+        return information, [], outcome
     except Exception as error:
         outcome = SourceOutcome(source["id"], source["name"], "unavailable", "failure", 0, 0, 0, round((time.perf_counter() - started) * 1000), f"{type(error).__name__}: {error}")
         return [], [], outcome
@@ -194,31 +180,8 @@ async def collect_batch(sources: list[dict], since: datetime, until: datetime) -
     async with httpx.AsyncClient(timeout=timeout, limits=limits, headers=headers) as client:
         results = await asyncio.gather(*(collect_one(source, since, until, client, semaphore) for source in sources))
     information = [item for records, _, _ in results for item in records]
-    candidates = [candidate for _, records, _ in results for candidate in records]
     outcomes = [outcome for _, _, outcome in results]
-    return CollectionResult(information, candidates, outcomes)
-
-
-def enrich_repositories(candidates: list[dict]) -> list[dict]:
-    unique: dict[str, dict] = {}
-    for candidate in candidates:
-        key = f"{candidate['owner']}/{candidate['name']}".lower()
-        if key not in unique or candidate["delta24"] > unique[key]["delta24"]:
-            unique[key] = candidate
-    selected = sorted(unique.values(), key=lambda item: item["delta24"], reverse=True)[:MAX_TREND_PROJECTS]
-    if not selected:
-        return []
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    repositories = []
-    with ThreadPoolExecutor(max_workers=min(8, len(selected))) as pool:
-        futures = [pool.submit(github_project, candidate) for candidate in selected]
-        for future in as_completed(futures):
-            try:
-                repositories.append(future.result())
-            except Exception:
-                continue
-    return repositories
+    return CollectionResult(information, outcomes)
 
 
 def main() -> None:
@@ -231,12 +194,11 @@ def main() -> None:
         raise RuntimeError("No approved sources selected for collection.")
     start, end = collection_window()
     result = asyncio.run(collect_batch(sources, start, end))
-    repositories = enrich_repositories(result.repository_candidates)
     if not any(outcome.status != "failure" for outcome in result.outcomes):
         raise RuntimeError("Every selected source failed; no batch was produced.")
 
     generated_at = now_iso()
-    packets = build_packets(bundle["revision"], now_iso(start), now_iso(end), generated_at, result.information, repositories)
+    packets = build_packets(bundle["revision"], now_iso(start), now_iso(end), generated_at, result.information, [])
     payloads: dict[str, bytes] = {}
     packet_files = []
     for packet in packets:
@@ -273,7 +235,7 @@ def main() -> None:
         "sourcesEmpty": sum(outcome.status == "empty" for outcome in result.outcomes),
         "sourcesFailed": len(failures),
         "information": len(result.information),
-        "repositories": len(repositories),
+        "repositories": 0,
         "packets": len(packets),
         "packetFiles": packet_files,
         "receipts": receipts,

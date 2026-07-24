@@ -46,25 +46,7 @@ test("a durable batch waits for model configuration and succeeds on retry", asyn
       contentCompleteness: "fulltext",
       contentHash: createHash("sha256").update(`${originalTitle}\n${originalContent}`).digest("hex"),
     }],
-    repositories: [{
-      githubId: 2077,
-      owner: "example",
-      name: "agent-kit",
-      canonicalUrl: "https://github.com/example/agent-kit",
-      description: "Agent toolkit",
-      readme: "# Agent Kit",
-      readmeSha: "readme-sha-1",
-      license: "MIT",
-      primaryLanguage: "TypeScript",
-      stars: 2077,
-      forks: 77,
-      watchers: 20,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      pushedAt: "2026-07-22T09:00:00.000Z",
-      fetchedAt: "2026-07-22T10:10:00.000Z",
-      delta24: 77,
-      delta7: 0,
-    }],
+    repositories: [],
   });
   const bodyHash = createHash("sha256").update(rawPayload).digest("hex");
   await persistInboundBatch("vault2077-202607221200-worker-test", bodyHash, rawPayload);
@@ -82,9 +64,7 @@ test("a durable batch waits for model configuration and succeeds on retry", asyn
         ? { items: [{ idempotencyKey: "worker-item-1", translatedTitle: "新模型正式发布", summary: "官方发布了一款新模型。", translatedContent: "原始英文内容的中文翻译。", decision: { disposition: "independent" } }] }
         : system.includes("information_editorial")
           ? { translatedTitle: "新模型正式发布", summary: "官方发布了一款新模型。", translatedContent: "原始英文内容的中文翻译。" }
-        : system.includes("repository_editorial")
-          ? { description: "Agent 工具集", fit: "适合超级个体构建自动化工作流。", category: "Agent" }
-          : { disposition: "independent" };
+        : { disposition: "independent" };
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) } }] }));
     });
@@ -104,8 +84,7 @@ test("a durable batch waits for model configuration and succeeds on retry", asyn
     assert.equal(stored.information.length, 1);
     assert.equal(stored.information[0].originalContent, originalContent);
     assert.equal(stored.information[0].translatedTitle, "新模型正式发布");
-    assert.equal(stored.projects.length, 1);
-    assert.equal(stored.projects[0].repo, "agent-kit");
+    assert.equal(stored.projects.length, 0);
     assert.equal(stored.batches[0].status, "succeeded");
 
     const secondPayload = JSON.stringify({
@@ -121,8 +100,7 @@ test("a durable batch waits for model configuration and succeeds on retry", asyn
     await persistInboundBatch("vault2077-202607221800-worker-test", createHash("sha256").update(secondPayload).digest("hex"), secondPayload);
     await processPendingInboundBatches(1);
     const afterEmptyBatch = await getStoredContent();
-    assert.equal(afterEmptyBatch.projects.length, 1);
-    assert.equal(afterEmptyBatch.projects[0].repo, "agent-kit");
+    assert.equal(afterEmptyBatch.projects.length, 0);
 
     await persistInboundBatch("vault2077-priority-failed", createHash("sha256").update("{}").digest("hex"), "{}");
     const firstClaim = await claimNextInboundBatch();

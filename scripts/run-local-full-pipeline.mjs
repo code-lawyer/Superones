@@ -14,7 +14,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const port = Number(process.env.VAULT2077_LOCAL_PIPELINE_PORT ?? "3100");
-const python = process.env.VAULT2077_PYTHON || (process.platform === "win32" ? "python" : "python3");
+const python = process.env.VAULT2077_PYTHON || (process.platform === "win32" ? "uv" : "python3");
 const stamp = new Date().toISOString().replace(/[-:.]/g, "").replace("Z", "Z");
 const runRoot = path.resolve(
   process.env.VAULT2077_LOCAL_RUN_DIR
@@ -23,6 +23,7 @@ const runRoot = path.resolve(
 const collectorRoot = path.join(runRoot, "collector");
 const dataRoot = path.join(runRoot, "data");
 const localSecret = `vault2077-local-${randomBytes(24).toString("base64url")}`;
+const localRounds = Math.max(1, Math.min(3, Number(process.env.VAULT2077_LOCAL_ROUNDS ?? "3")));
 
 const requiredModelVariables = [
   "VAULT2077_LLM_BASE_URL",
@@ -39,6 +40,15 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 
 mkdirSync(collectorRoot, { recursive: true });
 mkdirSync(dataRoot, { recursive: true });
+const rankingSeedPath = path.join(root, "data", "direct-rankings.json");
+try {
+  await writeFile(
+    path.join(dataRoot, "direct-rankings.json"),
+    await readFile(rankingSeedPath),
+  );
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
 
 const siteStdoutPath = path.join(runRoot, "site.stdout.log");
 const siteStderrPath = path.join(runRoot, "site.stderr.log");
@@ -136,14 +146,10 @@ function mergeProcessing(previous, retry) {
   };
 }
 
-function runCollector() {
+function runCollector(lane, round) {
   return new Promise((resolve, reject) => {
     const stdout = openSync(collectorStdoutPath, "a");
     const stderr = openSync(collectorStderrPath, "a");
-    const pythonPath = [
-      path.join(root, ".collector-python"),
-      process.env.PYTHONPATH,
-    ].filter(Boolean).join(path.delimiter);
     const child = spawn(process.execPath, [
       "--conditions=react-server",
       "--experimental-strip-types",
@@ -153,19 +159,19 @@ function runCollector() {
       windowsHide: true,
       env: {
         ...process.env,
-        PYTHONPATH: pythonPath,
         VAULT2077_PYTHON: python,
         VAULT2077_COLLECTOR_OUTPUT_DIR: collectorRoot,
+        VAULT2077_ACQUISITION_LANE: lane,
+        VAULT2077_SCHEDULE_ID: `local:${stamp}:round-${round}:${lane}`,
         VAULT2077_DOMESTIC_ACQUISITION_URL: `http://127.0.0.1:${port}/api/internal/acquisition`,
         VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL: `http://127.0.0.1:${port}/api/internal/acquisition/process`,
         VAULT2077_PIPELINE_SHARED_SECRET: localSecret,
         VAULT2077_PIPELINE_WORKER_SECRET: localSecret,
         VAULT2077_REQUIRE_DOMESTIC_DELIVERY: "true",
         VAULT2077_TRIGGER_PROCESSING: "true",
-        VAULT2077_COLLECTION_LOOKBACK_HOURS: process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS ?? "168",
-        VAULT2077_MAX_ITEMS_PER_SOURCE: process.env.VAULT2077_MAX_ITEMS_PER_SOURCE ?? "1",
+        VAULT2077_COLLECTION_LOOKBACK_HOURS: process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS
+          ?? (lane === "sic" ? "24" : "12"),
         VAULT2077_ACQUISITION_MAX_RECORDS: process.env.VAULT2077_ACQUISITION_MAX_RECORDS ?? "40",
-        VAULT2077_MAX_TREND_PROJECTS: process.env.VAULT2077_MAX_TREND_PROJECTS ?? "10",
         VAULT2077_COLLECTOR_CONCURRENCY: process.env.VAULT2077_COLLECTOR_CONCURRENCY ?? "20",
         VAULT2077_HORIZON_CONCURRENCY: process.env.VAULT2077_HORIZON_CONCURRENCY ?? "16",
         VAULT2077_PER_HOST_CONCURRENCY: process.env.VAULT2077_PER_HOST_CONCURRENCY ?? "3",
@@ -185,10 +191,16 @@ function runCollector() {
 
 try {
   await waitUntilReady();
-  const collectorExitCode = await runCollector();
-  const report = JSON.parse(
-    await readFile(path.join(collectorRoot, "acquisition-report.json"), "utf8"),
-  );
+  const laneReports = [];
+  const collectorExitCodes = {};
+  const lanes = ["information", "statements", "sic", "rankings"];
+  for (let round = 1; round <= localRounds; round += 1) {
+  for (const lane of lanes) {
+    const collectorExitCode = await runCollector(lane, round);
+    collectorExitCodes[`round-${round}:${lane}`] = collectorExitCode;
+    const report = JSON.parse(
+      await readFile(path.join(collectorRoot, "acquisition-report.json"), "utf8"),
+    );
   const retryLimit = Math.max(
     0,
     Math.min(5, Number(process.env.VAULT2077_LOCAL_RETRY_PASSES ?? "2")),
@@ -225,10 +237,54 @@ try {
     recovered: retries > 0 && (report.processing?.failed?.length ?? 0) === 0,
   };
   await writeFile(
-    path.join(collectorRoot, "acquisition-report.json"),
+    path.join(collectorRoot, `acquisition-report-round-${round}-${lane}.json`),
     `${JSON.stringify(report, null, 2)}\n`,
     "utf8",
   );
+    laneReports.push(report);
+  }
+  }
+  const currentLaneReports = lanes.map((lane) => (
+    [...laneReports].reverse().find((item) => item.lane === lane)
+  )).filter(Boolean);
+  const report = {
+    version: 2,
+    runId: `local:${stamp}`,
+    registryRevision: currentLaneReports[0]?.registryRevision ?? "unknown",
+    collectedFrom: laneReports.map((item) => item.collectedFrom).sort()[0],
+    collectedUntil: laneReports.map((item) => item.collectedUntil).sort().at(-1),
+    collectedAt: new Date().toISOString(),
+    batches: currentLaneReports.reduce((sum, item) => sum + item.batches, 0),
+    records: currentLaneReports.reduce((sum, item) => sum + item.records, 0),
+    recordsByKind: Object.fromEntries(
+      ["information", "publication", "entity_profile", "repository_observation", "ranking_observation"]
+        .map((kind) => [kind, currentLaneReports.reduce((sum, item) => sum + (item.recordsByKind?.[kind] ?? 0), 0)]),
+    ),
+    sources: currentLaneReports.reduce((sum, item) => sum + item.sources, 0),
+    sourceStatus: Object.fromEntries(
+      ["succeeded", "partial", "empty", "failed"]
+        .map((status) => [status, currentLaneReports.reduce((sum, item) => sum + (item.sourceStatus?.[status] ?? 0), 0)]),
+    ),
+    sourceReports: currentLaneReports.flatMap((item) => item.sourceReports ?? []),
+    collectionLimits: { lookbackHours: 24, maxItemsPerSource: null },
+    processor: {
+      provider: currentLaneReports.find((item) => item.processor?.provider)?.processor.provider ?? null,
+      model: currentLaneReports.find((item) => item.processor?.model)?.processor.model ?? null,
+      durationMs: laneReports.reduce((sum, item) => sum + (item.processor?.durationMs ?? 0), 0),
+    },
+    files: currentLaneReports.flatMap((item) => item.files ?? []),
+    receipts: currentLaneReports.flatMap((item) => item.receipts ?? []),
+    processing: {
+      ok: laneReports.every((item) => item.processing?.ok === true),
+      partial: laneReports.some((item) => item.processing?.partial === true),
+      processed: laneReports.flatMap((item) => item.processing?.processed ?? []),
+      failed: laneReports.flatMap((item) => item.processing?.failed ?? []),
+      warnings: laneReports.flatMap((item) => item.processing?.warnings ?? []),
+      queue: laneReports.at(-1)?.processing?.queue ?? null,
+    },
+    laneReports,
+    validationRounds: localRounds,
+  };
   await writeFile(
     path.join(dataRoot, "pipeline-report.json"),
     `${JSON.stringify(report, null, 2)}\n`,
@@ -238,7 +294,7 @@ try {
     version: 1,
     completedAt: new Date().toISOString(),
     sitePid: site.pid,
-    collectorExitCode,
+    collectorExitCodes,
     siteUrl: `http://localhost:${port}/pipeline`,
     report: {
       runId: report.runId,
@@ -252,7 +308,7 @@ try {
   site.unref();
   console.log(JSON.stringify({
     ok: Boolean(report.processing && report.processing.ok),
-    collectorExitCode,
+    collectorExitCodes,
     sitePid: site.pid,
     siteUrl: `http://localhost:${port}/pipeline`,
     runDirectory: runRoot,

@@ -54,6 +54,30 @@ test("contract rejects an unknown publisher taxonomy value", () => {
   assert.throws(() => validateContentBatch(value), /publisherKind/);
 });
 
+test("contract rejects X-native content from the information waterfall", () => {
+  const value = batch();
+  Object.assign(value.information[0], {
+    sourceStream: "information",
+    originPlatform: "x",
+  });
+  assert.throws(() => validateContentBatch(value), /不得进入资讯瀑布/);
+});
+
+test("statements require a verified natural person and original X identity", () => {
+  const value = batch();
+  Object.assign(value.information[0], {
+    sourceStream: "statements",
+    originPlatform: "x",
+    publisherKind: "organization",
+    originAccount: "example",
+    originContentId: "x:status:123",
+    originUrl: "https://x.com/example/status/123",
+  });
+  assert.throws(() => validateContentBatch(value), /缺少真人 X 身份/);
+  value.information[0].publisherKind = "person";
+  assert.equal(validateContentBatch(value).information[0].originContentId, "x:status:123");
+});
+
 test("canonical key ignores URL query noise but retains content identity", () => {
   assert.equal(
     canonicalInformationKey({ originalUrl: "https://example.com/story?utm=x", contentHash: "abc" }),

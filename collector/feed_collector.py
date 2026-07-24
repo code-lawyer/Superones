@@ -24,11 +24,10 @@ from html.parser import HTMLParser
 from pathlib import Path
 from threading import BoundedSemaphore, Lock
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 USER_AGENT = "Vault2077-Overseas-Collector/2.0 (+https://vault2077.com)"
-MAX_ITEMS_PER_SOURCE = int(os.environ.get("VAULT2077_MAX_ITEMS_PER_SOURCE", "20"))
 WORKERS = int(os.environ.get("VAULT2077_COLLECTOR_CONCURRENCY", "24"))
 PER_HOST_WORKERS = int(os.environ.get("VAULT2077_PER_HOST_CONCURRENCY", "4"))
 TIMEOUT_SECONDS = int(os.environ.get("VAULT2077_SOURCE_TIMEOUT_SECONDS", "20"))
@@ -37,7 +36,6 @@ MAX_BATCH_ITEMS = 200
 MAX_PACKET_BYTES = int(os.environ.get("VAULT2077_MAX_PACKET_BYTES", "1750000"))
 PACKET_METADATA_RESERVE = 256
 MAX_UPSTREAM_BYTES = int(os.environ.get("VAULT2077_MAX_UPSTREAM_BYTES", "8000000"))
-MAX_TREND_PROJECTS = int(os.environ.get("VAULT2077_MAX_TREND_PROJECTS", "30"))
 PROCESS_TIMEOUT_SECONDS = int(os.environ.get("VAULT2077_PROCESS_TIMEOUT_SECONDS", "300"))
 
 _host_lock = Lock()
@@ -172,15 +170,30 @@ def provenance(source: dict, original_url: str) -> dict:
     return result
 
 
+def clean_x_transport_text(value: str) -> str:
+    """Remove RSS bridge controls and counters without rewriting the post."""
+    markers = (
+        "🔗 View on Twitter",
+        "🔗 View Quoted Tweet",
+        "Your browser does not support the video tag.",
+        "💬",
+        "⚡ Powered by xgo.ing",
+    )
+    positions = [position for marker in markers if (position := value.find(marker)) >= 0]
+    return value[:min(positions)].rstrip() if positions else value
+
+
 def document(source: dict, url, title, content="", published_at="", author="") -> dict | None:
     original_url = as_text(url, 2048)
     original_title = as_text(title, 500)
     if not original_url or not original_title or urlparse(original_url).scheme != "https":
         return None
+    source_provenance = provenance(source, original_url)
     original_content = as_text(plain_text(content), 48000)
+    if source_provenance["originPlatform"] == "x":
+        original_content = clean_x_transport_text(original_content)
     source_channel_id = as_text(source.get("id"), 180)
     content_hash = hashlib.sha256(f"{original_title}\n{original_content}".encode()).hexdigest()
-    source_provenance = provenance(source, original_url)
     return {
         "idempotencyKey": hashlib.sha256(f"{source_channel_id}:{original_url}:{content_hash}".encode()).hexdigest(),
         "sourceChannelId": source_channel_id,
@@ -243,7 +256,7 @@ def collect_rss(source: dict, start: datetime, end: datetime) -> list[dict]:
     if parsed.bozo and not parsed.entries:
         raise ValueError(f"Feed parser rejected {feed_url}: {parsed.bozo_exception}")
     results = []
-    for entry in parsed.entries[:MAX_ITEMS_PER_SOURCE]:
+    for entry in parsed.entries:
         published_struct = entry.get("published_parsed") or entry.get("updated_parsed")
         published = datetime.fromtimestamp(calendar.timegm(published_struct), timezone.utc) if published_struct else None
         if not in_window(published, start, end):
@@ -265,7 +278,7 @@ def collect_rss(source: dict, start: datetime, end: datetime) -> list[dict]:
 
 def collect_hackernews(source: dict, start: datetime, end: datetime) -> list[dict]:
     ids = fetch_json(source["endpoint"])
-    ids = ids[:MAX_ITEMS_PER_SOURCE] if isinstance(ids, list) else []
+    ids = ids if isinstance(ids, list) else []
     with ThreadPoolExecutor(max_workers=min(8, len(ids) or 1)) as pool:
         values = list(pool.map(lambda item_id: fetch_json(f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json"), ids))
     results = []
@@ -306,7 +319,7 @@ def candidate_values(payload) -> list:
 
 def collect_github(source: dict, payload, start: datetime, end: datetime) -> list[dict]:
     results = []
-    for value in (payload if isinstance(payload, list) else [])[:MAX_ITEMS_PER_SOURCE]:
+    for value in (payload if isinstance(payload, list) else []):
         if source["connector"] == "github-releases":
             title = value.get("name") or value.get("tag_name")
             url = value.get("html_url")
@@ -331,7 +344,7 @@ def collect_github(source: dict, payload, start: datetime, end: datetime) -> lis
 
 def collect_generic(source: dict, payload, start: datetime, end: datetime) -> list[dict]:
     results = []
-    for value in candidate_values(payload)[:MAX_ITEMS_PER_SOURCE]:
+    for value in candidate_values(payload):
         if not isinstance(value, dict):
             continue
         repository = value.get("repo_name") or value.get("full_name")
@@ -352,22 +365,6 @@ def collect_generic(source: dict, payload, start: datetime, end: datetime) -> li
     return results
 
 
-def trend_candidates(payload) -> list[dict]:
-    results = []
-    for value in candidate_values(payload)[:MAX_ITEMS_PER_SOURCE]:
-        if not isinstance(value, dict):
-            continue
-        repository = as_text(value.get("repo_name") or value.get("full_name") or value.get("repository"), 220)
-        if "/" not in repository:
-            continue
-        owner, name = repository.split("/", 1)
-        if not owner or not name:
-            continue
-        delta = value.get("stars_since_yesterday") or value.get("starsToday") or value.get("current_period_stars") or 0
-        results.append({"owner": owner, "name": name, "delta24": max(0, int(delta or 0))})
-    return results
-
-
 def collect_source(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
     host = urlparse(source["endpoint"]).hostname or "unknown"
     with _host_lock:
@@ -378,48 +375,9 @@ def collect_source(source: dict, start: datetime, end: datetime) -> tuple[list[d
         if source.get("connector") == "hackernews":
             return collect_hackernews(source, start, end), []
         payload = fetch_json(source["endpoint"])
-        if source.get("channelType") == "github-trending":
-            return [], trend_candidates(payload)
         if source.get("connector") in {"github-releases", "github-user-events"}:
             return collect_github(source, payload, start, end), []
         return collect_generic(source, payload, start, end), []
-
-
-def github_project(candidate: dict) -> dict:
-    owner = candidate["owner"]
-    name = candidate["name"]
-    encoded = f"{quote(owner)}/{quote(name)}"
-    repository = fetch_json(f"https://api.github.com/repos/{encoded}")
-    readme = None
-    try:
-        readme = fetch_json(f"https://api.github.com/repos/{encoded}/readme")
-    except (HTTPError, URLError, TimeoutError, ValueError):
-        pass
-    readme_text = ""
-    if isinstance(readme, dict) and isinstance(readme.get("content"), str):
-        try:
-            readme_text = base64.b64decode(readme["content"]).decode("utf-8", errors="replace")
-        except ValueError:
-            readme_text = ""
-    return {
-        "githubId": int(repository["id"]),
-        "owner": owner,
-        "name": name,
-        "canonicalUrl": f"https://github.com/{owner}/{name}",
-        "description": as_text(repository.get("description"), 2000) or None,
-        "readme": as_text(readme_text, 48000) or None,
-        "readmeSha": as_text(readme.get("sha") if isinstance(readme, dict) else None, 120) or None,
-        "license": as_text((repository.get("license") or {}).get("spdx_id"), 120) or None,
-        "primaryLanguage": as_text(repository.get("language"), 120) or None,
-        "stars": int(repository.get("stargazers_count") or 0),
-        "forks": int(repository.get("forks_count") or 0),
-        "watchers": int(repository.get("subscribers_count") or 0),
-        "createdAt": repository["created_at"],
-        "pushedAt": repository["pushed_at"],
-        "fetchedAt": now_iso(),
-        "delta24": candidate.get("delta24", 0),
-        "delta7": 0,
-    }
 
 
 def load_bundle(path: Path) -> tuple[dict, list[dict]]:
@@ -523,7 +481,6 @@ def main() -> None:
     bundle, sources = load_bundle(bundle_path)
     start, end = collection_window()
     information: list[dict] = []
-    candidates: list[dict] = []
     failures: list[dict] = []
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -531,31 +488,14 @@ def main() -> None:
         for future in as_completed(futures):
             source = futures[future]
             try:
-                documents, projects = future.result()
+                documents, _ = future.result()
                 information.extend(documents)
-                candidates.extend(projects)
             except Exception as error:  # one upstream never stops the other sources
                 failures.append({"id": source.get("id"), "endpoint": source.get("endpoint"), "error": as_text(error, 500)})
                 print(f"skip {source.get('id')}: {error}", file=sys.stderr)
 
-    unique_candidates = {}
-    for candidate in candidates:
-        key = f"{candidate['owner']}/{candidate['name']}".lower()
-        if key not in unique_candidates or candidate["delta24"] > unique_candidates[key]["delta24"]:
-            unique_candidates[key] = candidate
-    selected = sorted(unique_candidates.values(), key=lambda item: item["delta24"], reverse=True)[:MAX_TREND_PROJECTS]
-    repositories = []
-    with ThreadPoolExecutor(max_workers=min(8, len(selected) or 1)) as pool:
-        future_projects = {pool.submit(github_project, candidate): candidate for candidate in selected}
-        for future in as_completed(future_projects):
-            try:
-                repositories.append(future.result())
-            except Exception as error:
-                candidate = future_projects[future]
-                failures.append({"id": f"github:{candidate['owner']}/{candidate['name']}", "error": as_text(error, 500)})
-
     generated_at = now_iso()
-    packets = build_packets(bundle["revision"], now_iso(start), now_iso(end), generated_at, information, repositories)
+    packets = build_packets(bundle["revision"], now_iso(start), now_iso(end), generated_at, information, [])
     packet_files = []
     packet_payloads: dict[str, bytes] = {}
     for packet in packets:
@@ -587,7 +527,7 @@ def main() -> None:
         "sourcesSucceeded": len(sources) - len([failure for failure in failures if str(failure.get("id", "")).startswith("source-")]),
         "sourcesFailed": len([failure for failure in failures if str(failure.get("id", "")).startswith("source-")]),
         "information": len(information),
-        "repositories": len(repositories),
+        "repositories": 0,
         "packets": len(packets),
         "packetFiles": packet_files,
         "receipts": receipts,

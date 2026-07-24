@@ -39,6 +39,10 @@ export type PipelineSourceHealth = {
 
 type AcquisitionReport = {
   runId: string;
+  lane?: PipelineSection;
+  scheduleId?: string;
+  windowFrom?: string;
+  windowUntil?: string;
   registryRevision: string;
   collectedFrom: string;
   collectedUntil: string;
@@ -51,7 +55,7 @@ type AcquisitionReport = {
   sourceReports: PipelineSourceHealth[];
   collectionLimits: {
     lookbackHours: number;
-    maxItemsPerSource: number;
+    maxItemsPerSource: number | null;
   };
   processor: {
     provider: string | null;
@@ -84,6 +88,16 @@ export type PipelineRunSnapshot = {
     succeeded: number;
     failed: number;
   };
+  lanes: Record<PipelineSection, {
+    pending: number;
+    processing: number;
+    succeeded: number;
+    failed: number;
+    retryAttempts: number;
+    scheduleId: string | null;
+    receivedAt: string | null;
+    completedAt: string | null;
+  }>;
   retryAttempts: number;
   processingTotals: Record<string, number>;
   information: InformationItem[];
@@ -128,7 +142,14 @@ async function liveQueue(dataRoot: string) {
     .map(async (name) => {
       const raw = await readFile(path.join(inbox, name), "utf8").catch(() => null);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as { status?: unknown; attempts?: unknown };
+      const parsed = JSON.parse(raw) as {
+        status?: unknown;
+        attempts?: unknown;
+        lane?: unknown;
+        scheduleId?: unknown;
+        receivedAt?: unknown;
+        completedAt?: unknown;
+      };
       return (
         typeof parsed.status === "string"
         && ["pending", "processing", "succeeded", "failed"].includes(parsed.status)
@@ -136,11 +157,33 @@ async function liveQueue(dataRoot: string) {
         ? {
             status: parsed.status as "pending" | "processing" | "succeeded" | "failed",
             attempts: typeof parsed.attempts === "number" ? parsed.attempts : 0,
+            lane: PIPELINE_SECTIONS.includes(parsed.lane as PipelineSection)
+              ? parsed.lane as PipelineSection
+              : null,
+            scheduleId: typeof parsed.scheduleId === "string" ? parsed.scheduleId : null,
+            receivedAt: typeof parsed.receivedAt === "string" ? parsed.receivedAt : null,
+            completedAt: typeof parsed.completedAt === "string" ? parsed.completedAt : null,
           }
         : null;
     }));
   const valid = records.filter((record): record is NonNullable<typeof record> => Boolean(record));
   if (valid.length === 0) return null;
+  const lanes = Object.fromEntries(PIPELINE_SECTIONS.map((lane) => {
+    const laneRecords = valid.filter((record) => record.lane === lane);
+    const newest = [...laneRecords].sort((left, right) => (
+      Date.parse(right.receivedAt ?? "") - Date.parse(left.receivedAt ?? "")
+    ))[0];
+    return [lane, {
+      pending: laneRecords.filter((record) => record.status === "pending").length,
+      processing: laneRecords.filter((record) => record.status === "processing").length,
+      succeeded: laneRecords.filter((record) => record.status === "succeeded").length,
+      failed: laneRecords.filter((record) => record.status === "failed").length,
+      retryAttempts: laneRecords.reduce((sum, record) => sum + Math.max(0, record.attempts - 1), 0),
+      scheduleId: newest?.scheduleId ?? null,
+      receivedAt: newest?.receivedAt ?? null,
+      completedAt: newest?.completedAt ?? null,
+    }];
+  })) as PipelineRunSnapshot["lanes"];
   return {
     queue: {
       pending: valid.filter((record) => record.status === "pending").length,
@@ -149,6 +192,7 @@ async function liveQueue(dataRoot: string) {
       failed: valid.filter((record) => record.status === "failed").length,
     },
     retryAttempts: valid.reduce((sum, record) => sum + Math.max(0, record.attempts - 1), 0),
+    lanes,
   };
 }
 
@@ -198,12 +242,26 @@ export async function getPipelineRunSnapshot(): Promise<PipelineRunSnapshot> {
     succeeded: reportQueue?.succeeded ?? 0,
     failed: reportQueue?.failed ?? 0,
   };
+  const emptyLane = {
+    pending: 0,
+    processing: 0,
+    succeeded: 0,
+    failed: 0,
+    retryAttempts: 0,
+    scheduleId: null,
+    receivedAt: null,
+    completedAt: null,
+  };
+  const lanes = liveProcessing?.lanes ?? Object.fromEntries(
+    PIPELINE_SECTIONS.map((lane) => [lane, { ...emptyLane }]),
+  ) as PipelineRunSnapshot["lanes"];
 
   return {
     available: Boolean(report),
     report,
     sections,
     queue,
+    lanes,
     retryAttempts: liveProcessing?.retryAttempts ?? 0,
     processingTotals,
     information,

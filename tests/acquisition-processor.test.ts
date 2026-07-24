@@ -11,6 +11,10 @@ function mixedBatch(): AcquisitionBatch {
     schemaVersion: 1,
     batchId: "batch:mixed:processor",
     runId: "run:mixed:processor",
+    lane: "information",
+    scheduleId: "schedule:test:information",
+    windowFrom: "2026-07-24T00:00:00.000Z",
+    windowUntil: "2026-07-24T01:00:00.000Z",
     registryRevision: "sources:test",
     collectedFrom: "2026-07-24T00:00:00.000Z",
     collectedUntil: "2026-07-24T01:00:00.000Z",
@@ -108,81 +112,42 @@ test("processor routes information and publications through domestic adapters", 
 test("processor persists every ranking provider without invoking the LLM", async () => {
   const providers: string[] = [];
   const value = mixedBatch();
-  value.records = [
-    {
-      ...value.records[0],
-      kind: "ranking_observation",
-      recordId: "ranking:hugging-face",
-      payload: {
-        provider: "hugging_face",
-        items: [{ id: "model-1", name: "owner/model-1", downloadsAllTime: 100 }],
-      },
+  const sourceUrl = "https://github.com/trending?since=daily";
+  value.records = [{
+    ...value.records[0],
+    kind: "ranking_observation",
+    recordId: "ranking:github:today",
+    payload: {
+      id: "github:today",
+      provider: "github",
+      providerView: "today",
+      title: "GitHub 今日趋势",
+      eyebrow: "GITHUB / OFFICIAL",
+      providerMetric: "GitHub today",
+      sourceUrl,
+      items: [{
+        id: "owner/repo",
+        name: "owner/repo",
+        provider: "github",
+        providerView: "today",
+        providerRank: 1,
+        providerMetric: "Stars today",
+        value: 10,
+        capturedAt: "2026-07-24T00:30:00.000Z",
+        sourceUrl,
+        itemUrl: "https://github.com/owner/repo",
+      }],
     },
-    {
-      ...value.records[0],
-      kind: "ranking_observation",
-      recordId: "ranking:github-trending",
-      sourceId: "github-trending",
-      payload: {
-        provider: "github_trending",
-        items: [{
-          owner: "owner",
-          repo: "repo",
-          stars: 10,
-          delta24: 2,
-          delta7: 5,
-          description: "Repository",
-          license: "MIT",
-        }],
-      },
-    },
-    {
-      ...value.records[0],
-      kind: "ranking_observation",
-      recordId: "ranking:skills",
-      sourceId: "skills",
-      payload: {
-        provider: "skills",
-        selected: [{ id: "owner/skill", name: "Skill", value: 10, href: "https://skills.sh/owner/skill" }],
-        totals: [{ id: "owner/skill", name: "Skill", value: 10, total: 10, href: "https://skills.sh/owner/skill" }],
-      },
-    },
-  ];
-  value.sourceReports = [
-    { ...value.sourceReports[0], recordCount: 1 },
-    { ...value.sourceReports[0], sourceId: "github-trending", recordCount: 1 },
-    { ...value.sourceReports[0], sourceId: "skills", recordCount: 1 },
-  ];
+  }];
+  value.sourceReports = [{ ...value.sourceReports[0], sourceId: "github:today", recordCount: 1 }];
   const processor = createAcquisitionBatchProcessor({
-    async persistOfficialRankings(input) {
-      providers.push("official");
-      return {
-        capturedAt: input.capturedAt,
-        huggingFace: input.huggingFace?.length ?? 0,
-        openRouter: input.openRouter?.length ?? 0,
-      };
-    },
-    async persistGithubRankings(input) {
-      providers.push("github");
-      return {
-        capturedAt: input.capturedAt,
-        trending: input.trending?.items.length ?? 0,
-        daily: input.daily?.items.length ?? 0,
-        weekly: input.weekly?.items.length ?? 0,
-      };
-    },
-    async persistExtensionRankings(input) {
-      providers.push("extensions");
-      return {
-        capturedAt: input.capturedAt,
-        skills: input.skills?.selected.length ?? 0,
-        mcps: input.mcps?.selected.length ?? 0,
-      };
+    async persistDirectRankings(boards) {
+      providers.push(...boards.map((board) => `${board.provider}:${board.providerView}`));
     },
   });
   const result = await processor(value, { payloadHash: "d".repeat(64), attempt: 1 });
-  assert.deepEqual(providers, ["official", "github", "extensions"]);
-  assert.equal(result.rankings, 3);
+  assert.deepEqual(providers, ["github:today"]);
+  assert.equal(result.rankings, 1);
 });
 
 test("processor fails visibly when a record kind has no domestic adapter", async () => {

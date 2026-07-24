@@ -48,7 +48,7 @@ test("SiC dated-index collector accepts structured official entries", () => {
   assert.equal(entries[0].summary, "New API capability");
 });
 
-test("SiC dated-index collector keeps the newest dated release instead of navigation links", () => {
+test("SiC dated-index collector keeps every dated release instead of navigation links", () => {
   const source: SicSource = {
     ...rssSource,
     id: "release-notes",
@@ -61,9 +61,11 @@ test("SiC dated-index collector keeps the newest dated release instead of naviga
     <h2>July 20, 2026</h2><ul><li>Older model update.</li></ul>
     <h2>July 22, 2026</h2><ul><li>New managed agent capability is available.</li></ul>
   `);
-  assert.equal(entries.length, 1);
+  assert.equal(entries.length, 2);
   assert.equal(entries[0].publishedAt, "2026-07-22T00:00:00.000Z");
   assert.match(entries[0].title, /managed agent capability/i);
+  assert.equal(entries[1].publishedAt, "2026-07-20T00:00:00.000Z");
+  assert.match(entries[1].title, /older model update/i);
 });
 
 test("SiC official-index anchors admit paper entries but reject site navigation", () => {

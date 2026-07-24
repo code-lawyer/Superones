@@ -5,6 +5,7 @@ import {
   MAX_ACQUISITION_SOURCE_REPORTS,
   validateAcquisitionBatch,
   type AcquisitionBatch,
+  type AcquisitionLane,
   type AcquisitionRecord,
   type AcquisitionSourceReport,
   type AcquisitionSourceStatus,
@@ -17,6 +18,10 @@ const TARGET_BATCH_BYTES = MAX_ACQUISITION_BATCH_BYTES - 256 * 1024;
 
 export type AcquisitionBuildContext = {
   runId: string;
+  lane: AcquisitionLane;
+  scheduleId: string;
+  windowFrom: string;
+  windowUntil: string;
   registryRevision: string;
   collectedFrom: string;
   collectedUntil: string;
@@ -104,6 +109,10 @@ export function packAcquisitionGroups(
       schemaVersion: 1,
       batchId: `${stableId(batchPrefix, "acquisition", 110)}:${String(index + 1).padStart(4, "0")}`,
       runId: stableId(context.runId, `run:${sha256(context.runId).slice(0, 20)}`),
+      lane: context.lane,
+      scheduleId: stableId(context.scheduleId, `schedule:${context.lane}`),
+      windowFrom: context.windowFrom,
+      windowUntil: context.windowUntil,
       registryRevision: stableId(context.registryRevision, "registry:unknown"),
       collectedFrom: context.collectedFrom,
       collectedUntil: context.collectedUntil,
@@ -160,12 +169,15 @@ export function buildVaultAcquisitionBatches(input: {
   packets: InboundContentBatch[];
   outcomes: VaultCollectionOutcome[];
   connectorBySource: Map<string, string>;
+  sourceStreamBySource?: Map<string, "information" | "statements">;
+  lane?: "information" | "statements";
   maxRecords?: number;
 }) {
   const recordsBySource = new Map<string, AcquisitionRecord[]>();
   const informationById = new Map<string, AcquisitionRecord>();
   for (const packet of input.packets) {
     for (const item of packet.information) {
+      if (input.lane && (item.sourceStream === "statements" ? "statements" : "information") !== input.lane) continue;
       const recordId = `information:${sha256(item.idempotencyKey)}`;
       const existing = informationById.get(recordId);
       if (existing) {
@@ -218,9 +230,12 @@ export function buildVaultAcquisitionBatches(input: {
     outcome.sourceId ?? outcome.source_id ?? "",
     outcome,
   ]));
+  const belongsToLane = (sourceId: string) => (
+    !input.lane || (input.sourceStreamBySource?.get(sourceId) ?? "information") === input.lane
+  );
   const allSourceIds = new Set([
-    ...input.connectorBySource.keys(),
-    ...outcomeBySource.keys(),
+    ...[...input.connectorBySource.keys()].filter(belongsToLane),
+    ...[...outcomeBySource.keys()].filter(belongsToLane),
     ...recordsBySource.keys(),
   ]);
   allSourceIds.delete("");
@@ -240,49 +255,6 @@ export function buildVaultAcquisitionBatches(input: {
     };
   });
 
-  const repositories = [...new Map(input.packets
-    .flatMap((packet) => packet.repositories)
-    .map((item) => [item.githubId, item])).values()];
-  if (repositories.length > 0) {
-    const records = repositories.map((item): AcquisitionRecord => ({
-      schemaVersion: 1,
-      kind: "repository_observation",
-      recordId: `repository:github:${item.githubId}`,
-      sourceId: "vault:github-projects",
-      externalId: `${item.owner}/${item.name}`,
-      canonicalUrl: item.canonicalUrl,
-      observedAt: item.fetchedAt,
-      contentHash: sha256(JSON.stringify(item)),
-      payload: jsonObject({
-        target: "vault_project",
-        githubId: item.githubId,
-        owner: item.owner,
-        name: item.name,
-        description: item.description,
-        readme: item.readme,
-        readmeSha: item.readmeSha,
-        license: item.license,
-        primaryLanguage: item.primaryLanguage,
-        stars: item.stars,
-        forks: item.forks,
-        watchers: item.watchers,
-        createdAt: item.createdAt,
-        pushedAt: item.pushedAt,
-        delta24: item.delta24,
-        delta7: item.delta7,
-      }),
-    }));
-    groups.push({
-      records,
-      report: report({
-        sourceId: "vault:github-projects",
-        adapter: "github-rest",
-        status: "success",
-        recordCount: records.length,
-        context: input.context,
-      }),
-    });
-  }
   return packAcquisitionGroups(
     input.context,
     groups,

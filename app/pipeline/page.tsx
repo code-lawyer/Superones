@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { informationHref } from "@/lib/feed-route";
 import {
   PIPELINE_SECTIONS,
   getPipelineRunSnapshot,
@@ -167,8 +168,8 @@ export default async function PipelinePage() {
     {
       code: "04 / LLM",
       title: "模型处理",
-      value: report.processor.model ?? "未配置",
-      ok: Boolean(report.processor.model) && failedProcessing === 0,
+      value: report.lane === "rankings" ? "平台原序 / 无需 LLM" : report.processor.model ?? "未配置",
+      ok: report.lane === "rankings" || Boolean(report.processor.model) && failedProcessing === 0,
     },
     {
       code: "05 / PUBLISH",
@@ -199,7 +200,7 @@ export default async function PipelinePage() {
             <div><dt>运行编号</dt><dd>{report.runId}</dd></div>
             <div><dt>采集截止</dt><dd>{dateTime(report.collectedAt)}（北京时间）</dd></div>
             <div><dt>观察窗口</dt><dd>{report.collectionLimits.lookbackHours} 小时</dd></div>
-            <div><dt>单源上限</dt><dd>{report.collectionLimits.maxItemsPerSource} 条</dd></div>
+            <div><dt>单源截断</dt><dd>{report.collectionLimits.maxItemsPerSource === null ? "禁止截断" : `${report.collectionLimits.maxItemsPerSource} 条`}</dd></div>
           </dl>
         </div>
       </header>
@@ -212,6 +213,23 @@ export default async function PipelinePage() {
             <strong>{stage.value}</strong>
           </article>
         ))}
+      </section>
+
+      <section className={styles.metrics} aria-label="四通道独立队列">
+        {PIPELINE_SECTIONS.map((lane) => {
+          const state = snapshot.lanes[lane];
+          const queued = state.pending + state.processing;
+          return (
+            <article key={lane}>
+              <span>{sectionLabels[lane].code} / CHANNEL</span>
+              <strong>{queued > 0 ? `${queued} 排队` : state.failed > 0 ? `${state.failed} 失败` : `${state.succeeded} 完成`}</strong>
+              <p>
+                {state.receivedAt ? `最近接收 ${dateTime(state.receivedAt)}` : "尚无境内接收记录"}
+                {state.retryAttempts ? ` · ${state.retryAttempts} 次重试` : ""}
+              </p>
+            </article>
+          );
+        })}
       </section>
 
       <section className={styles.metrics} aria-label="本轮关键指标">
@@ -257,7 +275,7 @@ export default async function PipelinePage() {
             </header>
             {snapshot.information.slice(0, 6).map((item) => (
               <article key={item.slug}>
-                <Link href={`/feed/info/${item.slug}`}>{item.translatedTitle}</Link>
+                <Link href={informationHref(item.slug)}>{item.translatedTitle}</Link>
                 <p lang={item.originalLanguage}>{item.originalTitle}</p>
                 <span>{item.sourceName} · {dateTime(item.publishedAt ?? item.discoveredAt)}</span>
               </article>
@@ -273,7 +291,7 @@ export default async function PipelinePage() {
             </header>
             {snapshot.statements.slice(0, 6).map((item) => (
               <article key={item.slug}>
-                <Link href={`/feed/info/${item.slug}`}>{item.translatedTitle}</Link>
+                <Link href={informationHref(item.slug)}>{item.translatedTitle}</Link>
                 <p lang={item.originalLanguage}>{item.originalTitle}</p>
                 <span>@{item.originAccount ?? item.author} · {dateTime(item.publishedAt ?? item.discoveredAt)}</span>
               </article>

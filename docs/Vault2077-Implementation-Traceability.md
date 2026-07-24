@@ -1,5 +1,7 @@
 # Vault2077 实施追踪矩阵
 
+> 2026-07-24 修订：原 Skill/MCP 增量模块、GitHub/Hugging Face 自算增长模块已经删除；当前实现追踪见 [ADR-0005](adr/0005-platform-native-rankings-and-lanes.md) 与 [统一信息管线运行手册](Vault2077-Unified-Acquisition-Runbook.md)。
+
 > 状态：规范性工作台。更新时间：2026-07-23。它记录规范与当前代码的差距，不修改产品规则。
 
 ## 1. 状态定义

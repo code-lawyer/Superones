@@ -7,9 +7,8 @@ import { listApprovedSicSources, type SicSource } from "./sic-source-registry.ts
 import { getSicStoredContent, mergeSicStoredContent } from "./sic-content-store.ts";
 import type { SicContentItem, SicSourceCollectionReport } from "./sic-content-types.ts";
 
-const MAX_ITEMS_PER_SOURCE = 40;
-const MAX_SITEMAP_PAGES = 20;
 const SOURCE_CONCURRENCY = 6;
+const SIC_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -61,22 +60,6 @@ function validDate(value: unknown) {
     : source;
   const milliseconds = Date.parse(normalized);
   return Number.isNaN(milliseconds) ? null : new Date(milliseconds).toISOString();
-}
-
-function itemTimestamp(item: SicContentItem) {
-  const value = Date.parse(item.publishedAt ?? item.collectedAt);
-  return Number.isNaN(value) ? 0 : value;
-}
-
-function latestItemsBySource(items: SicContentItem[]) {
-  const seen = new Set<string>();
-  return [...items]
-    .sort((left, right) => itemTimestamp(right) - itemTimestamp(left))
-    .filter((item) => {
-      if (seen.has(item.sourceId)) return false;
-      seen.add(item.sourceId);
-      return true;
-    });
 }
 
 function editorialItems(value: unknown, expectedIds: Set<string>) {
@@ -334,8 +317,7 @@ function datedIndexEntries(source: SicSource, payload: string): Candidate[] {
     }];
   });
   return candidates
-    .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""))
-    .slice(0, 1);
+    .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""));
 }
 
 function dedupe(candidates: Candidate[]) {
@@ -344,11 +326,10 @@ function dedupe(candidates: Candidate[]) {
     if (!unique.has(candidate.url)) unique.set(candidate.url, candidate);
   }
   return [...unique.values()]
-    .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""))
-    .slice(0, MAX_ITEMS_PER_SOURCE);
+    .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""));
 }
 
-function sitemapUrls(source: SicSource, payload: string): Candidate[] {
+function sitemapUrls(source: SicSource, payload: string, windowFrom?: string): Candidate[] {
   const scope = new URL(source.homeUrl).pathname.replace(/\/$/, "");
   const candidates: Candidate[] = [];
   for (const block of payload.matchAll(/<url\b[^>]*>([\s\S]*?)<\/url>/gi)) {
@@ -356,7 +337,11 @@ function sitemapUrls(source: SicSource, payload: string): Candidate[] {
     if (!url || !new URL(url).pathname.startsWith(scope)) continue;
     candidates.push({ title: "", url, publishedAt: validDate(tagValue(block[1], "lastmod")) });
   }
-  return dedupe(candidates).slice(0, MAX_SITEMAP_PAGES);
+  return dedupe(candidates).filter((candidate) => (
+    !windowFrom
+    || !candidate.publishedAt
+    || Date.parse(candidate.publishedAt) >= Date.parse(windowFrom)
+  ));
 }
 
 function githubCommitEntries(source: SicSource, payload: string): Candidate[] {
@@ -412,13 +397,14 @@ async function fetchText(fetcher: Fetcher, url: string, source: SicSource) {
 
 async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: string) {
   const payload = await fetchText(fetcher, source.endpoint, source);
+  const windowFrom = new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
   let candidates: Candidate[];
   if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
     candidates = xmlEntries(source, payload);
   } else if (source.kind === "official_api" && source.id === "dair-ai-papers-of-the-week") {
     candidates = githubCommitEntries(source, payload);
   } else if (source.kind === "official_sitemap") {
-    const pages = sitemapUrls(source, payload);
+    const pages = sitemapUrls(source, payload, windowFrom);
     const details = await Promise.all(pages.map(async (page) => {
       try {
         return pageMetadata(source, await fetchText(fetcher, page.url, source), page.url) ?? page;
@@ -432,6 +418,9 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
   } else {
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
+  candidates = candidates.filter((candidate) => (
+    !candidate.publishedAt || Date.parse(candidate.publishedAt) >= Date.parse(windowFrom)
+  ));
   const items: SicRawContentItem[] = dedupe(candidates).map((candidate) => ({
     id: createHash("sha256").update(`${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,

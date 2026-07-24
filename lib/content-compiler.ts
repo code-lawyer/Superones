@@ -160,6 +160,7 @@ export async function compileInformationBatch(input: {
   const information = [...input.previousInformation];
   const events = [...input.previousEvents];
   const quarantineRecords: QuarantinedContent[] = [];
+  const existingUrls = new Set(information.map((item) => item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()));
   const existingKeys = new Set(information.map((item) => `${item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()}#${item.contentHash ?? ""}`));
   const existingHashes = new Set(information.map((item) => item.contentHash).filter((value): value is string => Boolean(value)));
   const existingOriginIds = new Set(information.map((item) => item.originContentId).filter((value): value is string => Boolean(value)));
@@ -167,17 +168,21 @@ export async function compileInformationBatch(input: {
   const hiddenSlugs = new Set<string>();
   const active = activeEvents(events, batch.generatedAt).map(({ slug: eventSlug, title, summary }) => ({ slug: eventSlug, title, summary }));
   const batchEligible: InformationEnvelope[] = [];
+  const incomingUrls = new Set(existingUrls);
   const incomingKeys = new Set(existingKeys);
   const incomingHashes = new Set(existingHashes);
   const incomingOriginIds = new Set(existingOriginIds);
   for (const envelope of batch.information) {
-    const canonicalKey = `${envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase()}#${envelope.contentHash}`;
+    const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
+    const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
     if (
-      incomingKeys.has(canonicalKey)
+      incomingUrls.has(canonicalUrl)
+      || incomingKeys.has(canonicalKey)
       || incomingHashes.has(envelope.contentHash)
       || (envelope.originContentId && incomingOriginIds.has(envelope.originContentId))
     ) continue;
     batchEligible.push(envelope);
+    incomingUrls.add(canonicalUrl);
     incomingKeys.add(canonicalKey);
     incomingHashes.add(envelope.contentHash);
     if (envelope.originContentId) incomingOriginIds.add(envelope.originContentId);
@@ -194,9 +199,11 @@ export async function compileInformationBatch(input: {
   }
 
   for (const envelope of batchEligible) {
-    const canonicalKey = `${envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase()}#${envelope.contentHash}`;
+    const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
+    const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
     if (
-      existingKeys.has(canonicalKey)
+      existingUrls.has(canonicalUrl)
+      || existingKeys.has(canonicalKey)
       || existingHashes.has(envelope.contentHash)
       || (envelope.originContentId && existingOriginIds.has(envelope.originContentId))
     ) continue;
@@ -259,6 +266,7 @@ export async function compileInformationBatch(input: {
     }
     information.push(item);
     newSlugs.add(item.slug);
+    existingUrls.add(canonicalUrl);
     existingKeys.add(canonicalKey);
     existingHashes.add(envelope.contentHash);
     if (envelope.originContentId) existingOriginIds.add(envelope.originContentId);

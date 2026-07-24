@@ -1,5 +1,7 @@
 # Vault2077 SiC 学院设计基线
 
+> 2026-07-24 修订：排行榜部分已由 [ADR-0005](adr/0005-platform-native-rankings-and-lanes.md) 覆盖。当前只展示 GitHub、Hugging Face、OpenRouter、skills.sh 的平台原生榜单；MCP 榜和项目自行计算的增长榜已经删除。
+
 > 状态：规范性文件。最后按实现复核：2026-07-23。五个指标榜与四个内容组是当前冻结的公开结构；具体来源以一次性审核的来源目录为准，只有目录中标记为 `approved` 的来源才能启用。
 
 ## 1. 产品任务与边界

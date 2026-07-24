@@ -10,6 +10,7 @@ import {
   signingInput,
   validateAcquisitionBatch,
   type AcquisitionBatch,
+  type AcquisitionLane,
   type AcquisitionRecordKind,
 } from "./acquisition-contract.ts";
 
@@ -28,6 +29,10 @@ export type AcquisitionReceipt = {
   status: AcquisitionInboxStatus;
   batchId: string;
   runId: string;
+  lane: AcquisitionLane;
+  scheduleId: string;
+  windowFrom: string;
+  windowUntil: string;
   recordCount: number;
   sourceCount: number;
   kinds: Partial<Record<AcquisitionRecordKind, number>>;
@@ -46,6 +51,10 @@ type AcquisitionInboxRecord = {
   version: 1;
   batchId: string;
   runId: string;
+  lane: AcquisitionLane;
+  scheduleId: string;
+  windowFrom: string;
+  windowUntil: string;
   registryRevision: string;
   payloadHash: string;
   receivedAt: string;
@@ -102,6 +111,10 @@ function receipt(record: AcquisitionInboxRecord, duplicate: boolean): Acquisitio
     status: record.status,
     batchId: record.batchId,
     runId: record.runId,
+    lane: record.lane,
+    scheduleId: record.scheduleId,
+    windowFrom: record.windowFrom,
+    windowUntil: record.windowUntil,
     recordCount: record.recordCount,
     sourceCount: record.sourceCount,
     kinds: record.kinds,
@@ -258,6 +271,10 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
         version: 1,
         batchId: batch.batchId,
         runId: batch.runId,
+        lane: batch.lane,
+        scheduleId: batch.scheduleId,
+        windowFrom: batch.windowFrom,
+        windowUntil: batch.windowUntil,
         registryRevision: batch.registryRevision,
         payloadHash: bodyHash,
         receivedAt,

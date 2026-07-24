@@ -1,4 +1,4 @@
-import type { EventRecord, FrontierEntry, InformationItem, Service, TrendProject } from "./types";
+import type { EventRecord, FrontierEntry, InformationItem, Service } from "./types";
 
 export const siteStatus = {
   updated: "2026-07-22T18:00:00+08:00",
@@ -638,21 +638,6 @@ export const services: Service[] = [
   { slug: "icp-precheck", code: "OPC/FILING/001", category: "申报与备案", name: "ICP 备案材料预审", price: "¥499", period: "3 个工作日", audience: "准备在中国大陆服务器上线网站的经营主体。", includes: ["主体与域名材料检查", "网站信息检查", "提交前问题清单"], excludes: ["代替接入商提交", "许可证申请", "不符合政策业务整改"], materials: ["主体证件", "域名信息", "网站说明"], deliverables: ["材料预审结果", "补正清单"], revision: "REV.01" },
   { slug: "first-hire-pack", code: "OPC/HR/001", category: "人力资源", name: "首位员工入职文件包", price: "¥999", period: "5 个工作日", audience: "准备首次招聘全职员工的一人公司。", includes: ["劳动合同基础模板", "保密与知识产权条款", "入职材料清单"], excludes: ["高级管理人员激励", "劳务争议处理", "境外雇佣"], materials: ["主体信息", "岗位信息", "薪酬与试用期方案"], deliverables: ["入职文件包", "使用说明"], revision: "REV.01" },
   { slug: "founder-media-pack", code: "OPC/MEDIA/001", category: "传媒与传播", name: "创始人基础媒体资料包", price: "¥1,999", period: "7 个工作日", audience: "需要统一对外介绍产品、团队与创始人的早期项目。", includes: ["创始人简介", "产品标准介绍", "媒体问答基础版"], excludes: ["媒体投放", "舆情处置", "新闻稿代发"], materials: ["创始人与产品背景", "关键数据", "已有公开资料"], deliverables: ["媒体资料包", "版本维护清单"], revision: "REV.01" },
-];
-
-export const projects: TrendProject[] = [
-  { owner: "northstar-labs", repo: "relay", rank: 1, change: "上升 4", category: "Agent", description: "为长任务提供可恢复状态与人工确认点的轻量运行时。", language: "TypeScript", stars: 12840, delta24: 684, delta7: 1922, license: "Apache-2.0", updated: "2 小时前", captured: "2026.07.21 14:00", fit: "适合需要把多步自动化交给 Agent，同时保留人工确认边界的一人公司。" },
-  { owner: "carbon-stack", repo: "memoryline", rank: 2, change: "新入榜", category: "记忆", description: "可审计、可修订、可删除的 Agent 长期记忆层。", language: "Python", stars: 7621, delta24: 519, delta7: 1540, license: "MIT", updated: "4 小时前", captured: "2026.07.21 14:00", fit: "适合构建需要长期客户或项目上下文的个人工作系统。" },
-  { owner: "open-workbench", repo: "mcp-audit", rank: 3, change: "下降 1", category: "MCP", description: "在安装前检查 MCP 服务权限、外部请求和密钥处理。", language: "Rust", stars: 19102, delta24: 430, delta7: 1318, license: "Apache-2.0", updated: "1 小时前", captured: "2026.07.21 14:00", fit: "适合经常试用外部工具连接、需要降低供应链风险的开发者。" },
-  { owner: "small-models", repo: "routekit", rank: 4, change: "上升 7", category: "模型路由", description: "按成本、延迟和恢复率为不同任务选择模型。", language: "Python", stars: 5934, delta24: 388, delta7: 1014, license: "MIT", updated: "5 小时前", captured: "2026.07.21 14:00", fit: "适合模型调用已经形成稳定成本、需要精细控制毛利的 AI 产品。" },
-  { owner: "silent-systems", repo: "briefcase", rank: 5, change: "保持", category: "Skill", description: "把重复业务流程封装为带输入边界和验收标准的 Skill。", language: "TypeScript", stars: 8430, delta24: 312, delta7: 989, license: "MIT", updated: "7 小时前", captured: "2026.07.21 14:00", fit: "适合已经拥有稳定清单，希望逐步把流程交给 Agent 的经营者。" },
-  { owner: "voice-foundry", repo: "streamtalk", rank: 6, change: "下降 3", category: "语音", description: "端侧流式语音合成、打断检测与语义恢复组件。", language: "C++", stars: 24190, delta24: 277, delta7: 920, license: "Apache-2.0", updated: "3 小时前", captured: "2026.07.21 14:00", fit: "适合原型化实时语音助手或低延迟客服体验。" },
-  { owner: "solo-ops", repo: "ledger", rank: 7, change: "上升 2", category: "自动化", description: "用事件账本连接客户、合同、发票和交付状态。", language: "Go", stars: 4420, delta24: 241, delta7: 802, license: "AGPL-3.0", updated: "6 小时前", captured: "2026.07.21 14:00", fit: "适合希望用一个可追溯系统替代多个松散表格的一人公司。" },
-  { owner: "context-labs", repo: "handoff", rank: 8, change: "新入榜", category: "上下文", description: "在不同 Agent 和人工步骤之间传递最小必要上下文。", language: "TypeScript", stars: 3105, delta24: 219, delta7: 640, license: "MIT", updated: "2 小时前", captured: "2026.07.21 14:00", fit: "适合工具较多但信息经常在切换中丢失的个人工作流。" },
-  { owner: "paperplane-ai", repo: "extractor", rank: 9, change: "下降 1", category: "数据", description: "从长文档提取带来源定位的结构化事实。", language: "Python", stars: 15602, delta24: 184, delta7: 588, license: "Apache-2.0", updated: "9 小时前", captured: "2026.07.21 14:00", fit: "适合需要把公告、合同或研究资料转为结构化记录的任务。" },
-  { owner: "local-first-ai", repo: "cabinet", rank: 10, change: "上升 3", category: "知识库", description: "本地优先的个人与项目知识柜，支持明确的数据生命周期。", language: "Kotlin", stars: 9874, delta24: 162, delta7: 510, license: "MPL-2.0", updated: "11 小时前", captured: "2026.07.21 14:00", fit: "适合重视数据控制和离线可用性的长期知识工作。" },
-  { owner: "metered-ai", repo: "margin", rank: 11, change: "下降 5", category: "成本", description: "按客户、任务和模型追踪推理成本与毛利。", language: "Go", stars: 7200, delta24: 140, delta7: 462, license: "MIT", updated: "12 小时前", captured: "2026.07.21 14:00", fit: "适合需要把模型成本落实到具体客户与工作流的产品。" },
-  { owner: "plain-agents", repo: "humancheck", rank: 12, change: "保持", category: "Agent", description: "为高风险工具调用加入可配置的人工确认契约。", language: "TypeScript", stars: 5328, delta24: 126, delta7: 401, license: "MIT", updated: "8 小时前", captured: "2026.07.21 14:00", fit: "适合自动化已触及付款、发布或删除等外部操作的团队。" },
 ];
 
 export const frontierEntries: FrontierEntry[] = [

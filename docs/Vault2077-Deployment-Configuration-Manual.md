@@ -1,5 +1,7 @@
 # Vault2077 配置与部署手册
 
+> 2026-07-24 修订：当前部署不再需要 GH Archive/BigQuery、Smithery、Vercel OIDC、Hugging Face 或 X Token。四通道调度、国内 VPS 端点和 Secrets 的唯一有效清单见 [统一信息管线运行手册](Vault2077-Unified-Acquisition-Runbook.md)；本文后文的旧凭据表只保留为迁移历史。
+
 > 状态：运行手册，持续完善。最后按代码复核：2026-07-24。本文记录已经落地的配置、部署、验证和恢复方式，不修改产品规则。当前版本覆盖边境计划、Vault 信息管道与 SiC 学院。
 >
 > 2026-07-24 起，Vault、SiC 和各类榜单改用统一 AcquisitionBatch 主链。本文第 12.3–12.7 节中的旧分散端点仅保留迁移背景；当前部署、Secrets 和验收步骤以 [统一信息管线运行手册](Vault2077-Unified-Acquisition-Runbook.md) 为准。

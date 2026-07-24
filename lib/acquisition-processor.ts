@@ -3,7 +3,6 @@ import "server-only";
 import {
   validateContentBatch,
   type InformationEnvelope,
-  type RepositoryEnvelope,
 } from "./content-contract.ts";
 import { processInboundContent } from "./content-pipeline.ts";
 import type {
@@ -19,19 +18,11 @@ import {
 } from "./sic-collector.ts";
 import type { SicSourceCollectionReport } from "./sic-content-types.ts";
 import {
-  persistSicExtensionSnapshot,
-  type ExtensionTotal,
-  type SicExtensionItem,
-} from "./sic-extensions.ts";
-import {
-  persistGithubRankingSnapshot,
-  type GithubRankItem,
-} from "./sic-github-rankings.ts";
-import {
-  persistOfficialSicSnapshot,
-  type HuggingFaceModelSnapshot,
-  type OpenRouterModelSnapshot,
-} from "./sic-snapshots.ts";
+  persistDirectRankingBoards,
+  type DirectRankingBoard,
+  type DirectRankingItem,
+  type DirectRankingProvider,
+} from "./direct-rankings.ts";
 import type { AcquisitionBatchProcessor } from "./acquisition-worker.ts";
 
 type JsonObject = Record<string, JsonValue>;
@@ -105,31 +96,6 @@ function information(record: AcquisitionRecord): InformationEnvelope {
   };
 }
 
-function repository(record: AcquisitionRecord): RepositoryEnvelope | null {
-  const payload = record.payload;
-  const target = string(payload, "target", false) ?? "vault_project";
-  if (target !== "vault_project") return null;
-  return {
-    githubId: number(payload, "githubId"),
-    owner: string(payload, "owner"),
-    name: string(payload, "name"),
-    canonicalUrl: record.canonicalUrl,
-    description: string(payload, "description", false),
-    readme: string(payload, "readme", false),
-    readmeSha: string(payload, "readmeSha", false),
-    license: string(payload, "license", false),
-    primaryLanguage: string(payload, "primaryLanguage", false),
-    stars: number(payload, "stars"),
-    forks: number(payload, "forks"),
-    watchers: number(payload, "watchers"),
-    createdAt: string(payload, "createdAt"),
-    pushedAt: string(payload, "pushedAt"),
-    fetchedAt: record.observedAt,
-    delta24: number(payload, "delta24", 0),
-    delta7: number(payload, "delta7", 0),
-  };
-}
-
 function repositoryTarget(record: AcquisitionRecord) {
   return string(record.payload, "target", false) ?? "vault_project";
 }
@@ -183,114 +149,65 @@ const blockedDomesticFetch: typeof fetch = async () => {
   throw new Error("统一境内处理禁止回源访问境外页面。");
 };
 
-function huggingFaceModels(payload: JsonObject): HuggingFaceModelSnapshot[] {
-  return array(payload, "items").map((value, index) => {
-    const item = object(value, `items[${index}]`);
-    return {
-      id: string(item, "id"),
-      name: string(item, "name"),
-      downloadsAllTime: number(item, "downloadsAllTime"),
-    };
-  });
-}
+const DIRECT_PROVIDERS = new Set<DirectRankingProvider>(["github", "hugging_face", "openrouter", "skills"]);
 
-function openRouterModels(payload: JsonObject): OpenRouterModelSnapshot[] {
-  return array(payload, "items").map((value, index) => {
-    const item = object(value, `items[${index}]`);
-    return { id: string(item, "id"), name: string(item, "name") };
-  });
-}
-
-function githubItems(payload: JsonObject): GithubRankItem[] {
-  return array(payload, "items").map((value, index) => {
-    const item = object(value, `items[${index}]`);
-    return {
-      owner: string(item, "owner"),
-      repo: string(item, "repo"),
-      stars: number(item, "stars"),
-      delta24: number(item, "delta24", 0),
-      delta7: number(item, "delta7", 0),
-      description: string(item, "description"),
-      license: string(item, "license"),
-    };
-  });
-}
-
-function extensionItems(payload: JsonObject, field: string): SicExtensionItem[] {
-  return array(payload, field).map((value, index) => {
-    const item = object(value, `${field}[${index}]`);
-    return {
-      id: string(item, "id"),
-      name: string(item, "name"),
-      value: number(item, "value"),
-      href: https(item, "href"),
-    };
-  });
-}
-
-function extensionTotals(payload: JsonObject): ExtensionTotal[] {
-  return array(payload, "totals").map((value, index) => {
-    const item = object(value, `totals[${index}]`);
-    return {
-      id: string(item, "id"),
-      name: string(item, "name"),
-      value: number(item, "value"),
-      total: number(item, "total"),
-      href: https(item, "href"),
-    };
-  });
-}
-
-type RankingAdapters = {
-  persistOfficial: typeof persistOfficialSicSnapshot;
-  persistGithub: typeof persistGithubRankingSnapshot;
-  persistExtensions: typeof persistSicExtensionSnapshot;
-};
-
-async function processRankings(records: AcquisitionRecord[], adapters: RankingAdapters) {
-  const providers = new Set<string>();
-  for (const record of records) {
-    const provider = string(record.payload, "provider");
-    if (providers.has(provider)) throw new Error(`统一批次包含重复榜单 provider：${provider}。`);
-    providers.add(provider);
-    if (provider === "hugging_face") {
-      await adapters.persistOfficial({
-        capturedAt: record.observedAt,
-        huggingFace: huggingFaceModels(record.payload),
-      });
-    } else if (provider === "openrouter") {
-      await adapters.persistOfficial({
-        capturedAt: record.observedAt,
-        openRouter: openRouterModels(record.payload),
-      });
-    } else if (["github_trending", "github_24h", "github_7d"].includes(provider)) {
-      const items = githubItems(record.payload);
-      await adapters.persistGithub({
-        capturedAt: record.observedAt,
-        trending: provider === "github_trending" ? { capturedAt: record.observedAt, items } : null,
-        daily: provider === "github_24h" ? { capturedAt: record.observedAt, items } : null,
-        weekly: provider === "github_7d" ? { capturedAt: record.observedAt, items } : null,
-      });
-    } else if (provider === "skills") {
-      await adapters.persistExtensions({
-        capturedAt: record.observedAt,
-        skills: {
-          selected: extensionItems(record.payload, "selected"),
-          totals: extensionTotals(record.payload),
-        },
-      });
-    } else if (provider === "mcps") {
-      await adapters.persistExtensions({
-        capturedAt: record.observedAt,
-        mcps: {
-          selected: extensionItems(record.payload, "selected"),
-          totals: extensionTotals(record.payload),
-        },
-      });
-    } else {
-      throw new Error(`未知榜单 provider：${provider}。`);
+function directRankingBoard(record: AcquisitionRecord): DirectRankingBoard {
+  const payload = record.payload;
+  const provider = string(payload, "provider") as DirectRankingProvider;
+  if (!DIRECT_PROVIDERS.has(provider)) throw new Error(`未知榜单 provider：${provider}。`);
+  const providerView = string(payload, "providerView");
+  const sourceUrl = https(payload, "sourceUrl");
+  let previousRank = 0;
+  const values = array(payload, "items").map((value, index): DirectRankingItem => {
+    const ranking = object(value, `items[${index}]`);
+    const providerRank = number(ranking, "providerRank");
+    if (!Number.isInteger(providerRank) || providerRank <= previousRank) {
+      throw new Error(`${provider}/${providerView} 的 providerRank 与平台返回顺序不一致。`);
     }
+    previousRank = providerRank;
+    const itemProvider = string(ranking, "provider") as DirectRankingProvider;
+    if (itemProvider !== provider || string(ranking, "providerView") !== providerView) {
+      throw new Error(`${provider}/${providerView} 的榜单条目来源标识不一致。`);
+    }
+    const rawValue = ranking.value;
+    return {
+      id: string(ranking, "id"),
+      name: string(ranking, "name"),
+      provider,
+      providerView,
+      providerRank,
+      providerMetric: string(ranking, "providerMetric"),
+      value: rawValue === null ? null : number(ranking, "value"),
+      capturedAt: string(ranking, "capturedAt"),
+      sourceUrl: https(ranking, "sourceUrl"),
+      itemUrl: https(ranking, "itemUrl"),
+      description: string(ranking, "description", false),
+    };
+  });
+  return {
+    id: string(payload, "id"),
+    provider,
+    providerView,
+    title: string(payload, "title"),
+    eyebrow: string(payload, "eyebrow"),
+    providerMetric: string(payload, "providerMetric"),
+    capturedAt: record.observedAt,
+    sourceUrl,
+    items: values,
+  };
+}
+
+async function processRankings(
+  records: AcquisitionRecord[],
+  persist: typeof persistDirectRankingBoards,
+) {
+  const boards = records.map(directRankingBoard);
+  const ids = new Set<string>();
+  for (const board of boards) {
+    if (ids.has(board.id)) throw new Error(`统一批次包含重复榜单视图：${board.id}。`);
+    ids.add(board.id);
   }
+  await persist(boards);
 }
 
 export function createAcquisitionBatchProcessor(input: {
@@ -300,18 +217,12 @@ export function createAcquisitionBatchProcessor(input: {
     options?: { requireNoQuarantine?: boolean },
   ) => Promise<unknown>;
   processPublications?: (value: unknown, fetcher: typeof fetch) => Promise<unknown>;
-  persistOfficialRankings?: RankingAdapters["persistOfficial"];
-  persistGithubRankings?: RankingAdapters["persistGithub"];
-  persistExtensionRankings?: RankingAdapters["persistExtensions"];
+  persistDirectRankings?: typeof persistDirectRankingBoards;
   recordFrontierSnapshots?: typeof recordStarSnapshots;
 } = {}): AcquisitionBatchProcessor {
   const processContent = input.processContent ?? processInboundContent;
   const processPublications = input.processPublications ?? ingestSicAcquisitionContent;
-  const rankingAdapters: RankingAdapters = {
-    persistOfficial: input.persistOfficialRankings ?? persistOfficialSicSnapshot,
-    persistGithub: input.persistGithubRankings ?? persistGithubRankingSnapshot,
-    persistExtensions: input.persistExtensionRankings ?? persistSicExtensionSnapshot,
-  };
+  const persistRankings = input.persistDirectRankings ?? persistDirectRankingBoards;
   const persistFrontier = input.recordFrontierSnapshots ?? recordStarSnapshots;
 
   return async (batch, work) => {
@@ -320,13 +231,9 @@ export function createAcquisitionBatchProcessor(input: {
     const publicationRecords = batch.records.filter((record) => record.kind === "publication");
     const profiles = batch.records.filter((record) => record.kind === "entity_profile");
     const rankings = batch.records.filter((record) => record.kind === "ranking_observation");
-    const repositories = repositoryRecords.flatMap((record) => {
-      const value = repository(record);
-      return value ? [value] : [];
-    });
     const frontierRecords = repositoryRecords.filter((record) => repositoryTarget(record) === "frontier");
 
-    if (informationRecords.length > 0 || repositories.length > 0) {
+    if (informationRecords.length > 0) {
       const legacy = validateContentBatch({
         version: 2,
         batchId: batch.batchId,
@@ -335,7 +242,7 @@ export function createAcquisitionBatchProcessor(input: {
         collectedUntil: batch.collectedUntil,
         generatedAt: batch.collectedAt,
         information: informationRecords.map(information),
-        repositories,
+        repositories: [],
       });
       await processContent(legacy, work.payloadHash, { requireNoQuarantine: true });
     }
@@ -353,7 +260,7 @@ export function createAcquisitionBatchProcessor(input: {
       await processPublications(packet, blockedDomesticFetch);
     }
 
-    if (rankings.length > 0) await processRankings(rankings, rankingAdapters);
+    if (rankings.length > 0) await processRankings(rankings, persistRankings);
 
     const frontierBySeason = new Map<string, Array<{ submissionId: string; stars: number }>>();
     for (const record of frontierRecords) {
@@ -366,11 +273,10 @@ export function createAcquisitionBatchProcessor(input: {
       await persistFrontier(season, updates, batch.collectedAt);
     }
 
-    const recognizedRepositories = repositories.length + frontierRecords.length;
-    if (profiles.length > 0 || recognizedRepositories !== repositoryRecords.length) {
+    if (profiles.length > 0 || frontierRecords.length !== repositoryRecords.length) {
       const unsupported = profiles.length
         ? `${profiles.length} profiles`
-        : `${repositoryRecords.length - recognizedRepositories} repositories`;
+        : `${repositoryRecords.length - frontierRecords.length} repositories`;
       throw new Error(`统一处理 adapter 尚未覆盖：${unsupported}。`);
     }
 

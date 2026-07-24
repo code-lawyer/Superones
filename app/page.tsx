@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { formatNumber, services, siteStatus } from "@/lib/data";
+import { getDirectRankingBoards } from "@/lib/direct-rankings";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { getPublicContent } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const content = await getPublicContent();
+  const [content, rankingBoards] = await Promise.all([
+    getPublicContent(),
+    getDirectRankingBoards().catch(() => []),
+  ]);
+  const githubToday = rankingBoards.find((board) => board.id === "github:today");
   const latestEvents = [...content.events].sort(compareEventsNewest);
   const updatedAt = content.state.updatedAt
     ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Shanghai" }).format(new Date(content.state.updatedAt))
@@ -50,23 +55,23 @@ export default async function HomePage() {
           <section className="home-pane home-sic" aria-labelledby="home-sic-title">
             <header className="home-pane__header">
               <div>
-                <p className="home-pane__meta mono">24H GITHUB VELOCITY</p>
+                <p className="home-pane__meta mono">GITHUB / OFFICIAL TODAY</p>
                 <h2 id="home-sic-title">SiC 学院</h2>
               </div>
               <Link className="home-pane__all mono" href="/sic">查看全部</Link>
             </header>
             <div className="home-sic__list">
-              {content.projects.slice(0, 3).map((project) => (
-                <Link className="home-content-item home-sic__item" href={`/sic/${project.owner}/${project.repo}`} key={`${project.owner}/${project.repo}`}>
+              {(githubToday?.items ?? []).slice(0, 3).map((project) => (
+                <a className="home-content-item home-sic__item" href={project.itemUrl} target="_blank" rel="noreferrer" key={project.id}>
                   <p className="home-item__meta mono">
-                    <span>#{String(project.rank).padStart(2, "0")} · {project.category}</span>
-                    <strong>+{formatNumber(project.delta24)}</strong>
+                    <span>#{String(project.providerRank).padStart(2, "0")} · TODAY</span>
+                    <strong>{project.value === null ? "—" : `+${formatNumber(project.value)}`}</strong>
                   </p>
-                  <h3>{project.owner}/{project.repo}</h3>
-                  <p className="home-item__summary">{project.description}</p>
-                </Link>
+                  <h3>{project.name}</h3>
+                  <p className="home-item__summary">{project.description || "GitHub 官方 Trending 项目。"}</p>
+                </a>
               ))}
-              {content.projects.length === 0 ? <p className="home-pane__empty">趋势数据更新中。</p> : null}
+              {!githubToday?.items.length ? <p className="home-pane__empty">趋势数据更新中。</p> : null}
             </div>
           </section>
 

@@ -93,6 +93,7 @@ function isMainlandOrigin(channel) {
 
 function sourceAdmission(channel) {
   if (isMainlandOrigin(channel)) return "mainland_origin_platform";
+  if (channel.channelType === "github-trending") return "platform_ranking_moved_to_direct_lane";
   if (
     channel.channelType === "x"
     && !xPolicy.accounts.has(normalizeXHandle(channel.channelIdentifier))

@@ -2,21 +2,6 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
 const GROUPS = {
-  organizationAccounts: {
-    category: "official_organization",
-    publisherKind: "organization",
-    evidenceNature: "primary",
-  },
-  projectAccounts: {
-    category: "official_project",
-    publisherKind: "open_source_project",
-    evidenceNature: "primary",
-  },
-  mediaAccounts: {
-    category: "editorial_voice",
-    publisherKind: "editorial_media",
-    evidenceNature: "reported_analysis",
-  },
   authoritativePeople: {
     category: "authoritative_person",
     publisherKind: "person",

@@ -44,6 +44,24 @@ function emptyStore(): ContentStore {
   };
 }
 
+function deduplicateInformation(items: InformationItem[]) {
+  const urls = new Set<string>();
+  const hashes = new Set<string>();
+  const originIds = new Set<string>();
+  return items.filter((item) => {
+    const url = item.sourceUrl.replace(/[?#].*$/, "").toLowerCase();
+    if (
+      urls.has(url)
+      || (item.contentHash ? hashes.has(item.contentHash) : false)
+      || (item.originContentId ? originIds.has(item.originContentId) : false)
+    ) return false;
+    urls.add(url);
+    if (item.contentHash) hashes.add(item.contentHash);
+    if (item.originContentId) originIds.add(item.originContentId);
+    return true;
+  });
+}
+
 async function ensureStore() {
   await mkdir(path.dirname(storePath), { recursive: true });
   try {
@@ -72,6 +90,7 @@ async function readStore(): Promise<ContentStore> {
   ) {
     throw new Error("信息流内容库格式无效。");
   }
+  store.information = deduplicateInformation(store.information);
   return store;
 }
 
@@ -117,7 +136,7 @@ export async function replaceStoredContent(input: {
       sourceCount: input.sourceCount,
       publicationVersion: current.publicationVersion + 1,
       events: input.events,
-      information: input.information,
+      information: deduplicateInformation(input.information),
       projects: input.projects,
       quarantine: [...current.quarantine, ...(input.quarantine ?? [])].slice(-500),
       batches: input.receipt ? [...current.batches, input.receipt].slice(-500) : current.batches,

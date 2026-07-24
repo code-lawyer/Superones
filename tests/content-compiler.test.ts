@@ -231,6 +231,34 @@ test("exact duplicate content from another URL is processed once", async () => {
   assert.equal(result.information.length, 1);
 });
 
+test("the same canonical URL is processed once even when an aggregate body changes", async () => {
+  const first = envelope(1, "A", "媒体");
+  const changed = {
+    ...envelope(2, "A", "媒体"),
+    originalUrl: `${first.originalUrl}?updated=1`,
+    originalContent: "The comments changed after the first collection.",
+    contentHash: "f".repeat(64),
+  };
+  let translated = 0;
+  const result = await compileInformationBatch({
+    batch: batch([first, changed]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial({
+      async translateInformation(item) {
+        translated += 1;
+        return {
+          translatedTitle: item.originalTitle,
+          summary: item.originalTitle,
+          translatedContent: item.originalContent ?? item.originalTitle,
+        };
+      },
+    }),
+  });
+  assert.equal(result.information.length, 1);
+  assert.equal(translated, 1);
+});
+
 test("the same root X post from different transports is processed once before the LLM", async () => {
   const first = {
     ...envelope(1, "A", "评论"),

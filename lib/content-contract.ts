@@ -168,6 +168,23 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   if (item.originResolution !== undefined && !["declared", "verified", "unresolved"].includes(String(item.originResolution))) {
     throw new ContentContractError(`information[${index}].originResolution is invalid.`);
   }
+  const sourceStream = (item.sourceStream ?? "information") as SourceStream;
+  const originPlatform = (item.originPlatform ?? "web") as OriginPlatform;
+  if (sourceStream === "information" && originPlatform === "x") {
+    throw new ContentContractError(`information[${index}] 的 X 原生内容不得进入资讯瀑布。`);
+  }
+  if (
+    sourceStream === "statements"
+    && (
+      originPlatform !== "x"
+      || item.publisherKind !== "person"
+      || !item.originAccount
+      || !item.originContentId
+      || !item.originUrl
+    )
+  ) {
+    throw new ContentContractError(`information[${index}] 的名人说记录缺少真人 X 身份或原始状态地址。`);
+  }
   return {
     idempotencyKey: requiredText(item.idempotencyKey, `information[${index}].idempotencyKey`, 180),
     sourceChannelId: requiredText(item.sourceChannelId, `information[${index}].sourceChannelId`, 180),
@@ -187,8 +204,8 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     originalContent: optionalText(item.originalContent, `information[${index}].originalContent`, 48_000),
     contentCompleteness: completeness as ContentCompleteness,
     contentHash,
-    sourceStream: item.sourceStream as SourceStream | undefined,
-    originPlatform: item.originPlatform as OriginPlatform | undefined,
+    sourceStream,
+    originPlatform,
     originAccount: optionalText(item.originAccount, `information[${index}].originAccount`, 100),
     originContentId: optionalText(item.originContentId, `information[${index}].originContentId`, 180),
     originUrl: item.originUrl ? httpsUrl(item.originUrl, `information[${index}].originUrl`) : undefined,

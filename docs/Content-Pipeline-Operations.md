@@ -1,5 +1,7 @@
 # 信息管道运行说明
 
+> 2026-07-24 修订：四通道错峰、平台原生榜单和当前 Secrets 以 [统一信息管线运行手册](Vault2077-Unified-Acquisition-Runbook.md) 与 [ADR-0005](adr/0005-platform-native-rankings-and-lanes.md) 为准。本文后文涉及 GH Archive、BigQuery、Smithery、MCP 榜或本地增量快照的段落仅保留为历史迁移背景，不再是运行指令。
+
 > 状态：当前 MVP 实现手册，不修改产品规则。最后按代码复核：2026-07-23。规范冲突时，以 `docs/README.md` 所列规范性文件为准。
 
 ## 1. 已实现拓扑

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { informationHref } from "@/lib/feed-route";
 import type { InformationItem } from "@/lib/types";
 
 export function InformationList({ items }: { items: InformationItem[] }) {
@@ -6,7 +7,7 @@ export function InformationList({ items }: { items: InformationItem[] }) {
     <div className="information-list">
       {items.map((item) => (
         <article className="information-row" key={item.slug}>
-          <Link className="information-row__link" href={`/feed/info/${item.slug}`}>
+          <Link className="information-row__link" href={informationHref(item.slug)}>
             <div className="information-row__main">
               <h2><span>{item.translatedTitle}</span></h2>
               <p className="information-row__original" lang={item.originalLanguage}>{item.originalTitle}</p>

@@ -1,5 +1,7 @@
 # Vault2077 SiC：GitHub Trending 与 Star 增长榜数据源研究
 
+> 历史研究，已被 [ADR-0005](adr/0005-platform-native-rankings-and-lanes.md) 取代。生产实现只抓取 GitHub 官方 Trending 的 Today、This week、This month，不再使用 GH Archive 或自行计算 Star 增量。
+
 研究日期：2026-07-22
 
 ## 结论

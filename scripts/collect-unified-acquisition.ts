@@ -13,16 +13,29 @@ import {
   type AcquisitionSourceGroup,
 } from "../lib/acquisition-batch-builder.ts";
 import { validateContentBatch, type InboundContentBatch } from "../lib/content-contract.ts";
-import type { AcquisitionBatch, JsonValue } from "../lib/acquisition-contract.ts";
+import {
+  ACQUISITION_LANES,
+  type AcquisitionBatch,
+  type AcquisitionLane,
+} from "../lib/acquisition-contract.ts";
+import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
 
 const outputRoot = path.resolve(process.env.VAULT2077_COLLECTOR_OUTPUT_DIR || ".collector-output");
-const vaultOutput = path.join(outputRoot, "legacy-vault");
+const requestedLane = process.env.VAULT2077_ACQUISITION_LANE || "information";
+if (!ACQUISITION_LANES.includes(requestedLane as AcquisitionLane)) {
+  throw new Error(`未知采集通道：${requestedLane}。`);
+}
+const lane = requestedLane as AcquisitionLane;
+const vaultOutput = path.join(outputRoot, `legacy-vault-${lane}-${Date.now()}`);
 const rankingData = path.join(outputRoot, "ranking-data");
 const batchOutput = path.join(outputRoot, "acquisition-batches");
 const sourceBundlePath = path.resolve(process.env.VAULT2077_SOURCE_BUNDLE_FILE || "config/source-bundle.json");
 const sicRegistryPath = path.resolve("config/sic-source-registry.json");
-const python = process.env.VAULT2077_PYTHON || (process.platform === "win32" ? "python" : "python3");
+const python = process.env.VAULT2077_PYTHON || (process.platform === "win32" ? "uv" : "python3");
+const pythonPrefix = path.basename(python).toLowerCase().startsWith("uv")
+  ? ["run", "--with-requirements", "collector/requirements.txt", "python"]
+  : [];
 
 function run(command: string, args: string[], environment: NodeJS.ProcessEnv) {
   return new Promise<void>((resolve, reject) => {
@@ -43,7 +56,7 @@ async function readJson<T>(target: string) {
   return JSON.parse(await readFile(target, "utf8")) as T;
 }
 
-function withoutLegacyDeliveryEnvironment() {
+function withoutLegacyDeliveryEnvironment(sourceIds: string[]) {
   const {
     VAULT2077_DOMESTIC_INGEST_URL: _ingest,
     VAULT2077_DOMESTIC_PROCESS_URL: _process,
@@ -55,6 +68,7 @@ function withoutLegacyDeliveryEnvironment() {
     VAULT2077_SOURCE_BUNDLE_FILE: sourceBundlePath,
     VAULT2077_COLLECTOR_OUTPUT_DIR: vaultOutput,
     VAULT2077_TRIGGER_PROCESSING: "false",
+    VAULT2077_SOURCE_IDS: sourceIds.join(","),
   };
 }
 
@@ -62,9 +76,9 @@ function compactTimestamp(value: string) {
   return value.replace(/[-:.]/g, "").replace("Z", "Z");
 }
 
-async function collectVault() {
+async function collectVault(sourceIds: string[]) {
   await mkdir(vaultOutput, { recursive: true });
-  await run(python, ["-m", "collector.horizon_raw_export"], withoutLegacyDeliveryEnvironment());
+  await run(python, [...pythonPrefix, "-m", "collector.horizon_raw_export"], withoutLegacyDeliveryEnvironment(sourceIds));
   const files = (await readdir(vaultOutput))
     .filter((name) => name.endsWith(".json") && name !== "report.json")
     .sort();
@@ -87,194 +101,28 @@ async function collectVault() {
   return { packets, report };
 }
 
-function latest<T extends { capturedAt: string }>(values: T[] | undefined) {
-  return [...(values ?? [])].sort((left, right) => Date.parse(left.capturedAt) - Date.parse(right.capturedAt)).at(-1);
-}
-
-function jsonValues(values: unknown[]) {
-  return values as JsonValue[];
-}
-
-function limitSicItemsPerSource(
-  collection: SicRawCollection,
-  limit: number,
-): SicRawCollection {
-  const counts = new Map<string, number>();
-  const items = collection.items.filter((item) => {
-    const count = counts.get(item.sourceId) ?? 0;
-    if (count >= limit) return false;
-    counts.set(item.sourceId, count + 1);
-    return true;
-  });
-  return {
-    ...collection,
-    items,
-    reports: collection.reports.map((report) => ({
-      ...report,
-      itemCount: counts.get(report.sourceId) ?? 0,
-    })),
-  };
-}
-
 async function collectRankings(context: AcquisitionBuildContext) {
   process.env.VAULT2077_DATA_DIR = rankingData;
   await mkdir(rankingData, { recursive: true });
-  const [
-    { refreshOfficialSicSnapshots },
-    { refreshGithubRankingSnapshot },
-    { refreshSicExtensionSnapshots },
-  ] = await Promise.all([
-    import("../lib/sic-snapshots.ts"),
-    import("../lib/sic-github-rankings.ts"),
-    import("../lib/sic-extensions.ts"),
-  ]);
-  const [models, github, extensions] = await Promise.allSettled([
-    refreshOfficialSicSnapshots(),
-    refreshGithubRankingSnapshot(),
-    refreshSicExtensionSnapshots(),
-  ]);
-
-  const groups: AcquisitionSourceGroup[] = [];
-  const modelStore = await readJson<{
-    snapshots?: Array<{
-      capturedAt: string;
-      huggingFace?: { models?: unknown[] } | null;
-      openRouter?: { models?: unknown[] } | null;
-    }>;
-  }>(path.join(rankingData, "sic-snapshots.json")).catch(() => ({ snapshots: [] }));
-  const currentModels = latest<{
-    capturedAt: string;
-    huggingFace?: { models?: unknown[] } | null;
-    openRouter?: { models?: unknown[] } | null;
-  }>(modelStore.snapshots);
-  const modelResult = models.status === "fulfilled" ? models.value : null;
-  groups.push(rankingGroup({
+  const { refreshDirectRankings } = await import("../lib/direct-rankings.ts");
+  const result = await refreshDirectRankings();
+  const groups: AcquisitionSourceGroup[] = result.boards.map((board: DirectRankingBoard) => rankingGroup({
     context,
-    sourceId: "ranking:hugging-face",
-    provider: "hugging_face",
-    canonicalUrl: "https://huggingface.co/api/models",
-    payload: currentModels?.huggingFace?.models?.length
-      ? { provider: "hugging_face", items: jsonValues(currentModels.huggingFace.models) }
-      : { provider: "hugging_face" },
-    status: modelResult && !("error" in modelResult.huggingFace) ? "success" : "failure",
-    error: modelResult && "error" in modelResult.huggingFace
-      ? modelResult.huggingFace.error
-      : models.status === "rejected" && models.reason instanceof Error
-        ? models.reason.message
-        : null,
+    sourceId: `ranking:${board.id}`,
+    provider: board.provider,
+    canonicalUrl: board.sourceUrl,
+    payload: JSON.parse(JSON.stringify(board)),
+    status: "success",
   }));
-  groups.push(rankingGroup({
-    context,
-    sourceId: "ranking:openrouter",
-    provider: "openrouter",
-    canonicalUrl: "https://openrouter.ai/api/v1/models?sort=top-weekly",
-    payload: currentModels?.openRouter?.models?.length
-      ? { provider: "openrouter", items: jsonValues(currentModels.openRouter.models) }
-      : { provider: "openrouter" },
-    status: modelResult && !("error" in modelResult.openRouter) ? "success" : "failure",
-    error: modelResult && "error" in modelResult.openRouter
-      ? modelResult.openRouter.error
-      : models.status === "rejected" && models.reason instanceof Error
-        ? models.reason.message
-        : null,
-  }));
-
-  const githubStore = await readJson<{
-    snapshots?: Array<{
-      capturedAt: string;
-      trending?: { items?: unknown[] } | null;
-      daily?: { items?: unknown[] } | null;
-      weekly?: { items?: unknown[] } | null;
-    }>;
-  }>(path.join(rankingData, "sic-github-rankings.json")).catch(() => ({ snapshots: [] }));
-  const currentGithub = latest<{
-    capturedAt: string;
-    trending?: { items?: unknown[] } | null;
-    daily?: { items?: unknown[] } | null;
-    weekly?: { items?: unknown[] } | null;
-  }>(githubStore.snapshots);
-  const githubResult = github.status === "fulfilled" ? github.value : null;
-  for (const board of [
-    {
-      key: "trending" as const,
-      sourceId: "ranking:github-trending",
-      provider: "github_trending",
-      url: "https://github.com/trending",
-    },
-    {
-      key: "daily" as const,
-      sourceId: "ranking:github-24h",
-      provider: "github_24h",
-      url: "https://www.gharchive.org/",
-    },
-    {
-      key: "weekly" as const,
-      sourceId: "ranking:github-7d",
-      provider: "github_7d",
-      url: "https://www.gharchive.org/",
-    },
-  ]) {
-    const result = githubResult?.[board.key];
-    const items = currentGithub?.[board.key]?.items ?? [];
+  for (const [key, error] of Object.entries(result.errors)) {
     groups.push(rankingGroup({
       context,
-      sourceId: board.sourceId,
-      provider: board.provider,
-      canonicalUrl: board.url,
-      payload: items.length ? { provider: board.provider, items: jsonValues(items) } : { provider: board.provider },
-      status: result && !("error" in result) ? "success" : "failure",
-      error: result && "error" in result
-        ? result.error
-        : github.status === "rejected" && github.reason instanceof Error
-          ? github.reason.message
-          : null,
-    }));
-  }
-
-  const extensionStore = await readJson<{
-    snapshots?: Array<{
-      capturedAt: string;
-      skills?: { selected?: unknown[]; totals?: unknown[] } | null;
-      mcps?: { selected?: unknown[]; totals?: unknown[] } | null;
-    }>;
-  }>(path.join(rankingData, "sic-extension-snapshots.json")).catch(() => ({ snapshots: [] }));
-  const currentExtensions = latest<{
-    capturedAt: string;
-    skills?: { selected?: unknown[]; totals?: unknown[] } | null;
-    mcps?: { selected?: unknown[]; totals?: unknown[] } | null;
-  }>(extensionStore.snapshots);
-  const extensionResult = extensions.status === "fulfilled" ? extensions.value : null;
-  for (const provider of [
-    {
-      key: "skills" as const,
-      sourceId: "ranking:skills",
-      url: "https://skills.sh/",
-    },
-    {
-      key: "mcps" as const,
-      sourceId: "ranking:mcps",
-      url: "https://smithery.ai/",
-    },
-  ]) {
-    const snapshot = currentExtensions?.[provider.key];
-    const error = extensionResult?.errors[provider.key];
-    groups.push(rankingGroup({
-      context,
-      sourceId: provider.sourceId,
-      provider: provider.key,
-      canonicalUrl: provider.url,
-      payload: snapshot?.selected?.length || snapshot?.totals?.length
-        ? {
-          provider: provider.key,
-          selected: jsonValues(snapshot.selected ?? []),
-          totals: jsonValues(snapshot.totals ?? []),
-        }
-        : { provider: provider.key },
-      status: error ? "failure" : snapshot ? "success" : "failure",
-      error: error
-        || (extensions.status === "rejected" && extensions.reason instanceof Error
-          ? extensions.reason.message
-          : null),
+      sourceId: `ranking:${key}`,
+      provider: key.split(":")[0],
+      canonicalUrl: "https://example.invalid/ranking-failure",
+      payload: { provider: key.split(":")[0] },
+      status: "failure",
+      error,
     }));
   }
   return groups;
@@ -359,46 +207,74 @@ const [sourceBundle, sicRegistry] = await Promise.all([
     }>;
   }>(sicRegistryPath),
 ]);
-const vault = await collectVault();
-const runId = `run:${process.env.GITHUB_RUN_ID || compactTimestamp(vault.report.generatedAt)}`;
+const collectedAt = new Date().toISOString();
+const lookbackHours = lane === "sic" ? 24 : 12;
+const windowUntil = collectedAt;
+const windowFrom = new Date(Date.parse(windowUntil) - lookbackHours * 60 * 60 * 1000).toISOString();
+const scheduleId = process.env.VAULT2077_SCHEDULE_ID
+  || `${lane}:${windowUntil.slice(0, 13).replace(/[-T]/g, "")}`;
+const runId = `run:${process.env.GITHUB_RUN_ID || compactTimestamp(collectedAt)}:${lane}`;
 const context: AcquisitionBuildContext = {
   runId,
+  lane,
+  scheduleId,
+  windowFrom,
+  windowUntil,
   registryRevision: `registry:${sourceBundle.revision}:sic-v${sicRegistry.version}`,
-  collectedFrom: vault.report.collectedFrom,
-  collectedUntil: vault.report.collectedUntil,
-  collectedAt: vault.report.generatedAt,
+  collectedFrom: windowFrom,
+  collectedUntil: windowUntil,
+  collectedAt,
 };
-const { collectSicRawContent } = await import("../lib/sic-collector.ts");
-const sicCollection = limitSicItemsPerSource(
-  await collectSicRawContent(fetch, { allowAllFailed: true }),
-  Math.max(1, Number(process.env.VAULT2077_MAX_ITEMS_PER_SOURCE ?? "20")),
-);
-await writeFile(
-  path.join(outputRoot, "sic-raw-collection.json"),
-  `${JSON.stringify(sicCollection, null, 2)}\n`,
-  "utf8",
-);
-const rankingGroups = await collectRankings(context);
 const acquisitionMaxRecords = Math.max(
   1,
   Number(process.env.VAULT2077_ACQUISITION_MAX_RECORDS ?? "200"),
 );
-const batches = [
-  ...buildVaultAcquisitionBatches({
+
+let vault: Awaited<ReturnType<typeof collectVault>> | null = null;
+let sicCollection: SicRawCollection | null = null;
+let rankingGroups: AcquisitionSourceGroup[] = [];
+let batches: AcquisitionBatch[] = [];
+
+if (lane === "information" || lane === "statements") {
+  const sourceIds = sourceBundle.sources
+    .filter((source) => (source.sourceStream === "statements" ? "statements" : "information") === lane)
+    .map((source) => source.id);
+  vault = await collectVault(sourceIds);
+  context.collectedFrom = vault.report.collectedFrom;
+  context.collectedUntil = vault.report.collectedUntil;
+  context.collectedAt = vault.report.generatedAt;
+  context.windowFrom = vault.report.collectedFrom;
+  context.windowUntil = vault.report.collectedUntil;
+  batches = buildVaultAcquisitionBatches({
     context,
     packets: vault.packets,
     outcomes: vault.report.outcomes,
     connectorBySource: new Map(sourceBundle.sources.map((source) => [source.id, source.connector])),
+    sourceStreamBySource: new Map(sourceBundle.sources.map((source) => [
+      source.id,
+      source.sourceStream === "statements" ? "statements" : "information",
+    ])),
+    lane,
     maxRecords: acquisitionMaxRecords,
-  }),
-  ...buildSicAcquisitionBatches({
+  });
+} else if (lane === "sic") {
+  const { collectSicRawContent } = await import("../lib/sic-collector.ts");
+  sicCollection = await collectSicRawContent(fetch, { allowAllFailed: true });
+  await writeFile(
+    path.join(outputRoot, "sic-raw-collection.json"),
+    `${JSON.stringify(sicCollection, null, 2)}\n`,
+    "utf8",
+  );
+  batches = buildSicAcquisitionBatches({
     context,
     collection: sicCollection,
     adapterBySource: new Map(sicRegistry.sources.map((source) => [source.id, source.kind])),
     maxRecords: acquisitionMaxRecords,
-  }),
-  ...buildRankingAcquisitionBatches({ context, groups: rankingGroups }),
-];
+  });
+} else {
+  rankingGroups = await collectRankings(context);
+  batches = buildRankingAcquisitionBatches({ context, groups: rankingGroups });
+}
 
 const ingestUrl = process.env.VAULT2077_DOMESTIC_ACQUISITION_URL;
 const processUrl = process.env.VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL
@@ -446,18 +322,19 @@ if (ingestUrl && secret && processUrl && process.env.VAULT2077_TRIGGER_PROCESSIN
 const sourceReports = batches.flatMap((batch) => batch.sourceReports);
 const sourceBundleById = new Map(sourceBundle.sources.map((source) => [source.id, source]));
 const sicSourceById = new Map(sicRegistry.sources.map((source) => [source.id, source]));
-const vaultOutcomeById = new Map(vault.report.outcomes.map((outcome) => [
+const vaultOutcomeById = new Map((vault?.report.outcomes ?? []).map((outcome) => [
   outcome.sourceId ?? outcome.source_id ?? "",
   outcome,
 ]));
 const rankingNames = new Map([
-  ["ranking:hugging-face", "Hugging Face 模型榜"],
-  ["ranking:openrouter", "OpenRouter 模型榜"],
-  ["ranking:github-trending", "GitHub Trending"],
-  ["ranking:github-24h", "GitHub 24H 新增 Star"],
-  ["ranking:github-7d", "GitHub 7D 新增 Star"],
-  ["ranking:skills", "Skill 排行榜"],
-  ["ranking:mcps", "MCP 排行榜"],
+  ["ranking:github:today", "GitHub Trending Today"],
+  ["ranking:github:week", "GitHub Trending This week"],
+  ["ranking:github:month", "GitHub Trending This month"],
+  ["ranking:hugging-face:trending", "Hugging Face Trending"],
+  ["ranking:openrouter:top-weekly", "OpenRouter Top Weekly"],
+  ["ranking:skills:all-time", "Skill All Time"],
+  ["ranking:skills:trending-24h", "Skill Trending 24h"],
+  ["ranking:skills:hot", "Skill Hot"],
 ]);
 const statusWeight = { empty: 0, succeeded: 1, partial: 2, failed: 3 } as const;
 const consolidatedReports = new Map<string, typeof sourceReports[number]>();
@@ -523,6 +400,10 @@ const recordsByKind = Object.fromEntries(
 );
 const report = {
   runId,
+  lane,
+  scheduleId: context.scheduleId,
+  windowFrom: context.windowFrom,
+  windowUntil: context.windowUntil,
   registryRevision: context.registryRevision,
   collectedFrom: context.collectedFrom,
   collectedUntil: context.collectedUntil,
@@ -539,8 +420,8 @@ const report = {
   ),
   sourceReports: detailedSourceReports,
   collectionLimits: {
-    lookbackHours: Number(process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS ?? "12"),
-    maxItemsPerSource: Number(process.env.VAULT2077_MAX_ITEMS_PER_SOURCE ?? "20"),
+    lookbackHours,
+    maxItemsPerSource: null,
   },
   processor: {
     provider: process.env.VAULT2077_LLM_BASE_URL

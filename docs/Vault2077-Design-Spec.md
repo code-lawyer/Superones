@@ -1,5 +1,7 @@
 # Vault2077 产品与设计规格
 
+> 2026-07-24 修订：SiC 排行榜与信息流分栏已经由 [ADR-0005](adr/0005-platform-native-rankings-and-lanes.md) 更新。旧的 GitHub/Hugging Face/Skill 增量榜、MCP 榜和相关凭据描述不再适用。
+
 > 状态：规范性总规格
 > 版本：1.2
 > 日期：2026-07-23

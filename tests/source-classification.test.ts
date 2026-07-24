@@ -38,7 +38,8 @@ test("runtime bundle preserves taxonomy for every active source", () => {
 });
 
 test("runtime bundle excludes mainland origin platforms without filtering content language", () => {
-  assert.ok(bundle.sources.some((source: { channelType: string; primaryLanguage: string }) => source.channelType === "x" && source.primaryLanguage === "zh-CN"));
+  assert.ok(bundle.pending.some((source: { primaryLanguage: string; reason: string }) => source.primaryLanguage === "zh-CN" && source.reason === "mainland_origin_platform"));
+  assert.ok(bundle.pending.every((source: { reason: string }) => source.reason !== "unsupported_language"));
   assert.ok(bundle.sources.every((source: { endpoint: string }) => !source.endpoint.includes("wechat2rss")));
   assert.ok(bundle.sources.every((source: { endpoint: string }) => !source.endpoint.includes("/xiaoyuzhou/")));
   assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "hotlist"));
@@ -46,6 +47,7 @@ test("runtime bundle excludes mainland origin platforms without filtering conten
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "mainland_origin_platform"));
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "unverified_direct_publisher_origin"));
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "unstructured_html_connector_disallowed"));
+  assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "platform_ranking_moved_to_direct_lane"));
 });
 
 test("video-only YouTube channels never enter the registry or runtime bundle", () => {

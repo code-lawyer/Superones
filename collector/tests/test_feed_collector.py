@@ -72,7 +72,12 @@ class CollectorContractTests(unittest.TestCase):
             "evidenceNature": "social_community",
             "publisherKind": "person",
         }
-        item = document(source, "https://twitter.com/exampleperson/status/123456789?ref=rss", "Statement")
+        item = document(
+            source,
+            "https://twitter.com/exampleperson/status/123456789?ref=rss",
+            "Statement",
+            "The actual statement. 🔗 View on Twitter 💬15🔄8❤️70 ⚡ Powered by xgo.ing",
+        )
         self.assertEqual(item["sourceStream"], "statements")
         self.assertEqual(item["originPlatform"], "x")
         self.assertEqual(item["originAccount"], "exampleperson")
@@ -81,6 +86,7 @@ class CollectorContractTests(unittest.TestCase):
         self.assertEqual(item["originResolution"], "verified")
         self.assertEqual(item["transportKind"], "rss")
         self.assertEqual(item["transportProvider"], "api.xgo.ing")
+        self.assertEqual(item["originalContent"], "The actual statement.")
 
     def test_x_statement_rejects_an_item_from_another_account(self):
         source = {

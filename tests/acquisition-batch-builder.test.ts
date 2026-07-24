@@ -10,6 +10,10 @@ import { SOURCE_ROLES } from "../lib/types.ts";
 
 const context: AcquisitionBuildContext = {
   runId: "run:full-source-test",
+  lane: "information",
+  scheduleId: "schedule:test:information",
+  windowFrom: "2026-07-24T00:00:00.000Z",
+  windowUntil: "2026-07-24T01:00:00.000Z",
   registryRevision: "source-bundle:test",
   collectedFrom: "2026-07-24T00:00:00.000Z",
   collectedUntil: "2026-07-24T01:00:00.000Z",
