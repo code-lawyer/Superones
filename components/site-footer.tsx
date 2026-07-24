@@ -8,6 +8,7 @@ export function SiteFooter() {
         <nav className="footer-nav" aria-label="页脚导航">
           <Link href="/about">关于</Link>
           <Link href="/methodology">方法说明</Link>
+          <Link href="/sources">数据源地图</Link>
           <Link href="/corrections">纠错</Link>
           <Link href="/privacy">隐私</Link>
           <Link href="/terms">条款</Link>
