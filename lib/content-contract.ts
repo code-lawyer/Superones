@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   CLASSIFICATION_CONFIDENCES,
   EVIDENCE_NATURES,
@@ -9,6 +8,7 @@ import {
   type PublisherKind,
   type SourceRole,
 } from "./types.ts";
+export { payloadHash, signingInput } from "./batch-signing.ts";
 
 export const CONTENT_BATCH_VERSION = 2 as const;
 export const MAX_BATCH_ITEMS = 200;
@@ -228,14 +228,6 @@ export function validateContentBatch(value: unknown): InboundContentBatch {
     information: batch.information.map(validateInformation),
     repositories: batch.repositories.map(validateRepository),
   };
-}
-
-export function payloadHash(payload: string) {
-  return createHash("sha256").update(payload).digest("hex");
-}
-
-export function signingInput(timestamp: string, batchId: string, bodyHash: string) {
-  return `${timestamp}.${batchId}.${bodyHash}`;
 }
 
 export function canonicalInformationKey(item: Pick<InformationEnvelope, "contentHash" | "originalUrl">) {

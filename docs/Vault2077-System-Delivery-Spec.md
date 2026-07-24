@@ -26,6 +26,8 @@
 
 `AcquisitionBatch` 的公共字段至少包含 `schemaVersion`、`batchId`、`runId`、`registryRevision`、采集窗口、`collectedAt`、`records` 和 `sourceReports`。每条记录包含稳定 `kind`、`sourceId`、外部身份、规范 URL、`observedAt`、内容哈希和版本化 payload；记录类型可以扩展，认证、大小限制、幂等、状态报告和错误语义不得分叉。排名数值必须保留可复算原始观测，LLM 不得修改数值或排序。
 
+统一批次 v1 契约及来源计数一致性校验位于 `lib/acquisition-contract.ts`，旧内容入口与新入口共享 `lib/batch-signing.ts` 的签名输入规则。该契约先作为迁移窄腰落地；在统一接收路由、持久化与兼容 adapter 完成前，不替换现有生产入口。
+
 生产连接器只允许 RSS、Atom、JSON Feed、文档化 HTTP API、远程结构化协议或逐源批准的机器可读入口。SiC 可使用逐源批准的 sitemap、日期化版本页、官方课程目录和官方节目索引，并使用有界、来源专属的静态解析规则；不允许泛站扫描或 CSS/DOM 易碎选择器扩散到未批准路径。统一采集模块禁止 Playwright、Selenium、无头浏览器、Cookies 会话复刻和页面点击模拟。MCP 只有在提供无状态远程传输、稳定结构化输出且确实优于直接 API 时才接入。
 
 境外采集器不处理视频媒体：不下载视频或音轨，不调用字幕抓取器和语音识别服务。Vault 信息流不登记 YouTube；SiC 仅登记已经批准的机构官方频道 Feed，将新视频当作课程/讲座发布事件并直达原页。视频描述中链接的官方文章、论文或仓库必须作为独立文本信源重新登记，不能把视频元数据冒充原文。
