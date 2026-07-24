@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 
 from collector.feed_collector import (
+    MAX_ITEMS_PER_SOURCE,
     MAX_TREND_PROJECTS,
     PROCESS_TIMEOUT_SECONDS,
     WORKERS,
@@ -171,12 +172,13 @@ async def collect_one(source: dict, since: datetime, until: datetime, client: ht
             raise ValueError(f"No approved Horizon adapter for {source.get('connector')} / {source.get('channelType')}")
         adapter_name, scraper = adapter
         async with semaphore:
-            items = await scraper.fetch(since)
+            fetched_items = await scraper.fetch(since)
+        items = fetched_items[:MAX_ITEMS_PER_SOURCE]
         information, candidates, rejected = normalize_horizon_items(source, items)
         transport_error = recording_client.error or (f"upstream returned HTTP {max(recording_client.statuses)}" if any(value >= 400 for value in recording_client.statuses) else None)
-        status = "partial" if items and transport_error else ("failure" if transport_error else ("success" if items else "empty"))
+        status = "partial" if fetched_items and transport_error else ("failure" if transport_error else ("success" if fetched_items else "empty"))
         error = transport_error
-        outcome = SourceOutcome(source["id"], source["name"], adapter_name, status, len(items), len(information), rejected, round((time.perf_counter() - started) * 1000), error)
+        outcome = SourceOutcome(source["id"], source["name"], adapter_name, status, len(fetched_items), len(information), rejected, round((time.perf_counter() - started) * 1000), error)
         return information, candidates, outcome
     except Exception as error:
         outcome = SourceOutcome(source["id"], source["name"], "unavailable", "failure", 0, 0, 0, round((time.perf_counter() - started) * 1000), f"{type(error).__name__}: {error}")

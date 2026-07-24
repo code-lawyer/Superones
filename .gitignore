@@ -17,6 +17,7 @@ data/sic-content-store.json
 data/sic-snapshots.json
 data/sic-github-rankings.json
 data/sic-extension-snapshots.json
+data/pipeline-report.json
 config/feed-sources.json
 .collector-rss.json
 .collector-output/

@@ -3,6 +3,8 @@ export type OpenAICompatibleConfig = {
   apiKey: string;
   model: string;
   timeoutMs: number;
+  maxTokens?: number;
+  reasoningEffort?: "low" | "medium" | "high";
 };
 
 export type JsonCompletion = {
@@ -34,7 +36,20 @@ export function loadOpenAICompatibleConfig(environment: Record<string, string | 
   }
   if (!/^https?:$/.test(parsed.protocol)) throw new ModelNotConfiguredError("VAULT2077_LLM_BASE_URL 必须使用 HTTP(S)。");
   const configuredTimeout = Number(environment.VAULT2077_LLM_TIMEOUT_MS ?? "30000");
-  return { baseUrl, apiKey, model, timeoutMs: Number.isFinite(configuredTimeout) ? Math.max(5_000, Math.min(120_000, configuredTimeout)) : 30_000 };
+  const configuredMaxTokens = Number(environment.VAULT2077_LLM_MAX_TOKENS);
+  const reasoningEffort = environment.VAULT2077_LLM_REASONING_EFFORT;
+  return {
+    baseUrl,
+    apiKey,
+    model,
+    timeoutMs: Number.isFinite(configuredTimeout) ? Math.max(5_000, Math.min(120_000, configuredTimeout)) : 30_000,
+    ...(Number.isFinite(configuredMaxTokens)
+      ? { maxTokens: Math.max(256, Math.min(12_000, Math.floor(configuredMaxTokens))) }
+      : {}),
+    ...(reasoningEffort === "low" || reasoningEffort === "medium" || reasoningEffort === "high"
+      ? { reasoningEffort }
+      : {}),
+  };
 }
 
 function completionUrl(baseUrl: string) {
@@ -51,6 +66,10 @@ export function createOpenAICompatibleClient(config: OpenAICompatibleConfig, fet
           model: config.model,
           temperature: 0.1,
           response_format: { type: "json_object" },
+          ...(config.maxTokens ? { max_tokens: config.maxTokens } : {}),
+          ...(config.reasoningEffort
+            ? { reasoning: { effort: config.reasoningEffort, exclude: true } }
+            : {}),
           messages: [
             {
               role: "system",

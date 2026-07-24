@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import path from "node:path";
 import {
   buildRankingAcquisitionBatches,
@@ -12,6 +14,7 @@ import {
 } from "../lib/acquisition-batch-builder.ts";
 import { validateContentBatch, type InboundContentBatch } from "../lib/content-contract.ts";
 import type { AcquisitionBatch, JsonValue } from "../lib/acquisition-contract.ts";
+import type { SicRawCollection } from "../lib/sic-collector.ts";
 
 const outputRoot = path.resolve(process.env.VAULT2077_COLLECTOR_OUTPUT_DIR || ".collector-output");
 const vaultOutput = path.join(outputRoot, "legacy-vault");
@@ -78,6 +81,7 @@ async function collectVault() {
       sourceId?: string;
       status: string;
       error?: string | null;
+      duration_ms?: number;
     }>;
   }>(path.join(vaultOutput, "report.json"));
   return { packets, report };
@@ -89,6 +93,27 @@ function latest<T extends { capturedAt: string }>(values: T[] | undefined) {
 
 function jsonValues(values: unknown[]) {
   return values as JsonValue[];
+}
+
+function limitSicItemsPerSource(
+  collection: SicRawCollection,
+  limit: number,
+): SicRawCollection {
+  const counts = new Map<string, number>();
+  const items = collection.items.filter((item) => {
+    const count = counts.get(item.sourceId) ?? 0;
+    if (count >= limit) return false;
+    counts.set(item.sourceId, count + 1);
+    return true;
+  });
+  return {
+    ...collection,
+    items,
+    reports: collection.reports.map((report) => ({
+      ...report,
+      itemCount: counts.get(report.sourceId) ?? 0,
+    })),
+  };
 }
 
 async function collectRankings(context: AcquisitionBuildContext) {
@@ -277,16 +302,61 @@ async function sendBatch(url: string, secret: string, batch: AcquisitionBatch, r
   return JSON.parse(body) as unknown;
 }
 
+function postLongRunningJson(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+) {
+  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const target = new URL(url);
+    const request = (target.protocol === "https:" ? httpsRequest : httpRequest)({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port,
+      path: `${target.pathname}${target.search}`,
+      method: "POST",
+      headers: {
+        ...headers,
+        "content-length": Buffer.byteLength(body),
+      },
+    }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({
+        status: response.statusCode ?? 0,
+        body: Buffer.concat(chunks).toString("utf8"),
+      }));
+    });
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new Error(`境内 Worker 在 ${timeoutMs} ms 内没有完成。`));
+    });
+    request.on("error", reject);
+    request.end(body);
+  });
+}
+
 await mkdir(outputRoot, { recursive: true });
 await mkdir(batchOutput, { recursive: true });
 const [sourceBundle, sicRegistry] = await Promise.all([
   readJson<{
     revision: string;
-    sources: Array<{ id: string; connector: string }>;
+    sources: Array<{
+      id: string;
+      name: string;
+      connector: string;
+      sourceStream?: "information" | "statements";
+      originPlatform?: "web" | "x";
+    }>;
   }>(sourceBundlePath),
   readJson<{
     version: number;
-    sources: Array<{ id: string; kind: string }>;
+    sources: Array<{
+      id: string;
+      name: string;
+      group: string;
+      kind: string;
+    }>;
   }>(sicRegistryPath),
 ]);
 const vault = await collectVault();
@@ -299,24 +369,33 @@ const context: AcquisitionBuildContext = {
   collectedAt: vault.report.generatedAt,
 };
 const { collectSicRawContent } = await import("../lib/sic-collector.ts");
-const sicCollection = await collectSicRawContent(fetch, { allowAllFailed: true });
+const sicCollection = limitSicItemsPerSource(
+  await collectSicRawContent(fetch, { allowAllFailed: true }),
+  Math.max(1, Number(process.env.VAULT2077_MAX_ITEMS_PER_SOURCE ?? "20")),
+);
 await writeFile(
   path.join(outputRoot, "sic-raw-collection.json"),
   `${JSON.stringify(sicCollection, null, 2)}\n`,
   "utf8",
 );
 const rankingGroups = await collectRankings(context);
+const acquisitionMaxRecords = Math.max(
+  1,
+  Number(process.env.VAULT2077_ACQUISITION_MAX_RECORDS ?? "200"),
+);
 const batches = [
   ...buildVaultAcquisitionBatches({
     context,
     packets: vault.packets,
     outcomes: vault.report.outcomes,
     connectorBySource: new Map(sourceBundle.sources.map((source) => [source.id, source.connector])),
+    maxRecords: acquisitionMaxRecords,
   }),
   ...buildSicAcquisitionBatches({
     context,
     collection: sicCollection,
     adapterBySource: new Map(sicRegistry.sources.map((source) => [source.id, source.kind])),
+    maxRecords: acquisitionMaxRecords,
   }),
   ...buildRankingAcquisitionBatches({ context, groups: rankingGroups }),
 ];
@@ -345,24 +424,103 @@ for (const batch of batches) {
 }
 
 let processing: unknown = null;
+let processingDurationMs: number | null = null;
 if (ingestUrl && secret && processUrl && process.env.VAULT2077_TRIGGER_PROCESSING !== "false") {
-  const response = await fetch(processUrl, {
-    method: "POST",
-    headers: {
+  const processingStartedAt = Date.now();
+  const response = await postLongRunningJson(
+    processUrl,
+    {
       authorization: `Bearer ${process.env.VAULT2077_PIPELINE_WORKER_SECRET || secret}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ maxBatches: 50 }),
-    signal: AbortSignal.timeout(30 * 60 * 1000),
-  });
-  const body = await response.text();
-  if (!response.ok && response.status !== 207) {
-    throw new Error(`统一 Worker 返回 HTTP ${response.status}：${body.slice(0, 500)}`);
+    JSON.stringify({ maxBatches: 50 }),
+    Number(process.env.VAULT2077_PROCESS_TIMEOUT_SECONDS ?? "5400") * 1_000,
+  );
+  if ((response.status < 200 || response.status >= 300) && response.status !== 207) {
+    throw new Error(`统一 Worker 返回 HTTP ${response.status}：${response.body.slice(0, 500)}`);
   }
-  processing = JSON.parse(body) as unknown;
+  processing = JSON.parse(response.body) as unknown;
+  processingDurationMs = Date.now() - processingStartedAt;
 }
 
 const sourceReports = batches.flatMap((batch) => batch.sourceReports);
+const sourceBundleById = new Map(sourceBundle.sources.map((source) => [source.id, source]));
+const sicSourceById = new Map(sicRegistry.sources.map((source) => [source.id, source]));
+const vaultOutcomeById = new Map(vault.report.outcomes.map((outcome) => [
+  outcome.sourceId ?? outcome.source_id ?? "",
+  outcome,
+]));
+const rankingNames = new Map([
+  ["ranking:hugging-face", "Hugging Face 模型榜"],
+  ["ranking:openrouter", "OpenRouter 模型榜"],
+  ["ranking:github-trending", "GitHub Trending"],
+  ["ranking:github-24h", "GitHub 24H 新增 Star"],
+  ["ranking:github-7d", "GitHub 7D 新增 Star"],
+  ["ranking:skills", "Skill 排行榜"],
+  ["ranking:mcps", "MCP 排行榜"],
+]);
+const statusWeight = { empty: 0, succeeded: 1, partial: 2, failed: 3 } as const;
+const consolidatedReports = new Map<string, typeof sourceReports[number]>();
+for (const item of sourceReports) {
+  const previous = consolidatedReports.get(item.sourceId);
+  if (!previous) {
+    consolidatedReports.set(item.sourceId, { ...item });
+    continue;
+  }
+  consolidatedReports.set(item.sourceId, {
+    ...previous,
+    status: statusWeight[item.status] > statusWeight[previous.status] ? item.status : previous.status,
+    startedAt: Date.parse(item.startedAt) < Date.parse(previous.startedAt) ? item.startedAt : previous.startedAt,
+    completedAt: Date.parse(item.completedAt) > Date.parse(previous.completedAt) ? item.completedAt : previous.completedAt,
+    recordCount: previous.recordCount + item.recordCount,
+    errorCode: previous.errorCode ?? item.errorCode,
+    errorMessage: previous.errorMessage ?? item.errorMessage,
+  });
+}
+const detailedSourceReports = [...consolidatedReports.values()]
+  .map((item) => {
+    const vaultSource = sourceBundleById.get(item.sourceId);
+    const sicSource = sicSourceById.get(item.sourceId);
+    const rankingName = rankingNames.get(item.sourceId);
+    const synthetic = item.sourceId === "vault:github-projects";
+    const section = vaultSource
+      ? vaultSource.sourceStream === "statements" ? "statements" : "information"
+      : sicSource
+        ? "sic"
+        : rankingName
+          ? "rankings"
+          : synthetic
+            ? "projects"
+            : "other";
+    return {
+      ...item,
+      name: vaultSource?.name
+        ?? sicSource?.name
+        ?? rankingName
+        ?? (synthetic ? "GitHub 项目补全" : item.sourceId),
+      section,
+      connector: vaultSource?.connector ?? sicSource?.kind ?? item.adapter,
+      originPlatform: vaultSource?.originPlatform ?? (section === "statements" ? "x" : "web"),
+      registered: !synthetic,
+      durationMs: vaultOutcomeById.get(item.sourceId)?.duration_ms ?? null,
+    };
+  })
+  .sort((left, right) => (
+    left.section.localeCompare(right.section)
+    || left.name.localeCompare(right.name)
+    || left.sourceId.localeCompare(right.sourceId)
+  ));
+const registeredSourceReports = detailedSourceReports.filter((item) => item.registered);
+const recordsByKind = Object.fromEntries(
+  ["information", "publication", "entity_profile", "repository_observation", "ranking_observation"]
+    .map((kind) => [
+      kind,
+      batches.reduce(
+        (sum, batch) => sum + batch.records.filter((record) => record.kind === kind).length,
+        0,
+      ),
+    ]),
+);
 const report = {
   runId,
   registryRevision: context.registryRevision,
@@ -371,13 +529,26 @@ const report = {
   collectedAt: context.collectedAt,
   batches: batches.length,
   records: batches.reduce((sum, batch) => sum + batch.records.length, 0),
-  sources: sourceReports.length,
+  recordsByKind,
+  sources: registeredSourceReports.length,
   sourceStatus: Object.fromEntries(
     ["succeeded", "partial", "empty", "failed"].map((status) => [
       status,
-      sourceReports.filter((item) => item.status === status).length,
+      registeredSourceReports.filter((item) => item.status === status).length,
     ]),
   ),
+  sourceReports: detailedSourceReports,
+  collectionLimits: {
+    lookbackHours: Number(process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS ?? "12"),
+    maxItemsPerSource: Number(process.env.VAULT2077_MAX_ITEMS_PER_SOURCE ?? "20"),
+  },
+  processor: {
+    provider: process.env.VAULT2077_LLM_BASE_URL
+      ? new URL(process.env.VAULT2077_LLM_BASE_URL).hostname
+      : null,
+    model: process.env.VAULT2077_LLM_MODEL ?? null,
+    durationMs: processingDurationMs,
+  },
   files,
   receipts,
   processing,

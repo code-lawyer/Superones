@@ -62,9 +62,13 @@ function informationChunks(information: InformationEnvelope[]) {
   const chunks: InformationEnvelope[][] = [];
   let current: InformationEnvelope[] = [];
   let currentCharacters = 0;
+  const configuredItems = Number(process.env.VAULT2077_LLM_BATCH_ITEMS ?? "3");
+  const maxItems = Number.isFinite(configuredItems)
+    ? Math.max(1, Math.min(8, Math.floor(configuredItems)))
+    : 3;
   for (const item of information) {
     const characters = item.originalTitle.length + (item.originalContent?.length ?? 0);
-    if (current.length > 0 && (current.length >= 3 || currentCharacters + characters > 24_000)) {
+    if (current.length > 0 && (current.length >= maxItems || currentCharacters + characters > 24_000)) {
       chunks.push(current);
       current = [];
       currentCharacters = 0;

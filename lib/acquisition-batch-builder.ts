@@ -160,6 +160,7 @@ export function buildVaultAcquisitionBatches(input: {
   packets: InboundContentBatch[];
   outcomes: VaultCollectionOutcome[];
   connectorBySource: Map<string, string>;
+  maxRecords?: number;
 }) {
   const recordsBySource = new Map<string, AcquisitionRecord[]>();
   const informationById = new Map<string, AcquisitionRecord>();
@@ -286,7 +287,7 @@ export function buildVaultAcquisitionBatches(input: {
     input.context,
     groups,
     `acquisition:${input.context.runId}:vault`,
-    { maxRecords: MAX_BATCH_ITEMS },
+    { maxRecords: Math.min(MAX_BATCH_ITEMS, input.maxRecords ?? MAX_BATCH_ITEMS) },
   );
 }
 
@@ -294,6 +295,7 @@ export function buildSicAcquisitionBatches(input: {
   context: AcquisitionBuildContext;
   collection: SicRawCollection;
   adapterBySource: Map<string, string>;
+  maxRecords?: number;
 }) {
   const itemsBySource = new Map<string, SicRawCollection["items"]>();
   for (const item of input.collection.items) {
@@ -337,7 +339,12 @@ export function buildSicAcquisitionBatches(input: {
       }),
     };
   });
-  return packAcquisitionGroups(input.context, groups, `acquisition:${input.context.runId}:sic`);
+  return packAcquisitionGroups(
+    input.context,
+    groups,
+    `acquisition:${input.context.runId}:sic`,
+    { maxRecords: input.maxRecords },
+  );
 }
 
 export function buildRankingAcquisitionBatches(input: {
