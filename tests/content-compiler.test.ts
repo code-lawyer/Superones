@@ -231,6 +231,40 @@ test("exact duplicate content from another URL is processed once", async () => {
   assert.equal(result.information.length, 1);
 });
 
+test("the same root X post from different transports is processed once before the LLM", async () => {
+  const first = {
+    ...envelope(1, "A", "评论"),
+    originPlatform: "x" as const,
+    originContentId: "x:status:123456789",
+    contentHash: "a".repeat(64),
+  };
+  const second = {
+    ...envelope(2, "B", "评论"),
+    originPlatform: "x" as const,
+    originContentId: "x:status:123456789",
+    contentHash: "b".repeat(64),
+  };
+  let translated = 0;
+  const result = await compileInformationBatch({
+    batch: batch([first, second]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial({
+      async translateInformation(item) {
+        translated += 1;
+        return {
+          translatedTitle: item.originalTitle,
+          summary: item.originalTitle,
+          translatedContent: item.originalContent ?? item.originalTitle,
+        };
+      },
+    }),
+  });
+
+  assert.equal(result.information.length, 1);
+  assert.equal(translated, 1);
+});
+
 test("classification receives the newest 50 independent records", async () => {
   const previous = Array.from({ length: 60 }, (_, index): InformationItem => ({
     slug: `previous-${index}`,

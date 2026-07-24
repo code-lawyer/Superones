@@ -148,12 +148,13 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
             <p className="eyebrow mono">SOURCE ATLAS / 采集航图</p>
             <h1>数据从哪里来，最后流向哪里</h1>
             <p className={styles.heroLead}>
-              这里列出统一采集管线实际尝试的全部来源。先按产品板块分区，再按 RSS、API、页面索引等采集方式折叠；每一行都说明来源性质、用途和最终展示位置。
+              这里列出清理后真正进入运行管线的来源。资讯瀑布与名人说是两条平级事件输入，SiC 内容和生态榜单保持独立；每一行都说明根源、传输方式、用途和最终流向。
             </p>
           </div>
           <aside className={styles.heroAside} aria-label="来源清单概览">
             <div><span className="mono">REGISTERED</span><strong>{catalog.total}</strong></div>
-            <div><span className="mono">SECTIONS</span><strong>{catalog.sections.length}</strong></div>
+            <div><span className="mono">STREAMS</span><strong>{catalog.sections.length}</strong></div>
+            <div><span className="mono">X ACTIVE</span><strong>{catalog.governance.xActive}</strong></div>
             <div><span className="mono">REVISION</span><strong className="mono">{catalog.registryRevision.replace("source-bundle-", "").slice(0, 8)}</strong></div>
           </aside>
         </div>
@@ -176,6 +177,32 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
             <p>{section.description}</p>
           </button>
         ))}
+      </section>
+
+      <section className={`${styles.governance} shell`} aria-labelledby="x-governance-title">
+        <div className={styles.governanceIntro}>
+          <p className="eyebrow mono">X SOURCE GOVERNANCE</p>
+          <h2 id="x-governance-title">先确认是谁，再决定是否监听</h2>
+          <p>RSS 和聚合器只记录为传输路径；账号以标准化 X handle 作为根源身份。未进入权威政策的账号保留在注册表中，但不进入生产抓取。</p>
+        </div>
+        <dl className={styles.governanceStats}>
+          <div>
+            <dt>可运行候选</dt>
+            <dd>{catalog.governance.xRunnableCandidates}</dd>
+          </div>
+          <div>
+            <dt>正式保留</dt>
+            <dd>{catalog.governance.xActive}</dd>
+          </div>
+          <div>
+            <dt>退出运行</dt>
+            <dd>{catalog.governance.xExcludedFromRuntime}</dd>
+          </div>
+          <div>
+            <dt>重复声明合并</dt>
+            <dd>{catalog.governance.xDuplicateDiscoveriesMerged}</dd>
+          </div>
+        </dl>
       </section>
 
       <div className={`${styles.toolbar} shell`} id="source-catalog">

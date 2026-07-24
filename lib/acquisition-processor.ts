@@ -94,6 +94,14 @@ function information(record: AcquisitionRecord): InformationEnvelope {
     originalContent: string(payload, "originalContent", false),
     contentCompleteness: string(payload, "contentCompleteness") as InformationEnvelope["contentCompleteness"],
     contentHash: record.contentHash,
+    sourceStream: string(payload, "sourceStream", false) as InformationEnvelope["sourceStream"],
+    originPlatform: string(payload, "originPlatform", false) as InformationEnvelope["originPlatform"],
+    originAccount: string(payload, "originAccount", false),
+    originContentId: string(payload, "originContentId", false),
+    originUrl: string(payload, "originUrl", false),
+    originResolution: string(payload, "originResolution", false) as InformationEnvelope["originResolution"],
+    transportKind: string(payload, "transportKind", false),
+    transportProvider: string(payload, "transportProvider", false),
   };
 }
 

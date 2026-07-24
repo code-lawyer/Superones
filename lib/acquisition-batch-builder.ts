@@ -197,6 +197,14 @@ export function buildVaultAcquisitionBatches(input: {
           originalTitle: item.originalTitle,
           originalContent: item.originalContent,
           contentCompleteness: item.contentCompleteness,
+          sourceStream: item.sourceStream,
+          originPlatform: item.originPlatform,
+          originAccount: item.originAccount,
+          originContentId: item.originContentId,
+          originUrl: item.originUrl,
+          originResolution: item.originResolution,
+          transportKind: item.transportKind,
+          transportProvider: item.transportProvider,
         }),
       };
       values.push(record);

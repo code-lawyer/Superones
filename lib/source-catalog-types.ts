@@ -1,4 +1,4 @@
-export type SourceCatalogSectionId = "information-flow" | "sic-library" | "sic-rankings";
+export type SourceCatalogSectionId = "information-flow" | "statements" | "sic-library" | "sic-rankings";
 
 export type SourceCatalogItem = {
   id: string;
@@ -38,5 +38,12 @@ export type SourceCatalog = {
   generatedAt: string;
   registryRevision: string;
   total: number;
+  governance: {
+    xCandidates: number;
+    xRunnableCandidates: number;
+    xActive: number;
+    xExcludedFromRuntime: number;
+    xDuplicateDiscoveriesMerged: number;
+  };
   sections: SourceCatalogSection[];
 };

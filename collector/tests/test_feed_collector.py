@@ -57,6 +57,45 @@ class CollectorContractTests(unittest.TestCase):
         self.assertEqual(item["contentCompleteness"], "excerpt")
         self.assertEqual(item["originalContent"], "Original English.")
 
+    def test_x_statement_records_verified_root_identity_separately_from_rss_transport(self):
+        source = {
+            "id": "source-x",
+            "name": "Example Person",
+            "channelType": "x",
+            "channelIdentifier": "ExamplePerson",
+            "sourceStream": "statements",
+            "originPlatform": "x",
+            "connector": "rss",
+            "aggregator": "api.xgo.ing",
+            "endpoint": "https://api.xgo.ing/rss/user/token",
+            "contentCapability": "excerpt",
+            "evidenceNature": "social_community",
+            "publisherKind": "person",
+        }
+        item = document(source, "https://twitter.com/exampleperson/status/123456789?ref=rss", "Statement")
+        self.assertEqual(item["sourceStream"], "statements")
+        self.assertEqual(item["originPlatform"], "x")
+        self.assertEqual(item["originAccount"], "exampleperson")
+        self.assertEqual(item["originContentId"], "x:status:123456789")
+        self.assertEqual(item["originUrl"], "https://x.com/exampleperson/status/123456789")
+        self.assertEqual(item["originResolution"], "verified")
+        self.assertEqual(item["transportKind"], "rss")
+        self.assertEqual(item["transportProvider"], "api.xgo.ing")
+
+    def test_x_statement_rejects_an_item_from_another_account(self):
+        source = {
+            "id": "source-x",
+            "name": "Expected",
+            "channelType": "x",
+            "channelIdentifier": "expected",
+            "sourceStream": "statements",
+            "originPlatform": "x",
+            "connector": "rss",
+            "endpoint": "https://api.xgo.ing/rss/user/token",
+        }
+        with self.assertRaises(ValueError):
+            document(source, "https://x.com/different/status/123456789", "Wrong account")
+
     def test_upstream_network_gate_rejects_non_https_and_private_hosts(self):
         with self.assertRaises(ValueError):
             validate_public_https_url("http://example.com/feed.xml")

@@ -140,6 +140,38 @@ def source_role(source: dict) -> str:
     return "研究"
 
 
+def provenance(source: dict, original_url: str) -> dict:
+    source_stream = source.get("sourceStream") or ("statements" if source.get("channelType") == "x" else "information")
+    origin_platform = source.get("originPlatform") or ("x" if source.get("channelType") == "x" else "web")
+    transport_provider = source.get("aggregator") or urlparse(source.get("endpoint", "")).hostname or "direct"
+    result = {
+        "sourceStream": source_stream,
+        "originPlatform": origin_platform,
+        "originUrl": original_url,
+        "originResolution": "declared",
+        "transportKind": source.get("connector") or "unknown",
+        "transportProvider": transport_provider,
+    }
+    if origin_platform != "x":
+        return result
+    parsed = urlparse(original_url)
+    host = (parsed.hostname or "").lower()
+    parts = [part for part in parsed.path.split("/") if part]
+    if host not in {"x.com", "www.x.com", "twitter.com", "www.twitter.com"} or len(parts) < 3 or parts[1] != "status" or not parts[2].isdigit():
+        raise ValueError(f"X source returned an item without a canonical status URL: {original_url}")
+    expected_handle = str(source.get("channelIdentifier") or "").lstrip("@").lower()
+    actual_handle = parts[0].lstrip("@").lower()
+    if not expected_handle or actual_handle != expected_handle:
+        raise ValueError(f"X item account @{actual_handle} does not match registered account @{expected_handle}.")
+    result.update({
+        "originAccount": expected_handle,
+        "originContentId": f"x:status:{parts[2]}",
+        "originUrl": f"https://x.com/{actual_handle}/status/{parts[2]}",
+        "originResolution": "verified",
+    })
+    return result
+
+
 def document(source: dict, url, title, content="", published_at="", author="") -> dict | None:
     original_url = as_text(url, 2048)
     original_title = as_text(title, 500)
@@ -148,6 +180,7 @@ def document(source: dict, url, title, content="", published_at="", author="") -
     original_content = as_text(plain_text(content), 48000)
     source_channel_id = as_text(source.get("id"), 180)
     content_hash = hashlib.sha256(f"{original_title}\n{original_content}".encode()).hexdigest()
+    source_provenance = provenance(source, original_url)
     return {
         "idempotencyKey": hashlib.sha256(f"{source_channel_id}:{original_url}:{content_hash}".encode()).hexdigest(),
         "sourceChannelId": source_channel_id,
@@ -174,6 +207,7 @@ def document(source: dict, url, title, content="", published_at="", author="") -
             "transcript": "transcript",
         }.get(source.get("contentCapability"), "metadata"),
         "contentHash": content_hash,
+        **source_provenance,
     }
 
 

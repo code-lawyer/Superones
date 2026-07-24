@@ -14,6 +14,9 @@ export const CONTENT_BATCH_VERSION = 2 as const;
 export const MAX_BATCH_ITEMS = 200;
 
 export type ContentCompleteness = "metadata" | "excerpt" | "fulltext" | "transcript";
+export type SourceStream = "information" | "statements";
+export type OriginPlatform = "web" | "x";
+export type OriginResolution = "declared" | "verified" | "unresolved";
 
 export type InformationEnvelope = {
   idempotencyKey: string;
@@ -34,6 +37,14 @@ export type InformationEnvelope = {
   originalContent?: string;
   contentCompleteness: ContentCompleteness;
   contentHash: string;
+  sourceStream?: SourceStream;
+  originPlatform?: OriginPlatform;
+  originAccount?: string;
+  originContentId?: string;
+  originUrl?: string;
+  originResolution?: OriginResolution;
+  transportKind?: string;
+  transportProvider?: string;
 };
 
 export type RepositoryEnvelope = {
@@ -148,6 +159,15 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   if (!/^[a-f0-9]{64}$/.test(contentHash)) {
     throw new ContentContractError(`information[${index}].contentHash 必须是 SHA-256 十六进制值。`);
   }
+  if (item.sourceStream !== undefined && !["information", "statements"].includes(String(item.sourceStream))) {
+    throw new ContentContractError(`information[${index}].sourceStream is invalid.`);
+  }
+  if (item.originPlatform !== undefined && !["web", "x"].includes(String(item.originPlatform))) {
+    throw new ContentContractError(`information[${index}].originPlatform is invalid.`);
+  }
+  if (item.originResolution !== undefined && !["declared", "verified", "unresolved"].includes(String(item.originResolution))) {
+    throw new ContentContractError(`information[${index}].originResolution is invalid.`);
+  }
   return {
     idempotencyKey: requiredText(item.idempotencyKey, `information[${index}].idempotencyKey`, 180),
     sourceChannelId: requiredText(item.sourceChannelId, `information[${index}].sourceChannelId`, 180),
@@ -167,6 +187,14 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     originalContent: optionalText(item.originalContent, `information[${index}].originalContent`, 48_000),
     contentCompleteness: completeness as ContentCompleteness,
     contentHash,
+    sourceStream: item.sourceStream as SourceStream | undefined,
+    originPlatform: item.originPlatform as OriginPlatform | undefined,
+    originAccount: optionalText(item.originAccount, `information[${index}].originAccount`, 100),
+    originContentId: optionalText(item.originContentId, `information[${index}].originContentId`, 180),
+    originUrl: item.originUrl ? httpsUrl(item.originUrl, `information[${index}].originUrl`) : undefined,
+    originResolution: item.originResolution as OriginResolution | undefined,
+    transportKind: optionalText(item.transportKind, `information[${index}].transportKind`, 80),
+    transportProvider: optionalText(item.transportProvider, `information[${index}].transportProvider`, 180),
   };
 }
 

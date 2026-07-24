@@ -20,11 +20,21 @@ type InformationSource = {
   connector: string;
   aggregator: string | null;
   discoveredFrom: Array<{ repository: string; path: string }>;
+  sourceStream: string;
+  originPlatform: string;
+  authorityTier: string | null;
 };
 
 type SourceBundle = {
   generatedAt: string;
   revision: string;
+  counts: {
+    statements: number;
+    xCandidates: number;
+    xRunnableCandidates: number;
+    xExcludedFromRuntime: number;
+    xDuplicateDiscoveriesMerged: number;
+  };
   sources: InformationSource[];
 };
 
@@ -38,7 +48,7 @@ const informationMethods: Record<string, MethodDefinition> = {
   rss: {
     id: "rss-atom",
     label: "RSS / Atom",
-    description: "以机器可读订阅流接入文章、播客和 X 公开动态；同类载体统一由 Feed 解析器处理。",
+    description: "以机器可读订阅流接入文章和播客；X 公开动态已从资讯瀑布分离。",
   },
   hackernews: {
     id: "hacker-news-api",
@@ -60,6 +70,21 @@ const informationMethods: Record<string, MethodDefinition> = {
     label: "GitHub Public Events API",
     description: "读取关键建设者的公开 GitHub 活动，用作工程动向信号。",
   },
+};
+
+const statementMethods: Record<string, MethodDefinition> = {
+  rss: {
+    id: "x-rss-relay",
+    label: "X 账号 / RSS 转接",
+    description: "根源平台是 X；RSS 只是境外采集的传输方式。账号按标准化 handle 去重，只保留权威政策明确准入的来源。",
+  },
+};
+
+const authorityTierLabels: Record<string, string> = {
+  authoritative_person: "高权威个人",
+  editorial_voice: "专业编辑 / 媒体",
+  official_organization: "机构官方账号",
+  official_project: "项目官方账号",
 };
 
 const informationChannelLabels: Record<string, string> = {
@@ -156,6 +181,12 @@ function informationProvenance(source: InformationSource) {
     : `发布方或平台直连；清单来自 ${registryLabel}`;
 }
 
+function statementProvenance(source: InformationSource) {
+  const paths = source.discoveredFrom.map((item) => `${item.repository} / ${item.path}`);
+  const merged = paths.length > 1 ? `；已将 ${paths.length} 条目录声明合并为一个账号` : "";
+  return `根源为 X @${source.channelIdentifier}；经 ${source.aggregator ?? "RSS 转接"} 传输；目录来自 ${paths.join("、")}${merged}`;
+}
+
 function informationItem(source: InformationSource): SourceCatalogItem {
   const method = informationMethods[source.connector] ?? {
     id: source.connector,
@@ -182,6 +213,36 @@ function informationItem(source: InformationSource): SourceCatalogItem {
       confidenceLabels[source.classificationConfidence] ?? source.classificationConfidence,
     ].join(" · "),
     provenance: informationProvenance(source),
+  };
+}
+
+function statementItem(source: InformationSource): SourceCatalogItem {
+  const method = statementMethods[source.connector] ?? statementMethods.rss;
+  const authorityLabel = authorityTierLabels[source.authorityTier ?? ""] ?? "权威账号";
+  const purpose = source.publisherKind === "person"
+    ? "追踪具有一手角色或长期专业权威的人物公开发言；多条独立观点可以形成事件，也可以与资讯事件归并。"
+    : source.publisherKind === "editorial_media"
+      ? "追踪专业编辑与行业媒体在 X 上发布的即时观察，形成独立观点事件候选。"
+      : "追踪机构或项目的官方 X 声明，作为与资讯瀑布平级的事件输入。";
+  return {
+    id: source.id,
+    name: source.name,
+    publisher: source.name,
+    sectionId: "statements",
+    methodId: method.id,
+    methodLabel: method.label,
+    channelLabel: authorityLabel,
+    destinationLabel: "Vault 信息流 / 名人说",
+    destinationHref: "/feed",
+    sourceUrl: informationOrigin(source),
+    endpointUrl: source.endpoint,
+    purpose,
+    nature: authorityLabel,
+    evidenceLabel: [
+      evidenceNatures[source.evidenceNature] ?? source.evidenceNature,
+      confidenceLabels[source.classificationConfidence] ?? source.classificationConfidence,
+    ].join(" · "),
+    provenance: statementProvenance(source),
   };
 }
 
@@ -366,7 +427,12 @@ function section(
 }
 
 export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSource[]): SourceCatalog {
-  const information = sourceBundle.sources.map(informationItem);
+  const information = sourceBundle.sources
+    .filter((source) => source.sourceStream !== "statements")
+    .map(informationItem);
+  const statements = sourceBundle.sources
+    .filter((source) => source.sourceStream === "statements")
+    .map(statementItem);
   const sic = sicSources
     .filter((source) => source.status === "approved")
     .map(sicItem);
@@ -385,16 +451,25 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
   const sections = [
     section(
       "information-flow",
-      "01 / INTEL",
-      "信息流",
-      "文章、公开动态、社区信号和开源版本先进入资讯瀑布；达到多来源阈值后再沉淀为事件。",
+      "INTEL / DOCUMENTS",
+      "资讯瀑布",
+      "文章、公告、播客、社区与开源版本组成完整信息流；它可以独立形成事件，不要求 X 观点佐证。",
       "/feed",
       information,
       informationMethods,
     ),
     section(
+      "statements",
+      "VOICE / X",
+      "名人说 / X 动态",
+      "机构、项目与高权威人物的即时公开发言；它与资讯瀑布平级，可以独立形成观点事件，也可以与相关事件归并。",
+      "/feed",
+      statements,
+      statementMethods,
+    ),
+    section(
       "sic-library",
-      "02 / LIBRARY",
+      "LIBRARY / SIC",
       "SiC 固定内容源",
       "论文、官方技术档案、课程与长对谈进入 SiC 阅读区，由境内模型完成中文编辑。",
       "/sic",
@@ -403,7 +478,7 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
     ),
     section(
       "sic-rankings",
-      "03 / SIGNAL",
+      "SIGNAL / RANKINGS",
       "SiC 榜单与生态信号",
       "模型、GitHub、Skill 与 MCP 榜单使用结构化快照和确定性计算，不经过 LLM 改写。",
       "/sic#sic-rankings",
@@ -415,6 +490,13 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
     generatedAt: sourceBundle.generatedAt,
     registryRevision: sourceBundle.revision,
     total: sections.reduce((total, item) => total + item.methods.reduce((count, method) => count + method.sources.length, 0), 0),
+    governance: {
+      xCandidates: sourceBundle.counts.xCandidates,
+      xRunnableCandidates: sourceBundle.counts.xRunnableCandidates,
+      xActive: sourceBundle.counts.statements,
+      xExcludedFromRuntime: sourceBundle.counts.xExcludedFromRuntime,
+      xDuplicateDiscoveriesMerged: sourceBundle.counts.xDuplicateDiscoveriesMerged,
+    },
     sections,
   };
 }

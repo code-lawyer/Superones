@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
+import { loadXSourcePolicy, normalizeXHandle } from "./x-source-policy.mjs";
 
 const options = new Map();
 for (let index = 2; index < process.argv.length; index += 2) options.set(process.argv[index], process.argv[index + 1]);
@@ -8,9 +9,21 @@ for (let index = 2; index < process.argv.length; index += 2) options.set(process
 const registryPath = resolve(options.get("--registry") ?? "config/source-registry.json");
 const overridesInput = options.get("--overrides") ?? "config/source-classification-overrides.json";
 const overridesPath = resolve(overridesInput);
+const xPolicyInput = options.get("--x-policy") ?? "config/x-source-policy.json";
+const xPolicyPath = resolve(xPolicyInput);
 const registry = JSON.parse(await readFile(registryPath, "utf8"));
 const overridesText = await readFile(overridesPath, "utf8");
 const overrides = JSON.parse(overridesText);
+const { policy: xPolicy, hash: xPolicyHash } = await loadXSourcePolicy(xPolicyPath);
+const registeredXHandles = new Set(
+  registry.channels
+    .filter((channel) => channel.channelType === "x")
+    .map((channel) => normalizeXHandle(channel.channelIdentifier)),
+);
+const unknownPolicyHandles = [...xPolicy.accounts.keys()].filter((handle) => !registeredXHandles.has(handle));
+if (unknownPolicyHandles.length > 0) {
+  throw new Error(`X source policy contains unknown handles: ${unknownPolicyHandles.join(", ")}`);
+}
 
 const PUBLISHER_KINDS = new Set(["organization", "person", "editorial_media", "community", "platform", "aggregator", "open_source_project"]);
 const EVIDENCE_NATURES = new Set(["primary", "reported_analysis", "social_community", "discovery_aggregate", "non_information_data"]);
@@ -75,6 +88,9 @@ function defaultOwnerEntity(channel, publisherKind) {
 function classificationFor(channel) {
   const directOverride = overrides.channelOverrides?.[channel.identity];
   const entity = aliases.get(normalize(channel.publisherName));
+  const xPolicyAccount = channel.channelType === "x"
+    ? xPolicy.accounts.get(normalizeXHandle(channel.channelIdentifier))
+    : undefined;
   let [publisherKind, evidenceNature, confidence] = typeDefaults(channel);
   let ownerEntity = defaultOwnerEntity(channel, publisherKind);
   let primaryLanguage = defaultLanguage(channel);
@@ -94,6 +110,18 @@ function classificationFor(channel) {
     } else if (publisherKind === "editorial_media") {
       evidenceNature = "reported_analysis";
     }
+  }
+
+  if (xPolicyAccount) {
+    publisherKind = xPolicyAccount.publisherKind;
+    evidenceNature = xPolicyAccount.evidenceNature;
+    confidence = xPolicyAccount.confidence;
+    if (!entity) {
+      ownerEntity = publisherKind === "person"
+        ? `person:x:${xPolicyAccount.handle}`
+        : `${publisherKind}:x:${xPolicyAccount.handle}`;
+    }
+    classificationSource = `x_source_policy:${xPolicy.version}:${xPolicyAccount.authorityTier}`;
   }
 
   if (directOverride) {
@@ -130,6 +158,9 @@ registry.classification = {
   classifiedAt: new Date().toISOString(),
   overridesFile: overridesInput.replaceAll("\\", "/"),
   overridesHash: createHash("sha256").update(overridesText).digest("hex"),
+  xPolicyFile: xPolicyInput.replaceAll("\\", "/"),
+  xPolicyHash,
+  xPolicyCounts: xPolicy.counts,
   counts: {
     publisherKind: Object.fromEntries([...PUBLISHER_KINDS].sort().map((kind) => [kind, registry.channels.filter((channel) => channel.publisherKind === kind).length])),
     evidenceNature: Object.fromEntries([...EVIDENCE_NATURES].sort().map((nature) => [nature, registry.channels.filter((channel) => channel.evidenceNature === nature).length])),

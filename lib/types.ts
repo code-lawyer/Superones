@@ -53,6 +53,14 @@ export type InformationItem = {
   publisherKind?: PublisherKind;
   evidenceNature?: EvidenceNature;
   classificationConfidence?: ClassificationConfidence;
+  sourceStream?: "information" | "statements";
+  originPlatform?: "web" | "x";
+  originAccount?: string;
+  originContentId?: string;
+  originUrl?: string;
+  originResolution?: "declared" | "verified" | "unresolved";
+  transportKind?: string;
+  transportProvider?: string;
   eventCandidateKey?: string;
 };
 

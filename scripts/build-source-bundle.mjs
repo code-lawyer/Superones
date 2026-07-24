@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
+import { loadXSourcePolicy, normalizeXHandle } from "./x-source-policy.mjs";
 
 const options = new Map();
 for (let index = 2; index < process.argv.length; index += 2) options.set(process.argv[index], process.argv[index + 1]);
@@ -20,6 +21,11 @@ const overridesText = await readFile(resolve(registry.classification.overridesFi
 const overridesHash = createHash("sha256").update(overridesText).digest("hex");
 if (overridesHash !== registry.classification.overridesHash) {
   throw new Error("Source classification overrides changed after the registry was classified. Run sources:classify again.");
+}
+const xPolicyPath = resolve(options.get("--x-policy") ?? registry.classification.xPolicyFile ?? "config/x-source-policy.json");
+const { policy: xPolicy, hash: xPolicyHash } = await loadXSourcePolicy(xPolicyPath);
+if (xPolicyHash !== registry.classification.xPolicyHash) {
+  throw new Error("X source policy changed after the registry was classified. Run sources:classify again.");
 }
 
 const ignoredChannelTypes = new Set(["market-data", "twitch", "dynamic-aggregate-list", "youtube"]);
@@ -87,6 +93,10 @@ function isMainlandOrigin(channel) {
 
 function sourceAdmission(channel) {
   if (isMainlandOrigin(channel)) return "mainland_origin_platform";
+  if (
+    channel.channelType === "x"
+    && !xPolicy.accounts.has(normalizeXHandle(channel.channelIdentifier))
+  ) return "x_policy_excluded";
   if (internationalPlatformChannels.has(channel.channelType)) return null;
   if (["article", "official-blog"].includes(channel.channelType)) {
     if (channel.geography === "CN") return "mainland_direct_publisher";
@@ -116,6 +126,9 @@ for (const channel of registry.channels) {
   const endpoint = endpoints.find((candidate) => candidate.validation?.status === "usable" && collectorSupport.has(candidate.connectorType));
   const hasUnstructuredHtml = endpoints.some((candidate) => unstructuredHtmlConnectors.has(candidate.connectorType));
   const admissionFailure = sourceAdmission(channel);
+  const xPolicyAccount = channel.channelType === "x"
+    ? xPolicy.accounts.get(normalizeXHandle(channel.channelIdentifier))
+    : undefined;
   const item = {
     id: channel.id,
     identity: channel.identity,
@@ -135,6 +148,9 @@ for (const channel of registry.channels) {
     evidenceEligible: channel.evidenceEligible,
     contentCapability: channel.contentCapability,
     discoveredFrom: channel.discoveredFrom,
+    sourceStream: channel.channelType === "x" ? "statements" : "information",
+    originPlatform: channel.channelType === "x" ? "x" : "web",
+    authorityTier: xPolicyAccount?.authorityTier ?? null,
   };
   if (endpoint && !admissionFailure) {
     sources.push({
@@ -169,6 +185,7 @@ sources.sort((left, right) => left.channelType.localeCompare(right.channelType) 
 pending.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
 const bundleRevision = createHash("sha256")
   .update(JSON.stringify({
+    xPolicyHash,
     repositories: registry.repositories.map(({ name, commit }) => ({ name, commit })),
     sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature }) => ({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature })),
   }))
@@ -181,12 +198,32 @@ const bundle = {
   generatedAt: new Date().toISOString(),
   registryGeneratedAt: registry.generatedAt,
   registryAuditedAt: registry.audit?.checkedAt ?? null,
-  policy: "One verified primary endpoint per deduplicated information channel. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use RSS/Atom/JSON Feed, documented HTTP APIs, remote structured protocols, or other approved machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed. Direct article/blog publishers require a verified non-China origin. Market data, Twitch, and dynamic lists remain outside this information bundle.",
+  policy: "One verified primary endpoint per deduplicated source channel. X statements and document-style information are equal event inputs but remain separate presentation streams. Only X accounts admitted by the fail-closed authority policy enter the runtime bundle; directory and RSS relay duplication never creates additional logical accounts. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed.",
   counts: {
     active: sources.length,
     pending: pending.length,
     rss: sources.filter((source) => source.connector === "rss").length,
     structured: sources.filter((source) => source.connector !== "rss").length,
+    information: sources.filter((source) => source.sourceStream === "information").length,
+    statements: sources.filter((source) => source.sourceStream === "statements").length,
+    xCandidates: registry.channels.filter((channel) => channel.channelType === "x").length,
+    xRunnableCandidates: registry.channels.filter((channel) => (
+      channel.channelType === "x"
+      && channel.endpoints.some((endpoint) => (
+        endpoint.validation?.status === "usable"
+        && collectorSupport.has(endpoint.connectorType)
+      ))
+    )).length,
+    xExcludedFromRuntime: pending.filter((source) => (
+      source.reason === "x_policy_excluded"
+      && source.endpoints.some((endpoint) => (
+        endpoint.validation?.status === "usable"
+        && collectorSupport.has(endpoint.connector)
+      ))
+    )).length,
+    xDuplicateDiscoveriesMerged: registry.channels
+      .filter((channel) => channel.channelType === "x")
+      .reduce((total, channel) => total + Math.max(0, channel.discoveredFrom.length - 1), 0),
   },
   sources,
   pending,

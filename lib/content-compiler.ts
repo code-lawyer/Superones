@@ -162,18 +162,25 @@ export async function compileInformationBatch(input: {
   const quarantineRecords: QuarantinedContent[] = [];
   const existingKeys = new Set(information.map((item) => `${item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()}#${item.contentHash ?? ""}`));
   const existingHashes = new Set(information.map((item) => item.contentHash).filter((value): value is string => Boolean(value)));
+  const existingOriginIds = new Set(information.map((item) => item.originContentId).filter((value): value is string => Boolean(value)));
   const newSlugs = new Set<string>();
   const hiddenSlugs = new Set<string>();
   const active = activeEvents(events, batch.generatedAt).map(({ slug: eventSlug, title, summary }) => ({ slug: eventSlug, title, summary }));
   const batchEligible: InformationEnvelope[] = [];
   const incomingKeys = new Set(existingKeys);
   const incomingHashes = new Set(existingHashes);
+  const incomingOriginIds = new Set(existingOriginIds);
   for (const envelope of batch.information) {
     const canonicalKey = `${envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase()}#${envelope.contentHash}`;
-    if (incomingKeys.has(canonicalKey) || incomingHashes.has(envelope.contentHash)) continue;
+    if (
+      incomingKeys.has(canonicalKey)
+      || incomingHashes.has(envelope.contentHash)
+      || (envelope.originContentId && incomingOriginIds.has(envelope.originContentId))
+    ) continue;
     batchEligible.push(envelope);
     incomingKeys.add(canonicalKey);
     incomingHashes.add(envelope.contentHash);
+    if (envelope.originContentId) incomingOriginIds.add(envelope.originContentId);
   }
   const batchedResults = new Map<string, BatchedInformationEditorial>();
   if (editorial.processInformationBatch && batchEligible.length > 0) {
@@ -188,7 +195,11 @@ export async function compileInformationBatch(input: {
 
   for (const envelope of batchEligible) {
     const canonicalKey = `${envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase()}#${envelope.contentHash}`;
-    if (existingKeys.has(canonicalKey) || existingHashes.has(envelope.contentHash)) continue;
+    if (
+      existingKeys.has(canonicalKey)
+      || existingHashes.has(envelope.contentHash)
+      || (envelope.originContentId && existingOriginIds.has(envelope.originContentId))
+    ) continue;
     let translated: InformationEditorial;
     let batchedDecision: EventDecision | undefined;
     try {
@@ -224,6 +235,14 @@ export async function compileInformationBatch(input: {
       publisherKind: envelope.publisherKind,
       evidenceNature: envelope.evidenceNature,
       classificationConfidence: envelope.classificationConfidence,
+      sourceStream: envelope.sourceStream,
+      originPlatform: envelope.originPlatform,
+      originAccount: envelope.originAccount,
+      originContentId: envelope.originContentId,
+      originUrl: envelope.originUrl,
+      originResolution: envelope.originResolution,
+      transportKind: envelope.transportKind,
+      transportProvider: envelope.transportProvider,
     };
     try {
       const recentIndependent = recentIndependentItems(information, batch.generatedAt);
@@ -242,6 +261,7 @@ export async function compileInformationBatch(input: {
     newSlugs.add(item.slug);
     existingKeys.add(canonicalKey);
     existingHashes.add(envelope.contentHash);
+    if (envelope.originContentId) existingOriginIds.add(envelope.originContentId);
   }
 
   const existingAssociations = new Map<string, InformationItem[]>();
