@@ -70,7 +70,7 @@ YouTube 和其他视频专属信源在注册表生成期删除；运行时若再
 
 SiC 固定源使用另一套边界：
 
-- 只读取 `config/sic-source-registry.json` 中 `status=approved` 的 27 个来源；每个来源只能属于论文、档案、课程、播客之一。
+- 只读取 `config/sic-source-registry.json` 中 `status=approved` 的 26 个来源；另有 1 个带退役原因的历史来源不进入运行时。每个活跃来源只能属于论文、档案、课程、播客之一。
 - 支持官方 RSS/Atom、sitemap、日期化索引、课程目录、YouTube 官方频道 Feed、官方 API 和播客 Feed；不做全站 diff，不临时筛选单条内容。
 - 单来源最多保留 40 个候选，sitemap 最多检查 20 个原页，来源并发为 6；上游默认超时 20 秒、正文上限 8 MiB。
 - 跳转后的最终 origin 必须仍在该来源的 `homeUrl`、`endpoint` 或显式 `allowedRedirectOrigins` 集合中。当前只有 Anthropic Release Notes 显式允许跳转到 `https://platform.claude.com`。
@@ -139,7 +139,7 @@ SiC 内容编辑复用同一组 LLM 变量，但不进入 Vault 信息流 Worker
 | OpenRouter 榜 | `openrouter.ai/api/v1/models?sort=top-weekly` |
 | Skill | 有 OIDC 时 `skills.sh/api/v1`；否则 `api.smithery.ai` |
 | MCP | `api.smithery.ai` |
-| SiC 中文编辑增强 | 27 个获批来源的原始 HTTPS 页面，可失败降级 |
+| SiC 中文编辑增强 | 26 个获批来源的原始 HTTPS 页面，可失败降级 |
 | LLM | `VAULT2077_LLM_BASE_URL` 对应的境内 OpenAI-compatible 服务 |
 
 不需要为 SiC 配置 `OPENROUTER_API_KEY`。当前 OpenRouter 榜只保存官方 `top-weekly` 顺序，前台用名次表示，没有公开 Token 数值。

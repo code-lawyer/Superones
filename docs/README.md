@@ -23,7 +23,7 @@
 | `Vault2077-OPC-Design-Spec.md` | 专项规格 | 规范 | OPC 服务台 |
 | `Vault2077-OPC-Development-Plan.md` | 开发计划 | 已确认 | OPC 三个入口、十项基础设施、二十五项专项服务和十类游骑兵顾问身份 |
 | `Vault2077-SiC-Design-Spec.md` | 专项规格 | 规范 | SiC 学院 |
-| `Vault2077-SiC-Source-Catalog.md` | 专项来源目录 | 规范 | SiC 当前 27 个 approved 固定来源、入口、完整接入边界与采用理由 |
+| `Vault2077-SiC-Source-Catalog.md` | 专项来源目录 | 规范 | SiC 当前 26 个 approved 固定来源、1 个退役来源、入口、完整接入边界与采用理由 |
 | `Vault2077-Frontier-Design-Spec.md` | 专项规格 | 规范 | 边境计划 |
 | `Vault2077-Admin-Operations-Spec.md` | 专项规格 | 规范 | 共享密码后台和人工操作边界 |
 | `Vault2077-System-Delivery-Spec.md` | 工程规格 | 规范 | 模块接口、部署、安全和发布门槛 |

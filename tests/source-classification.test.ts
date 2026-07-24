@@ -48,6 +48,11 @@ test("runtime bundle excludes mainland origin platforms without filtering conten
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "unverified_direct_publisher_origin"));
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "unstructured_html_connector_disallowed"));
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "platform_ranking_moved_to_direct_lane"));
+  assert.ok(bundle.pending.some((source: { id: string; reason: string }) => (
+    source.id === "source-90b028b6f17d93e0"
+    && source.reason === "upstream_blocks_unattended_github_actions"
+  )));
+  assert.ok(bundle.sources.every((source: { id: string }) => source.id !== "source-90b028b6f17d93e0"));
 });
 
 test("video-only YouTube channels never enter the registry or runtime bundle", () => {

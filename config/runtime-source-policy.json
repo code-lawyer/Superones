@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "excluded": [
+    {
+      "id": "source-90b028b6f17d93e0",
+      "reason": "upstream_blocks_unattended_github_actions",
+      "note": "Docker's official RSS endpoint returned HTTP 403 after all retry attempts in repeated GitHub Actions runs. Keep the channel in the registry, but do not claim it is a healthy active source until Docker exposes a stable unattended machine-readable endpoint."
+    }
+  ]
+}

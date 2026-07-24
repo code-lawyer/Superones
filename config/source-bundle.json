@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "revision": "source-bundle-c90b94e746fcccc6",
-  "generatedAt": "2026-07-24T15:14:31.891Z",
+  "revision": "source-bundle-e9eaf5353c5b9eb2",
+  "generatedAt": "2026-07-24T16:28:29.841Z",
   "registryGeneratedAt": "2026-07-22T14:02:45.177Z",
   "registryAuditedAt": "2026-07-22T15:51:02.486Z",
-  "policy": "One verified primary endpoint per deduplicated source channel. X statements and document-style information are equal event inputs but remain separate presentation streams. Only X accounts admitted by the fail-closed authority policy enter the runtime bundle; directory and RSS relay duplication never creates additional logical accounts. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed.",
+  "policy": "One verified primary endpoint per deduplicated source channel. X statements and document-style information are equal event inputs but remain separate presentation streams. Only X accounts admitted by the fail-closed authority policy enter the runtime bundle; directory and RSS relay duplication never creates additional logical accounts. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed. Sources that repeatedly block the unattended GitHub Actions collector remain auditable in the registry but are excluded from the active runtime policy until a stable official endpoint exists.",
   "counts": {
-    "active": 72,
-    "pending": 384,
-    "rss": 57,
+    "active": 71,
+    "pending": 385,
+    "rss": 56,
     "structured": 15,
-    "information": 38,
+    "information": 37,
     "statements": 34,
     "xCandidates": 179,
     "xRunnableCandidates": 160,
@@ -236,50 +236,6 @@
         "format": "feed",
         "entryCount": 10,
         "observedTitle": "Databricks"
-      }
-    },
-    {
-      "id": "source-90b028b6f17d93e0",
-      "identity": "feed:https://www.docker.com/feed",
-      "name": "Docker",
-      "role": "媒体",
-      "ownerEntity": "entity:docker",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:docker",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://www.docker.com/feed",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://www.docker.com/feed/"
-        }
-      ],
-      "sourceStream": "information",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://www.docker.com/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:08.724Z",
-        "httpStatus": 200,
-        "finalUrl": "https://www.docker.com/feed/",
-        "contentType": "application/rss+xml; charset=UTF-8",
-        "latencyMs": 1347,
-        "bytesInspected": 254242,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 10,
-        "observedTitle": "Docker"
       }
     },
     {
@@ -9044,6 +9000,55 @@
         }
       ],
       "reason": "mainland_origin_platform"
+    },
+    {
+      "id": "source-90b028b6f17d93e0",
+      "identity": "feed:https://www.docker.com/feed",
+      "name": "Docker",
+      "role": "媒体",
+      "ownerEntity": "entity:docker",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:docker",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://www.docker.com/feed",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://www.docker.com/feed/"
+        }
+      ],
+      "sourceStream": "information",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://www.docker.com/feed/",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:08.724Z",
+            "httpStatus": 200,
+            "finalUrl": "https://www.docker.com/feed/",
+            "contentType": "application/rss+xml; charset=UTF-8",
+            "latencyMs": 1347,
+            "bytesInspected": 254242,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 10,
+            "observedTitle": "Docker"
+          }
+        }
+      ],
+      "reason": "upstream_blocks_unattended_github_actions"
     },
     {
       "id": "source-b6672b906c40e32f",

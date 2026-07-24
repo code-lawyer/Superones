@@ -8,7 +8,27 @@ for (let index = 2; index < process.argv.length; index += 2) options.set(process
 
 const registryPath = resolve(options.get("--registry") ?? "config/source-registry.json");
 const outputPath = resolve(options.get("--output") ?? "config/source-bundle.json");
+const runtimePolicyPath = resolve(options.get("--runtime-policy") ?? "config/runtime-source-policy.json");
 const registry = JSON.parse(await readFile(registryPath, "utf8"));
+const runtimePolicy = JSON.parse(await readFile(runtimePolicyPath, "utf8"));
+if (runtimePolicy.version !== 1 || !Array.isArray(runtimePolicy.excluded)) {
+  throw new Error("Runtime source policy must contain a version 1 excluded list.");
+}
+const runtimeExclusions = new Map();
+for (const exclusion of runtimePolicy.excluded) {
+  if (
+    typeof exclusion.id !== "string"
+    || typeof exclusion.reason !== "string"
+    || typeof exclusion.note !== "string"
+    || !exclusion.id
+    || !exclusion.reason
+    || !exclusion.note
+    || runtimeExclusions.has(exclusion.id)
+  ) {
+    throw new Error("Runtime source exclusions require unique id, reason, and note fields.");
+  }
+  runtimeExclusions.set(exclusion.id, exclusion);
+}
 const unchecked = registry.channels.flatMap((channel) => channel.endpoints).filter((endpoint) => !endpoint.validation?.checkedAt);
 if (!registry.audit?.checkedAt || unchecked.length > 0 || Date.parse(registry.audit.checkedAt) < Date.parse(registry.generatedAt)) {
   throw new Error(`Registry must be audited after extraction before building a bundle (${unchecked.length} unchecked endpoints).`);
@@ -92,6 +112,7 @@ function isMainlandOrigin(channel) {
 }
 
 function sourceAdmission(channel) {
+  if (runtimeExclusions.has(channel.id)) return runtimeExclusions.get(channel.id).reason;
   if (isMainlandOrigin(channel)) return "mainland_origin_platform";
   if (channel.channelType === "github-trending") return "platform_ranking_moved_to_direct_lane";
   if (
@@ -187,6 +208,7 @@ pending.sort((left, right) => left.channelType.localeCompare(right.channelType) 
 const bundleRevision = createHash("sha256")
   .update(JSON.stringify({
     xPolicyHash,
+    runtimePolicy,
     repositories: registry.repositories.map(({ name, commit }) => ({ name, commit })),
     sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature }) => ({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature })),
   }))
@@ -199,7 +221,7 @@ const bundle = {
   generatedAt: new Date().toISOString(),
   registryGeneratedAt: registry.generatedAt,
   registryAuditedAt: registry.audit?.checkedAt ?? null,
-  policy: "One verified primary endpoint per deduplicated source channel. X statements and document-style information are equal event inputs but remain separate presentation streams. Only X accounts admitted by the fail-closed authority policy enter the runtime bundle; directory and RSS relay duplication never creates additional logical accounts. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed.",
+  policy: "One verified primary endpoint per deduplicated source channel. X statements and document-style information are equal event inputs but remain separate presentation streams. Only X accounts admitted by the fail-closed authority policy enter the runtime bundle; directory and RSS relay duplication never creates additional logical accounts. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed. Sources that repeatedly block the unattended GitHub Actions collector remain auditable in the registry but are excluded from the active runtime policy until a stable official endpoint exists.",
   counts: {
     active: sources.length,
     pending: pending.length,

@@ -40,7 +40,7 @@
 
 ## 5. SiC 学院
 
-- [ ] `config/sic-source-registry.json` 的 27 个 approved 来源完成真实网络核验，论文/档案/课程/播客分别为 2/12/8/5。
+- [ ] `config/sic-source-registry.json` 的 26 个 approved 来源完成真实网络核验；1 个 retired 来源保留可审计原因，不进入运行时。
 - [ ] Actions 日志确认 snapshot 与 content 两步都实际请求生产 URL，没有因缺少 URL/Secret 显示 `skipping`。
 - [ ] GitHub Trending、GH Archive 24H/7D、Hugging Face、OpenRouter、Skill、MCP 分项响应均为成功；HTTP `207` 已接入告警。
 - [ ] Hugging Face 至少积累七天真实日快照；Skill/MCP 至少积累两个相隔约 24 小时的 6 小时快照桶。GitHub 24H/7D 直接使用 BigQuery 滚动窗口，不等待本地七天历史。

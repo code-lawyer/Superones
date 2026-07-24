@@ -33,7 +33,7 @@ npm.cmd run test:acquisition:e2e
 - `components/`：纯文字界面组件。
 - `lib/data.ts`：第一阶段示例内容。
 - `collector/horizon_raw_export.py`：基于固定版本 Horizon 采集适配器的境外原文采集、分包与签名发送 CLI。
-- `scripts/collect-sic-overseas.ts`：SiC 27 个 approved 固定来源的境外 Node.js 采集入口。
+- `scripts/collect-unified-acquisition.ts`：四通道统一境外采集入口；SiC 当前运行 26 个 approved 固定来源，另有 1 个带原因的 retired 来源。
 - `collector/vendor/horizon`：固定版本的 Horizon Git 子模块；检出仓库后运行 `git submodule update --init --recursive`。
 - `docs/Content-Pipeline-Operations.md`：信息管道配置、恢复和验收手册。
 

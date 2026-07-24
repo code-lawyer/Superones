@@ -1,7 +1,7 @@
 # Vault2077 SiC：首批固定信息源目录（审核版）
 
 > 制定日期：2026-07-23
-> 决策：首批接入 **27 个固定来源**——论文 2、档案 12、课程 8、播客 5。
+> 决策：注册表保留 **27 个固定来源**；当前运行 26 个 approved 来源，OpenAI Release Notes 因无人值守采集被官方页面阻断而 retired。
 > 原则：SiC 只严控“源”，不在已准入来源内挑选单篇内容。前台正常显示每条更新的来源身份；不向用户展示的是来源审批状态、采集报告和内部处理过程。
 
 ## 准入规则
@@ -17,7 +17,7 @@
 | 内容组 | 数量 | 覆盖的技术视野 |
 | --- | ---: | --- |
 | 论文 | 2 | 日度论文发现 + 周度开源论文追踪 |
-| 档案 | 12 | 前沿 AI、系统、计算基础设施、硬核科研、模型/API 版本变更 |
+| 档案 | 11 个活跃 + 1 个退役 | 前沿 AI、系统、计算基础设施、硬核科研、模型/API 版本变更 |
 | 课程 | 8 | ML 基础、模型工程、GPU/推理、机器人、研究讲座与公开课程 |
 | 播客 | 5 | 前沿 AI、芯片与基础设施、研究、技术产业与社会影响的长对谈 |
 
@@ -40,7 +40,7 @@
 | [Meta Engineering](https://engineering.fb.com/) | [官方 RSS](https://engineering.fb.com/feed/) | RSS 内全部正式文章。 | 补足超大规模基础设施、训练和部署、开源工程与系统实践；相比泛公司新闻，技术边界更清晰。 |
 | [Microsoft Research](https://www.microsoft.com/en-us/research/) | [官方 RSS](https://www.microsoft.com/en-us/research/feed/) | RSS 内全部正式文章。 | 覆盖 AI、系统、HCI、量子与科学计算，也保留研究机构对产业和社会议题的正式表达。 |
 | [NVIDIA Developer Blog](https://developer.nvidia.com/blog/) | [官方 Atom](https://developer.nvidia.com/blog/feed/) | Atom 内全部正式文章。 | CUDA、推理、加速计算、机器人、仿真与 AI 基础设施的一手工程档案，是硬件—软件协同的关键来源。 |
-| [OpenAI Release Notes](https://openai.com/products/release-notes/) | [日期化版本记录](https://openai.com/products/release-notes/) | 每轮识别页面最新的明确日期版本条目，持续积累为时间序列。 | 以正式能力变更为事件，避免把整站文档小修订误判为技术更新。 |
+| OpenAI Release Notes（retired） | [Help Center 页面](https://help.openai.com/en/articles/6825453-chatgpt-release-notes) | 不进入运行时；保留注册记录和退役原因。 | 官方页面持续阻断 GitHub Actions 无人值守访问，且没有稳定机器可读入口；OpenAI News 官方 RSS 继续覆盖正式发布。 |
 | [Anthropic Release Notes](https://docs.anthropic.com/en/release-notes/overview) | [日期化版本记录](https://docs.anthropic.com/en/release-notes/overview) | 每轮识别页面最新的明确日期版本条目，持续积累为时间序列；允许官方入口规范跳转到 `https://platform.claude.com`。 | 直接追踪 Claude、API、工具调用及开发平台的正式能力变化。 |
 | [Gemini API Changelog](https://ai.google.dev/gemini-api/docs/changelog) | [日期化版本记录](https://ai.google.dev/gemini-api/docs/changelog) | 每轮识别页面最新的明确日期版本条目，持续积累为时间序列。 | Google 对 Gemini 模型、API 和开发能力的正式、可追溯更新入口。 |
 | [Azure AI Foundry What's New](https://learn.microsoft.com/en-us/azure/ai-foundry/whats-new) | [日期化版本记录](https://learn.microsoft.com/en-us/azure/ai-foundry/whats-new) | 每轮识别页面最新的明确日期版本条目，持续积累为时间序列。 | 补齐模型平台、企业 AI 工程与部署能力的官方变更记录。 |
@@ -62,7 +62,7 @@
 
 | 来源 | 固定入口 | 完整接入范围 | 为什么采用 |
 | --- | --- | --- | --- |
-| [Dwarkesh Podcast](https://www.dwarkesh.com/about) | [官方 RSS](https://api.substack.com/feed/podcast/69345.rss) | RSS 内全部新一期节目。 | Dwarkesh Patel 以深度长访谈持续连接前沿 AI、芯片、科学与技术产业的重要研究者和建设者。 |
+| [Dwarkesh Podcast](https://www.dwarkesh.com) | [官方 RSS](https://www.dwarkesh.com/feed) | RSS 内全部新一期节目。 | Dwarkesh Patel 以深度长访谈持续连接前沿 AI、芯片、科学与技术产业的重要研究者和建设者。 |
 | [Lex Fridman Podcast](https://lexfridman.com/podcast/) | [官方 RSS](https://lexfridman.com/feed/podcast/) | RSS 内全部新一期节目。 | 由 AI 与机器人研究者主理；依你的原则按主理人权威性准入整档节目，不对嘉宾或主题二次筛选。 |
 | [Latent Space](https://www.latent.space/about) | [自营 Feed](https://www.latent.space/feed) | feed 内带播客音频实体的全部新一期节目；不把同一站点的文字通讯混入播客组。 | 由 AI 工程实践者主理，长期聚焦模型、Agent、推理和基础设施，是 AI 工程一线的深度长对谈来源。 |
 | [The Cognitive Revolution](https://www.cognitiverevolution.ai/) | [节目官方列出的 RSS](https://feeds.megaphone.fm/RINTP3108857801) | RSS 内全部新一期节目。 | Nathan Labenz 等主理人长期采访 AI 建设者、研究者和产业参与者，覆盖技术路线及其社会后果。 |
@@ -81,12 +81,12 @@
 
 ## 实施约束
 
-- 来源准入状态已经写入 [`config/sic-source-registry.json`](../config/sic-source-registry.json)，均为 `approved`；采集器只能读取该状态的条目。
+- 来源准入状态已经写入 [`config/sic-source-registry.json`](../config/sic-source-registry.json)；采集器只读取 `approved`，`retired` 必须保留明确原因且不进入运行时。
 - RSS、Atom、sitemap、YouTube channel feed 与日期化版本记录分别按其自然事件语义采集；不做网页 diff。
 - 课程目录仅在新课程或明确课程实体变化时产生事件；不能因文案或排版细改制造更新。
 - 每一张内容卡必须保留来源 ID、发布方、原始 URL 与原始发布时间，并回链原始页面。
 - 前台只呈现内容本身和原始链接，不向用户展示后台来源审批、采集或数据准备状态。
-- 运行时共 27 个 approved 来源：`official_api` 1、`official_index` 1、RSS/Atom 6、sitemap 2、日期化索引 5、课程目录 2、官方频道 6、播客 Feed 4。任何数量或 kind 变化都必须同步修订本目录、注册表和 SiC 设计规格。
+- 运行时共 26 个 approved 来源；注册表另保留 1 个 retired 来源。任何数量、状态或 kind 变化都必须同步修订本目录与注册表。
 
 ## 参考核验
 
