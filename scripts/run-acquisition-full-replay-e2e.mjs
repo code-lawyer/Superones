@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -58,6 +59,39 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function postLocalJson(url, headers, body, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const request = httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      path: `${target.pathname}${target.search}`,
+      method: "POST",
+      headers: {
+        ...headers,
+        "content-length": Buffer.byteLength(body),
+      },
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        const rawBody = Buffer.concat(chunks).toString("utf8");
+        try {
+          resolve({
+            status: response.statusCode ?? 0,
+            body: JSON.parse(rawBody),
+          });
+        } catch {
+          reject(new Error(`本地接口没有返回有效 JSON：${rawBody.slice(0, 500)}`));
+        }
+      });
+    });
+    request.setTimeout(timeoutMs, () => request.destroy(new Error(`本地接口在 ${timeoutMs} ms 内没有完成。`)));
+    request.on("error", reject);
+    request.end(body);
+  });
+}
+
 const batchFiles = (await readdir(batchDirectory))
   .filter((name) => name.endsWith(".json"))
   .sort();
@@ -75,60 +109,74 @@ const expected = payloads.reduce((totals, { batch }) => {
   return totals;
 }, { records: 0, sources: 0, kinds: {} });
 
-const [modelPort, sitePort] = await Promise.all([availablePort(), availablePort()]);
+const externalLlmConfigured = [
+  process.env.VAULT2077_LLM_BASE_URL,
+  process.env.VAULT2077_LLM_API_KEY,
+  process.env.VAULT2077_LLM_MODEL,
+].every((value) => typeof value === "string" && value.trim());
+const sitePort = await availablePort();
+const modelPort = externalLlmConfigured ? null : await availablePort();
 const root = await mkdtemp(path.join(tmpdir(), "vault2077-full-replay-"));
 const dataDirectory = path.join(root, "data");
 const secret = "vault2077-full-replay-secret-32-bytes";
 let output = "";
-const model = spawn(process.execPath, ["scripts/mock-openai-server.mjs"], {
-  cwd: process.cwd(),
-  env: { ...process.env, MOCK_OPENAI_PORT: String(modelPort) },
-  stdio: ["ignore", "pipe", "pipe"],
-});
+const model = externalLlmConfigured
+  ? null
+  : spawn(process.execPath, ["scripts/mock-openai-server.mjs"], {
+      cwd: process.cwd(),
+      env: { ...process.env, MOCK_OPENAI_PORT: String(modelPort) },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 const site = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(sitePort)], {
   cwd: process.cwd(),
   env: {
     ...process.env,
     VAULT2077_DATA_DIR: dataDirectory,
     VAULT2077_PIPELINE_SHARED_SECRET: secret,
-    VAULT2077_LLM_BASE_URL: `http://127.0.0.1:${modelPort}/v1`,
-    VAULT2077_LLM_API_KEY: "local-replay-key",
-    VAULT2077_LLM_MODEL: "local-replay-model",
+    VAULT2077_LLM_BASE_URL: externalLlmConfigured
+      ? process.env.VAULT2077_LLM_BASE_URL
+      : `http://127.0.0.1:${modelPort}/v1`,
+    VAULT2077_LLM_API_KEY: externalLlmConfigured
+      ? process.env.VAULT2077_LLM_API_KEY
+      : "local-replay-key",
+    VAULT2077_LLM_MODEL: externalLlmConfigured
+      ? process.env.VAULT2077_LLM_MODEL
+      : "local-replay-model",
     VAULT2077_LLM_TIMEOUT_MS: "120000",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
-for (const child of [model, site]) {
+const children = model ? [model, site] : [site];
+for (const child of children) {
   child.stdout.on("data", (chunk) => { output += chunk; });
   child.stderr.on("data", (chunk) => { output += chunk; });
 }
 
 try {
   const origin = `http://127.0.0.1:${sitePort}`;
-  await waitUntilReady(origin, [model, site], () => output);
+  await waitUntilReady(origin, children, () => output);
   const receipts = [];
   for (const { rawPayload, batch } of payloads) {
-    const response = await fetch(`${origin}/api/internal/acquisition`, {
-      method: "POST",
-      headers: signedHeaders(secret, batch.batchId, rawPayload),
-      body: rawPayload,
-      signal: AbortSignal.timeout(60_000),
-    });
-    const body = await response.json();
-    assert(response.status === 202, `批次 ${batch.batchId} 接收失败：HTTP ${response.status} ${JSON.stringify(body)}`);
-    receipts.push(body);
+    const response = await postLocalJson(
+      `${origin}/api/internal/acquisition`,
+      signedHeaders(secret, batch.batchId, rawPayload),
+      rawPayload,
+      60_000,
+    );
+    assert(response.status === 202, `批次 ${batch.batchId} 接收失败：HTTP ${response.status} ${JSON.stringify(response.body)}`);
+    receipts.push(response.body);
   }
 
-  const processResponse = await fetch(`${origin}/api/internal/acquisition/process`, {
-    method: "POST",
-    headers: {
+  const processResponse = await postLocalJson(
+    `${origin}/api/internal/acquisition/process`,
+    {
       authorization: `Bearer ${secret}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ maxBatches: 50 }),
-    signal: AbortSignal.timeout(30 * 60 * 1000),
-  });
-  const processing = await processResponse.json();
+    JSON.stringify({ maxBatches: 50 }),
+    90 * 60 * 1000,
+  );
+  const processing = processResponse.body;
   assert(processResponse.status === 200, `Worker 处理失败：HTTP ${processResponse.status} ${JSON.stringify(processing)}`);
   assert(processing.processed.length === payloads.length, `应处理 ${payloads.length} 个批次，实际 ${processing.processed.length}。`);
   assert(processing.failed.length === 0, `存在失败批次：${JSON.stringify(processing.failed)}`);
@@ -149,9 +197,10 @@ try {
     processedKinds,
     receipts: receipts.length,
     queue: processing.queue,
+    llm: externalLlmConfigured ? "external" : "mock",
   }));
 } finally {
-  for (const child of [site, model]) {
+  for (const child of children) {
     if (child.exitCode === null) child.kill();
   }
   await new Promise((resolve) => setTimeout(resolve, 250));

@@ -79,7 +79,10 @@ VAULT2077_LLM_BASE_URL=https://<OpenAI-compatible-provider>/v1
 VAULT2077_LLM_API_KEY=<secret>
 VAULT2077_LLM_MODEL=<model-id>
 VAULT2077_LLM_TIMEOUT_MS=120000
+VAULT2077_LLM_CONCURRENCY=2
 ```
+
+`VAULT2077_LLM_CONCURRENCY` 默认是 `2`，允许范围为 `1–4`。生产环境应从 `2` 起步；只有在模型供应商的并发、限流和结构化输出稳定性已经通过全量回放后才提高。
 
 OpenRouter 试运行可以使用：
 

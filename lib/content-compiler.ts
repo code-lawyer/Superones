@@ -176,14 +176,13 @@ export async function compileInformationBatch(input: {
     incomingHashes.add(envelope.contentHash);
   }
   const batchedResults = new Map<string, BatchedInformationEditorial>();
-  let batchEditorialError: string | undefined;
   if (editorial.processInformationBatch && batchEligible.length > 0) {
     const recentIndependent = recentIndependentItems(information, batch.generatedAt);
     try {
       const results = await editorial.processInformationBatch({ information: batchEligible, activeEvents: active, recentIndependent });
       for (const result of results) batchedResults.set(result.idempotencyKey, result);
-    } catch (error) {
-      batchEditorialError = error instanceof Error ? error.message : "批量资讯处理失败。";
+    } catch {
+      // Missing batched results fall back to the single-record editorial path.
     }
   }
 
@@ -194,8 +193,7 @@ export async function compileInformationBatch(input: {
     let batchedDecision: EventDecision | undefined;
     try {
       const batched = batchedResults.get(envelope.idempotencyKey);
-      if (editorial.processInformationBatch) {
-        if (!batched) throw new Error(batchEditorialError ?? "批量资讯处理未返回对应记录。");
+      if (batched) {
         translated = validInformationEditorial(batched);
         batchedDecision = batched.decision;
       } else {

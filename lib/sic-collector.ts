@@ -147,34 +147,60 @@ async function enrichItems(
   await Promise.all(Array.from({ length: Math.min(4, pending.length) }, materialWorker));
 
   const editorialById = new Map<string, SicEditorial>();
-  for (let start = 0; start < pending.length; start += 6) {
-    const batch = pending.slice(start, start + 6);
+  const requestEditorialBatch = async (batch: typeof pending) => {
+    const complete = () => client.completeJson({
+      task: "sic-latest-source-editorial",
+      schemaVersion: "1",
+      instruction: [
+        "为每条固定来源的最新更新生成面向普通技术读者的中文编辑结果。",
+        "输出 JSON：{\"items\":[{\"id\":\"...\",\"translatedTitle\":\"简洁准确的中文标题\",\"description\":\"一句话说明这次更新讲什么\",\"contentSummary\":\"两到三句话概括核心内容、方法或讨论重点\"}]}。",
+        "保留产品名、模型名和必要英文术语；不得补造原始资料没有的结论。translatedTitle 不超过 36 个汉字，description 不超过 70 个汉字，contentSummary 不超过 220 个汉字。",
+      ].join("\n"),
+      input: batch.map((item) => ({
+        id: item.id,
+        group: item.group,
+        sourceName: item.sourceName,
+        originalTitle: item.title,
+        sourceSummary: item.summary,
+        sourceMaterial: materialById.get(item.id) || item.summary,
+        publishedAt: item.publishedAt,
+      })),
+    });
     try {
-      const result = await client.completeJson({
-        task: "sic-latest-source-editorial",
-        schemaVersion: "1",
-        instruction: [
-          "为每条固定来源的最新更新生成面向普通技术读者的中文编辑结果。",
-          "输出 JSON：{\"items\":[{\"id\":\"...\",\"translatedTitle\":\"简洁准确的中文标题\",\"description\":\"一句话说明这次更新讲什么\",\"contentSummary\":\"两到三句话概括核心内容、方法或讨论重点\"}]}。",
-          "保留产品名、模型名和必要英文术语；不得补造原始资料没有的结论。translatedTitle 不超过 36 个汉字，description 不超过 70 个汉字，contentSummary 不超过 220 个汉字。",
-        ].join("\n"),
-        input: batch.map((item) => ({
-          id: item.id,
-          group: item.group,
-          sourceName: item.sourceName,
-          originalTitle: item.title,
-          sourceSummary: item.summary,
-          sourceMaterial: materialById.get(item.id) || item.summary,
-          publishedAt: item.publishedAt,
-        })),
-      });
-      for (const editorial of editorialItems(result, new Set(batch.map((item) => item.id)))) editorialById.set(editorial.id, editorial);
-    } catch (error) {
-      if (options.requireCompleteEditorial) {
-        throw new Error(`SiC 境内 LLM 未完成 ${batch.length} 条内容处理。`, { cause: error });
-      }
-      // Editorial enrichment is optional at collection time; a later run can retry it.
+      return await complete();
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      return complete();
     }
+  };
+  const recoverEditorialBatch = async (batch: typeof pending): Promise<SicEditorial[]> => {
+    try {
+      const results = editorialItems(
+        await requestEditorialBatch(batch),
+        new Set(batch.map((item) => item.id)),
+      );
+      const completedIds = new Set(results.map((item) => item.id));
+      const missing = batch.filter((item) => !completedIds.has(item.id));
+      if (missing.length === 0) return results;
+      if (missing.length < batch.length) return [...results, ...await recoverEditorialBatch(missing)];
+    } catch (error) {
+      if (batch.length === 1) {
+        console.error("SiC 编辑降级到单条后仍失败。", {
+          id: batch[0].id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return [];
+      }
+    }
+    const midpoint = Math.ceil(batch.length / 2);
+    return [
+      ...await recoverEditorialBatch(batch.slice(0, midpoint)),
+      ...await recoverEditorialBatch(batch.slice(midpoint)),
+    ];
+  };
+  for (let start = 0; start < pending.length; start += 3) {
+    const batch = pending.slice(start, start + 3);
+    for (const editorial of await recoverEditorialBatch(batch)) editorialById.set(editorial.id, editorial);
   }
   if (options.requireCompleteEditorial) {
     const missing = pending.filter((item) => !editorialById.has(item.id));

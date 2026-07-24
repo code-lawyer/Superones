@@ -64,7 +64,7 @@ function informationChunks(information: InformationEnvelope[]) {
   let currentCharacters = 0;
   for (const item of information) {
     const characters = item.originalTitle.length + (item.originalContent?.length ?? 0);
-    if (current.length > 0 && (current.length >= 6 || currentCharacters + characters > 48_000)) {
+    if (current.length > 0 && (current.length >= 3 || currentCharacters + characters > 24_000)) {
       chunks.push(current);
       current = [];
       currentCharacters = 0;
@@ -74,6 +74,11 @@ function informationChunks(information: InformationEnvelope[]) {
   }
   if (current.length > 0) chunks.push(current);
   return chunks;
+}
+
+function modelConcurrency(environment: Record<string, string | undefined> = process.env) {
+  const configured = Number(environment.VAULT2077_LLM_CONCURRENCY ?? "2");
+  return Number.isFinite(configured) ? Math.max(1, Math.min(4, Math.floor(configured))) : 2;
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, operation: (item: T) => Promise<R>) {
@@ -129,32 +134,59 @@ function llmEditorialPort(): EditorialPort {
   return {
     async processInformationBatch(input) {
       const chunks = informationChunks(input.information);
-      const results = await mapWithConcurrency(chunks, 4, async (chunk) => {
+      const requestChunk = async (chunk: InformationEnvelope[]) => {
+        const complete = () => requestModel(
+          "information_batch_editorial",
+          "information-batch-editorial/v1",
+          "逐条处理输入资讯，一次完成中文翻译、摘要和事件归类。必须为每条输入返回且只返回一条结果，保持原 idempotencyKey。返回 {items:[{idempotencyKey,translatedTitle,summary,translatedContent,decision}]}。translatedTitle 最多 72 字符；summary 最多 120 字符且为一行；translatedContent 是忠实中文译文或完整中文整理，不补充输入之外的事实。decision 只能是 {disposition:'existing',eventSlug}、{disposition:'candidate',candidateKey,directionAligned:true} 或 {disposition:'independent'}。只有重大变化且多条不同资讯指向同一方向时才使用 candidate；普通工具热度、单一评论或零散消息保持 independent。existing 只能引用提供的近 30 天事件 slug。",
+          {
+            information: chunk.map((item) => ({
+              idempotencyKey: item.idempotencyKey,
+              originalLanguage: item.originalLanguage,
+              originalTitle: item.originalTitle,
+              originalContent: item.originalContent,
+              originalPublisher: item.originalPublisher,
+              sourceRole: item.sourceRole,
+              publishedAt: item.originalPublishedAt,
+            })),
+            activeEvents: input.activeEvents,
+            recentIndependent: input.recentIndependent,
+          },
+        );
         try {
-          return modelInformationBatch(await withOneRetry(() => requestModel(
-            "information_batch_editorial",
-            "information-batch-editorial/v1",
-            "逐条处理输入资讯，一次完成中文翻译、摘要和事件归类。必须为每条输入返回且只返回一条结果，保持原 idempotencyKey。返回 {items:[{idempotencyKey,translatedTitle,summary,translatedContent,decision}]}。translatedTitle 最多 72 字符；summary 最多 120 字符且为一行；translatedContent 是忠实中文译文或完整中文整理，不补充输入之外的事实。decision 只能是 {disposition:'existing',eventSlug}、{disposition:'candidate',candidateKey,directionAligned:true} 或 {disposition:'independent'}。只有重大变化且多条不同资讯指向同一方向时才使用 candidate；普通工具热度、单一评论或零散消息保持 independent。existing 只能引用提供的近 30 天事件 slug。",
-            {
-              information: chunk.map((item) => ({
-                idempotencyKey: item.idempotencyKey,
-                originalLanguage: item.originalLanguage,
-                originalTitle: item.originalTitle,
-                originalContent: item.originalContent,
-                originalPublisher: item.originalPublisher,
-                sourceRole: item.sourceRole,
-                publishedAt: item.originalPublishedAt,
-              })),
-              activeEvents: input.activeEvents,
-              recentIndependent: input.recentIndependent,
-            },
-          )));
+          return await complete();
         } catch {
-          // Other chunks remain publishable; the compiler quarantines every
-          // missing idempotency key from this failed chunk.
-          return [];
+          await new Promise((resolve) => setTimeout(resolve, 1_500));
+          return complete();
         }
-      });
+      };
+      const recoverChunk = async (chunk: InformationEnvelope[]): Promise<BatchedInformationEditorial[]> => {
+        try {
+          const expectedIds = new Set(chunk.map((item) => item.idempotencyKey));
+          const results = modelInformationBatch(await requestChunk(chunk));
+          if (results.some((result) => !expectedIds.has(result.idempotencyKey))) {
+            throw new Error("模型返回了当前分组之外的资讯标识。");
+          }
+          const completedIds = new Set(results.map((result) => result.idempotencyKey));
+          const missing = chunk.filter((item) => !completedIds.has(item.idempotencyKey));
+          if (missing.length === 0) return results;
+          if (missing.length < chunk.length) return [...results, ...await recoverChunk(missing)];
+        } catch (error) {
+          if (chunk.length === 1) {
+            console.error("资讯批量编辑降级到单条后仍失败。", {
+              idempotencyKey: chunk[0].idempotencyKey,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return [];
+          }
+        }
+        const midpoint = Math.ceil(chunk.length / 2);
+        return [
+          ...await recoverChunk(chunk.slice(0, midpoint)),
+          ...await recoverChunk(chunk.slice(midpoint)),
+        ];
+      };
+      const results = await mapWithConcurrency(chunks, modelConcurrency(), recoverChunk);
       const flattened = results.flat();
       const expected = new Set(input.information.map((item) => item.idempotencyKey));
       for (const result of flattened) {

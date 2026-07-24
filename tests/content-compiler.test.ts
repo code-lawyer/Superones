@@ -162,6 +162,45 @@ test("model operation retries exactly once", async () => {
   assert.equal(attempts, 2);
 });
 
+test("missing batched editorial results fall back to single-record processing", async () => {
+  const first = envelope(1, "A", "官方");
+  const second = envelope(2, "B", "媒体");
+  const translated: string[] = [];
+  const classified: string[] = [];
+  const result = await compileInformationBatch({
+    batch: batch([first, second]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial({
+      async processInformationBatch() {
+        return [{
+          idempotencyKey: first.idempotencyKey,
+          translatedTitle: "第一条",
+          summary: "第一条摘要",
+          translatedContent: "第一条译文",
+          decision: { disposition: "independent" },
+        }];
+      },
+      async translateInformation(item) {
+        translated.push(item.idempotencyKey);
+        return {
+          translatedTitle: "第二条",
+          summary: "第二条摘要",
+          translatedContent: "第二条译文",
+        };
+      },
+      async classifyInformation(input) {
+        classified.push(input.information.originalTitle);
+        return { disposition: "independent" };
+      },
+    }),
+  });
+  assert.equal(result.information.length, 2);
+  assert.equal(result.quarantine.length, 0);
+  assert.deepEqual(translated, [second.idempotencyKey]);
+  assert.deepEqual(classified, [second.originalTitle]);
+});
+
 test("failed information editorial is quarantined and never published", async () => {
   const result = await compileInformationBatch({
     batch: batch([envelope(1, "A", "官方")]),
