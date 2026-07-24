@@ -9,7 +9,7 @@ export default function AdminPage() {
       <header className="admin-page__header">
         <p className="eyebrow mono">VAULT2077 / INTERNAL</p>
         <h1>最小运营台。</h1>
-        <p>处理边境计划报名、联系信息和 Star 快照。普通用户无法访问此页。</p>
+        <p>处理边境计划报名、联系信息、Star 快照和匿名奖品确认。普通用户无法访问此页。</p>
       </header>
       <AdminConsole />
     </section>

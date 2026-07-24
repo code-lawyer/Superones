@@ -1,13 +1,16 @@
+import type { ReactNode } from "react";
+
 type PageIntroProps = {
   code: string;
-  title: string;
+  title: ReactNode;
   lead: string;
   meta?: string;
+  className?: string;
 };
 
-export function PageIntro({ code, title, lead, meta }: PageIntroProps) {
+export function PageIntro({ code, title, lead, meta, className }: PageIntroProps) {
   return (
-    <section className="page-intro shell">
+    <section className={`page-intro shell${className ? ` ${className}` : ""}`}>
       <p className="eyebrow mono">{code}</p>
       <div className="page-intro__grid">
         <h1>{title}</h1>

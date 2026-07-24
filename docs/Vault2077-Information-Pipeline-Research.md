@@ -1,15 +1,15 @@
 # Vault2077 信息管道：开源组件调研与首发建议
 
-> 调研日期：2026-07-21。只使用项目维护方的 GitHub 仓库、Release 和 GitHub 官方 API 文档作为来源。此文是首发实现的选型边界，不替代上线前的许可证与安全审查。
+> 状态：非规范性调研。调研日期：2026-07-21。只使用项目维护方的 GitHub 仓库、Release 和 GitHub 官方 API 文档作为来源。候选和建议不代表已确认的生产选型，也不替代许可证与安全审查。
 
 ## 结论
 
-首发应当是一个**海外采集、境内处理**的窄管道，而不是部署一套通用资讯平台：海外节点只读取白名单 RSS、播客 feed、GitHub Trending 和公开仓库 README；它以签名批次将公开文本和元数据送入境内。境内才做正文归一化、去重、事件候选聚合、中文摘要与发布。
+候选架构是一个**海外采集、境内处理**的窄管道，而不是部署一套通用资讯平台：海外节点只读取获批来源组合中的 RSS、播客 feed、GitHub Trending 和公开仓库 README；它以签名批次将公开文本和元数据送入境内。境内才做正文归一化、去重、事件候选聚合、中文摘要与发布。
 
 推荐最小组合：
 
 1. **GitHub 趋势：**自托管 [NiklasTiede/Github-Trending-API](https://github.com/NiklasTiede/Github-Trending-API)，由海外定时任务调用。
-2. **RSS / Atom / JSON Feed：**境外 Python collector 使用 [lemon24/reader](https://github.com/lemon24/reader)；若只需轻量 Node 解析器，可使用 [rbren/rss-parser](https://github.com/rbren/rss-parser)。首发只接入有原生 feed 的人工白名单来源。
+2. **RSS / Atom / JSON Feed：**境外 Python collector 可以使用 [lemon24/reader](https://github.com/lemon24/reader)；若只需轻量 Node 解析器，可以使用 [rbren/rss-parser](https://github.com/rbren/rss-parser)。只读取获批来源组合中明确标注的 feed。
 3. **HTML 正文归一化：**境内用 [mozilla/readability](https://github.com/mozilla/readability) 提取正文为纯文本；不要把它当成 HTML 消毒器。
 4. **README：**由海外节点调用 GitHub 官方 README endpoint，连同 `readme_sha`、仓库元数据和原文一次性传入境内；境内 LLM 不读取境外 GitHub。
 5. **LLM：**首发保留项目既定的 Provider Adapter；若要统一不同境内模型服务，可增加 [LiteLLM](https://github.com/BerriAI/litellm)。只有确定自托管模型时才引入 [vLLM](https://github.com/vllm-project/vllm)。
@@ -32,7 +32,7 @@
 ## 首发管道与数据契约
 
 ```text
-境外：RSS/播客白名单 ─┐
+境外：RSS/播客来源组合 ─┐
 境外：Trending API ───┼─> collector batch（签名、加密、幂等键）
 境外：GitHub README ──┘                 │
                                          ▼
@@ -62,8 +62,8 @@ GitHub 的 [Get a repository README](https://docs.github.com/en/rest/repos/conte
 ## 实施顺序与上线门槛
 
 1. 先实现 `github.snapshot`：在海外容器运行 Trending API，固定每日/每周快照，取项目元数据和 README 后投递境内 Ingest API。
-2. 再实现 `source.fetch`：先接 10–20 个有原生 feed 的人工白名单，不抓取任意 URL；保存原始 XML、ETag/Last-Modified、canonical URL 与内容指纹。
+2. 再实现 `source.fetch`：使用获批来源组合中明确标注的公开通道，不抓取任意 URL；保存原始 XML、ETag/Last-Modified、canonical URL 与内容指纹。具体来源规模另行决定。
 3. 境内实现 `raw.normalize` 与 `raw.deduplicate`：只输出受长度限制的纯文本；LLM 只能在时间窗口与实体检索给出的少量候选中判定是否合并，不能扫描全库自由归并。
-4. 最后接 `content.translate`、`content.summarize`、`event.publish`：所有模型输出以 JSON Schema 验证；未通过、低置信度或没有来源链接的内容不发布。
+4. 最后接 `content.translate`、`content.summarize`、`event.publish`：所有模型输出以 JSON Schema 验证；失败自动重试一次，仍未通过、低置信度或没有来源链接的内容隔离且不发布。
 
 上线前必须能证明：单来源可暂停；相同内容不会重复发布；每条公开内容都有原链接、抓取时间和“AI 摘要”标记；README 仅作内部分析材料而不整篇公开；所有失败任务都有可重试和死信记录。这些门槛与 [Vault2077 设计规格](Vault2077-Design-Spec.md) 的跨境、去重和可追溯要求一致。

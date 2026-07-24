@@ -1,72 +1,107 @@
 import Link from "next/link";
-import { EventList } from "@/components/event-list";
-import { FrontierRanking } from "@/components/frontier-ranking";
-import { SectionHeading } from "@/components/section-heading";
-import { ServiceList } from "@/components/service-list";
-import { StatusBar } from "@/components/status-bar";
-import { TrendList } from "@/components/trend-list";
-import { services, siteStatus } from "@/lib/data";
-import { listPublicRankings } from "@/lib/frontier-store";
+import { formatNumber, services, siteStatus } from "@/lib/data";
+import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { getPublicContent } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [frontierRankings, content] = await Promise.all([listPublicRankings(), getPublicContent()]);
+  const content = await getPublicContent();
+  const latestEvents = [...content.events].sort(compareEventsNewest);
+  const updatedAt = content.state.updatedAt
+    ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Shanghai" }).format(new Date(content.state.updatedAt))
+    : "更新中";
+
   return (
-    <>
-      <StatusBar state={content.state} />
-      <section className="hero shell">
-        <aside className="hero-spine" aria-label="系统档案信息">
-          <p className="mono">VAULT2077 / SYSTEM DOSSIER</p>
-          <dl>
-            <div><dt>版本</dt><dd className="mono">REV.02</dd></div>
-            <div><dt>对象</dt><dd>一人公司</dd></div>
-            <div><dt>范围</dt><dd>情报 · 经营 · 进化 · 建造</dd></div>
-            <div><dt>状态</dt><dd>持续运行</dd></div>
-          </dl>
-        </aside>
-        <div className="hero-copy">
-          <p className="eyebrow mono">OPERATING SYSTEM / ONE-PERSON COMPANY</p>
-          <h1>一人公司，<br />全栈运行。</h1>
-          <p className="hero-lead">为超级个体提供持续情报、标准化经营服务、技术趋势与开放实验场。</p>
-          <div className="hero-actions">
-            <Link className="text-action" href="/feed">查看今日记录</Link>
-            <Link className="text-link" href="/opc">浏览 OPC 服务</Link>
+    <div className="home-stage shell">
+      <header className="home-masthead">
+        <div>
+          <p className="home-signal">前方高能！</p>
+          <h1>Vault2077</h1>
+        </div>
+        <p className="home-masthead__note">从信息、经营、进化到公开建造，为超级个体提供一套持续运行的坐标系统。</p>
+      </header>
+
+      <div className="home-waterfall">
+        <section className="home-pane home-feed" aria-labelledby="home-feed-title">
+          <header className="home-pane__header">
+            <div>
+              <p className="home-pane__meta mono">更新 {updatedAt} CST · {content.state.sourceCount} 个来源</p>
+              <h2 id="home-feed-title">Vault 信息流</h2>
+            </div>
+            <Link className="home-pane__all mono" href="/feed">查看全部</Link>
+          </header>
+          <div className="home-feed__list">
+            {latestEvents.slice(0, 3).map((event) => (
+              <Link className="home-content-item home-feed__item" href={`/feed/${event.slug}`} key={event.slug}>
+                <p className="home-item__meta mono">
+                  <span>{eventCategory(event)}</span>
+                  <time>{beijingTime(event.updated)}</time>
+                </p>
+                <h3>{event.title}</h3>
+                <p className="home-item__summary">{eventJudgment(event)}</p>
+              </Link>
+            ))}
+            {content.events.length === 0 ? <p className="home-pane__empty">信息采集中，稍后返回查看。</p> : null}
           </div>
+        </section>
+
+        <div className="home-side">
+          <section className="home-pane home-sic" aria-labelledby="home-sic-title">
+            <header className="home-pane__header">
+              <div>
+                <p className="home-pane__meta mono">24H GITHUB VELOCITY</p>
+                <h2 id="home-sic-title">SiC 学院</h2>
+              </div>
+              <Link className="home-pane__all mono" href="/sic">查看全部</Link>
+            </header>
+            <div className="home-sic__list">
+              {content.projects.slice(0, 3).map((project) => (
+                <Link className="home-content-item home-sic__item" href={`/sic/${project.owner}/${project.repo}`} key={`${project.owner}/${project.repo}`}>
+                  <p className="home-item__meta mono">
+                    <span>#{String(project.rank).padStart(2, "0")} · {project.category}</span>
+                    <strong>+{formatNumber(project.delta24)}</strong>
+                  </p>
+                  <h3>{project.owner}/{project.repo}</h3>
+                  <p className="home-item__summary">{project.description}</p>
+                </Link>
+              ))}
+              {content.projects.length === 0 ? <p className="home-pane__empty">趋势数据更新中。</p> : null}
+            </div>
+          </section>
+
+          <section className="home-pane home-opc" aria-labelledby="home-opc-title">
+            <header className="home-pane__header">
+              <div>
+                <p className="home-pane__meta mono">FIXED SCOPE / FIXED PRICE</p>
+                <h2 id="home-opc-title">OPC 服务台</h2>
+              </div>
+              <Link className="home-pane__all mono" href="/opc">查看全部</Link>
+            </header>
+            <div className="home-opc__list">
+              {services.slice(0, 2).map((service) => (
+                <Link className="home-content-item home-opc__item" href={`/opc/${service.slug}`} key={service.slug}>
+                  <p className="home-item__meta mono"><span>{service.category} · {service.period}</span><strong>{service.price}</strong></p>
+                  <h3>{service.name}</h3>
+                  <p className="home-item__summary">{service.audience}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
         </div>
-        <div className="hero-folio mono" aria-hidden="true"><span>V</span><span>2077</span></div>
-      </section>
+      </div>
 
-      <section className="home-section home-section--vault shell">
-        <SectionHeading code="VAULT / LATEST" title="最新事件" description="机器采集，境内摘要，按事件持续更新。" href="/feed" />
-        <EventList items={content.events.slice(0, 5)} />
-      </section>
-
-      <section className="home-section home-section--dark home-section--opc">
-        <div className="shell">
-          <SectionHeading code="OPC / FIXED SCOPE" title="固定价格的基础服务" description="专业经验被封装成明确范围、材料、周期与交付成果。" href="/opc" linkLabel="查看服务菜单" />
-          <ServiceList items={services.slice(0, 4)} />
-          <div className="section-cta">
-            <p>需要判断哪项服务适合你？</p>
-            <Link className="text-action" href="/opc#contact">查看联系方式</Link>
-          </div>
+      <section className="home-frontier" aria-labelledby="home-frontier-title">
+        <div>
+          <p className="home-frontier__meta mono">边境计划 · 2026 夏季赛开放报名</p>
+          <h2 id="home-frontier-title"><Link href="/frontier">跨越边境，荒野无垠。</Link></h2>
+          <p>无评审 · 零限制 · 全天候 · 非实名</p>
+        </div>
+        <div className="home-frontier__action">
+          <p className="mono">{siteStatus.settlement} 结算</p>
+          <Link href="/frontier/submit">参与计划</Link>
         </div>
       </section>
-
-      <section className="home-section home-section--sic shell">
-        <SectionHeading code="SiC / VELOCITY" title="硅提供杠杆，碳决定方向。" description="在机器智能与人的判断之间，探索超级个体持续进化的道路。" href="/sic" linkLabel="查看完整趋势" />
-        <TrendList items={content.projects.slice(0, 5)} />
-      </section>
-
-      <section className="home-section home-section--frontier shell frontier-preview">
-        <SectionHeading code="FRONTIER / 2026 SUMMER" title="边境计划" description={`全季开放报名，${siteStatus.settlement} 按净新增 Star 结算。`} href="/frontier" linkLabel="了解本赛季" />
-        <FrontierRanking items={frontierRankings.slice(0, 3)} />
-        <div className="section-cta section-cta--line">
-          <p>无需登录。提交公开 GitHub 仓库，完成一次性挑战文件验证。</p>
-          <Link className="text-action" href="/frontier/submit">提交仓库</Link>
-        </div>
-      </section>
-    </>
+    </div>
   );
 }

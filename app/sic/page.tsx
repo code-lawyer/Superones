@@ -1,29 +1,52 @@
 import type { Metadata } from "next";
+import { ChannelRibbon } from "@/components/channel-ribbon";
 import { PageIntro } from "@/components/page-intro";
-import { TrendList } from "@/components/trend-list";
-import { getPublicContent } from "@/lib/public-content";
+import { SicContentGroups } from "@/components/sic-content-groups";
+import { SicRankings } from "@/components/sic-rankings";
+import { getModelBoards, sicContentGroups } from "@/lib/sic";
+import { getSicContent } from "@/lib/sic-content";
+import { getSicExtensionRankings } from "@/lib/sic-extensions";
+import { getGithubRankingBoards } from "@/lib/sic-github-rankings";
+import { localSicVisualPreview } from "@/lib/sic-visual-preview";
 
 export const metadata: Metadata = { title: "SiC 学院" };
 
 export const dynamic = "force-dynamic";
 
 export default async function SicPage() {
-  const content = await getPublicContent();
+  const [githubBoards, modelBoards, sicContent, extensionRankings] = await Promise.all([
+    getGithubRankingBoards().catch(() => []),
+    getModelBoards().catch(() => []),
+    getSicContent().catch(() => ({
+      groups: { papers: [], archive: [], courses: [], podcasts: [] },
+      state: { updatedAt: null, itemCount: 0, sourceCount: 0 },
+    })),
+    getSicExtensionRankings().catch(() => ({
+      capturedAt: null,
+      skills: { selected: [], surging: [], surgingReady: false },
+      mcps: { selected: [], surging: [], surgingReady: false },
+    })),
+  ]);
+  const preview = localSicVisualPreview(githubBoards, modelBoards, sicContent.groups, extensionRankings);
   return (
     <>
-      <PageIntro code="SiC / SILICON × CARBON" title="硅提供杠杆，碳决定方向。" lead="在机器智能与人的判断之间，探索超级个体持续进化的道路。" meta={content.state.mode === "live" ? `24H VELOCITY / CAPTURED ${content.state.updatedAt ?? ""}` : "24H VELOCITY / CAPTURED 2026.07.21 14:00 CST"} />
-      <section className="shell sic-manifesto">
-        <p className="manifesto-mark mono">Si × C</p>
-        <p>我们追踪机器能力的边界，也保留人对方向、价值与责任的判断。榜单不是答案，只是变化发生的坐标。</p>
-      </section>
-      <section className="shell content-section">
-        <div className="filter-row" aria-label="趋势时间范围">
-          <button className="filter-button is-active" type="button">正在爆发 / 24H</button>
-          <button className="filter-button" type="button">本周热门 / 7D</button>
-          <button className="filter-button" type="button">长期热门</button>
+      <PageIntro code="SiC / TECHNOLOGY INDEX" title="血肉苦弱，硅碳共生" lead="从代码、模型、论文与一手档案中，看见技术趋势正在怎样形成。" meta={preview.enabled ? "LOCAL VISUAL PREVIEW / 示例数据" : "TECHNOLOGY / FIXED SOURCES"} />
+      <ChannelRibbon identity="SILICON × CARBON" slogan="WE WILL REDEFINE EVOLUTION." />
+      <nav className="sic-mobile-index shell mono" aria-label="SiC 页面索引">
+        {sicContentGroups.map((group) => <a href={`#sic-group-${group.id}`} key={group.id}>{group.title}</a>)}
+        <a href="#sic-rankings">趋势榜</a>
+      </nav>
+      <section className="shell sic-stage" aria-label="SiC 技术阅读与趋势榜">
+        <div className="sic-stage__columns">
+          <SicContentGroups groups={sicContentGroups} content={preview.content} />
+          <aside className="sic-stage__rail" aria-label="技术趋势榜单">
+            <SicRankings
+              githubBoards={preview.githubBoards}
+              modelBoards={preview.modelBoards}
+              extensionRankings={preview.extensionRankings}
+            />
+          </aside>
         </div>
-        <TrendList items={content.projects} />
-        <p className="method-note mono">排名优先考虑近期 Star 增速。累计 Star 仅作为辅助信息。{content.state.mode === "demo" ? "当前页面使用示例数据。" : "项目 README 快照仅在境内用于结构化分析。"}</p>
       </section>
     </>
   );

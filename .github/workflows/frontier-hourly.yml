@@ -1,0 +1,21 @@
+name: Refresh Frontier ranking
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Refresh ranking and settle completed seasons
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "x-vault2077-frontier-secret: ${{ secrets.VAULT2077_FRONTIER_TICK_SECRET }}" \
+            "${{ secrets.VAULT2077_FRONTIER_TICK_URL }}"

@@ -17,7 +17,7 @@ export function TrendList({ items }: { items: TrendProject[] }) {
           <div className="trend-rank mono"><strong>{String(project.rank).padStart(2, "0")}</strong><span>{project.change}</span></div>
           <div className="record-main">
             <p className="mono project-path">{project.owner}/{project.repo}</p>
-            <h3><Link href={`/sic/${project.owner}/${project.repo}`}>{project.description}</Link></h3>
+            <h3><Link href={`/sic/${project.owner}/${project.repo}`}><span>{project.description}</span></Link></h3>
             <p className="mono muted">{project.category} / {project.language} / {project.license}</p>
           </div>
           <strong className="trend-value trend-value--hot mono">+{formatNumber(project.delta24)}</strong>

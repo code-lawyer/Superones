@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/manrope";
 import "./globals.css";
 import "./institutional.css";
 import { SiteFooter } from "@/components/site-footer";
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" data-scroll-behavior="smooth">
       <body>
         <a className="skip-link" href="#main-content">跳到正文</a>
         <SiteHeader />

@@ -14,7 +14,7 @@ export function ServiceList({ items }: { items: Service[] }) {
         <article className="record-row service-row" key={service.slug}>
           <div className="record-id mono"><span>{service.code}</span><span>{service.category}</span></div>
           <div className="record-main">
-            <h3><Link href={`/opc/${service.slug}`}>{service.name}</Link></h3>
+            <h3><Link href={`/opc/${service.slug}`}><span>{service.name}</span></Link></h3>
             <p>{service.audience}</p>
           </div>
           <strong className="service-price">{service.price}</strong>

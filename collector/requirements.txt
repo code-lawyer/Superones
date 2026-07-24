@@ -1,1 +1,4 @@
-reader>=3.0,<4.0
+feedparser==6.0.12
+sgmllib3k==1.0.0
+httpx[socks]>=0.27,<1
+pydantic>=2.9,<3

@@ -2,20 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FrontierRanking } from "@/components/frontier-ranking";
 import { PageIntro } from "@/components/page-intro";
-import { listPublicRankings } from "@/lib/frontier-store";
+import { beijingSeasonDate } from "@/lib/frontier-domain";
+import { currentSeason, latestRankingUpdate, listPublicRankings } from "@/lib/frontier-store";
 
 export const metadata: Metadata = { title: "边境计划排行榜" };
 export const dynamic = "force-dynamic";
 
 export default async function RankingPage() {
-  const rankings = await listPublicRankings();
+  const season = currentSeason();
+  const [rankings, updatedAt] = await Promise.all([listPublicRankings(season.code), latestRankingUpdate(season.code)]);
   return (
     <>
-      <PageIntro code="FRONTIER / RANKING" title="每一颗 Star，都从验证通过后开始计算。" lead="排行榜展示基线、当前值和净新增值。最终结果在赛季结算时进行资格与异常复核。" meta="2026 夏季赛 / 2026.09.30 23:59:59 CST 结算" />
+      <PageIntro code="FRONTIER / RANKING" title="每一颗 Star，都从验证通过后开始计算。" lead="排行榜每小时更新。赛季结算时重新检查仓库资格与挑战文件，再冻结最终结果。" meta={`${season.name} / ${beijingSeasonDate(season.endsAt)} 结算 / 最近更新 ${updatedAt ? new Date(updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "等待首次更新"}`} />
       <section className="shell content-section"><FrontierRanking items={rankings} /></section>
       <section className="shell archive-section">
-        <div className="section-heading"><p className="eyebrow mono">HALL OF RECORDS</p><div className="section-heading__main"><h2>历史获奖项目</h2></div></div>
-        <p className="ranking-empty">首个赛季尚未结算。获得前三名的仓库会在这里保留为荣誉记录。</p>
+        <div className="section-heading"><p className="eyebrow mono">FINAL CHECK</p><div className="section-heading__main"><h2>结算时再次验证。</h2></div></div>
+        <p className="ranking-empty">挑战文件必须保留到赛季末。结算时文件缺失或仓库不再符合机器资格，将失去最终排名和随机奖品资格。</p>
         <Link className="text-action" href="/frontier/submit">提交本赛季仓库</Link>
       </section>
     </>

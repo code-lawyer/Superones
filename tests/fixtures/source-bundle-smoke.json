@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "revision": "smoke-test-v1",
+  "sources": [
+    {
+      "id": "source-smoke-simon",
+      "name": "Simon Willison",
+      "role": "评论",
+      "ownerEntity": "entity:simon-willison",
+      "publisherKind": "person",
+      "evidenceNature": "reported_analysis",
+      "classificationConfidence": "high",
+      "language": "en",
+      "channelType": "article",
+      "contentCapability": "feed-content",
+      "endpoint": "https://simonwillison.net/atom/everything/",
+      "connector": "rss",
+      "aggregator": null
+    },
+    {
+      "id": "source-smoke-hn",
+      "name": "Hacker News",
+      "role": "评论",
+      "ownerEntity": "community:hacker-news",
+      "publisherKind": "community",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "language": "en",
+      "channelType": "community",
+      "contentCapability": "metadata",
+      "endpoint": "https://hacker-news.firebaseio.com/v0/topstories.json",
+      "connector": "hackernews",
+      "aggregator": null
+    }
+  ]
+}

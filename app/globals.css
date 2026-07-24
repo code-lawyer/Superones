@@ -6,9 +6,10 @@
   --ash: #7b8078;
   --rule: #d4d8d0;
   --danger: #bb2e1e;
-  --font-sans: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  --font-display: "Arial Narrow", "Roboto Condensed", "Noto Sans SC", sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  --font-latin: "Manrope Variable";
+  --font-sans: var(--font-latin), "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --font-display: var(--font-latin), "Noto Sans SC", sans-serif;
+  --font-mono: var(--font-latin), "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --shell: 1440px;
   --gutter: clamp(20px, 4vw, 64px);
   --section: clamp(80px, 10vw, 152px);
@@ -179,41 +180,6 @@ h3 {
 
 .menu-toggle {
   display: none;
-}
-
-.status-bar {
-  border-bottom: 1px solid var(--rule);
-  background: var(--paper-bright);
-}
-
-.status-bar__inner {
-  display: flex;
-  min-height: 34px;
-  align-items: center;
-  gap: 24px;
-  overflow: hidden;
-  color: var(--graphite);
-  font-size: 10px;
-  line-height: 1;
-  text-transform: uppercase;
-  white-space: nowrap;
-  scrollbar-width: none;
-}
-
-.status-bar__inner::-webkit-scrollbar {
-  display: none;
-}
-
-.status-live {
-  padding: 4px 6px;
-  background: var(--carbon);
-  color: var(--paper-bright);
-  font-weight: 700;
-}
-
-.status-demo {
-  margin-left: auto;
-  color: var(--ash);
 }
 
 .eyebrow {
@@ -1468,15 +1434,6 @@ h3 {
 
   .nav-link::after {
     display: none;
-  }
-
-  .status-bar__inner {
-    gap: 15px;
-    overflow-x: auto;
-  }
-
-  .status-demo {
-    margin-left: 0;
   }
 
   .hero {

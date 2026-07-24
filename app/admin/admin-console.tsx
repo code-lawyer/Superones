@@ -7,12 +7,23 @@ type Submission = {
   repository: string;
   email: string;
   note: string;
-  status: "pending" | "verified" | "disqualified";
+  status: "pending" | "verified" | "settled" | "ineligible_at_settlement";
   createdAt: string;
   verifiedAt: string | null;
   baselineStars: number | null;
   currentStars: number | null;
   lastSnapshotAt: string | null;
+};
+
+type Donation = {
+  id: string;
+  season: string;
+  name: string;
+  description: string;
+  email: string;
+  status: "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned";
+  createdAt: string;
+  confirmedAt: string | null;
 };
 
 type ContentState = {
@@ -24,13 +35,14 @@ type ContentState = {
 };
 
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; state?: ContentState; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "请求暂时无法完成。");
   return body;
 }
 
 export function AdminConsole() {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
+  const [donations, setDonations] = useState<Donation[]>([]);
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -44,12 +56,14 @@ export function AdminConsole() {
     ]);
     if (response.status === 401 || contentResponse.status === 401) {
       setSubmissions(null);
+      setDonations([]);
       setContentState(null);
       return;
     }
     const body = await jsonMessage(response);
     const content = await jsonMessage(contentResponse);
     setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
+    setDonations(Array.isArray(body?.donations) ? body.donations : []);
     setContentState(content?.state ?? null);
   }, []);
 
@@ -79,6 +93,7 @@ export function AdminConsole() {
       const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refresh-stars" }) });
       const body = await jsonMessage(response);
       setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
+      setDonations(Array.isArray(body?.donations) ? body.donations : []);
       setNotice(`已刷新 ${body?.refreshed ?? 0} 个仓库${body?.failed ? `，${body.failed} 个仓库暂时无法读取` : ""}。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "暂时无法刷新 Star。" );
@@ -87,9 +102,27 @@ export function AdminConsole() {
     }
   }
 
+  async function updateDonation(donationId: string, action: "confirm-donation" | "reject-donation" | "withdraw-donation") {
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, donationId }) });
+      const body = await jsonMessage(response);
+      setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
+      setDonations(Array.isArray(body?.donations) ? body.donations : []);
+      setNotice("奖品状态已更新。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "暂时无法更新奖品状态。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
     setSubmissions(null);
+    setDonations([]);
     setContentState(null);
     setNotice("");
   }
@@ -130,6 +163,21 @@ export function AdminConsole() {
           </div>
         ))}
       </div>
+      <section className="admin-donations" aria-labelledby="admin-donations-title">
+        <div className="admin-section-heading"><p className="eyebrow mono">FRONTIER / PRIZE DONATIONS</p><h2 id="admin-donations-title">奖品捐献确认</h2></div>
+        <div className="admin-donation-list">
+          {donations.length === 0 ? <p className="ranking-empty">当前没有奖品捐献记录。</p> : donations.map((donation) => (
+            <article key={donation.id}>
+              <div><p className="mono muted">{donation.season} / {donation.status}</p><h3>{donation.name}</h3><p>{donation.description}</p></div>
+              <div className="admin-donation-meta"><span className="mono">{donation.email}</span><time className="mono">{new Date(donation.createdAt).toLocaleString("zh-CN", { hour12: false })}</time></div>
+              <div className="admin-actions">
+                {donation.status === "pending_confirmation" ? <><button className="text-action" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "confirm-donation")}>确认并公开</button><button className="text-link" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "reject-donation")}>拒绝</button></> : null}
+                {donation.status === "available" ? <button className="text-link" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "withdraw-donation")}>撤回奖品</button> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
       <section className="admin-pipeline" aria-label="信息管道状态">
         <p className="eyebrow mono">CONTENT PIPELINE / DOMESTIC VIEW</p>
         <h2>信息管道状态</h2>

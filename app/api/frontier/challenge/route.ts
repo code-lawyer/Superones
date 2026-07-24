@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createPendingSubmission, CURRENT_SEASON } from "@/lib/frontier-store";
+import { createPendingSubmission, currentSeason } from "@/lib/frontier-store";
+import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, parseGitHubRepository } from "@/lib/github";
 import { withinRateLimit } from "@/lib/rate-limit";
 
@@ -16,8 +17,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json() as { repo?: unknown; email?: unknown; note?: unknown };
-    if (typeof body.repo !== "string" || typeof body.email !== "string" || typeof body.note !== "string") {
+    const body = await request.json() as { repo?: unknown; email?: unknown; note?: unknown; rulesAccepted?: unknown };
+    if (typeof body.repo !== "string" || typeof body.email !== "string" || typeof body.note !== "string" || body.rulesAccepted !== true) {
       return NextResponse.json({ error: "提交信息格式无效。" }, { status: 400 });
     }
     const email = body.email.trim().toLowerCase();
@@ -25,8 +26,8 @@ export async function POST(request: NextRequest) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "请输入用于获奖通知的有效邮箱。" }, { status: 400 });
     }
-    if (note.length < 12 || note.length > 800) {
-      return NextResponse.json({ error: "项目说明需为 12–800 个字符。" }, { status: 400 });
+    if (note.length < 6 || note.length > 180) {
+      return NextResponse.json({ error: "一句话项目说明需为 6–180 个字符。" }, { status: 400 });
     }
 
     let owner: string;
@@ -37,25 +38,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "仓库地址无效。" }, { status: 400 });
     }
     const repository = await inspectGitHubRepository(owner, repo);
-    if (repository.isPrivate) return NextResponse.json({ error: "边境计划只接受公开仓库。" }, { status: 400 });
-    if (repository.isFork) return NextResponse.json({ error: "纯 Fork 仓库不能参加边境计划。" }, { status: 400 });
-    if (repository.isArchived) return NextResponse.json({ error: "已归档仓库不能参加边境计划。" }, { status: 400 });
-    if (!repository.license || repository.license === "NOASSERTION") {
-      return NextResponse.json({ error: "仓库需要先声明可识别的开源许可证。" }, { status: 400 });
-    }
+    const eligibilityError = repositoryEligibilityError(repository);
+    if (eligibilityError) return NextResponse.json({ error: eligibilityError }, { status: 400 });
 
     const challenge = randomBytes(24).toString("base64url");
-    const submission = await createPendingSubmission({ owner, repo, email, note, defaultBranch: repository.defaultBranch, challenge });
-    const filePath = `.vault2077/season-${CURRENT_SEASON.code}.json`;
+    const submission = await createPendingSubmission({ owner, repo, email, note, defaultBranch: repository.defaultBranch, challenge, rulesAccepted: true });
+    const season = currentSeason();
+    const filePath = `.vault2077/season-${season.code}.json`;
     return NextResponse.json({
       id: submission.id,
-      season: CURRENT_SEASON.code,
+      season: season.code,
+      seasonName: season.name,
       repository: submission.repository,
       filePath,
       expiresAt: submission.challengeExpiresAt,
       payload: {
         platform: "vault2077",
-        season: CURRENT_SEASON.code,
+        season: season.code,
         repository: submission.repository,
         challenge,
         issuedAt: submission.createdAt,

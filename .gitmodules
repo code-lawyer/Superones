@@ -1,0 +1,3 @@
+[submodule "collector/vendor/horizon"]
+	path = collector/vendor/horizon
+	url = https://github.com/Thysrael/Horizon.git
