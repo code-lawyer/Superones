@@ -28,7 +28,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: vault2077-acquisition
+  # GitHub cancels older pending runs when unrelated lanes share one group.
+  # Isolate collection by lane; the domestic inbox remains the global serial queue.
+  group: vault2077-acquisition-${{ inputs.lane || github.event.schedule }}
   cancel-in-progress: false
 
 jobs:

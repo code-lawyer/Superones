@@ -16,8 +16,9 @@ test("GitHub Actions schedules four lanes at the approved Beijing cadence", () =
   ]) {
     assert.ok(workflow.includes(`cron: "${cron}"`), cron);
   }
-  assert.match(workflow, /group: vault2077-acquisition/);
+  assert.match(workflow, /group: vault2077-acquisition-\$\{\{ inputs\.lane \|\| github\.event\.schedule \}\}/);
   assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /domestic inbox remains the global serial queue/);
 });
 
 test("collection workflow has no retired ranking credentials", () => {
