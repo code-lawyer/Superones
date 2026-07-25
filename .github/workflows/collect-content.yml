@@ -12,6 +12,14 @@ on:
           - roadside
           - sic
           - rankings
+      run_mode:
+        description: Incremental schedule or one-time launch bootstrap
+        required: true
+        default: incremental
+        type: choice
+        options:
+          - incremental
+          - bootstrap
       require_delivery:
         description: Require domestic VPS delivery
         required: true
@@ -22,7 +30,7 @@ on:
     - cron: "5 */2 * * *"       # Information: even Beijing hours at :05.
     - cron: "55 */2 * * *"      # Roadside: even Beijing hours at :55.
     - cron: "25 11,23 * * *"    # SiC: Beijing 07:25 / 19:25.
-    - cron: "55 11,23 * * *"    # Rankings: Beijing 07:55 / 19:55.
+    - cron: "35 * * * *"        # Rankings: hourly at :35.
 
 permissions:
   contents: read
@@ -30,7 +38,7 @@ permissions:
 concurrency:
   # GitHub cancels older pending runs when unrelated lanes share one group.
   # Isolate collection by lane; the domestic inbox remains the global serial queue.
-  group: vault2077-acquisition-${{ inputs.lane || github.event.schedule }}
+  group: vault2077-acquisition-${{ inputs.run_mode || 'incremental' }}-${{ inputs.lane || github.event.schedule }}
   cancel-in-progress: false
 
 jobs:
@@ -43,7 +51,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
       - run: npm ci
       - id: lane
@@ -52,21 +60,25 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_LANE: ${{ inputs.lane }}
+          MANUAL_RUN_MODE: ${{ inputs.run_mode }}
           CRON: ${{ github.event.schedule }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             lane="$MANUAL_LANE"
+            run_mode="$MANUAL_RUN_MODE"
           else
+            run_mode="incremental"
             case "$CRON" in
               "5 */2 * * *") lane="information" ;;
               "55 */2 * * *") lane="roadside" ;;
               "25 11,23 * * *") lane="sic" ;;
-              "55 11,23 * * *") lane="rankings" ;;
+              "35 * * * *") lane="rankings" ;;
               *) echo "Unknown schedule: $CRON" >&2; exit 1 ;;
             esac
           fi
           echo "value=$lane" >> "$GITHUB_OUTPUT"
-          echo "schedule_id=${lane}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "run_mode=$run_mode" >> "$GITHUB_OUTPUT"
+          echo "schedule_id=${run_mode}:${lane}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
         if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         with:
@@ -82,10 +94,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VAULT2077_ACQUISITION_LANE: ${{ steps.lane.outputs.value }}
+          VAULT2077_ACQUISITION_RUN_MODE: ${{ steps.lane.outputs.run_mode }}
           VAULT2077_SCHEDULE_ID: ${{ steps.lane.outputs.schedule_id }}
           VAULT2077_COLLECTOR_OUTPUT_DIR: .collector-output
           VAULT2077_DOMESTIC_ACQUISITION_URL: ${{ secrets.VAULT2077_DOMESTIC_ACQUISITION_URL }}
           VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL: ${{ secrets.VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL }}
+          VAULT2077_FRONTIER_PUBLIC_TASKS_URL: ${{ secrets.VAULT2077_FRONTIER_PUBLIC_TASKS_URL }}
           VAULT2077_PIPELINE_SHARED_SECRET: ${{ secrets.VAULT2077_PIPELINE_SHARED_SECRET }}
           VAULT2077_PIPELINE_WORKER_SECRET: ${{ secrets.VAULT2077_PIPELINE_WORKER_SECRET }}
           VAULT2077_REQUIRE_DOMESTIC_DELIVERY: ${{ github.event_name == 'schedule' || inputs.require_delivery }}
@@ -94,7 +108,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vault2077-${{ steps.lane.outputs.value }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: vault2077-${{ steps.lane.outputs.run_mode }}-${{ steps.lane.outputs.value }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .collector-output
           if-no-files-found: warn
           retention-days: 14

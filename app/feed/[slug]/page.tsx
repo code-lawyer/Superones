@@ -14,25 +14,35 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title: event?.title ?? "事件记录" };
 }
 
-function CitedText({ text, sourceCount }: { text: string; sourceCount: number }) {
+function CitedText({ text, sourceCount, visibleSourceCount }: { text: string; sourceCount: number; visibleSourceCount: number }) {
   const parts = text.split(/(\[\d+\])/g);
   return parts.map((part, index) => {
     const match = part.match(/^\[(\d+)\]$/);
     if (!match) return part;
     const number = Number(match[1]);
     if (number < 1 || number > sourceCount) return null;
+    if (number > visibleSourceCount) return <span className="citation" key={`${part}-${index}`}>{part}</span>;
     return <a className="citation" href={`#source-${number}`} key={`${part}-${index}`}>{part}</a>;
   });
 }
 
-export default async function EventDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const [{ slug }, content] = await Promise.all([params, getPublicContent()]);
+export default async function EventDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ related?: string | string[] }>;
+}) {
+  const [{ slug }, content, query] = await Promise.all([params, getPublicContent(), searchParams]);
   const event = content.events.find((item) => item.slug === slug);
   if (!event) notFound();
 
   const related = content.information
     .filter((item) => item.eventSlugs.includes(event.slug))
     .sort((left, right) => Date.parse(left.publishedAt ?? left.discoveredAt) - Date.parse(right.publishedAt ?? right.discoveredAt));
+  const requestedLimit = Number.parseInt(Array.isArray(query.related) ? query.related[0] : query.related ?? "", 10);
+  const relatedLimit = Number.isFinite(requestedLimit) && requestedLimit > 20 ? Math.min(requestedLimit, 500) : 20;
+  const visibleRelated = related.slice(0, relatedLimit);
   const paragraphs = event.summary.split(/\n\s*\n/).filter(Boolean);
 
   return (
@@ -52,7 +62,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
         <div className="feed-detail__body">
           <section className="event-summary" aria-labelledby="event-summary-title">
             <p className="detail-section-label mono" id="event-summary-title">综合摘要</p>
-            {paragraphs.map((paragraph, index) => <p key={index}><CitedText text={paragraph} sourceCount={related.length} /></p>)}
+            {paragraphs.map((paragraph, index) => <p key={index}><CitedText text={paragraph} sourceCount={related.length} visibleSourceCount={visibleRelated.length} /></p>)}
           </section>
 
           <section className="related-information" id="related" aria-labelledby="related-title">
@@ -61,7 +71,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
               <p>按原始发布时间正序</p>
             </div>
             <div className="source-timeline">
-              {related.map((item, index) => (
+              {visibleRelated.map((item, index) => (
                 <article className="source-record" id={`source-${index + 1}`} key={item.slug}>
                   <div className="source-record__index mono">
                     <span>[{String(index + 1).padStart(2, "0")}]</span>
@@ -95,6 +105,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
                 </article>
               ))}
             </div>
+            {visibleRelated.length < related.length ? (
+              <Link className="feed-more" href={`/feed/${encodeURIComponent(event.slug)}?related=${relatedLimit + 20}#related`}>
+                <span>继续加载相关资讯</span>
+                <span className="mono">{visibleRelated.length} / {related.length}</span>
+              </Link>
+            ) : null}
           </section>
         </div>
 

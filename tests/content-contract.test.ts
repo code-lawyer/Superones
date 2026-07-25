@@ -21,6 +21,7 @@ function batch() {
       classificationConfidence: "high",
       sourceRole: "官方",
       originalUrl: "https://example.com/story?utm_source=test",
+      externalUrl: "https://example.net/referenced-story#section",
       originalPublishedAt: "2026-07-22T09:00:00.000Z",
       fetchedAt: "2026-07-22T10:00:00.000Z",
       originalLanguage: "en",
@@ -39,6 +40,7 @@ test("v2 contract preserves original fields and normalizes timestamps", () => {
   assert.equal(result.information[0].originalContent, "Original English content.");
   assert.equal(result.information[0].sourceRole, "官方");
   assert.equal(result.information[0].ownerEntity, "entity:publisher-one");
+  assert.equal(result.information[0].externalUrl, "https://example.net/referenced-story");
   assert.equal(result.generatedAt, "2026-07-22T10:01:00.000Z");
 });
 

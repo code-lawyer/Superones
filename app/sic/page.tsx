@@ -29,6 +29,7 @@ export default async function SicPage() {
     metric: board.providerMetric,
     description: `来源平台：${board.provider}；原始口径：${board.providerView}。页面严格保留平台返回顺序。`,
     capturedAt: board.capturedAt,
+    stale: board.stale,
     sourceUrl: board.sourceUrl,
     emptyMessage: "本期平台榜单暂不可用。",
     items: board.items.map((item) => ({

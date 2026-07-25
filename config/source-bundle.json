@@ -1,17 +1,17 @@
 {
   "version": 1,
-  "revision": "source-bundle-cc180a0ea766f78c",
-  "generatedAt": "2026-07-25T00:32:21.261Z",
+  "revision": "source-bundle-fd68c4cc4bb3bb45",
+  "generatedAt": "2026-07-25T10:53:26.470Z",
   "registryGeneratedAt": "2026-07-22T14:02:45.177Z",
   "registryAuditedAt": "2026-07-22T15:51:02.486Z",
-  "policy": "Core direct sources plus discovery-only aggregators with canonical provenance. Editorial publications enter information; verified people, personal blogs and native community topics enter roadside; first-party organizations and project releases enter documents. Podcasts run in the SiC lane. GitHub user activity is not published speech. Aggregator comments and summaries never become original content. Unknown publishers and unresolved canonical URLs are quarantined.",
+  "policy": "Approved news publications, official newsrooms and project releases enter information. Verified people, personal blogs and approved community-native platforms enter roadside. Approved deep research and engineering publications enter SiC documents and never duplicate into information. Hacker News and Lobsters are canonical only for their own community submissions; their external links are never recursively fetched. Podcasts run in the SiC lane. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
   "counts": {
-    "active": 74,
-    "pending": 390,
-    "rss": 55,
-    "structured": 19,
-    "information": 4,
-    "documents": 33,
+    "active": 54,
+    "pending": 396,
+    "rss": 40,
+    "structured": 14,
+    "information": 17,
+    "documents": 0,
     "roadside": 37,
     "statements": 34,
     "xCandidates": 179,
@@ -20,102 +20,6 @@
     "xDuplicateDiscoveriesMerged": 9
   },
   "sources": [
-    {
-      "id": "source-5ae3bf5e0de199cb",
-      "identity": "feed:http://www.awsarchitectureblog.com/atom.xml",
-      "name": "AWS Architecture Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:aws",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:aws",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "http://www.awsarchitectureblog.com/atom.xml",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "http://www.awsarchitectureblog.com/atom.xml"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://aws.amazon.com/blogs/architecture/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:06.106Z",
-        "httpStatus": 200,
-        "finalUrl": "https://aws.amazon.com/blogs/architecture/feed/",
-        "contentType": "application/rss+xml;charset=UTF-8",
-        "latencyMs": 4332,
-        "bytesInspected": 262144,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 13,
-        "observedTitle": "AWS Architecture Blog"
-      }
-    },
-    {
-      "id": "source-5f51402bb3b1eaab",
-      "identity": "feed:https://aws.amazon.com/blogs/amazon-ai/feed",
-      "name": "AWS Machine Learning Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:aws",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:aws",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://aws.amazon.com/blogs/amazon-ai/feed",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://aws.amazon.com/blogs/amazon-ai/feed/"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://aws.amazon.com/blogs/machine-learning/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:04.193Z",
-        "httpStatus": 200,
-        "finalUrl": "https://aws.amazon.com/blogs/machine-learning/feed/",
-        "contentType": "application/rss+xml;charset=UTF-8",
-        "latencyMs": 2420,
-        "bytesInspected": 262144,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 10,
-        "observedTitle": "Artificial Intelligence"
-      }
-    },
     {
       "id": "source-aec7430570bf219f",
       "identity": "feed:https://blog.bytebytego.com/feed",
@@ -162,54 +66,6 @@
         "format": "feed",
         "entryCount": 4,
         "observedTitle": "ByteByteGo Newsletter"
-      }
-    },
-    {
-      "id": "source-dcad291e9a4d00bd",
-      "identity": "feed:https://www.databricks.com/feed",
-      "name": "Databricks",
-      "role": "媒体",
-      "ownerEntity": "entity:databricks",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:databricks",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://www.databricks.com/feed",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://www.databricks.com/feed"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://www.databricks.com/feed",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:04.290Z",
-        "httpStatus": 206,
-        "finalUrl": "https://www.databricks.com/feed",
-        "contentType": "application/xml",
-        "latencyMs": 561,
-        "bytesInspected": 6083,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 10,
-        "observedTitle": "Databricks"
       }
     },
     {
@@ -357,102 +213,6 @@
       }
     },
     {
-      "id": "source-e06498a57b944e18",
-      "identity": "feed:https://azure.microsoft.com/en-us/blog/feed",
-      "name": "Microsoft Azure Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:microsoft",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:microsoft",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://azure.microsoft.com/en-us/blog/feed",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://azure.microsoft.com/en-us/blog/feed/"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://azure.microsoft.com/en-us/blog/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:21.693Z",
-        "httpStatus": 200,
-        "finalUrl": "https://azure.microsoft.com/en-us/blog/feed/",
-        "contentType": "application/rss+xml; charset=UTF-8",
-        "latencyMs": 9292,
-        "bytesInspected": 240581,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 10,
-        "observedTitle": "Microsoft Azure Blog"
-      }
-    },
-    {
-      "id": "source-6d8c86e25c47f7e1",
-      "identity": "feed:https://nextjs.org/feed.xml",
-      "name": "Next.js Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:vercel",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:vercel",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://nextjs.org/feed.xml",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://nextjs.org/feed.xml"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://nextjs.org/feed.xml",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:14.773Z",
-        "httpStatus": 200,
-        "finalUrl": "https://nextjs.org/feed.xml",
-        "contentType": "application/rss+xml; charset=utf-8",
-        "latencyMs": 373,
-        "bytesInspected": 54151,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 69,
-        "observedTitle": "Next.js Blog"
-      }
-    },
-    {
       "id": "source-d613403526f9ac18",
       "identity": "feed:https://simonwillison.net/atom/everything",
       "name": "Simon Willison's Weblog",
@@ -516,246 +276,6 @@
       }
     },
     {
-      "id": "source-3ac81903f64836c1",
-      "identity": "feed:https://blog.cloudflare.com/rss",
-      "name": "The Cloudflare Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:cloudflare",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:cloudflare",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://blog.cloudflare.com/rss",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://blog.cloudflare.com/rss"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://blog.cloudflare.com/rss",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:19.146Z",
-        "httpStatus": 200,
-        "finalUrl": "https://blog.cloudflare.com/rss",
-        "contentType": "application/rss+xml; charset=utf-8",
-        "latencyMs": 930,
-        "bytesInspected": 262144,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 15,
-        "observedTitle": "The Cloudflare Blog"
-      }
-    },
-    {
-      "id": "source-40bf6330c82c7e69",
-      "identity": "feed:https://github.blog/feed",
-      "name": "The GitHub Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:github",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:github",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://github.blog/feed",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://github.blog/feed/"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://github.blog/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:19.274Z",
-        "httpStatus": 200,
-        "finalUrl": "https://github.blog/feed/",
-        "contentType": "application/rss+xml; charset=UTF-8",
-        "latencyMs": 928,
-        "bytesInspected": 168037,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 10,
-        "observedTitle": "The GitHub Blog"
-      }
-    },
-    {
-      "id": "source-da9f83d5847c32c9",
-      "identity": "feed:https://blog.google/rss",
-      "name": "The Keyword (blog.google)",
-      "role": "媒体",
-      "ownerEntity": "entity:google",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:google",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://blog.google/rss",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://blog.google/rss"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://blog.google/rss/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:20.546Z",
-        "httpStatus": 200,
-        "finalUrl": "https://blog.google/rss/",
-        "contentType": "application/xml; charset=utf-8",
-        "latencyMs": 1906,
-        "bytesInspected": 29945,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 20,
-        "observedTitle": "News from Google"
-      }
-    },
-    {
-      "id": "source-00182a601ce506a4",
-      "identity": "feed:https://vercel.com/atom",
-      "name": "Vercel News",
-      "role": "媒体",
-      "ownerEntity": "entity:vercel",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:vercel",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://vercel.com/atom",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://vercel.com/atom"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://vercel.com/atom",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:19.536Z",
-        "httpStatus": 200,
-        "finalUrl": "https://vercel.com/atom",
-        "contentType": "application/atom+xml",
-        "latencyMs": 522,
-        "bytesInspected": 262144,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 87,
-        "observedTitle": "Vercel News"
-      }
-    },
-    {
-      "id": "source-a3bedaf261ee7fc3",
-      "identity": "feed:https://devblogs.microsoft.com/visualstudio/feed",
-      "name": "Visual Studio Blog",
-      "role": "媒体",
-      "ownerEntity": "entity:microsoft",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:microsoft",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://devblogs.microsoft.com/visualstudio/feed",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://devblogs.microsoft.com/visualstudio/feed/"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://devblogs.microsoft.com/visualstudio/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:21.536Z",
-        "httpStatus": 200,
-        "finalUrl": "https://devblogs.microsoft.com/visualstudio/feed/",
-        "contentType": "application/rss+xml; charset=UTF-8",
-        "latencyMs": 2389,
-        "bytesInspected": 119118,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 10,
-        "observedTitle": "Visual Studio Blog"
-      }
-    },
-    {
       "id": "source-c0499a0dc713d290",
       "identity": "community:hacker-news",
       "name": "Hacker News",
@@ -788,8 +308,8 @@
       "sourceStream": "roadside",
       "contentGroup": "roadside",
       "itemKind": "community_topic",
-      "provenanceRole": "discovery",
-      "provenanceStatus": "declared",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
       "originPlatform": "web",
       "authorityTier": null,
       "endpoint": "https://hacker-news.firebaseio.com/v0/topstories.json",
@@ -836,8 +356,8 @@
       "sourceStream": "roadside",
       "contentGroup": "roadside",
       "itemKind": "community_topic",
-      "provenanceRole": "discovery",
-      "provenanceStatus": "declared",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
       "originPlatform": "web",
       "authorityTier": null,
       "endpoint": "https://lobste.rs/hottest.json",
@@ -882,7 +402,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -930,7 +450,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -978,7 +498,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1026,7 +546,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1074,7 +594,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1122,7 +642,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1170,7 +690,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1218,7 +738,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1266,7 +786,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1319,7 +839,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1367,7 +887,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "release",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1390,31 +910,31 @@
       }
     },
     {
-      "id": "sic-document:anthropic-news",
-      "identity": "sic-document:anthropic-news",
+      "id": "institutional-news:anthropic-news",
+      "identity": "institutional-news:anthropic-news",
       "name": "Anthropic News",
       "role": "官方",
       "ownerEntity": "organization:anthropic",
       "publisherKind": "organization",
       "evidenceNature": "primary",
       "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
+      "classificationSource": "institutional_news_registry",
       "language": "en",
       "primaryLanguage": "en",
       "geography": "US",
-      "channelType": "official-blog",
+      "channelType": "official-news",
       "channelIdentifier": "anthropic-news",
       "homeUrl": "https://www.anthropic.com/news",
       "evidenceEligible": true,
-      "contentCapability": "feed-content",
+      "contentCapability": "fulltext",
       "discoveredFrom": [
         {
           "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
+          "path": "config/institutional-news-registry.json"
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1422,267 +942,28 @@
       "authorityTier": null,
       "endpoint": "https://www.anthropic.com/sitemap.xml",
       "connector": "sitemap",
+      "pathPrefix": "/news/",
       "aggregator": null,
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
+        "checkedAt": "2026-07-25T10:53:26.461Z",
         "finalUrl": "https://www.anthropic.com/sitemap.xml"
       }
     },
     {
-      "id": "sic-document:anthropic-research",
-      "identity": "sic-document:anthropic-research",
-      "name": "Anthropic Research",
-      "role": "官方",
-      "ownerEntity": "organization:anthropic",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "anthropic-research",
-      "homeUrl": "https://www.anthropic.com/research",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://www.anthropic.com/sitemap.xml",
-      "connector": "sitemap",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://www.anthropic.com/sitemap.xml"
-      }
-    },
-    {
-      "id": "sic-document:google-deepmind-blog",
-      "identity": "sic-document:google-deepmind-blog",
-      "name": "Google DeepMind Blog",
-      "role": "官方",
-      "ownerEntity": "organization:google-deepmind",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "google-deepmind-blog",
-      "homeUrl": "https://deepmind.google/blog/",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://deepmind.google/blog/rss.xml",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://deepmind.google/blog/rss.xml"
-      }
-    },
-    {
-      "id": "sic-document:google-research-blog",
-      "identity": "sic-document:google-research-blog",
-      "name": "Google Research Blog",
-      "role": "官方",
-      "ownerEntity": "organization:google-research",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "google-research-blog",
-      "homeUrl": "https://research.google/blog/",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://research.google/blog/rss/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.250Z",
-        "finalUrl": "https://research.google/blog/rss/"
-      }
-    },
-    {
-      "id": "sic-document:meta-engineering",
-      "identity": "sic-document:meta-engineering",
-      "name": "Meta Engineering",
-      "role": "官方",
-      "ownerEntity": "organization:meta",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "meta-engineering",
-      "homeUrl": "https://engineering.fb.com/",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://engineering.fb.com/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://engineering.fb.com/feed/"
-      }
-    },
-    {
-      "id": "sic-document:microsoft-research-blog",
-      "identity": "sic-document:microsoft-research-blog",
-      "name": "Microsoft Research",
-      "role": "官方",
-      "ownerEntity": "organization:microsoft-research",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "microsoft-research-blog",
-      "homeUrl": "https://www.microsoft.com/en-us/research/",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://www.microsoft.com/en-us/research/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://www.microsoft.com/en-us/research/feed/"
-      }
-    },
-    {
-      "id": "sic-document:nvidia-developer-blog",
-      "identity": "sic-document:nvidia-developer-blog",
-      "name": "NVIDIA Developer Blog",
-      "role": "官方",
-      "ownerEntity": "organization:nvidia",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "nvidia-developer-blog",
-      "homeUrl": "https://developer.nvidia.com/blog/",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://developer.nvidia.com/blog/feed/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://developer.nvidia.com/blog/feed/"
-      }
-    },
-    {
-      "id": "sic-document:openai-news",
-      "identity": "sic-document:openai-news",
+      "id": "institutional-news:openai-news",
+      "identity": "institutional-news:openai-news",
       "name": "OpenAI News",
       "role": "官方",
       "ownerEntity": "organization:openai",
       "publisherKind": "organization",
       "evidenceNature": "primary",
       "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
+      "classificationSource": "institutional_news_registry",
       "language": "en",
       "primaryLanguage": "en",
       "geography": "US",
-      "channelType": "official-blog",
+      "channelType": "official-news",
       "channelIdentifier": "openai-news",
       "homeUrl": "https://openai.com/news/",
       "evidenceEligible": true,
@@ -1690,11 +971,11 @@
       "discoveredFrom": [
         {
           "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
+          "path": "config/institutional-news-registry.json"
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -1702,171 +983,12 @@
       "authorityTier": null,
       "endpoint": "https://openai.com/news/rss.xml",
       "connector": "rss",
+      "pathPrefix": null,
       "aggregator": null,
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
+        "checkedAt": "2026-07-25T10:53:26.460Z",
         "finalUrl": "https://openai.com/news/rss.xml"
-      }
-    },
-    {
-      "id": "sic-document:anthropic-release-notes",
-      "identity": "sic-document:anthropic-release-notes",
-      "name": "Anthropic Release Notes",
-      "role": "官方",
-      "ownerEntity": "organization:anthropic",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-changelog",
-      "channelIdentifier": "anthropic-release-notes",
-      "homeUrl": "https://platform.claude.com/docs/en/release-notes/overview",
-      "evidenceEligible": true,
-      "contentCapability": "fulltext",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "changelog",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://platform.claude.com/docs/en/release-notes/overview",
-      "connector": "dated-index",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://platform.claude.com/docs/en/release-notes/overview"
-      }
-    },
-    {
-      "id": "sic-document:azure-ai-foundry-whats-new",
-      "identity": "sic-document:azure-ai-foundry-whats-new",
-      "name": "Azure AI Foundry What's New",
-      "role": "官方",
-      "ownerEntity": "organization:microsoft",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-changelog",
-      "channelIdentifier": "azure-ai-foundry-whats-new",
-      "homeUrl": "https://learn.microsoft.com/en-us/azure/foundry/whats-new-foundry",
-      "evidenceEligible": true,
-      "contentCapability": "fulltext",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "changelog",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://learn.microsoft.com/en-us/azure/foundry/whats-new-foundry",
-      "connector": "dated-index",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://learn.microsoft.com/en-us/azure/foundry/whats-new-foundry"
-      }
-    },
-    {
-      "id": "sic-document:gemini-api-changelog",
-      "identity": "sic-document:gemini-api-changelog",
-      "name": "Gemini API Changelog",
-      "role": "官方",
-      "ownerEntity": "organization:google-ai",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-changelog",
-      "channelIdentifier": "gemini-api-changelog",
-      "homeUrl": "https://ai.google.dev/gemini-api/docs/changelog",
-      "evidenceEligible": true,
-      "contentCapability": "fulltext",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "changelog",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://ai.google.dev/gemini-api/docs/changelog",
-      "connector": "dated-index",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://ai.google.dev/gemini-api/docs/changelog"
-      }
-    },
-    {
-      "id": "sic-document:openai-release-notes",
-      "identity": "sic-document:openai-release-notes",
-      "name": "OpenAI API Changelog",
-      "role": "官方",
-      "ownerEntity": "organization:openai",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "sic_fixed_source_registry",
-      "language": "en",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-changelog",
-      "channelIdentifier": "openai-release-notes",
-      "homeUrl": "https://developers.openai.com/api/docs/changelog",
-      "evidenceEligible": true,
-      "contentCapability": "fulltext",
-      "discoveredFrom": [
-        {
-          "repository": "code-lawyer/Superones",
-          "path": "config/sic-source-registry.json"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "documents",
-      "itemKind": "changelog",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://developers.openai.com/api/docs/changelog",
-      "connector": "dated-index",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-25T00:32:21.251Z",
-        "finalUrl": "https://developers.openai.com/api/docs/changelog"
       }
     },
     {
@@ -3746,7 +2868,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -3799,7 +2921,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -3852,7 +2974,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -4117,7 +3239,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -4170,7 +3292,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -4541,7 +3663,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -5442,7 +4564,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -6077,7 +5199,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -6103,7 +5225,7 @@
           }
         }
       ],
-      "reason": "mainland_direct_publisher"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-677f0dce985f2ad1",
@@ -6130,7 +5252,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7024,7 +6146,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7077,7 +6199,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7130,7 +6252,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7183,7 +6305,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7236,7 +6358,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7342,7 +6464,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -7925,7 +7047,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -8349,7 +7471,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -8508,7 +7630,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -8561,7 +7683,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -8614,7 +7736,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -8720,7 +7842,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -8739,7 +7861,7 @@
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-6c5b2cf2d3b51a7b",
@@ -9424,6 +8546,59 @@
       "reason": "unverified_direct_publisher_origin"
     },
     {
+      "id": "source-dcad291e9a4d00bd",
+      "identity": "feed:https://www.databricks.com/feed",
+      "name": "Databricks",
+      "role": "媒体",
+      "ownerEntity": "entity:databricks",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:databricks",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://www.databricks.com/feed",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://www.databricks.com/feed"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://www.databricks.com/feed",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:04.290Z",
+            "httpStatus": 206,
+            "finalUrl": "https://www.databricks.com/feed",
+            "contentType": "application/xml",
+            "latencyMs": 561,
+            "bytesInspected": 6083,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 10,
+            "observedTitle": "Databricks"
+          }
+        }
+      ],
+      "reason": "institutional_source_requires_curated_single_destination"
+    },
+    {
       "id": "source-a802635d51ce8957",
       "identity": "feed:https://wechat2rss.bestblogs.dev/feed/ea0dd8bddfe4fbfb32eaa81a1e1b628d45e97a80.xml",
       "name": "Datawhale",
@@ -9713,7 +8888,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -9766,7 +8941,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -9819,7 +8994,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -10234,7 +9409,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -10253,7 +9428,7 @@
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-83ff2c3901f20b6f",
@@ -10280,7 +9455,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -10299,7 +9474,7 @@
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-32610b9861507155",
@@ -10591,7 +9766,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -10643,7 +9818,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -10662,7 +9837,7 @@
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-709c44e14c0ab449",
@@ -11007,7 +10182,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -11033,7 +10208,7 @@
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-e4c9cb81cbcb1240",
@@ -11060,7 +10235,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -11086,7 +10261,7 @@
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-d8fb5c14577581e7",
@@ -11195,9 +10370,9 @@
       "reason": "unverified_direct_publisher_origin"
     },
     {
-      "id": "source-e9c2e718a53132c8",
-      "identity": "feed:http://research.microsoft.com/rss/news.xml",
-      "name": "Microsoft Research Blog",
+      "id": "source-e06498a57b944e18",
+      "identity": "feed:https://azure.microsoft.com/en-us/blog/feed",
+      "name": "Microsoft Azure Blog",
       "role": "媒体",
       "ownerEntity": "entity:microsoft",
       "publisherKind": "organization",
@@ -11208,18 +10383,18 @@
       "primaryLanguage": "en",
       "geography": "US",
       "channelType": "article",
-      "channelIdentifier": "http://research.microsoft.com/rss/news.xml",
+      "channelIdentifier": "https://azure.microsoft.com/en-us/blog/feed",
       "evidenceEligible": true,
       "contentCapability": "feed-content",
       "discoveredFrom": [
         {
           "repository": "ginobefun/BestBlogs",
           "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "http://research.microsoft.com/rss/news.xml"
+          "upstreamValue": "https://azure.microsoft.com/en-us/blog/feed/"
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -11227,18 +10402,25 @@
       "authorityTier": null,
       "endpoints": [
         {
-          "url": "http://research.microsoft.com/rss/news.xml",
+          "url": "https://azure.microsoft.com/en-us/blog/feed/",
           "connector": "rss",
           "requiresAuth": false,
           "validation": {
-            "status": "network_error",
-            "checkedAt": "2026-07-22T14:09:39.975Z",
-            "latencyMs": 11258,
-            "error": "fetch failed"
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:21.693Z",
+            "httpStatus": 200,
+            "finalUrl": "https://azure.microsoft.com/en-us/blog/feed/",
+            "contentType": "application/rss+xml; charset=UTF-8",
+            "latencyMs": 9292,
+            "bytesInspected": 240581,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 10,
+            "observedTitle": "Microsoft Azure Blog"
           }
         }
       ],
-      "reason": "no_verified_usable_endpoint"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-b5d38edb979e476f",
@@ -11265,7 +10447,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -11398,6 +10580,59 @@
         }
       ],
       "reason": "unverified_direct_publisher_origin"
+    },
+    {
+      "id": "source-6d8c86e25c47f7e1",
+      "identity": "feed:https://nextjs.org/feed.xml",
+      "name": "Next.js Blog",
+      "role": "媒体",
+      "ownerEntity": "entity:vercel",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:vercel",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://nextjs.org/feed.xml",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://nextjs.org/feed.xml"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://nextjs.org/feed.xml",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:14.773Z",
+            "httpStatus": 200,
+            "finalUrl": "https://nextjs.org/feed.xml",
+            "contentType": "application/rss+xml; charset=utf-8",
+            "latencyMs": 373,
+            "bytesInspected": 54151,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 69,
+            "observedTitle": "Next.js Blog"
+          }
+        }
+      ],
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-86a779d2d8a0ac61",
@@ -12088,6 +11323,59 @@
       "reason": "unverified_direct_publisher_origin"
     },
     {
+      "id": "source-40bf6330c82c7e69",
+      "identity": "feed:https://github.blog/feed",
+      "name": "The GitHub Blog",
+      "role": "媒体",
+      "ownerEntity": "entity:github",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:github",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://github.blog/feed",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://github.blog/feed/"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://github.blog/feed/",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:19.274Z",
+            "httpStatus": 200,
+            "finalUrl": "https://github.blog/feed/",
+            "contentType": "application/rss+xml; charset=UTF-8",
+            "latencyMs": 928,
+            "bytesInspected": 168037,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 10,
+            "observedTitle": "The GitHub Blog"
+          }
+        }
+      ],
+      "reason": "institutional_source_requires_curated_single_destination"
+    },
+    {
       "id": "source-ae225a0c3dc83233",
       "identity": "feed:http://blogs.jetbrains.com/idea/feed",
       "name": "The IntelliJ IDEA Blog",
@@ -12194,6 +11482,59 @@
       "reason": "unverified_direct_publisher_origin"
     },
     {
+      "id": "source-da9f83d5847c32c9",
+      "identity": "feed:https://blog.google/rss",
+      "name": "The Keyword (blog.google)",
+      "role": "媒体",
+      "ownerEntity": "entity:google",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:google",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://blog.google/rss",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://blog.google/rss"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://blog.google/rss",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:20.546Z",
+            "httpStatus": 200,
+            "finalUrl": "https://blog.google/rss/",
+            "contentType": "application/xml; charset=utf-8",
+            "latencyMs": 1906,
+            "bytesInspected": 29945,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 20,
+            "observedTitle": "News from Google"
+          }
+        }
+      ],
+      "reason": "institutional_source_requires_curated_single_destination"
+    },
+    {
       "id": "source-c51e94137052313d",
       "identity": "feed:https://wechat2rss.bestblogs.dev/feed/96b507f9985efa59e549e95a6363c2b6edfa8f2e.xml",
       "name": "Thoughtworks洞见",
@@ -12297,6 +11638,112 @@
         }
       ],
       "reason": "unverified_direct_publisher_origin"
+    },
+    {
+      "id": "source-00182a601ce506a4",
+      "identity": "feed:https://vercel.com/atom",
+      "name": "Vercel News",
+      "role": "媒体",
+      "ownerEntity": "entity:vercel",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:vercel",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://vercel.com/atom",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://vercel.com/atom"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://vercel.com/atom",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:19.536Z",
+            "httpStatus": 200,
+            "finalUrl": "https://vercel.com/atom",
+            "contentType": "application/atom+xml",
+            "latencyMs": 522,
+            "bytesInspected": 262144,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 87,
+            "observedTitle": "Vercel News"
+          }
+        }
+      ],
+      "reason": "institutional_source_requires_curated_single_destination"
+    },
+    {
+      "id": "source-a3bedaf261ee7fc3",
+      "identity": "feed:https://devblogs.microsoft.com/visualstudio/feed",
+      "name": "Visual Studio Blog",
+      "role": "媒体",
+      "ownerEntity": "entity:microsoft",
+      "publisherKind": "organization",
+      "evidenceNature": "primary",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:microsoft",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://devblogs.microsoft.com/visualstudio/feed",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://devblogs.microsoft.com/visualstudio/feed/"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://devblogs.microsoft.com/visualstudio/feed/",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:21.536Z",
+            "httpStatus": 200,
+            "finalUrl": "https://devblogs.microsoft.com/visualstudio/feed/",
+            "contentType": "application/rss+xml; charset=UTF-8",
+            "latencyMs": 2389,
+            "bytesInspected": 119118,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 10,
+            "observedTitle": "Visual Studio Blog"
+          }
+        }
+      ],
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-2a8d8cb5ec513c0d",
@@ -13632,7 +13079,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -13657,7 +13104,7 @@
           }
         }
       ],
-      "reason": "unstructured_html_connector_disallowed"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-288c89407fd402fa",
@@ -13685,7 +13132,7 @@
         }
       ],
       "sourceStream": "information",
-      "contentGroup": "documents",
+      "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
       "provenanceStatus": "verified",
@@ -13710,7 +13157,7 @@
           }
         }
       ],
-      "reason": "unstructured_html_connector_disallowed"
+      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-f5c7923e3d60e2eb",

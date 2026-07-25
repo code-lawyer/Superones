@@ -59,8 +59,10 @@ const site = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
   cwd: process.cwd(),
   env: {
     ...process.env,
-    VAULT2077_DATA_DIR: dataDirectory,
-    VAULT2077_PIPELINE_SHARED_SECRET: secret,
+      VAULT2077_DATA_DIR: dataDirectory,
+      VAULT2077_ALLOW_FILE_PREVIEW: "true",
+      VAULT2077_PIPELINE_SHARED_SECRET: secret,
+      VAULT2077_ALLOWED_SOURCE_REVISIONS: "sources:http-e2e",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -122,7 +124,7 @@ try {
     body: rawPayload,
   });
   const duplicateBody = await duplicate.json();
-  assert(duplicate.status === 202, `pending 重投应返回 202，实际为 ${duplicate.status}。`);
+  assert(duplicate.status === 202, `received 重投应返回 202，实际为 ${duplicate.status}。`);
   assert(duplicateBody.ok === true && duplicateBody.duplicate === true, "重投未被识别为重复批次。");
 
   const changedPayload = JSON.stringify({
@@ -141,7 +143,7 @@ try {
   assert(files.length === 1, `收件箱应只有一个批次文件，实际为 ${files.length}。`);
   const persisted = JSON.parse(await readFile(path.join(dataDirectory, "acquisition-inbox", files[0]), "utf8"));
   assert(persisted.rawPayload === rawPayload, "落盘原始正文与签名正文不一致。");
-  assert(persisted.status === "pending" && persisted.recordCount === 1, "落盘状态或记录计数无效。");
+  assert(persisted.status === "received" && persisted.recordCount === 1, "落盘状态或记录计数无效。");
 
   console.log("统一采集 HTTP E2E 通过：首次 202、重复识别、异文 409、原始正文持久化。");
 } finally {

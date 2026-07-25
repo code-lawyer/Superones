@@ -3,6 +3,8 @@ import "server-only";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { link, mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import sourceBundle from "../config/source-bundle.json" with { type: "json" };
+import sicRegistry from "../config/sic-source-registry.json" with { type: "json" };
 import {
   AcquisitionContractError,
   MAX_ACQUISITION_BATCH_BYTES,
@@ -12,9 +14,20 @@ import {
   type AcquisitionBatch,
   type AcquisitionLane,
   type AcquisitionRecordKind,
+  type AcquisitionRunMode,
 } from "./acquisition-contract.ts";
+import { configuredPostgresPool, persistenceMode } from "./state-document-store.ts";
 
-export type AcquisitionInboxStatus = "pending" | "processing" | "succeeded" | "failed";
+export const ACQUISITION_INBOX_STATUSES = [
+  "received",
+  "processing",
+  "processed",
+  "retryable",
+  "quarantined",
+] as const;
+
+export type AcquisitionInboxStatus = (typeof ACQUISITION_INBOX_STATUSES)[number];
+export type AcquisitionFailureDisposition = "retryable" | "quarantined";
 
 export type AcquisitionSubmission = {
   batchId: string;
@@ -30,6 +43,7 @@ export type AcquisitionReceipt = {
   batchId: string;
   runId: string;
   lane: AcquisitionLane;
+  runMode: AcquisitionRunMode;
   scheduleId: string;
   windowFrom: string;
   windowUntil: string;
@@ -52,6 +66,7 @@ type AcquisitionInboxRecord = {
   batchId: string;
   runId: string;
   lane: AcquisitionLane;
+  runMode: AcquisitionRunMode;
   scheduleId: string;
   windowFrom: string;
   windowUntil: string;
@@ -88,10 +103,15 @@ export type AcquisitionReceiverOptions = {
   now?: () => Date;
   maxClockSkewMs?: number;
   processingLeaseMs?: number;
+  maxAttempts?: number;
+  allowedRegistryRevisions?: ReadonlySet<string>;
 };
+
+type PostgresAcquisitionReceiverOptions = Omit<AcquisitionReceiverOptions, "inboxDirectory">;
 
 const DEFAULT_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
+const DEFAULT_MAX_ATTEMPTS = 3;
 
 function persistedPath(inboxDirectory: string, batchId: string) {
   const filename = `${createHash("sha256").update(batchId).digest("hex")}.json`;
@@ -112,6 +132,7 @@ function receipt(record: AcquisitionInboxRecord, duplicate: boolean): Acquisitio
     batchId: record.batchId,
     runId: record.runId,
     lane: record.lane,
+    runMode: record.runMode,
     scheduleId: record.scheduleId,
     windowFrom: record.windowFrom,
     windowUntil: record.windowUntil,
@@ -169,11 +190,22 @@ function parseBatch(rawPayload: string, headerBatchId: string) {
 }
 
 async function readPersisted(target: string) {
-  const parsed = JSON.parse(await readFile(target, "utf8")) as AcquisitionInboxRecord;
+  const parsed = JSON.parse(await readFile(target, "utf8")) as Record<string, unknown>;
   if (parsed.version !== 1 || !parsed.batchId || !parsed.payloadHash) {
     throw new Error("持久化采集批次格式无效。");
   }
-  return parsed;
+  const rawStatus = parsed.status;
+  const migratedStatus = rawStatus === "pending"
+    ? "received"
+    : rawStatus === "succeeded"
+      ? "processed"
+      : rawStatus === "failed"
+        ? "retryable"
+        : rawStatus;
+  if (!ACQUISITION_INBOX_STATUSES.includes(migratedStatus as AcquisitionInboxStatus)) {
+    throw new Error("持久化采集批次状态无效。");
+  }
+  return { ...parsed, status: migratedStatus as AcquisitionInboxStatus } as AcquisitionInboxRecord;
 }
 
 async function persistNew(target: string, record: AcquisitionInboxRecord) {
@@ -214,6 +246,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
   const clock = options.now ?? (() => new Date());
   const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
   const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
+  const maxAttempts = Math.max(1, Math.min(20, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)));
   let queue: Promise<unknown> = Promise.resolve();
 
   function serialized<T>(operation: () => Promise<T>) {
@@ -242,6 +275,16 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
       throw new AcquisitionReceiveError("采集签名无效。", "INVALID_SIGNATURE", 401);
     }
     const batch = parseBatch(submission.rawPayload, submission.batchId);
+    if (
+      options.allowedRegistryRevisions
+      && !options.allowedRegistryRevisions.has(batch.registryRevision)
+    ) {
+      throw new AcquisitionReceiveError(
+        `来源修订 ${batch.registryRevision} 未部署。`,
+        "UNKNOWN_REGISTRY_REVISION",
+        409,
+      );
+    }
     const kinds = countKinds(batch);
 
     return serialized(async () => {
@@ -272,6 +315,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
         batchId: batch.batchId,
         runId: batch.runId,
         lane: batch.lane,
+        runMode: batch.runMode,
         scheduleId: batch.scheduleId,
         windowFrom: batch.windowFrom,
         windowUntil: batch.windowUntil,
@@ -279,7 +323,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
         payloadHash: bodyHash,
         receivedAt,
         updatedAt: receivedAt,
-        status: "pending",
+        status: "received",
         attempts: 0,
         recordCount: batch.records.length,
         sourceCount: batch.sourceReports.length,
@@ -307,9 +351,26 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
       const now = clock();
       const available = await records();
       available.sort((left, right) => Date.parse(left.record.receivedAt) - Date.parse(right.record.receivedAt));
+      for (const item of available) {
+        const leaseExpired = item.record.status === "processing"
+          && Date.parse(item.record.processingStartedAt ?? item.record.updatedAt) < now.getTime() - processingLeaseMs;
+        if (
+          item.record.attempts >= maxAttempts
+          && (item.record.status === "retryable" || leaseExpired)
+        ) {
+          item.record = {
+            ...item.record,
+            status: "quarantined",
+            updatedAt: now.toISOString(),
+            completedAt: now.toISOString(),
+            lastError: item.record.lastError ?? "批次达到最大处理尝试次数。",
+          };
+          await replacePersisted(item.target, item.record);
+        }
+      }
       const eligible = available.filter(({ record }) => !excludedBatchIds.has(record.batchId));
-      const candidate = eligible.find(({ record }) => record.status === "pending")
-        ?? eligible.find(({ record }) => record.status === "failed")
+      const candidate = eligible.find(({ record }) => record.status === "received")
+        ?? eligible.find(({ record }) => record.status === "retryable")
         ?? available.find(({ record }) => record.status === "processing"
           && !excludedBatchIds.has(record.batchId)
           && Date.parse(record.processingStartedAt ?? record.updatedAt) < now.getTime() - processingLeaseMs);
@@ -340,7 +401,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
       const now = clock().toISOString();
       await replacePersisted(target, {
         ...record,
-        status: "succeeded",
+        status: "processed",
         updatedAt: now,
         completedAt: now,
         lastError: undefined,
@@ -348,24 +409,34 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
     });
   }
 
-  function fail(batchId: string, error: unknown) {
+  function fail(
+    batchId: string,
+    error: unknown,
+    disposition: AcquisitionFailureDisposition = "retryable",
+  ): Promise<AcquisitionInboxStatus> {
     return serialized(async () => {
       const target = persistedPath(options.inboxDirectory, batchId);
       const record = await readPersisted(target);
       if (record.status !== "processing") throw new Error(`批次 ${batchId} 当前不可标记失败。`);
+      const status: AcquisitionInboxStatus = disposition === "quarantined" || record.attempts >= maxAttempts
+        ? "quarantined"
+        : "retryable";
+      const now = clock().toISOString();
       await replacePersisted(target, {
         ...record,
-        status: "failed",
-        updatedAt: clock().toISOString(),
+        status,
+        updatedAt: now,
+        ...(status === "quarantined" ? { completedAt: now } : {}),
         lastError: cleanError(error),
       });
+      return status;
     });
   }
 
   async function stats(): Promise<AcquisitionInboxStats> {
     const available = await records();
     return Object.fromEntries(
-      (["pending", "processing", "succeeded", "failed"] as const)
+      ACQUISITION_INBOX_STATUSES
         .map((status) => [status, available.filter(({ record }) => record.status === status).length]),
     ) as AcquisitionInboxStats;
   }
@@ -373,7 +444,247 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
   return { receive, claimNext, complete, fail, stats };
 }
 
-let configuredReceiver: ReturnType<typeof createAcquisitionReceiver> | undefined;
+function postgresRecord(value: Record<string, unknown>): AcquisitionInboxRecord {
+  const iso = (input: unknown) => input instanceof Date ? input.toISOString() : String(input);
+  return {
+    version: 1,
+    batchId: String(value.batch_id),
+    runId: String(value.run_id),
+    lane: value.lane as AcquisitionLane,
+    runMode: value.run_mode as AcquisitionRunMode,
+    scheduleId: String(value.schedule_id),
+    windowFrom: iso(value.window_from),
+    windowUntil: iso(value.window_until),
+    registryRevision: String(value.registry_revision),
+    payloadHash: String(value.payload_hash),
+    receivedAt: iso(value.received_at),
+    updatedAt: iso(value.updated_at),
+    status: value.status as AcquisitionInboxStatus,
+    attempts: Number(value.attempts),
+    recordCount: Number(value.record_count),
+    sourceCount: Number(value.source_count),
+    kinds: value.kinds as Partial<Record<AcquisitionRecordKind, number>>,
+    ...(value.processing_started_at ? { processingStartedAt: iso(value.processing_started_at) } : {}),
+    ...(value.completed_at ? { completedAt: iso(value.completed_at) } : {}),
+    ...(value.last_error ? { lastError: String(value.last_error) } : {}),
+    rawPayload: String(value.raw_payload),
+  };
+}
+
+export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionReceiverOptions) {
+  if (Buffer.byteLength(options.sharedSecret, "utf8") < 32) {
+    throw new Error("统一采集共享密钥至少需要 32 字节。");
+  }
+  const clock = options.now ?? (() => new Date());
+  const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
+  const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
+  const maxAttempts = Math.max(1, Math.min(20, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)));
+
+  async function receive(submission: AcquisitionSubmission): Promise<AcquisitionReceipt> {
+    const payloadBytes = Buffer.byteLength(submission.rawPayload, "utf8");
+    if (payloadBytes === 0 || payloadBytes > MAX_ACQUISITION_BATCH_BYTES) {
+      throw new AcquisitionReceiveError(
+        `采集批次必须介于 1 与 ${MAX_ACQUISITION_BATCH_BYTES} 字节之间。`,
+        "INVALID_BODY_SIZE",
+        413,
+      );
+    }
+    const now = clock();
+    timestampSeconds(submission.timestamp, now, maxClockSkewMs);
+    const bodyHash = payloadHash(submission.rawPayload);
+    if (!signatureMatches(
+      options.sharedSecret,
+      signingInput(submission.timestamp, submission.batchId, bodyHash),
+      submission.signature,
+    )) {
+      throw new AcquisitionReceiveError("采集签名无效。", "INVALID_SIGNATURE", 401);
+    }
+    const batch = parseBatch(submission.rawPayload, submission.batchId);
+    if (options.allowedRegistryRevisions && !options.allowedRegistryRevisions.has(batch.registryRevision)) {
+      throw new AcquisitionReceiveError(
+        `来源修订 ${batch.registryRevision} 未部署。`,
+        "UNKNOWN_REGISTRY_REVISION",
+        409,
+      );
+    }
+    const kinds = countKinds(batch);
+    const receivedAt = now.toISOString();
+    const inserted = await configuredPostgresPool().query(
+      `INSERT INTO vault2077_acquisition_inbox (
+        batch_id, run_id, lane, run_mode, schedule_id, window_from, window_until,
+        registry_revision, payload_hash, received_at, updated_at, status, attempts,
+        record_count, source_count, kinds, raw_payload
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, 'received', 0, $11, $12, $13::jsonb, $14
+      ) ON CONFLICT (batch_id) DO NOTHING
+      RETURNING *`,
+      [
+        batch.batchId,
+        batch.runId,
+        batch.lane,
+        batch.runMode,
+        batch.scheduleId,
+        batch.windowFrom,
+        batch.windowUntil,
+        batch.registryRevision,
+        bodyHash,
+        receivedAt,
+        batch.records.length,
+        batch.sourceReports.length,
+        JSON.stringify(kinds),
+        submission.rawPayload,
+      ],
+    );
+    if (inserted.rowCount) return receipt(postgresRecord(inserted.rows[0]), false);
+
+    const existing = await configuredPostgresPool().query(
+      "SELECT * FROM vault2077_acquisition_inbox WHERE batch_id = $1",
+      [batch.batchId],
+    );
+    if (
+      !existing.rowCount
+      || existing.rows[0].payload_hash !== bodyHash
+      || existing.rows[0].batch_id !== batch.batchId
+    ) {
+      throw new AcquisitionReceiveError("同一 batchId 已持久化不同正文。", "BATCH_CONFLICT", 409);
+    }
+    return receipt(postgresRecord(existing.rows[0]), true);
+  }
+
+  async function claimNext(excludedBatchIds: ReadonlySet<string> = new Set()): Promise<AcquisitionWorkItem | null> {
+    const client = await configuredPostgresPool().connect();
+    const now = clock();
+    const leaseBefore = new Date(now.getTime() - processingLeaseMs).toISOString();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE vault2077_acquisition_inbox
+         SET status = 'quarantined', updated_at = $1, completed_at = $1,
+             last_error = coalesce(last_error, '批次达到最大处理尝试次数。')
+         WHERE attempts >= $2
+           AND (status = 'retryable' OR (status = 'processing' AND coalesce(processing_started_at, updated_at) < $3))`,
+        [now.toISOString(), maxAttempts, leaseBefore],
+      );
+      const claimed = await client.query(
+        `WITH candidate AS (
+           SELECT batch_id
+           FROM vault2077_acquisition_inbox
+           WHERE NOT (batch_id = ANY($1::text[]))
+             AND attempts < $2
+             AND (
+               status = 'received'
+               OR status = 'retryable'
+               OR (status = 'processing' AND coalesce(processing_started_at, updated_at) < $3)
+             )
+           ORDER BY
+             CASE status WHEN 'received' THEN 0 WHEN 'retryable' THEN 1 ELSE 2 END,
+             received_at
+           FOR UPDATE SKIP LOCKED
+           LIMIT 1
+         )
+         UPDATE vault2077_acquisition_inbox AS inbox
+         SET status = 'processing', attempts = attempts + 1, processing_started_at = $4,
+             updated_at = $4, last_error = NULL
+         FROM candidate
+         WHERE inbox.batch_id = candidate.batch_id
+         RETURNING inbox.*`,
+        [[...excludedBatchIds], maxAttempts, leaseBefore, now.toISOString()],
+      );
+      await client.query("COMMIT");
+      if (!claimed.rowCount) return null;
+      const record = postgresRecord(claimed.rows[0]);
+      return {
+        batch: validateAcquisitionBatch(JSON.parse(record.rawPayload) as unknown),
+        payloadHash: record.payloadHash,
+        rawPayload: record.rawPayload,
+        attempt: record.attempts,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function complete(batchId: string) {
+    const now = clock().toISOString();
+    const result = await configuredPostgresPool().query(
+      `UPDATE vault2077_acquisition_inbox
+       SET status = 'processed', updated_at = $2, completed_at = $2, last_error = NULL
+       WHERE batch_id = $1 AND status = 'processing'`,
+      [batchId, now],
+    );
+    if (!result.rowCount) throw new Error(`批次 ${batchId} 当前不可完成。`);
+  }
+
+  async function fail(
+    batchId: string,
+    error: unknown,
+    disposition: AcquisitionFailureDisposition = "retryable",
+  ): Promise<AcquisitionInboxStatus> {
+    const client = await configuredPostgresPool().connect();
+    try {
+      await client.query("BEGIN");
+      const selected = await client.query(
+        "SELECT attempts FROM vault2077_acquisition_inbox WHERE batch_id = $1 AND status = 'processing' FOR UPDATE",
+        [batchId],
+      );
+      if (!selected.rowCount) throw new Error(`批次 ${batchId} 当前不可标记失败。`);
+      const status: AcquisitionInboxStatus = disposition === "quarantined" || Number(selected.rows[0].attempts) >= maxAttempts
+        ? "quarantined"
+        : "retryable";
+      const now = clock().toISOString();
+      await client.query(
+        `UPDATE vault2077_acquisition_inbox
+         SET status = $2, updated_at = $3, completed_at = CASE WHEN $2 = 'quarantined' THEN $3::timestamptz ELSE NULL END,
+             last_error = $4
+         WHERE batch_id = $1`,
+        [batchId, status, now, cleanError(error)],
+      );
+      await client.query("COMMIT");
+      return status;
+    } catch (failure) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw failure;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function stats(): Promise<AcquisitionInboxStats> {
+    const result = await configuredPostgresPool().query<{ status: AcquisitionInboxStatus; count: string }>(
+      "SELECT status, count(*)::text AS count FROM vault2077_acquisition_inbox GROUP BY status",
+    );
+    const counts = Object.fromEntries(ACQUISITION_INBOX_STATUSES.map((status) => [status, 0])) as AcquisitionInboxStats;
+    for (const row of result.rows) counts[row.status] = Number(row.count);
+    return counts;
+  }
+
+  return { receive, claimNext, complete, fail, stats };
+}
+
+type ConfiguredReceiver =
+  | ReturnType<typeof createAcquisitionReceiver>
+  | ReturnType<typeof createPostgresAcquisitionReceiver>;
+
+let configuredReceiver: ConfiguredReceiver | undefined;
+
+function configuredRegistryRevisions(environment: Record<string, string | undefined>) {
+  const sourceRevision = environment.VAULT2077_SOURCE_BUNDLE_REVISION?.trim()
+    || (typeof sourceBundle.revision === "string" ? sourceBundle.revision : "");
+  if (!sourceRevision || !Number.isInteger(sicRegistry.version)) {
+    throw new Error("无法从部署配置解析统一来源修订。");
+  }
+  const revisions = new Set([
+    `registry:${sourceRevision}:sic-v${sicRegistry.version}`,
+    ...(environment.VAULT2077_ALLOWED_SOURCE_REVISIONS ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ]);
+  return revisions;
+}
 
 export function configuredAcquisitionReceiver() {
   if (configuredReceiver) return configuredReceiver;
@@ -382,9 +693,16 @@ export function configuredAcquisitionReceiver() {
   const dataRoot = process.env.VAULT2077_DATA_DIR
     ? path.resolve(process.env.VAULT2077_DATA_DIR)
     : path.join(process.cwd(), "data");
-  configuredReceiver = createAcquisitionReceiver({
-    inboxDirectory: path.join(dataRoot, "acquisition-inbox"),
+  const common = {
     sharedSecret,
-  });
+    maxAttempts: Number(process.env.VAULT2077_ACQUISITION_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS),
+    allowedRegistryRevisions: configuredRegistryRevisions(process.env),
+  };
+  configuredReceiver = persistenceMode() === "postgresql"
+    ? createPostgresAcquisitionReceiver(common)
+    : createAcquisitionReceiver({
+      ...common,
+      inboxDirectory: path.join(dataRoot, "acquisition-inbox"),
+    });
   return configuredReceiver;
 }

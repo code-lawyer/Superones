@@ -2,6 +2,7 @@ export { payloadHash, signingInput } from "./batch-signing.ts";
 
 export const ACQUISITION_BATCH_VERSION = 1 as const;
 export const ACQUISITION_LANES = ["information", "roadside", "statements", "sic", "rankings"] as const;
+export const ACQUISITION_RUN_MODES = ["incremental", "bootstrap"] as const;
 export const MAX_ACQUISITION_BATCH_BYTES = 8_000_000;
 export const MAX_ACQUISITION_RECORDS = 500;
 export const MAX_ACQUISITION_SOURCE_REPORTS = 512;
@@ -25,6 +26,7 @@ export const ACQUISITION_SOURCE_STATUSES = [
 export type AcquisitionRecordKind = (typeof ACQUISITION_RECORD_KINDS)[number];
 export type AcquisitionSourceStatus = (typeof ACQUISITION_SOURCE_STATUSES)[number];
 export type AcquisitionLane = (typeof ACQUISITION_LANES)[number];
+export type AcquisitionRunMode = (typeof ACQUISITION_RUN_MODES)[number];
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
@@ -56,6 +58,7 @@ export type AcquisitionBatch = {
   batchId: string;
   runId: string;
   lane: AcquisitionLane;
+  runMode: AcquisitionRunMode;
   scheduleId: string;
   windowFrom: string;
   windowUntil: string;
@@ -262,6 +265,24 @@ function validateSourceAccounting(records: AcquisitionRecord[], reports: Acquisi
   }
 }
 
+export function assertAcquisitionLaneKinds(
+  lane: AcquisitionLane,
+  records: AcquisitionRecord[],
+) {
+  const allowed = lane === "information" || lane === "roadside" || lane === "statements"
+    ? new Set<AcquisitionRecordKind>(["information"])
+    : lane === "sic"
+      ? new Set<AcquisitionRecordKind>(["publication", "entity_profile"])
+      : new Set<AcquisitionRecordKind>(["ranking_observation", "repository_observation"]);
+  const invalid = records.find((record) => !allowed.has(record.kind));
+  if (invalid) {
+    throw new AcquisitionContractError(
+      `${lane} 通道不得携带 ${invalid.kind} 记录。`,
+      "LANE_RECORD_KIND_MISMATCH",
+    );
+  }
+}
+
 export function validateAcquisitionBatch(value: unknown): AcquisitionBatch {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new AcquisitionContractError("采集批次必须是 JSON 对象。");
@@ -303,6 +324,13 @@ export function validateAcquisitionBatch(value: unknown): AcquisitionBatch {
   if (!ACQUISITION_LANES.includes(batch.lane as AcquisitionLane)) {
     throw new AcquisitionContractError("lane 无效。");
   }
+  assertAcquisitionLaneKinds(batch.lane as AcquisitionLane, records);
+  const runMode = batch.runMode === undefined
+    ? "incremental"
+    : requiredText(batch.runMode, "runMode", 20);
+  if (!ACQUISITION_RUN_MODES.includes(runMode as AcquisitionRunMode)) {
+    throw new AcquisitionContractError("runMode 无效。");
+  }
   const windowFrom = requiredDate(batch.windowFrom, "windowFrom");
   const windowUntil = requiredDate(batch.windowUntil, "windowUntil");
   if (Date.parse(windowFrom) > Date.parse(windowUntil)) {
@@ -313,6 +341,7 @@ export function validateAcquisitionBatch(value: unknown): AcquisitionBatch {
     batchId: stableId(batch.batchId, "batchId", 120),
     runId: stableId(batch.runId, "runId", 120),
     lane: batch.lane as AcquisitionLane,
+    runMode: runMode as AcquisitionRunMode,
     scheduleId: stableId(batch.scheduleId, "scheduleId", 120),
     windowFrom,
     windowUntil,

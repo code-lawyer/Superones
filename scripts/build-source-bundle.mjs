@@ -10,9 +10,11 @@ const registryPath = resolve(options.get("--registry") ?? "config/source-registr
 const outputPath = resolve(options.get("--output") ?? "config/source-bundle.json");
 const runtimePolicyPath = resolve(options.get("--runtime-policy") ?? "config/runtime-source-policy.json");
 const sicRegistryPath = resolve(options.get("--sic-registry") ?? "config/sic-source-registry.json");
+const institutionalNewsRegistryPath = resolve(options.get("--institutional-news-registry") ?? "config/institutional-news-registry.json");
 const registry = JSON.parse(await readFile(registryPath, "utf8"));
 const runtimePolicy = JSON.parse(await readFile(runtimePolicyPath, "utf8"));
 const sicRegistry = JSON.parse(await readFile(sicRegistryPath, "utf8"));
+const institutionalNewsRegistry = JSON.parse(await readFile(institutionalNewsRegistryPath, "utf8"));
 if (runtimePolicy.version !== 1 || !Array.isArray(runtimePolicy.excluded)) {
   throw new Error("Runtime source policy must contain a version 1 excluded list.");
 }
@@ -123,6 +125,10 @@ function sourceAdmission(channel) {
   if (channel.channelType === "podcast") return "podcast_moved_to_sic_lane";
   if (["reddit", "telegram"].includes(channel.channelType)) return "community_channel_not_in_initial_policy";
   if (
+    ["article", "official-blog"].includes(channel.channelType)
+    && ["organization", "open_source_project"].includes(channel.publisherKind)
+  ) return "institutional_source_requires_curated_single_destination";
+  if (
     channel.channelType === "x"
     && !xPolicy.accounts.has(normalizeXHandle(channel.channelIdentifier))
   ) return "x_policy_excluded";
@@ -147,8 +153,8 @@ function contentRouting(channel) {
     return {
       contentGroup: "roadside",
       itemKind: "community_topic",
-      provenanceRole: "discovery",
-      provenanceStatus: "declared",
+      provenanceRole: "canonical",
+      provenanceStatus: "verified",
     };
   }
   if (channel.publisherKind === "person") {
@@ -161,7 +167,7 @@ function contentRouting(channel) {
   }
   if (channel.channelType === "github-release") {
     return {
-      contentGroup: "documents",
+      contentGroup: "information",
       itemKind: "release",
       provenanceRole: "canonical",
       provenanceStatus: "verified",
@@ -169,7 +175,7 @@ function contentRouting(channel) {
   }
   if (channel.publisherKind === "organization" || channel.publisherKind === "open_source_project") {
     return {
-      contentGroup: "documents",
+      contentGroup: "information",
       itemKind: "article",
       provenanceRole: "canonical",
       provenanceStatus: "verified",
@@ -183,41 +189,39 @@ function contentRouting(channel) {
   };
 }
 
-function sicDocumentSource(source) {
+function institutionalNewsSource(source) {
   const connector = source.kind === "official_sitemap"
     ? "sitemap"
-    : source.kind === "official_dated_index"
-      ? "dated-index"
-      : "rss";
-  const itemKind = source.kind === "official_dated_index" ? "changelog" : "article";
+    : "rss";
   return {
-    id: `sic-document:${source.id}`,
-    identity: `sic-document:${source.id}`,
+    id: `institutional-news:${source.id}`,
+    identity: `institutional-news:${source.id}`,
     name: source.name,
     role: "官方",
     ownerEntity: `organization:${source.publisher.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     publisherKind: "organization",
     evidenceNature: "primary",
     classificationConfidence: "high",
-    classificationSource: "sic_fixed_source_registry",
+    classificationSource: "institutional_news_registry",
     language: "en",
     primaryLanguage: "en",
     geography: "US",
-    channelType: source.kind === "official_dated_index" ? "official-changelog" : "official-blog",
+    channelType: "official-news",
     channelIdentifier: source.id,
     homeUrl: source.homeUrl,
     evidenceEligible: true,
-    contentCapability: source.kind === "official_dated_index" ? "fulltext" : "feed-content",
-    discoveredFrom: [{ repository: "code-lawyer/Superones", path: "config/sic-source-registry.json" }],
+    contentCapability: source.kind === "official_sitemap" ? "fulltext" : "feed-content",
+    discoveredFrom: [{ repository: "code-lawyer/Superones", path: "config/institutional-news-registry.json" }],
     sourceStream: "information",
-    contentGroup: "documents",
-    itemKind,
+    contentGroup: "information",
+    itemKind: "article",
     provenanceRole: "canonical",
     provenanceStatus: "verified",
     originPlatform: "web",
     authorityTier: null,
     endpoint: source.endpoint,
     connector,
+    pathPrefix: source.pathPrefix ?? null,
     aggregator: null,
     validation: {
       status: "usable",
@@ -308,29 +312,73 @@ for (const channel of registry.channels) {
 if (!sicRegistry || sicRegistry.version !== 1 || !Array.isArray(sicRegistry.sources)) {
   throw new Error("SiC source registry must contain a version 1 sources list.");
 }
-for (const source of sicRegistry.sources.filter((item) => (
+const approvedSicDocuments = sicRegistry.sources.filter((item) => (
   item.group === "documents" && item.status === "approved"
-))) {
-  const curated = sicDocumentSource(source);
-  const curatedHome = curated.homeUrl.replace(/\/$/, "").toLowerCase();
+));
+for (const source of approvedSicDocuments) {
+  const curatedHome = source.homeUrl.replace(/\/$/, "").toLowerCase();
+  const curatedEndpoint = source.endpoint.replace(/\/$/, "").toLowerCase();
   const duplicateNames = new Set({
-    "anthropic-news": ["Anthropic News"],
     "google-deepmind-blog": ["Google DeepMind Blog"],
-    "meta-engineering": ["Engineering at Meta"],
-    "openai-news": ["OpenAI Blog"],
-  }[source.id] ?? []);
+    "meta-engineering": ["Engineering at Meta", "Meta Engineering"],
+    "microsoft-research-blog": ["Microsoft Research Blog"],
+    "aws-architecture-blog": ["AWS Architecture Blog"],
+    "aws-machine-learning-blog": ["AWS Machine Learning Blog"],
+    "cloudflare-blog": ["The Cloudflare Blog"],
+  }[source.id] ?? [source.name]);
   const duplicateIndexes = sources
     .map((candidate, index) => ({ candidate, index }))
     .filter(({ candidate }) => (
-      candidate.contentGroup === "documents"
-      && (
-        String(candidate.homeUrl ?? "").replace(/\/$/, "").toLowerCase() === curatedHome
-        || duplicateNames.has(candidate.name)
-      )
+      String(candidate.homeUrl ?? "").replace(/\/$/, "").toLowerCase() === curatedHome
+      || String(candidate.endpoint ?? "").replace(/\/$/, "").toLowerCase() === curatedEndpoint
+      || duplicateNames.has(candidate.name)
     ))
     .map(({ index }) => index)
     .reverse();
   for (const index of duplicateIndexes) sources.splice(index, 1);
+  const pendingDuplicateIndexes = pending
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate }) => (
+      String(candidate.homeUrl ?? "").replace(/\/$/, "").toLowerCase() === curatedHome
+      || duplicateNames.has(candidate.name)
+    ))
+    .map(({ index }) => index)
+    .reverse();
+  for (const index of pendingDuplicateIndexes) pending.splice(index, 1);
+}
+
+if (
+  !institutionalNewsRegistry
+  || institutionalNewsRegistry.version !== 1
+  || !Array.isArray(institutionalNewsRegistry.sources)
+) {
+  throw new Error("Institutional news registry must contain a version 1 sources list.");
+}
+for (const source of institutionalNewsRegistry.sources.filter((item) => item.status === "approved")) {
+  const curated = institutionalNewsSource(source);
+  const curatedHome = curated.homeUrl.replace(/\/$/, "").toLowerCase();
+  const duplicateNames = new Set({
+    "anthropic-news": ["Anthropic News"],
+    "openai-news": ["OpenAI Blog", "OpenAI News"],
+  }[source.id] ?? [source.name]);
+  const duplicateIndexes = sources
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate }) => (
+      String(candidate.homeUrl ?? "").replace(/\/$/, "").toLowerCase() === curatedHome
+      || duplicateNames.has(candidate.name)
+    ))
+    .map(({ index }) => index)
+    .reverse();
+  for (const index of duplicateIndexes) sources.splice(index, 1);
+  const pendingDuplicateIndexes = pending
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate }) => (
+      String(candidate.homeUrl ?? "").replace(/\/$/, "").toLowerCase() === curatedHome
+      || duplicateNames.has(candidate.name)
+    ))
+    .map(({ index }) => index)
+    .reverse();
+  for (const index of pendingDuplicateIndexes) pending.splice(index, 1);
   sources.push(curated);
 }
 
@@ -340,8 +388,16 @@ const bundleRevision = createHash("sha256")
   .update(JSON.stringify({
     xPolicyHash,
     runtimePolicy,
+    institutionalNewsRegistryVersion: institutionalNewsRegistry.version,
+    sicRegistryVersion: sicRegistry.version,
+    sicDocumentSources: approvedSicDocuments.map(({ id, status, endpoint, admissionRule }) => ({
+      id,
+      status,
+      endpoint,
+      admissionRule,
+    })),
     repositories: registry.repositories.map(({ name, commit }) => ({ name, commit })),
-    sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature, contentGroup, itemKind, provenanceRole, provenanceStatus }) => ({
+    sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature, contentGroup, itemKind, provenanceRole, provenanceStatus, pathPrefix }) => ({
       id,
       endpoint,
       connector,
@@ -352,6 +408,7 @@ const bundleRevision = createHash("sha256")
       itemKind,
       provenanceRole,
       provenanceStatus,
+      pathPrefix,
     })),
   }))
   .digest("hex")
@@ -363,7 +420,7 @@ const bundle = {
   generatedAt: new Date().toISOString(),
   registryGeneratedAt: registry.generatedAt,
   registryAuditedAt: registry.audit?.checkedAt ?? null,
-  policy: "Core direct sources plus discovery-only aggregators with canonical provenance. Editorial publications enter information; verified people, personal blogs and native community topics enter roadside; first-party organizations and project releases enter documents. Podcasts run in the SiC lane. GitHub user activity is not published speech. Aggregator comments and summaries never become original content. Unknown publishers and unresolved canonical URLs are quarantined.",
+  policy: "Approved news publications, official newsrooms and project releases enter information. Verified people, personal blogs and approved community-native platforms enter roadside. Approved deep research and engineering publications enter SiC documents and never duplicate into information. Hacker News and Lobsters are canonical only for their own community submissions; their external links are never recursively fetched. Podcasts run in the SiC lane. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
   counts: {
     active: sources.length,
     pending: pending.length,

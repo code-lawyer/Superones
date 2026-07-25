@@ -42,9 +42,9 @@ export function resolveContentGroup(input: LegacyContentRouting): ContentGroup {
   if (input.sourceStream === "roadside" || input.sourceStream === "statements") return "roadside";
   if (input.itemKind === "podcast_episode" || input.channelType === "podcast") return "podcasts";
   if (input.itemKind === "paper") return "papers";
-  if (input.itemKind === "release" || input.itemKind === "changelog") return "documents";
+  if (input.itemKind === "release" || input.itemKind === "changelog") return "information";
   if (input.publisherKind === "organization" || input.publisherKind === "open_source_project") {
-    return "documents";
+    return "information";
   }
   if (
     input.publisherKind === "person"
@@ -61,7 +61,7 @@ export function legacySourceStream(group: ContentGroup) {
 }
 
 export function isEventInput(group: ContentGroup) {
-  return group === "information" || group === "roadside" || group === "documents";
+  return group === "information" || group === "roadside";
 }
 
 export function isRoadside(input: LegacyContentRouting) {

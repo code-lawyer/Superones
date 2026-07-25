@@ -1,7 +1,7 @@
 ---
 type: engineering-spec
 status: active
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Vault2077 系统交付规格
@@ -38,9 +38,23 @@ updated: 2026-07-24
 
 - 采集器只读取版本化来源注册表中获准的公开来源。
 - information、roadside、sic 产生内容记录；rankings 只产生平台顺序、公开仓库观察和公开任务结果。
+- `institutional-news-registry.json` 只批准机构新闻入口；`sic-source-registry.json` 的 documents 只批准深度材料入口。同一 endpoint 或同一原始发布不得同时进入两个生产通道。
+- 宽泛机构 Feed 无法用固定入口稳定区分新闻与深度材料时保持待审，不在境内用 LLM 补救来源路由。
+- Hacker News 与 Lobsters 产出 canonical 社区条目，canonical URL 为社区讨论页；外链只存为 `externalUrl`，不得递归请求或晋升为原站正文。
 - GitHub Trending、Hugging Face Trending、OpenRouter `top-weekly`、skills.sh 原生视图保持提供方顺序。
 - 不采集 MCP 排名，不计算本地增长榜。
 - 通用内容与平台榜的境外读取在采集器侧执行。Frontier 是唯一例外：境内服务端可以按当前参赛名单读取已知公开 GitHub 仓库；浏览器和普通页面不得直连，失败必须保持可恢复状态并转异步公开任务。
+
+### 2.3 初始化回填
+
+首次开放内容频道前，统一采集器必须支持与日常增量分离的一次性初始化回填：
+
+- SiC 对每个 approved 内容来源越过日常 24 小时窗口，向前查找最近一条符合来源边界的真实内容；按来源计数，不因当天无更新而报告成功空集。
+- Vault 只回填最近 30 天的新闻型内容，并继续执行事件晋升与证据规则；不得按来源抓取任意久远的最后一条新闻填充页面。
+- rankings 只建立当时的平台原生快照；Frontier 只读取当时已验证参赛仓库，不伪造历史排名或 Star 序列。
+- 初始化批次必须标识 `runMode=bootstrap`，携带真实窗口、来源报告和稳定内容身份；它与 `runMode=incremental` 使用同一签名、Schema、幂等、处理和发布合同。
+- 初始化批次按通道和内容组拆成有界小批次，进入对应频道编辑配置队列。只有全部必需来源形成基线或明确进入可恢复异常后，相关频道才可公开。
+- 上线基线写入生产事实源，不编译进应用包；重新执行时只补齐缺失来源或新来源，不重复发布已有记录。
 
 ## 3. 交付协议
 
@@ -58,7 +72,7 @@ updated: 2026-07-24
 - `records`
 - `sourceReports`
 
-record kind 只允许当前注册表批准的类型，例如 `information`、`publication`、`entity_profile`、`repository_observation`、`ranking_observation`。每条记录保留稳定来源 ID、原始 URL、原始发布时间、内容散列和来源特定字段。
+record kind 只允许当前注册表批准的类型，例如 `information`、`publication`、`entity_profile`、`repository_observation`、`ranking_observation`。每条记录保留稳定来源 ID、原始 URL、原始发布时间、内容散列和来源特定字段；社区条目可额外携带经 HTTPS 校验的 `externalUrl`，但该字段不改变 canonical 来源身份。
 
 ### 3.2 签名与防重放
 
@@ -73,7 +87,7 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 验证失败不得写入正式 inbox。处理入口 `POST /api/internal/acquisition/process` 使用独立 worker 密钥或明确配置的同源密钥。
 
-旧 `/api/internal/content`、`/api/internal/sic/content`、`/api/internal/sic/snapshot` 仅可在迁移期读取或返回弃用响应，不得成为规范生产入口。
+旧 `/api/internal/content`、`/api/internal/content/process`、`/api/internal/sic/content`、`/api/internal/sic/snapshot` 已从运行时删除；不得恢复为兼容入口或第二套状态机。
 
 ## 4. Inbox 与处理状态
 
@@ -89,11 +103,20 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 ### 5.1 内容通道
 
-境内处理端负责翻译、单条摘要、事件匹配与 SiC 编辑说明。原始字段不可被处理结果覆盖；处理结果必须记录处理版本，失败可重试而不重复发布。
+境内处理端负责翻译、单条摘要、Vault 事件匹配与 SiC 编辑说明。内容处理按逻辑频道编辑配置路由：
+
+| 编辑配置 | 输入 | 主要职责 | 隔离边界 |
+| --- | --- | --- | --- |
+| `vault_editorial` | information、roadside、Vault 事件编排 | 新闻翻译、单条摘要、事件匹配与事件文案 | 独立队列、并发、预算与熔断状态 |
+| `sic_editorial` | sic 内容 | 技术长文、研究材料和课程/播客元数据的编辑说明 | 独立队列、并发、预算与熔断状态 |
+
+只有 information 与 roadside 参与 Vault 事件匹配；SiC 档案保持独立阅读记录，可由事件引用但不作为同一正文再次发布。两个编辑配置共享同一事实字段、统一语言、来源身份、原始字段、Schema 校验和追溯合同，不得因提供方不同而产生两套事实标准。
+
+每个编辑配置映射一个主处理提供方和一个受控备用。主提供方达到配置化失败条件后才切换备用；同一任务不得随机跨提供方分发，也不得并行生成多个结果后择优。重试必须使用稳定任务 ID 并保持幂等。处理记录至少保存编辑配置、提供方、模型、提示版本、处理版本和切换原因，任何原始字段不可被处理结果覆盖。
 
 ### 5.2 rankings 通道
 
-平台榜不进入编辑模型，不跨平台重排。每个结果保存平台、视图、平台内顺序、原始链接、采集时间和平台公开字段。
+平台榜不进入编辑模型，不跨平台重排。Frontier 的仓库核验、Star 观察、排名与结算也不得使用编辑模型生成或修改确定性结果。每个结果保存平台、视图、平台内顺序、原始链接、采集时间和平台公开字段。
 
 Frontier 使用境内 GitHub 快速路径与同一通道的异步回退：
 
@@ -136,7 +159,9 @@ Redis 仅在需要分布式锁、缓存或队列吞吐时加入；对象存储�
 - 所有外部输入做 schema、长度、URL、字符集与数量限制。
 - 密钥只来自部署秘密，不进入日志、构建产物或客户端。
 - 采集器和处理端分别有超时、限流、指数退避与最大尝试次数。
-- 监控至少覆盖：通道新鲜度、批次拒绝、处理积压、隔离量、发布延迟、边境任务延迟、备份与恢复演练。
+- 内容处理必须采用有界 worker 并按编辑配置分别控制并发与每周期预算；批次到达只增加队列任务，不得按记录数无界启动模型请求。
+- 监控至少覆盖：通道新鲜度、批次拒绝、每个编辑配置的处理积压/并发/预算/切换状态、隔离量、发布延迟、边境任务延迟、备份与恢复演练。
+- 监控必须区分 bootstrap 与 incremental，并报告每个 approved SiC 来源的基线是否完成。
 
 ## 9. 交付证据
 

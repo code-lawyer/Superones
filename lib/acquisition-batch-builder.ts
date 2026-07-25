@@ -7,6 +7,7 @@ import {
   type AcquisitionBatch,
   type AcquisitionLane,
   type AcquisitionRecord,
+  type AcquisitionRunMode,
   type AcquisitionSourceReport,
   type AcquisitionSourceStatus,
   type JsonValue,
@@ -19,6 +20,7 @@ const TARGET_BATCH_BYTES = MAX_ACQUISITION_BATCH_BYTES - 256 * 1024;
 export type AcquisitionBuildContext = {
   runId: string;
   lane: AcquisitionLane;
+  runMode: AcquisitionRunMode;
   scheduleId: string;
   windowFrom: string;
   windowUntil: string;
@@ -110,6 +112,7 @@ export function packAcquisitionGroups(
       batchId: `${stableId(batchPrefix, "acquisition", 110)}:${String(index + 1).padStart(4, "0")}`,
       runId: stableId(context.runId, `run:${sha256(context.runId).slice(0, 20)}`),
       lane: context.lane,
+      runMode: context.runMode,
       scheduleId: stableId(context.scheduleId, `schedule:${context.lane}`),
       windowFrom: context.windowFrom,
       windowUntil: context.windowUntil,
@@ -183,16 +186,9 @@ export function buildVaultAcquisitionBatches(input: {
         ? "roadside"
         : "information";
       const requestedLane = input.lane === "statements" ? "roadside" : input.lane;
-      const promotedFromRoadsideDiscovery = item.provenanceRole === "canonical"
-        && itemLane === "information"
-        && item.discoveryPaths?.some((path) => (
-          path.startsWith("https://news.ycombinator.com/")
-          || path.startsWith("https://lobste.rs/")
-        ));
       if (
         requestedLane
         && itemLane !== requestedLane
-        && !(requestedLane === "roadside" && promotedFromRoadsideDiscovery)
       ) continue;
       const recordId = `information:${sha256(item.idempotencyKey)}`;
       const existing = informationById.get(recordId);
@@ -222,6 +218,7 @@ export function buildVaultAcquisitionBatches(input: {
           classificationConfidence: item.classificationConfidence,
           originalAuthor: item.originalAuthor,
           sourceRole: item.sourceRole,
+          externalUrl: item.externalUrl,
           originalPublishedAt: item.originalPublishedAt,
           originalLanguage: item.originalLanguage,
           originalTitle: item.originalTitle,

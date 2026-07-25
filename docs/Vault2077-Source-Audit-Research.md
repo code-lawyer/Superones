@@ -6,6 +6,8 @@ updated: 2026-07-24
 
 # Vault2077 上游信源审计研究
 
+> 当前决策（ADR-0008）：本文记录上游在审计时的分类证据，不定义现行路由。Hacker News/Lobsters 的生产身份是社区原生来源；机构新闻与 SiC 深度档案实行单一主去向。
+
 > 状态修正（2026-07-22）：本文逐仓记录固定提交中实际存在的配置，因此仍保留上游 YouTube 清单作为证据。Vault2077 已将视频专属通道从产品范围中删除；这些条目不进入当前注册表、CSV、pending 或运行 bundle，也不得据此恢复视频处理链路。
 
 > 审计日期：2026-07-22
@@ -102,7 +104,7 @@ updated: 2026-07-24
 #### 身份判定
 
 - Simon Willison、GitHub 用户／仓库、Reddit 账号／社区是可登记的具体来源。
-- Hacker News、OSS Insight、GDELT、Google News 是聚合或发现入口；条目的原始发布者需从返回链接另行记录。
+- OSS Insight、GDELT、Google News 是聚合或发现入口；Hacker News 是其社区条目的一手来源，条目外链只另行记录，不沿返回链接抓取或晋升。
 - 股票代码不是资讯发布者；若未来需要公司公告，应改接公司 newsroom／IR／监管披露源。
 - LWN URL 只有具备合法订阅密钥才可用，不能当公开 Feed。
 

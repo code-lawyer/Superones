@@ -1035,7 +1035,8 @@ h3 {
 }
 
 .form-field input,
-.form-field textarea {
+.form-field textarea,
+.form-field select {
   width: 100%;
   border: 1px solid var(--carbon);
   border-radius: 0;
@@ -1044,7 +1045,8 @@ h3 {
 }
 
 .form-field input:focus,
-.form-field textarea:focus {
+.form-field textarea:focus,
+.form-field select:focus {
   border-color: var(--carbon);
   outline: 2px solid var(--carbon);
   outline-offset: 2px;

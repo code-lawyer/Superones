@@ -23,6 +23,7 @@ updated: 2026-07-24
 ## 可审计产物
 
 - [`config/source-registry.json`](../config/source-registry.json)：逻辑信源、全部入口、发现证据、固定提交、逐入口状态和未解析项。
+- [`config/source-health.json`](../config/source-health.json)：最近一次联网观测；只记录可达性和格式健康，不会自动改变批准状态或生产路由。
 - [`Vault2077-Source-Registry.csv`](./Vault2077-Source-Registry.csv)：便于人工逐行查看和筛选的 486 入口清单。
 - [`config/source-bundle.json`](../config/source-bundle.json)：境外采集器实际读取的去重运行清单，以及未进入运行态的 pending 项和原因。
 - [`Vault2077-Source-Audit-Research.md`](./Vault2077-Source-Audit-Research.md)：逐仓库代码与配置拆解、动态来源边界和交叉去重依据。
@@ -32,8 +33,9 @@ updated: 2026-07-24
 1. 人工同意调研项目或其固定提交发生变化。
 2. 运行 `npm run sources:extract -- --audit-root <固定提交目录>`，生成未经分类和在线核验的注册表。
 3. 运行 `npm run sources:classify`，应用确定性规则与受控实体覆盖表。
-4. 运行 `npm run sources:audit`；对失败项可使用 `--retry-failed true` 做长超时复核。
-5. 确认全部入口都有 `checkedAt`、全部通道都有分类来源和置信度，再运行 `npm run sources:bundle`。
-6. 提交注册表、CSV、bundle 和对应代码；生产仅消费提交内的 bundle。
+4. 运行 `npm run sources:audit`；默认只更新 `config/source-health.json`，对失败项可使用 `--retry-failed true` 做长超时复核。瞬时 timeout/network_error 不得自动移除生产来源。
+5. 新注册表首次建立或确需改变技术准入时，人工审阅健康报告后显式运行 `npm run sources:audit -- --promote true`，才把本轮结果写入注册表与 CSV；0 个可用端点或传输失败率超过 80% 时命令拒绝覆盖。
+6. 确认全部入口都有准入基线、全部通道都有分类来源和置信度，再运行 `npm run sources:bundle`。
+7. 提交健康报告；只有执行过人工 promotion 时才同时提交注册表与 CSV。生产仅消费提交内的 bundle，不消费瞬时健康报告决定成员资格。
 
-重新执行第 2 步会有意清空旧分类和健康状态，因此第 2—5 步必须按顺序完成。动态 Folo 列表、X 官方 API、Twitch、LWN 订阅源等仍需合法凭据或外部成员清单；在这些条件满足前不得标为已验证可用。
+重新执行第 2 步会有意清空旧分类和准入基线，因此第 2—6 步必须按顺序完成。动态 Folo 列表、X 官方 API、Twitch、LWN 订阅源等仍需合法凭据或外部成员清单；在这些条件满足前不得标为已验证可用。

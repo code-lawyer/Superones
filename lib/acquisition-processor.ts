@@ -10,7 +10,9 @@ import type {
   AcquisitionRecord,
   JsonValue,
 } from "./acquisition-contract.ts";
+import { assertAcquisitionLaneKinds } from "./acquisition-contract.ts";
 import { recordStarSnapshots } from "./frontier-store.ts";
+import { completeFrontierObservationTasks } from "./frontier-public-tasks.ts";
 import {
   ingestSicAcquisitionContent,
   type SicRawCollection,
@@ -23,7 +25,10 @@ import {
   type DirectRankingItem,
   type DirectRankingProvider,
 } from "./direct-rankings.ts";
-import type { AcquisitionBatchProcessor } from "./acquisition-worker.ts";
+import {
+  AcquisitionQuarantineError,
+  type AcquisitionBatchProcessor,
+} from "./acquisition-worker.ts";
 
 type JsonObject = Record<string, JsonValue>;
 
@@ -73,6 +78,15 @@ function https(payload: JsonObject, field: string) {
   return parsed.toString();
 }
 
+function optionalHttps(payload: JsonObject, field: string) {
+  const value = string(payload, field, false);
+  if (!value) return undefined;
+  const parsed = new URL(value);
+  if (parsed.protocol !== "https:") throw new Error(`统一采集记录的 ${field} 必须使用 HTTPS。`);
+  parsed.hash = "";
+  return parsed.toString();
+}
+
 function information(record: AcquisitionRecord): InformationEnvelope {
   const payload = record.payload;
   return {
@@ -88,6 +102,7 @@ function information(record: AcquisitionRecord): InformationEnvelope {
     originalAuthor: string(payload, "originalAuthor", false),
     sourceRole: string(payload, "sourceRole") as InformationEnvelope["sourceRole"],
     originalUrl: record.canonicalUrl,
+    externalUrl: optionalHttps(payload, "externalUrl"),
     originalPublishedAt: string(payload, "originalPublishedAt", false),
     fetchedAt: record.observedAt,
     originalLanguage: string(payload, "originalLanguage"),
@@ -236,13 +251,16 @@ export function createAcquisitionBatchProcessor(input: {
   processPublications?: (value: unknown, fetcher: typeof fetch) => Promise<unknown>;
   persistDirectRankings?: typeof persistDirectRankingBoards;
   recordFrontierSnapshots?: typeof recordStarSnapshots;
+  completeFrontierFallbackTasks?: typeof completeFrontierObservationTasks;
 } = {}): AcquisitionBatchProcessor {
   const processContent = input.processContent ?? processInboundContent;
   const processPublications = input.processPublications ?? ingestSicAcquisitionContent;
   const persistRankings = input.persistDirectRankings ?? persistDirectRankingBoards;
   const persistFrontier = input.recordFrontierSnapshots ?? recordStarSnapshots;
+  const completeFrontierFallback = input.completeFrontierFallbackTasks ?? completeFrontierObservationTasks;
 
   return async (batch, work) => {
+    assertAcquisitionLaneKinds(batch.lane, batch.records);
     const informationRecords = batch.records.filter((record) => record.kind === "information");
     const repositoryRecords = batch.records.filter((record) => record.kind === "repository_observation");
     const publicationRecords = batch.records.filter((record) => record.kind === "publication");
@@ -254,7 +272,10 @@ export function createAcquisitionBatchProcessor(input: {
       const unsupported = profiles.length
         ? `${profiles.length} profiles`
         : `${repositoryRecords.length - frontierRecords.length} repositories`;
-      throw new Error(`统一处理 adapter 尚未覆盖：${unsupported}。`);
+      throw new AcquisitionQuarantineError(
+        `统一处理 adapter 尚未覆盖：${unsupported}。`,
+        "UNSUPPORTED_RECORD_ADAPTER",
+      );
     }
 
     if (informationRecords.length > 0) {
@@ -295,6 +316,9 @@ export function createAcquisitionBatchProcessor(input: {
     }
     for (const [season, updates] of frontierBySeason) {
       await persistFrontier(season, updates, batch.collectedAt);
+    }
+    if (frontierRecords.length > 0) {
+      await completeFrontierFallback(frontierRecords.map((record) => frontierObservation(record).submissionId));
     }
 
     return {

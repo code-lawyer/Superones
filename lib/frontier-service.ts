@@ -4,6 +4,8 @@ import { randomInt } from "node:crypto";
 import { drawRandomPrizes, rankSubmissions, seasonForDate } from "./frontier-domain";
 import {
   challengeMatches,
+  beginSeasonSettlement,
+  failSeasonSettlement,
   getSeasonResult,
   getSubmission,
   listPublicPrizePool,
@@ -14,6 +16,7 @@ import {
   type StoredSubmission,
 } from "./frontier-store";
 import { inspectGitHubRepository, readGitHubChallengeFile, type GitHubRepository } from "./github";
+import { enqueueFrontierObservationTask } from "./frontier-public-tasks";
 
 export function repositoryEligibilityError(repository: GitHubRepository) {
   if (repository.isPrivate) return "边境计划只接受公开仓库。";
@@ -30,8 +33,18 @@ function isMissingResource(error: unknown) {
 export async function refreshSeasonStars(season: string) {
   const submissions = await listVerifiedSubmissions(season);
   const results = await Promise.allSettled(submissions.map(async (submission) => {
-    const repository = await inspectGitHubRepository(submission.owner, submission.repo);
-    return { submissionId: submission.id, stars: repository.stars };
+    try {
+      const repository = await inspectGitHubRepository(submission.owner, submission.repo);
+      return { submissionId: submission.id, stars: repository.stars };
+    } catch (error) {
+      await enqueueFrontierObservationTask({
+        season,
+        submissionId: submission.id,
+        owner: submission.owner,
+        repo: submission.repo,
+      });
+      throw error;
+    }
   }));
   const updates = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
   const capturedAt = new Date().toISOString();
@@ -78,31 +91,42 @@ async function settlementCandidate(submission: StoredSubmission) {
 export async function settleSeason(season: string, settledAt = new Date().toISOString()) {
   const existing = await getSeasonResult(season);
   if (existing) return existing;
-
-  const submissions = await listVerifiedSubmissions(season);
-  const candidates = [];
-  const ineligibleSubmissionIds: string[] = [];
-  for (const submission of submissions) {
-    const candidate = await settlementCandidate(submission);
-    if (candidate) candidates.push(candidate);
-    else ineligibleSubmissionIds.push(submission.id);
+  const lease = await beginSeasonSettlement(season, new Date(settledAt));
+  if (lease === "settled") {
+    const settled = await getSeasonResult(season);
+    if (settled) return settled;
   }
+  if (lease === "busy") throw new Error(`赛季 ${season} 正在由另一个任务结算。`);
 
-  if (candidates.length > 0) {
-    await recordStarSnapshots(season, candidates.map((item) => ({ submissionId: item.id, stars: item.current })), settledAt);
+  try {
+    const submissions = await listVerifiedSubmissions(season);
+    const candidates = [];
+    const ineligibleSubmissionIds: string[] = [];
+    for (const submission of submissions) {
+      const candidate = await settlementCandidate(submission);
+      if (candidate) candidates.push(candidate);
+      else ineligibleSubmissionIds.push(submission.id);
+    }
+
+    if (candidates.length > 0) {
+      await recordStarSnapshots(season, candidates.map((item) => ({ submissionId: item.id, stars: item.current })), settledAt);
+    }
+    const finalRankings = rankSubmissions(candidates);
+    const prizes = (await listPublicPrizePool(season)).filter((item) => item.status === "available");
+    const draw = drawRandomPrizes(finalRankings, prizes.map((item) => item.id), (upperExclusive) => randomInt(upperExclusive));
+
+    return await saveSeasonSettlement({
+      season,
+      settledAt,
+      finalRankings,
+      ineligibleSubmissionIds,
+      assignments: draw.assignments,
+      remainingPrizeDonationIds: draw.remainingPrizeDonationIds,
+    });
+  } catch (error) {
+    await failSeasonSettlement(season, error);
+    throw error;
   }
-  const finalRankings = rankSubmissions(candidates);
-  const prizes = (await listPublicPrizePool(season)).filter((item) => item.status === "available");
-  const draw = drawRandomPrizes(finalRankings, prizes.map((item) => item.id), (upperExclusive) => randomInt(upperExclusive));
-
-  return saveSeasonSettlement({
-    season,
-    settledAt,
-    finalRankings,
-    ineligibleSubmissionIds,
-    assignments: draw.assignments,
-    remainingPrizeDonationIds: draw.remainingPrizeDonationIds,
-  });
 }
 
 export async function runFrontierTick(now: Date = new Date()) {

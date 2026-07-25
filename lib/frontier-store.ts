@@ -1,8 +1,6 @@
 import "server-only";
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   FRONTIER_RULES_REVISION,
   PRIZE_NOTICE_REVISION,
@@ -13,6 +11,8 @@ import {
   type PrizeDrawAssignment,
   type RankedSubmission,
 } from "./frontier-domain.ts";
+import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
+import { decryptSensitiveText, encryptSensitiveText } from "./sensitive-data.ts";
 import type { FrontierEntry } from "./types.ts";
 
 export const OFFICIAL_CHAMPION_REWARD = "边境计划季度冠军奖励（待公布）";
@@ -72,14 +72,27 @@ export type SeasonResult = {
   assignments: Array<PrizeDrawAssignment & { assignedAt: string }>;
 };
 
+export type SettlementRun = {
+  season: string;
+  status: "settling" | "failed" | "settled";
+  attempt: number;
+  startedAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  lastError: string | null;
+};
+
 type FrontierStore = {
-  version: 2;
+  version: 3;
   submissions: StoredSubmission[];
   prizeDonations: StoredPrizeDonation[];
   snapshots: SubmissionSnapshot[];
   seasonResults: SeasonResult[];
+  settlementRuns: SettlementRun[];
   championRepositories: string[];
 };
+
+type Version2Store = Omit<FrontierStore, "version" | "settlementRuns"> & { version: 2 };
 
 type LegacyStore = {
   version: 1;
@@ -91,45 +104,25 @@ export type AdminSubmission = Omit<StoredSubmission, "emailEncrypted" | "challen
 export type AdminPrizeDonation = Omit<StoredPrizeDonation, "emailEncrypted"> & { email: string };
 export type PublicPrizeDonation = Pick<StoredPrizeDonation, "id" | "season" | "name" | "description" | "status">;
 
-const dataRoot = process.env.VAULT2077_DATA_DIR
-  ? path.resolve(process.env.VAULT2077_DATA_DIR)
-  : path.join(process.cwd(), "data");
-const storePath = path.join(dataRoot, "mvp-store.json");
-let writeChain: Promise<void> = Promise.resolve();
-
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function keyForSensitiveData() {
-  const configured = process.env.VAULT2077_DATA_KEY;
-  if (configured) return createHash("sha256").update(configured).digest();
-  if (process.env.NODE_ENV === "production") throw new Error("生产环境必须设置 VAULT2077_DATA_KEY。");
-  return createHash("sha256").update("vault2077-local-development-key").digest();
-}
-
-function encrypt(value: string) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", keyForSensitiveData(), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return [iv, tag, encrypted].map((part) => part.toString("base64url")).join(".");
-}
-
-function decrypt(value: string) {
-  const [ivValue, tagValue, encryptedValue] = value.split(".");
-  if (!ivValue || !tagValue || !encryptedValue) throw new Error("联系人数据格式无效。");
-  const decipher = createDecipheriv("aes-256-gcm", keyForSensitiveData(), Buffer.from(ivValue, "base64url"));
-  decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(encryptedValue, "base64url")), decipher.final()]).toString("utf8");
-}
-
 function defaultStore(): FrontierStore {
-  return { version: 2, submissions: [], prizeDonations: [], snapshots: [], seasonResults: [], championRepositories: [] };
+  return {
+    version: 3,
+    submissions: [],
+    prizeDonations: [],
+    snapshots: [],
+    seasonResults: [],
+    settlementRuns: [],
+    championRepositories: [],
+  };
 }
 
-function migrateStore(parsed: FrontierStore | LegacyStore): FrontierStore {
-  if (parsed.version === 2) return parsed;
+function migrateStore(parsed: FrontierStore | Version2Store | LegacyStore): FrontierStore {
+  if (parsed.version === 3) return parsed;
+  if (parsed.version === 2) return { ...parsed, version: 3, settlementRuns: [] };
   return {
     ...defaultStore(),
     submissions: parsed.submissions.map((item) => ({
@@ -145,7 +138,8 @@ function migrateStore(parsed: FrontierStore | LegacyStore): FrontierStore {
 
 function validateStore(store: FrontierStore) {
   if (
-    store.version !== 2 ||
+    store.version !== 3 ||
+    !Array.isArray(store.settlementRuns) ||
     !Array.isArray(store.submissions) ||
     !Array.isArray(store.prizeDonations) ||
     !Array.isArray(store.snapshots) ||
@@ -155,36 +149,19 @@ function validateStore(store: FrontierStore) {
   return store;
 }
 
-async function ensureStore() {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  try {
-    await readFile(storePath, "utf8");
-  } catch {
-    await writeFile(storePath, `${JSON.stringify(defaultStore(), null, 2)}\n`, "utf8");
-  }
-}
+const frontierDocument: StateDocumentDefinition<FrontierStore> = {
+  namespace: "frontier",
+  fileName: "mvp-store.json",
+  create: defaultStore,
+  parse: (value) => validateStore(migrateStore(value as FrontierStore | Version2Store | LegacyStore)),
+};
 
 async function readStore(): Promise<FrontierStore> {
-  await ensureStore();
-  const parsed = JSON.parse(await readFile(storePath, "utf8")) as FrontierStore | LegacyStore;
-  return validateStore(migrateStore(parsed));
-}
-
-async function writeStore(store: FrontierStore) {
-  const temporaryPath = `${storePath}.${process.pid}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(store, null, 2)}\n`, { encoding: "utf8", flag: "w" });
-  await rename(temporaryPath, storePath);
+  return readStateDocument(frontierDocument);
 }
 
 async function mutateStore<T>(mutator: (store: FrontierStore) => T | Promise<T>): Promise<T> {
-  const operation = writeChain.then(async () => {
-    const store = await readStore();
-    const result = await mutator(store);
-    await writeStore(store);
-    return result;
-  });
-  writeChain = operation.then(() => undefined, () => undefined);
-  return operation;
+  return mutateStateDocument(frontierDocument, mutator);
 }
 
 export function hashChallenge(challenge: string) {
@@ -221,7 +198,7 @@ export async function createPendingSubmission(input: {
     owner: input.owner,
     repo: input.repo,
     repository,
-    emailEncrypted: encrypt(input.email),
+    emailEncrypted: encryptSensitiveText(input.email),
     note: input.note,
     defaultBranch: input.defaultBranch,
     challengeHash: hashChallenge(input.challenge),
@@ -251,6 +228,14 @@ export async function createPendingSubmission(input: {
 export async function getSubmission(id: string) {
   const store = await readStore();
   return store.submissions.find((item) => item.id === id) ?? null;
+}
+
+export async function findSeasonSubmission(owner: string, repo: string, season = seasonForDate().code) {
+  const repository = `${owner}/${repo}`.toLowerCase();
+  const store = await readStore();
+  return store.submissions
+    .filter((item) => item.season === season && item.repository.toLowerCase() === repository)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
 }
 
 export async function markSubmissionVerified(id: string, stars: number, now: Date = new Date()) {
@@ -329,7 +314,7 @@ export async function createPrizeDonation(input: { name: string; description: st
     season: seasonForDate(now).code,
     name: input.name,
     description: input.description,
-    emailEncrypted: encrypt(input.email),
+    emailEncrypted: encryptSensitiveText(input.email),
     status: "pending_confirmation",
     createdAt: now.toISOString(),
     confirmedAt: null,
@@ -350,7 +335,7 @@ export async function listPublicPrizePool(season = seasonForDate().code): Promis
 export async function listAdminPrizeDonations(): Promise<AdminPrizeDonation[]> {
   const store = await readStore();
   return store.prizeDonations
-    .map(({ emailEncrypted, ...item }) => ({ ...item, email: decrypt(emailEncrypted) }))
+    .map(({ emailEncrypted, ...item }) => ({ ...item, email: decryptSensitiveText(emailEncrypted) }))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
@@ -376,7 +361,7 @@ export async function setPrizeDonationStatus(id: string, action: "confirm" | "re
 export async function listAdminSubmissions(): Promise<AdminSubmission[]> {
   const store = await readStore();
   return store.submissions
-    .map(({ emailEncrypted, challengeHash: _challengeHash, ...submission }) => ({ ...submission, email: decrypt(emailEncrypted) }))
+    .map(({ emailEncrypted, challengeHash: _challengeHash, ...submission }) => ({ ...submission, email: decryptSensitiveText(emailEncrypted) }))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
@@ -390,6 +375,52 @@ export async function listUnsettledSeasonCodes(now: Date = new Date()) {
     .sort();
 }
 
+export async function beginSeasonSettlement(season: string, now = new Date()) {
+  return mutateStore((store) => {
+    if (store.seasonResults.some((item) => item.season === season)) return "settled" as const;
+    const timestamp = now.toISOString();
+    const existing = store.settlementRuns.find((item) => item.season === season);
+    if (
+      existing?.status === "settling"
+      && Date.parse(existing.updatedAt) > now.getTime() - 30 * 60 * 1000
+    ) return "busy" as const;
+    if (existing) {
+      existing.status = "settling";
+      existing.attempt += 1;
+      existing.startedAt = timestamp;
+      existing.updatedAt = timestamp;
+      existing.completedAt = null;
+      existing.lastError = null;
+    } else {
+      store.settlementRuns.push({
+        season,
+        status: "settling",
+        attempt: 1,
+        startedAt: timestamp,
+        updatedAt: timestamp,
+        completedAt: null,
+        lastError: null,
+      });
+    }
+    return "started" as const;
+  });
+}
+
+export async function failSeasonSettlement(season: string, error: unknown, now = new Date()) {
+  return mutateStore((store) => {
+    const run = store.settlementRuns.find((item) => item.season === season);
+    if (!run || run.status !== "settling") return false;
+    run.status = "failed";
+    run.updatedAt = now.toISOString();
+    run.completedAt = now.toISOString();
+    run.lastError = (error instanceof Error ? error.message : String(error))
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500);
+    return true;
+  });
+}
+
 export async function saveSeasonSettlement(input: {
   season: string;
   settledAt: string;
@@ -401,7 +432,16 @@ export async function saveSeasonSettlement(input: {
 }) {
   return mutateStore((store) => {
     const existing = store.seasonResults.find((item) => item.season === input.season);
-    if (existing) return existing;
+    if (existing) {
+      const run = store.settlementRuns.find((item) => item.season === input.season);
+      if (run) {
+        run.status = "settled";
+        run.updatedAt = existing.settledAt;
+        run.completedAt = existing.settledAt;
+        run.lastError = null;
+      }
+      return existing;
+    }
     const assignedAt = input.settledAt;
     const result: SeasonResult = {
       season: input.season,
@@ -413,6 +453,23 @@ export async function saveSeasonSettlement(input: {
       assignments: input.assignments.map((item) => ({ ...item, assignedAt })),
     };
     store.seasonResults.push(result);
+    const run = store.settlementRuns.find((item) => item.season === input.season);
+    if (run) {
+      run.status = "settled";
+      run.updatedAt = input.settledAt;
+      run.completedAt = input.settledAt;
+      run.lastError = null;
+    } else {
+      store.settlementRuns.push({
+        season: input.season,
+        status: "settled",
+        attempt: 1,
+        startedAt: input.settledAt,
+        updatedAt: input.settledAt,
+        completedAt: input.settledAt,
+        lastError: null,
+      });
+    }
 
     for (const submission of store.submissions.filter((item) => item.season === input.season)) {
       if (input.ineligibleSubmissionIds.includes(submission.id)) {

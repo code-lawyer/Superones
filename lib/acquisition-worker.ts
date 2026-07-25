@@ -3,9 +3,21 @@ import "server-only";
 import type { AcquisitionBatch } from "./acquisition-contract.ts";
 import type { AcquisitionLane } from "./acquisition-contract.ts";
 import type {
+  AcquisitionFailureDisposition,
+  AcquisitionInboxStatus,
   AcquisitionInboxStats,
   AcquisitionWorkItem,
 } from "./acquisition-inbox.ts";
+
+export class AcquisitionQuarantineError extends Error {
+  readonly code: string;
+
+  constructor(message: string, code = "INVALID_ACQUISITION_RECORD") {
+    super(message);
+    this.name = "AcquisitionQuarantineError";
+    this.code = code;
+  }
+}
 
 export type AcquisitionProcessingResult = {
   information?: number;
@@ -23,7 +35,11 @@ export type AcquisitionBatchProcessor = (
 export type AcquisitionWorkerInbox = {
   claimNext(excludedBatchIds?: ReadonlySet<string>): Promise<AcquisitionWorkItem | null>;
   complete(batchId: string): Promise<void>;
-  fail(batchId: string, error: unknown): Promise<void>;
+  fail(
+    batchId: string,
+    error: unknown,
+    disposition?: AcquisitionFailureDisposition,
+  ): Promise<AcquisitionInboxStatus>;
   stats(): Promise<AcquisitionInboxStats>;
 };
 
@@ -51,6 +67,7 @@ export function createAcquisitionWorker(input: {
       attempt: number;
       durationMs: number;
       error: string;
+      status: "retryable" | "quarantined";
     }> = [];
     const warnings: Array<{
       batchId: string;
@@ -90,7 +107,10 @@ export function createAcquisitionWorker(input: {
         }
       } catch (error) {
         const durationMs = Date.now() - startedAt;
-        await input.inbox.fail(work.batch.batchId, error);
+        const disposition = error instanceof AcquisitionQuarantineError
+          ? "quarantined"
+          : "retryable";
+        const status = await input.inbox.fail(work.batch.batchId, error, disposition);
         failed.push({
           batchId: work.batch.batchId,
           runId: work.batch.runId,
@@ -99,6 +119,7 @@ export function createAcquisitionWorker(input: {
           attempt: work.attempt,
           durationMs,
           error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+          status: status === "quarantined" ? "quarantined" : "retryable",
         });
       }
     }

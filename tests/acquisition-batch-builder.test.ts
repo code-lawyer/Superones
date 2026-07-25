@@ -11,6 +11,7 @@ import { SOURCE_ROLES } from "../lib/types.ts";
 const context: AcquisitionBuildContext = {
   runId: "run:full-source-test",
   lane: "information",
+  runMode: "incremental",
   scheduleId: "schedule:test:information",
   windowFrom: "2026-07-24T00:00:00.000Z",
   windowUntil: "2026-07-24T01:00:00.000Z",
@@ -86,20 +87,21 @@ test("Vault adapter removes exact duplicates repeated across legacy packets", ()
   assert.equal(batches[0].sourceReports[0].recordCount, 1);
 });
 
-test("roadside discovery lane carries a verified canonical document to domestic routing", () => {
-  const discovered = packet();
-  discovered.information[0] = {
-    ...discovered.information[0],
-    sourceChannelId: "company-source",
+test("roadside lane keeps a community topic canonical without promoting its external link", () => {
+  const topic = packet();
+  topic.information[0] = {
+    ...topic.information[0],
+    sourceChannelId: "hacker-news",
     discoveryPath: "https://news.ycombinator.com/item?id=42",
     discoveryPaths: ["https://news.ycombinator.com/item?id=42"],
-    originalPublisher: "Company Source",
-    originalUrl: "https://company.example.com/news/original",
-    contentGroup: "documents",
-    itemKind: "article",
+    originalPublisher: "Hacker News",
+    originalUrl: "https://news.ycombinator.com/item?id=42",
+    externalUrl: "https://company.example.com/news/original",
+    contentGroup: "roadside",
+    itemKind: "community_topic",
     provenanceRole: "canonical",
     provenanceStatus: "verified",
-    sourceStream: "information",
+    sourceStream: "roadside",
   };
   const batches = buildVaultAcquisitionBatches({
     context: {
@@ -107,14 +109,15 @@ test("roadside discovery lane carries a verified canonical document to domestic 
       lane: "roadside",
       scheduleId: "schedule:test:roadside",
     },
-    packets: [discovered],
-    outcomes: [{ sourceId: "company-source", status: "success" }],
-    connectorBySource: new Map([["company-source", "rss"]]),
-    sourceStreamBySource: new Map([["company-source", "information"]]),
+    packets: [topic],
+    outcomes: [{ sourceId: "hacker-news", status: "success" }],
+    connectorBySource: new Map([["hacker-news", "hackernews"]]),
+    sourceStreamBySource: new Map([["hacker-news", "roadside"]]),
     lane: "roadside",
   });
   assert.equal(batches.flatMap((batch) => batch.records).length, 1);
-  assert.equal(batches[0].records[0].payload.contentGroup, "documents");
+  assert.equal(batches[0].records[0].payload.contentGroup, "roadside");
+  assert.equal(batches[0].records[0].payload.externalUrl, "https://company.example.com/news/original");
   assert.equal(batches[0].sourceReports[0].recordCount, 1);
 });
 

@@ -27,6 +27,8 @@ const required = [
   "docs/adr/0005-platform-native-rankings-and-lanes.md",
   "docs/adr/0006-production-data-and-public-task-boundary.md",
   "docs/adr/0007-frontier-github-hybrid-access.md",
+  "docs/adr/0008-single-destination-content-routing.md",
+  "docs/adr/0009-channel-editorial-profiles.md",
 ];
 const allowedStatuses = new Set([
   "active", "accepted", "amended", "reference", "historical", "superseded",
@@ -108,19 +110,26 @@ for (const [file, body] of bodies) {
 const forbiddenByFile = new Map([
   ["docs/Vault2077-Design-Spec.md", [
     "GH Archive", "BigQuery", "Smithery", "近期 Star 增速优先", "六大服务类别",
+    "所有内容通道共用一个模型",
   ]],
   ["docs/Vault2077-SiC-Design-Spec.md", [
     "Hugging Face 模型下载增长榜", "MCP 热门榜", "本地快照差",
+    "首次上线仍只使用 24 小时窗口",
   ]],
   ["docs/Vault2077-OPC-Design-Spec.md", [
     "六大服务类别", "立即购买", "加入购物车",
   ]],
   ["docs/Vault2077-Feed-Design-Spec.md", [
     "北京时间 06:00、12:00、18:00、24:00", "每日四批",
+    "聚合器和参考项目是发现路径，不是独立证据来源",
+  ]],
+  ["docs/Vault2077-SiC-Source-Catalog.md", [
+    "档案：只接入机构自营的研究、工程、发布、版本记录和正式观点",
   ]],
   ["docs/Vault2077-Unified-Acquisition-Runbook.md", [
     "VAULT2077_SIC_SNAPSHOT_URL", "VAULT2077_SIC_CONTENT_URL",
     "不得从境内后台直连 GitHub",
+    "三个内容通道使用的编辑提供方",
   ]],
   ["docs/Vault2077-Frontier-Design-Spec.md", [
     "所有 GitHub 读取均通过统一采集器",
@@ -128,6 +137,7 @@ const forbiddenByFile = new Map([
   ]],
   ["docs/Vault2077-System-Delivery-Spec.md", [
     "所有境外公开读取（包括边境计划仓库核验）",
+    "所有内容通道共用一个模型",
   ]],
   ["docs/Vault2077-Launch-Checklist.md", [
     "境内服务与浏览器不直接请求境外公开上游",
@@ -158,14 +168,21 @@ for (const [relative, phrases] of forbiddenByFile) {
 }
 
 const requiredByFile = new Map([
-  ["CONTEXT.md", ["交互式仓库核验", "参赛仓库观察"]],
-  ["docs/Vault2077-Design-Spec.md", ["境内服务端优先即时核验"]],
+  ["CONTEXT.md", ["交互式仓库核验", "参赛仓库观察", "频道编辑配置", "上线基线"]],
+  ["docs/Vault2077-Design-Spec.md", ["境内服务端优先即时核验", "Vault 编辑配置", "SiC 编辑配置", "正式启用内容频道前必须建立真实、可追溯的上线基线"]],
   ["docs/Vault2077-Frontier-Design-Spec.md", ["境内 GitHub 快速路径", "异步公开任务"]],
-  ["docs/Vault2077-System-Delivery-Spec.md", ["Frontier GitHub 集成", "境内 GitHub 快速路径"]],
-  ["docs/Vault2077-Launch-Checklist.md", ["Frontier 境内 GitHub 快速路径"]],
-  ["docs/Vault2077-Unified-Acquisition-Runbook.md", ["Frontier 境内侧另配置只读 GitHub 服务端凭证"]],
-  ["docs/Vault2077-Deployment-Configuration-Manual.md", ["Frontier 境内 GitHub 请求"]],
-  ["docs/Vault2077-Implementation-Traceability.md", ["Frontier GitHub 混合访问"]],
+  ["docs/Vault2077-System-Delivery-Spec.md", ["Frontier GitHub 集成", "境内 GitHub 快速路径", "institutional-news-registry.json", "`externalUrl`", "`vault_editorial`", "`sic_editorial`", "不得使用编辑模型", "`runMode=bootstrap`"]],
+  ["docs/Vault2077-Launch-Checklist.md", ["Frontier 境内 GitHub 快速路径", "发现—晋升中间产物", "频道编辑配置", "真实上线基线"]],
+  ["docs/Vault2077-Unified-Acquisition-Runbook.md", ["Frontier 境内侧另配置只读 GitHub 服务端凭证", "不得产生发现候选文件", "已经支持显式 `runMode=bootstrap`", "`vault_editorial` 与 `sic_editorial`"]],
+  ["docs/Vault2077-Deployment-Configuration-Manual.md", ["Frontier 境内 GitHub 请求", "`vault_editorial`", "`sic_editorial`", "非生产迁移期本地预览兼容层", "bootstrap 是一次性受审计作业", "`npm run db:migrate`"]],
+  ["docs/Vault2077-Implementation-Traceability.md", ["Frontier GitHub 混合访问", "频道编辑配置", "上线基线与初始化回填"]],
+  ["docs/Vault2077-Feed-Design-Spec.md", ["每条原始内容只有一个公开主去向", "不生成待晋升候选", "Vault 编辑配置", "最近 30 天的真实新闻型内容建立上线基线"]],
+  ["docs/Vault2077-SiC-Design-Spec.md", ["宽泛混合 Feed", "才可批准", "SiC 编辑配置", "最近一条符合该来源准入边界的真实内容"]],
+  ["docs/Vault2077-SiC-Source-Catalog.md", ["每个 approved 内容来源至少回填最近一条"]],
+  ["docs/Vault2077-Admin-Operations-Spec.md", ["自动进入候选注册表", "同一原始内容只有一个主去向", "`vault_editorial`", "`sic_editorial`"]],
+  ["docs/adr/0008-single-destination-content-routing.md", ["单一主去向", "不递归抓取"]],
+  ["docs/adr/0009-channel-editorial-profiles.md", ["频道编辑配置", "受控备用", "不得随机分发"]],
+  ["docs/adr/0010-production-persistence-and-security-seam.md", ["`FOR UPDATE SKIP LOCKED`", "不可变审计", "文件与 PostgreSQL 不做生产双写"]],
   ["docs/Vault2077-Deep-Audit-2026-07-24.md", ["根据 ADR-0007"]],
   ["docs/adr/0004-unified-overseas-acquisition-pipeline.md", ["ADR-0007"]],
   ["docs/adr/0005-platform-native-rankings-and-lanes.md", ["ADR-0007"]],
@@ -184,11 +201,15 @@ const sourceRegistry = JSON.parse(await readFile(path.join(root, "config", "sic-
 const sourceEntries = Array.isArray(sourceRegistry) ? sourceRegistry : sourceRegistry.sources;
 const approved = sourceEntries.filter((entry) => entry.status === "approved").length;
 const retired = sourceEntries.filter((entry) => entry.status === "retired").length;
-if (!sourceCatalog.includes(`运行时共 ${approved} 个 approved 来源`)) {
+const pendingReview = sourceEntries.filter((entry) => entry.status === "pending_review").length;
+if (!sourceCatalog.includes(`${approved} 个 approved`)) {
   errors.push(`SiC 来源目录的 approved 数量与注册表不一致：${approved}`);
 }
-if (!sourceCatalog.includes(`另保留 ${retired} 个 retired 来源`)) {
+if (!sourceCatalog.includes(`${retired} 个 retired`)) {
   errors.push(`SiC 来源目录的 retired 数量与注册表不一致：${retired}`);
+}
+if (!sourceCatalog.includes(`${pendingReview} 个 pending_review`)) {
+  errors.push(`SiC 来源目录的 pending_review 数量与注册表不一致：${pendingReview}`);
 }
 
 if (errors.length) {

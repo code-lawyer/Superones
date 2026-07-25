@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Vault2077 文档权威索引
@@ -39,6 +39,9 @@ updated: 2026-07-24
 - [ADR-0005：平台原生榜与四采集通道](adr/0005-platform-native-rankings-and-lanes.md)
 - [ADR-0006：生产数据与公开任务边界](adr/0006-production-data-and-public-task-boundary.md)
 - [ADR-0007：Frontier GitHub 混合访问](adr/0007-frontier-github-hybrid-access.md)
+- [ADR-0008：公开内容单一主去向](adr/0008-single-destination-content-routing.md)
+- [ADR-0009：内容频道采用独立编辑配置](adr/0009-channel-editorial-profiles.md)
+- [ADR-0010：生产持久化与安全状态统一进入 PostgreSQL](adr/0010-production-persistence-and-security-seam.md)
 
 ## 当前运行文档
 

@@ -192,6 +192,9 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         return None
     source_provenance = provenance(source, original_url)
     original_content = as_text(plain_text(content), 48000)
+    external_url = as_text(overrides.get("externalUrl"), 2048)
+    if external_url and urlparse(external_url).scheme != "https":
+        external_url = ""
     if source_provenance["originPlatform"] == "x":
         original_content = clean_x_transport_text(original_content)
     source_channel_id = as_text(source.get("id"), 180)
@@ -211,6 +214,7 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         "originalAuthor": as_text(author, 180) or None,
         "sourceRole": source_role(source),
         "originalUrl": original_url,
+        "externalUrl": external_url or None,
         "originalPublishedAt": as_text(published_at, 64) or None,
         "fetchedAt": now_iso(),
         "originalLanguage": as_text(source.get("primaryLanguage") or source.get("language") or "unknown", 32),
@@ -311,26 +315,12 @@ def collect_rss(source: dict, start: datetime, end: datetime) -> list[dict]:
     return results
 
 
-def discovery_candidate(source: dict, canonical_url: str, discovery_url: str, title: str, published_at: str, author: str) -> dict:
-    return {
-        "sourceChannelId": as_text(source.get("id"), 180),
-        "canonicalUrl": as_text(canonical_url, 2048),
-        "discoveryUrl": as_text(discovery_url, 2048),
-        "title": as_text(title, 500),
-        "publishedAt": as_text(published_at, 64) or None,
-        "author": as_text(author, 180) or None,
-        "status": "candidate",
-        "reason": "external_discovery_requires_registered_canonical_publisher",
-    }
-
-
 def collect_hackernews(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
     ids = fetch_json(source["endpoint"])
     ids = ids if isinstance(ids, list) else []
     with ThreadPoolExecutor(max_workers=min(8, len(ids) or 1)) as pool:
         values = list(pool.map(lambda item_id: fetch_json(f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json"), ids))
     results = []
-    candidates = []
     for value in values:
         if not isinstance(value, dict):
             continue
@@ -339,16 +329,6 @@ def collect_hackernews(source: dict, start: datetime, end: datetime) -> tuple[li
             continue
         discussion_url = f"https://news.ycombinator.com/item?id={value.get('id')}"
         external_url = value.get("url")
-        if external_url:
-            candidates.append(discovery_candidate(
-                source,
-                external_url,
-                discussion_url,
-                value.get("title", ""),
-                now_iso(published) if published else "",
-                value.get("by", ""),
-            ))
-            continue
         item = document(
             source,
             discussion_url,
@@ -359,21 +339,21 @@ def collect_hackernews(source: dict, start: datetime, end: datetime) -> tuple[li
             {
                 "contentGroup": "roadside",
                 "itemKind": "community_topic",
-                "publisherKind": "community_user",
+                "publisherKind": "community",
                 "originalPublisher": "Hacker News",
                 "provenanceRole": "canonical",
-                "provenanceStatus": "declared",
+                "provenanceStatus": "verified",
+                "externalUrl": external_url,
             },
         )
         if item:
             results.append(item)
-    return results, candidates
+    return results, []
 
 
 def collect_lobsters(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
     payload = fetch_json(source["endpoint"])
     results = []
-    candidates = []
     for value in candidate_values(payload):
         if not isinstance(value, dict):
             continue
@@ -383,9 +363,6 @@ def collect_lobsters(source: dict, start: datetime, end: datetime) -> tuple[list
         discussion_url = value.get("comments_url") or value.get("short_id_url") or ""
         external_url = value.get("url") or ""
         author = value.get("submitter_user", {}).get("username", "") if isinstance(value.get("submitter_user"), dict) else value.get("submitter_user", "")
-        if external_url and (urlparse(external_url).hostname or "").lower() not in {"lobste.rs", "www.lobste.rs"}:
-            candidates.append(discovery_candidate(source, external_url, discussion_url, value.get("title", ""), published_at, author))
-            continue
         canonical_url = discussion_url or external_url
         item = document(
             source,
@@ -397,15 +374,16 @@ def collect_lobsters(source: dict, start: datetime, end: datetime) -> tuple[list
             {
                 "contentGroup": "roadside",
                 "itemKind": "community_topic",
-                "publisherKind": "community_user",
+                "publisherKind": "community",
                 "originalPublisher": "Lobsters",
                 "provenanceRole": "canonical",
-                "provenanceStatus": "declared",
+                "provenanceStatus": "verified",
+                "externalUrl": external_url if external_url and external_url != canonical_url else None,
             },
         )
         if item:
             results.append(item)
-    return results, candidates
+    return results, []
 
 
 def collect_sitemap(source: dict, start: datetime, end: datetime) -> list[dict]:
@@ -419,6 +397,9 @@ def collect_sitemap(source: dict, start: datetime, end: datetime) -> list[dict]:
         values = {child.tag.rsplit("}", 1)[-1]: (child.text or "").strip() for child in element}
         url = values.get("loc", "")
         published_at = values.get("lastmod", "")
+        path_prefix = str(source.get("pathPrefix") or "")
+        if path_prefix and not urlparse(url).path.startswith(path_prefix):
+            continue
         if not source_url_allowed(source, url) or not in_window(published_at, start, end):
             continue
         pages.append((url, published_at))

@@ -43,6 +43,7 @@ export type InformationEnvelope = {
   originalAuthor?: string;
   sourceRole: SourceRole;
   originalUrl: string;
+  externalUrl?: string;
   originalPublishedAt?: string;
   fetchedAt: string;
   originalLanguage: string;
@@ -152,6 +153,11 @@ function httpsUrl(value: unknown, field: string) {
   return parsed.toString();
 }
 
+function optionalHttpsUrl(value: unknown, field: string) {
+  if (value === undefined || value === null || value === "") return undefined;
+  return httpsUrl(value, field);
+}
+
 function validateInformation(value: unknown, index: number): InformationEnvelope {
   if (!value || typeof value !== "object") throw new ContentContractError(`information[${index}] 格式无效。`);
   const item = value as Record<string, unknown>;
@@ -242,6 +248,7 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     originalAuthor: optionalText(item.originalAuthor, `information[${index}].originalAuthor`, 180),
     sourceRole: sourceRole as SourceRole,
     originalUrl: httpsUrl(item.originalUrl, `information[${index}].originalUrl`),
+    externalUrl: optionalHttpsUrl(item.externalUrl, `information[${index}].externalUrl`),
     originalPublishedAt: optionalDate(item.originalPublishedAt, `information[${index}].originalPublishedAt`),
     fetchedAt: requiredDate(item.fetchedAt, `information[${index}].fetchedAt`),
     originalLanguage: requiredText(item.originalLanguage, `information[${index}].originalLanguage`, 32),

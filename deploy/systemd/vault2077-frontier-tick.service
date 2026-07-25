@@ -1,0 +1,17 @@
+[Unit]
+Description=Vault2077 Frontier hourly observation and settlement
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vault2077
+Group=vault2077
+WorkingDirectory=/srv/vault2077/current
+EnvironmentFile=/etc/vault2077/production.env
+ExecStart=/usr/bin/npm run frontier:tick
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/vault2077/current

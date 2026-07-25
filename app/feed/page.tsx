@@ -114,7 +114,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               <header className="feed-column__header">
                 <p className="eyebrow mono">ROADSIDE / 个人与社区</p>
                 <h2 id="roadside-stream-title">路边社</h2>
-                <p>自然人言论、个人博客及社区原生主题；外链只作发现，评论不进入正文。</p>
+                <p>自然人言论、个人博客及社区原生条目；Hacker News 与 Lobsters 的外链只展示、不递归抓取，评论不进入正文。</p>
               </header>
               <RoadsideList items={visibleRoadside} />
               {visibleRoadside.length === 0 ? <p className="feed-empty">暂无个人或社区发布</p> : null}

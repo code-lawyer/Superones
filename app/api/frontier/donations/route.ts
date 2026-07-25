@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentSeason, createPrizeDonation } from "@/lib/frontier-store";
-import { withinRateLimit } from "@/lib/rate-limit";
+import { withinDurableRateLimit } from "@/lib/rate-limit";
+import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
 export const runtime = "nodejs";
 
-function clientKey(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-}
-
 export async function POST(request: NextRequest) {
-  if (!withinRateLimit(`frontier:donation:${clientKey(request)}`, 6, 24 * 60 * 60 * 1000)) {
+  const clientHash = anonymizeClientAddress(requestClientAddress(request));
+  if (!(await withinDurableRateLimit(`frontier:donation:${clientHash}`, 6, 24 * 60 * 60 * 1000))) {
     return NextResponse.json({ error: "今天提交的奖品较多，请稍后再试。" }, { status: 429 });
   }
   try {

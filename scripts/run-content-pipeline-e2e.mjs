@@ -41,7 +41,7 @@ function run(command, args, options) {
 
 const [mockPort, sitePort] = await Promise.all([availablePort(), availablePort()]);
 const dataRoot = await mkdtemp(path.join(tmpdir(), "vault2077-pipeline-e2e-"));
-const secret = "vault2077-e2e-shared-secret";
+const secret = "vault2077-e2e-shared-secret-32-bytes";
 const children = [];
 
 try {
@@ -62,11 +62,13 @@ try {
     env: {
       ...process.env,
       VAULT2077_DATA_DIR: path.join(dataRoot, "data"),
+      VAULT2077_ALLOW_FILE_PREVIEW: "true",
       VAULT2077_PIPELINE_SHARED_SECRET: secret,
       VAULT2077_PIPELINE_WORKER_SECRET: secret,
-      VAULT2077_LLM_BASE_URL: `http://127.0.0.1:${mockPort}/v1`,
-      VAULT2077_LLM_API_KEY: "e2e-key",
-      VAULT2077_LLM_MODEL: "e2e-model",
+      VAULT2077_ALLOWED_SOURCE_REVISIONS: "sources:e2e-source-bundle-v1",
+      VAULT2077_VAULT_LLM_BASE_URL: `http://127.0.0.1:${mockPort}/v1`,
+      VAULT2077_VAULT_LLM_API_KEY: "e2e-key",
+      VAULT2077_VAULT_LLM_MODEL: "e2e-model",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

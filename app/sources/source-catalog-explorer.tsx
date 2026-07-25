@@ -148,8 +148,11 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
             <p className="eyebrow mono">SOURCE ATLAS / 采集航图</p>
             <h1>数据从哪里来，最后流向哪里</h1>
             <p className={styles.heroLead}>
-              这里列出真正进入运行管线的来源。资讯瀑布、路边社与文档是平级事件输入；播客、论文和课程进入 SiC 独立阅读区。每一行都说明根源、发现路径、传输方式和最终流向。
+              这里列出真正进入运行管线的来源。资讯瀑布只收新闻型内容，路边社承载人物与社区原生记录，SiC 档案只收深度研究和技术材料；同一原始内容只有一个主去向。每一行都说明根源、采集路径、传输方式和最终流向。
             </p>
+            <Link className={styles.pipelineMapLink} href="/sources/pipeline">
+              先看四条管线与七个栏目的完整对应 →
+            </Link>
           </div>
           <aside className={styles.heroAside} aria-label="来源清单概览">
             <div><span className="mono">REGISTERED</span><strong>{catalog.total}</strong></div>

@@ -1,18 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createPendingSubmission, currentSeason } from "@/lib/frontier-store";
+import { createPendingSubmission, currentSeason, findSeasonSubmission } from "@/lib/frontier-store";
 import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, parseGitHubRepository } from "@/lib/github";
-import { withinRateLimit } from "@/lib/rate-limit";
+import { withinDurableRateLimit } from "@/lib/rate-limit";
+import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
 export const runtime = "nodejs";
 
-function clientKey(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-}
-
 export async function POST(request: NextRequest) {
-  if (!withinRateLimit(`frontier:challenge:${clientKey(request)}`, 8, 60 * 60 * 1000)) {
+  const clientHash = anonymizeClientAddress(requestClientAddress(request));
+  if (!(await withinDurableRateLimit(`frontier:challenge:${clientHash}`, 8, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "当前请求次数过多，请稍后再试。" }, { status: 429 });
   }
 
@@ -37,13 +35,25 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "仓库地址无效。" }, { status: 400 });
     }
+    const season = currentSeason();
+    const existing = await findSeasonSubmission(owner, repo, season.code);
+    if (existing?.status === "verified") {
+      return NextResponse.json({
+        alreadyVerified: true,
+        id: existing.id,
+        season: season.code,
+        seasonName: season.name,
+        repository: existing.repository,
+        baselineStars: existing.baselineStars,
+        verifiedAt: existing.verifiedAt,
+      });
+    }
     const repository = await inspectGitHubRepository(owner, repo);
     const eligibilityError = repositoryEligibilityError(repository);
     if (eligibilityError) return NextResponse.json({ error: eligibilityError }, { status: 400 });
 
     const challenge = randomBytes(24).toString("base64url");
     const submission = await createPendingSubmission({ owner, repo, email, note, defaultBranch: repository.defaultBranch, challenge, rulesAccepted: true });
-    const season = currentSeason();
     const filePath = `.vault2077/season-${season.code}.json`;
     return NextResponse.json({
       id: submission.id,

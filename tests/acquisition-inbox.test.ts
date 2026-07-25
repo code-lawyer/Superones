@@ -20,6 +20,7 @@ function batch() {
     batchId: "batch:2026-07-24T010000Z:receiver",
     runId: "run:2026-07-24T010000Z:receiver",
     lane: "sic",
+    runMode: "incremental",
     scheduleId: "schedule:test:sic",
     windowFrom: "2026-07-24T00:00:00.000Z",
     windowUntil: "2026-07-24T01:00:00.000Z",
@@ -77,10 +78,11 @@ test("accepts a signed batch and returns source and kind accounting", async (con
   assert.deepEqual(result, {
     accepted: true,
     duplicate: false,
-    status: "pending",
+    status: "received",
     batchId: batch().batchId,
     runId: batch().runId,
     lane: "sic",
+    runMode: "incremental",
     scheduleId: "schedule:test:sic",
     windowFrom: "2026-07-24T00:00:00.000Z",
     windowUntil: "2026-07-24T01:00:00.000Z",
@@ -102,7 +104,7 @@ test("recognizes an identical batch after a receiver restart", async (context) =
   });
   const duplicate = await restarted.receive(input);
   assert.equal(duplicate.duplicate, true);
-  assert.equal(duplicate.status, "pending");
+  assert.equal(duplicate.status, "received");
 });
 
 test("concurrent receiver instances cannot overwrite an accepted batch", async (context) => {
@@ -158,6 +160,26 @@ test("rejects stale timestamps", async (context) => {
   );
 });
 
+test("rejects a source registry revision that is not deployed", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-revision-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => now,
+    allowedRegistryRevisions: new Set(["sources:deployed"]),
+  });
+  await assert.rejects(
+    receiver.receive(submission()),
+    (error) => error instanceof AcquisitionReceiveError
+      && error.code === "UNKNOWN_REGISTRY_REVISION"
+      && error.status === 409,
+  );
+  const deployed = batch();
+  deployed.registryRevision = "sources:deployed";
+  assert.equal((await receiver.receive(submission(deployed))).status, "received");
+});
+
 test("claims, fails, retries, and completes a durable batch", async (context) => {
   const { root, receiver } = await fixture();
   context.after(() => rm(root, { recursive: true, force: true }));
@@ -167,23 +189,64 @@ test("claims, fails, retries, and completes a durable batch", async (context) =>
   assert.equal(first?.batch.batchId, batch().batchId);
   assert.equal(first?.attempt, 1);
   assert.deepEqual(await receiver.stats(), {
-    pending: 0,
+    received: 0,
     processing: 1,
-    succeeded: 0,
-    failed: 0,
+    processed: 0,
+    retryable: 0,
+    quarantined: 0,
   });
 
-  await receiver.fail(batch().batchId, new Error("temporary model failure"));
+  assert.equal(
+    await receiver.fail(batch().batchId, new Error("temporary model failure")),
+    "retryable",
+  );
   const retry = await receiver.claimNext();
   assert.equal(retry?.attempt, 2);
   await receiver.complete(batch().batchId);
   assert.equal(await receiver.claimNext(), null);
   assert.deepEqual(await receiver.stats(), {
-    pending: 0,
+    received: 0,
     processing: 0,
-    succeeded: 1,
-    failed: 0,
+    processed: 1,
+    retryable: 0,
+    quarantined: 0,
   });
+});
+
+test("quarantines a batch after the retry budget is exhausted", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-budget-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => now,
+    maxAttempts: 2,
+  });
+  await receiver.receive(submission());
+  assert.equal((await receiver.claimNext())?.attempt, 1);
+  assert.equal(await receiver.fail(batch().batchId, new Error("temporary")), "retryable");
+  assert.equal((await receiver.claimNext())?.attempt, 2);
+  assert.equal(await receiver.fail(batch().batchId, new Error("still failing")), "quarantined");
+  assert.equal(await receiver.claimNext(), null);
+  assert.deepEqual(await receiver.stats(), {
+    received: 0,
+    processing: 0,
+    processed: 0,
+    retryable: 0,
+    quarantined: 1,
+  });
+});
+
+test("allows a deterministic failure to enter quarantine immediately", async (context) => {
+  const { root, receiver } = await fixture();
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await receiver.receive(submission());
+  await receiver.claimNext();
+  assert.equal(
+    await receiver.fail(batch().batchId, new Error("unsupported schema"), "quarantined"),
+    "quarantined",
+  );
+  assert.equal(await receiver.claimNext(), null);
 });
 
 test("recovers an expired processing lease after restart", async (context) => {

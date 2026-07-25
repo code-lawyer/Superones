@@ -29,6 +29,17 @@ test("SiC feed collector preserves every fixed-source entry and rejects foreign 
   assert.equal(entries[0].publishedAt, "2026-07-21T10:00:00.000Z");
 });
 
+test("bootstrap selection keeps the newest real item even outside the daily window", () => {
+  const candidates = sicCollectorTestUtils.xmlEntries(rssSource, `
+    <rss><channel>
+      <item><title>Older episode</title><link>https://example.com/news/older</link><pubDate>Tue, 02 Jun 2026 10:00:00 GMT</pubDate></item>
+      <item><title>Latest episode</title><link>https://example.com/news/latest</link><pubDate>Tue, 09 Jun 2026 10:00:00 GMT</pubDate></item>
+    </channel></rss>
+  `);
+  const selected = sicCollectorTestUtils.selectCandidates(candidates, undefined, "bootstrap");
+  assert.deepEqual(selected.map((item) => item.title), ["Latest episode"]);
+});
+
 test("SiC sitemap collector stays inside the approved publication path", () => {
   const entries = sicCollectorTestUtils.sitemapUrls(rssSource, `
     <urlset>

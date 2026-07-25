@@ -65,6 +65,7 @@ function BoardCard({ board, className = "", header, tabPanel }: BoardCardProps) 
           <p className="sic-board__source mono">
             <a href={board.sourceUrl} target="_blank" rel="noreferrer">平台原始榜单</a>
             {board.capturedAt ? <time dateTime={board.capturedAt}>{new Date(board.capturedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</time> : null}
+            {board.stale ? <span aria-label="该榜单正在显示上一次成功快照">STALE / 上次成功</span> : null}
           </p>
         ) : null}
       </header>

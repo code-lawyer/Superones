@@ -1,7 +1,10 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { createOpenAICompatibleClient, loadOpenAICompatibleConfig } from "./openai-compatible-client.ts";
+import {
+  createEditorialProfileClient,
+  loadEditorialProfileConfig,
+} from "./openai-compatible-client.ts";
 import { fetchTextBounded } from "./sic-fetch.ts";
 import { listCollectableSicSources, type SicSource } from "./sic-source-registry.ts";
 import {
@@ -105,9 +108,9 @@ async function enrichItems(
   const pending = retained.filter((item) => !item.translatedTitle || !item.description || !item.contentSummary);
   if (pending.length === 0) return retained;
 
-  let client: ReturnType<typeof createOpenAICompatibleClient>;
+  let client: ReturnType<typeof createEditorialProfileClient>;
   try {
-    client = createOpenAICompatibleClient(loadOpenAICompatibleConfig());
+    client = createEditorialProfileClient(loadEditorialProfileConfig("sic_editorial"));
   } catch (error) {
     if (options.requireCompleteEditorial) throw error;
     return retained;
@@ -188,10 +191,37 @@ async function enrichItems(
       ...await recoverEditorialBatch(batch.slice(midpoint)),
     ];
   };
-  for (let start = 0; start < pending.length; start += 3) {
-    const batch = pending.slice(start, start + 3);
-    for (const editorial of await recoverEditorialBatch(batch)) editorialById.set(editorial.id, editorial);
-  }
+  const configuredBatchSize = Number(
+    process.env.VAULT2077_SIC_LLM_BATCH_ITEMS
+    ?? process.env.VAULT2077_LLM_BATCH_ITEMS
+    ?? "3",
+  );
+  const batchSize = Number.isFinite(configuredBatchSize)
+    ? Math.max(1, Math.min(8, Math.floor(configuredBatchSize)))
+    : 3;
+  const configuredConcurrency = Number(
+    process.env.VAULT2077_SIC_LLM_CONCURRENCY
+    ?? process.env.VAULT2077_LLM_CONCURRENCY
+    ?? "1",
+  );
+  const concurrency = Number.isFinite(configuredConcurrency)
+    ? Math.max(1, Math.min(4, Math.floor(configuredConcurrency)))
+    : 1;
+  const batches = Array.from(
+    { length: Math.ceil(pending.length / batchSize) },
+    (_, index) => pending.slice(index * batchSize, (index + 1) * batchSize),
+  );
+  let nextBatch = 0;
+  const editorialWorker = async () => {
+    while (nextBatch < batches.length) {
+      const batch = batches[nextBatch];
+      nextBatch += 1;
+      for (const editorial of await recoverEditorialBatch(batch)) {
+        editorialById.set(editorial.id, editorial);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, batches.length) }, editorialWorker));
   if (options.requireCompleteEditorial) {
     const missing = pending.filter((item) => !editorialById.has(item.id));
     if (missing.length > 0) throw new Error(`SiC 境内 LLM 缺少 ${missing.length} 条编辑结果。`);
@@ -338,6 +368,30 @@ function dedupe(candidates: Candidate[]) {
     .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""));
 }
 
+function selectCandidates(
+  candidates: Candidate[],
+  windowFrom: string | undefined,
+  runMode: "incremental" | "bootstrap",
+) {
+  const filtered = dedupe(candidates).filter((candidate) => (
+    !windowFrom
+    || !candidate.publishedAt
+    || Date.parse(candidate.publishedAt) >= Date.parse(windowFrom)
+  ));
+  if (runMode !== "bootstrap") return filtered;
+  return filtered
+    .map((candidate, index) => ({ candidate, index }))
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.candidate.publishedAt ?? "");
+      const rightTime = Date.parse(right.candidate.publishedAt ?? "");
+      const normalizedLeft = Number.isFinite(leftTime) ? leftTime : Number.NEGATIVE_INFINITY;
+      const normalizedRight = Number.isFinite(rightTime) ? rightTime : Number.NEGATIVE_INFINITY;
+      return normalizedRight - normalizedLeft || left.index - right.index;
+    })
+    .slice(0, 1)
+    .map(({ candidate }) => candidate);
+}
+
 function arxivId(value: unknown) {
   const match = String(value ?? "").match(/(?:arxiv\.org\/abs\/)?(\d{4}\.\d{4,5})(?:v\d+)?/i);
   return match?.[1] ?? null;
@@ -403,18 +457,25 @@ async function collectHuggingFacePapers(
   source: SicSource,
   fetcher: Fetcher,
   firstPayload: string,
-  windowFrom: string,
+  windowFrom?: string,
 ) {
   const discoveries = new Map<string, string>();
   let payload = firstPayload;
   for (let page = 0; page < 20; page += 1) {
     const records = huggingFacePaperRecords(payload);
-    for (const record of records) {
-      if (!record.submittedAt || Date.parse(record.submittedAt) >= Date.parse(windowFrom)) {
+    const selected = windowFrom
+      ? records
+      : [...records].sort((left, right) => (
+        Date.parse(right.submittedAt ?? "") - Date.parse(left.submittedAt ?? "")
+      )).slice(0, 1);
+    for (const record of selected) {
+      if (!windowFrom || !record.submittedAt || Date.parse(record.submittedAt) >= Date.parse(windowFrom)) {
         discoveries.set(record.id, record.discoveryUrl);
       }
     }
     if (
+      !windowFrom
+      ||
       records.length < 100
       || records.some((record) => record.submittedAt && Date.parse(record.submittedAt) < Date.parse(windowFrom))
     ) break;
@@ -512,9 +573,16 @@ async function fetchText(fetcher: Fetcher, url: string, source: SicSource) {
   return payload;
 }
 
-async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: string) {
+async function collectSource(
+  source: SicSource,
+  fetcher: Fetcher,
+  collectedAt: string,
+  runMode: "incremental" | "bootstrap",
+) {
   const payload = await fetchText(fetcher, source.endpoint, source);
-  const windowFrom = new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
+  const windowFrom = runMode === "bootstrap"
+    ? undefined
+    : new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
   let candidates: Candidate[];
   if (source.id === "hugging-face-daily-papers") {
     candidates = await collectHuggingFacePapers(source, fetcher, payload, windowFrom);
@@ -523,7 +591,7 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
   } else if (source.kind === "official_api" && source.id === "dair-ai-papers-of-the-week") {
     candidates = githubCommitEntries(source, payload);
   } else if (source.kind === "official_sitemap") {
-    const pages = sitemapUrls(source, payload, windowFrom);
+    const pages = selectCandidates(sitemapUrls(source, payload, windowFrom), windowFrom, runMode);
     const details = await Promise.all(pages.map(async (page) => {
       try {
         return pageMetadata(source, await fetchText(fetcher, page.url, source), page.url) ?? page;
@@ -537,10 +605,7 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
   } else {
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
-  candidates = candidates.filter((candidate) => (
-    !candidate.publishedAt || Date.parse(candidate.publishedAt) >= Date.parse(windowFrom)
-  ));
-  const items: SicRawContentItem[] = dedupe(candidates).map((candidate) => ({
+  const items: SicRawContentItem[] = selectCandidates(candidates, windowFrom, runMode).map((candidate) => ({
     id: createHash("sha256").update(candidate.canonicalId ?? `${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
     group: source.group,
@@ -589,7 +654,11 @@ export type SicRawCollection = {
 
 export async function collectSicRawContent(
   fetcher: Fetcher = fetch,
-  options: { allowAllFailed?: boolean; sourceIds?: string[] } = {},
+  options: {
+    allowAllFailed?: boolean;
+    sourceIds?: string[];
+    runMode?: "incremental" | "bootstrap";
+  } = {},
 ): Promise<SicRawCollection> {
   const collectedAt = new Date().toISOString();
   const requested = new Set(options.sourceIds ?? []);
@@ -598,9 +667,12 @@ export async function collectSicRawContent(
   ));
   const collectOutcome = async (source: SicSource) => {
     try {
-      const outcome = await collectSource(source, fetcher, collectedAt);
-      const status = outcome.items.length === 0
-        ? "empty"
+      const outcome = await collectSource(source, fetcher, collectedAt, options.runMode ?? "incremental");
+      const bootstrapEmpty = options.runMode === "bootstrap" && outcome.items.length === 0;
+      const status = bootstrapEmpty
+        ? "failure"
+        : outcome.items.length === 0
+          ? "empty"
         : outcome.materialFailures > 0
           ? "partial"
           : "success";
@@ -611,7 +683,9 @@ export async function collectSicRawContent(
           status,
           collectedAt,
           itemCount: outcome.items.length,
-          ...(outcome.materialFailures > 0
+          ...(bootstrapEmpty
+            ? { error: "初始化回填未找到符合来源准入边界的最近内容。" }
+            : outcome.materialFailures > 0
             ? { error: `${outcome.materialFailures} 条原页材料获取失败，已保留来源摘要。` }
             : {}),
         } satisfies SicSourceCollectionReport,
@@ -748,4 +822,5 @@ export const sicCollectorTestUtils = {
   datedIndexEntries,
   huggingFacePaperRecords,
   arxivEntries,
+  selectCandidates,
 };

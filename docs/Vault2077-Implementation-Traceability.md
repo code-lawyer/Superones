@@ -1,7 +1,7 @@
 ---
 type: traceability
 status: active
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Vault2077 实现追踪矩阵
@@ -10,24 +10,27 @@ updated: 2026-07-24
 
 ## 1. 当前结论
 
-项目已达到“可构建、可演示、主要频道可浏览、统一采集主体可测试”的 MVP 预览阶段，但尚未达到生产上线条件。最大缺口集中在统一批次合同和事务边界、生产数据库、Frontier GitHub 快速路径的可靠回退、后台安全、真实业务输入和运维证据。
+项目已达到“统一采集与处理可测试、生产适配代码可部署、主要 P0 安全边界已实现”的准上线工程阶段，但尚未达到生产签字条件。最大缺口已经从代码骨架转为目标 PostgreSQL 的备份恢复、目标模型容量与切换、监控平台接入、浏览器验收以及 OPC、赛季和法律业务输入。
 
 | 领域 | 状态 | 证据/缺口 |
 | --- | --- | --- |
 | 首页与四频道公开页面 | done | Next.js 路由、响应式样式和演示数据存在 |
-| Vault 事件/资讯阅读 | partial | 基础阅读链路已实现；证据引用、继续加载和正式纠错入口未闭环 |
-| OPC 三入口业务模型 | partial | 三入口和枚举已实现；基础设施名称、排除项、修订与授权字段未完全对齐规范 |
-| SiC 内容组 | partial | 页面与存储已实现；“档案”仍以“文档”呈现 |
+| Vault 事件/资讯阅读 | partial | 基础阅读、事件引用、相关资讯 20 条分批加载和匿名纠错提交/关闭已实现；纠错后的拆分/移入/隐藏操作仍未闭环 |
+| OPC 三入口业务模型 | partial | 三入口、冻结的十项基础设施名称、五领域和十身份已实现；排除项、修订与授权字段及真实业务资料未完全对齐 |
+| SiC 内容组 | partial | 页面与存储已实现；档案来源已迁入 SiC 单一路由并由 sic 通道采集，公开术语仍需完成“文档”到“档案”的迁移 |
 | SiC 平台原生榜 | partial | 原生顺序已实现；过期结果会消失，尚无 last-success/stale 语义 |
-| 边境计划页面与本地业务 | partial | 基础流程存在；赛季状态机、可恢复结算和预览边界未完成 |
+| 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等状态和预览边界已实现；真实赛季与奖励输入仍阻断 |
 | 无账户公开产品 | done | 公开用户无需站内账户 |
-| 运营后台 | partial | 共享密码后台存在；安全硬化和完整审计证据不足 |
-| 统一采集批次/inbox | partial | 签名、幂等、租约和 E2E 已实现；字段、状态、修订白名单、重试上限和隔离语义未完全符合规范 |
-| 四采集通道 | partial | `collect-content.yml` 已支持四通道；rankings 仍为每日两次而非每小时 |
-| 单一境外采集 workflow | done | `collect-content.yml` 是唯一境外采集 workflow；`frontier-hourly.yml` 仅触发境内业务刷新 |
-| Frontier GitHub 混合访问 | partial | 境内交互核验和观察已直读 GitHub；短超时、限流、缓存/条件请求、审计与异步回退未闭环 |
-| Frontier 境内业务调度 | partial | 当前由 `frontier-hourly.yml` 触发；生产应迁移到受监控的境内 scheduler |
-| 生产持久化 | missing | 文件适配器已统一支持 `VAULT2077_DATA_DIR`，但 PostgreSQL、事务和迁移仍未实现 |
+| 运营后台 | partial | Argon2id、持久锁定、双期限会话、二次确认和不可变审计已实现；内容纠错操作与目标环境权限验收仍待完成 |
+| 统一采集批次/inbox | done | 四 lane、签名、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
+| 四采集通道 | done | `collect-content.yml` 支持四通道，rankings 每小时 `:35`；旧 content 接口与 worker 已删除 |
+| 上线基线与初始化回填 | partial | 显式 bootstrap、SiC 每 approved 来源最近一条、Vault 30 天窗口、有界批次和同合同幂等已实现；尚未在生产修订执行并保存逐来源证据 |
+| 频道编辑配置 | partial | 双配置路由、独立并发/批量/预算、主/受控备用与生产拒绝旧全局配置已实现；目标提供方容量、长积压和切换审计演练未完成 |
+| 内容单一主路由 | done | 机构新闻与 SiC 深度档案使用独立注册表；bundle 不再包含 documents；HN/Lobsters 外链晋升链路已删除 |
+| 单一境外采集 workflow | done | `.github/workflows` 只保留 `collect-content.yml`，四 lane 共用一个合同和接收端 |
+| Frontier GitHub 混合访问 | partial | 境内短超时、有界并发、持久化限速、缓存/条件请求、审计和公开任务回退代码已闭环；尚缺生产凭证与真实故障演练 |
+| Frontier 境内业务调度 | partial | `npm run frontier:tick`、审计和 systemd service/timer 模板已实现；待目标服务器安装 timer、接入告警并保存运行证据 |
+| 生产持久化 | partial | PostgreSQL state adapter、专用 inbox/安全表、版本迁移和生产 fail-closed 已实现；真实数据库迁移、自动备份、恢复和容量证据未完成 |
 | 生产降级语义 | partial | Vault 已在生产返回显式 degraded 空态；SiC 等读取端仍需统一错误语义 |
 | `/pipeline` 访问边界 | done | 生产环境要求后台会话且页面 noindex；开发环境保留本地诊断能力 |
 
@@ -41,8 +44,8 @@ updated: 2026-07-24
 | information/roadside 分流 | done | 数据模型和页面支持 |
 | 偶数小时 `:05` / `:55` 调度 | done | `collect-content.yml` 已配置 |
 | 生产不回退演示数据 | done | Vault 读取失败返回显式 degraded 空态，演示数据仅用于非生产 |
-| 默认 20 条与继续加载 | missing | 当前存在固定截取或一次性渲染，尚无 URL 驱动的继续加载 |
-| 匿名纠错闭环 | missing | 当前仅有占位说明页 |
+| 默认 20 条与继续加载 | done | 事件详情默认 20 条，URL 驱动每次继续加载 20 条直到全部可访问 |
+| 匿名纠错闭环 | partial | 三类报告、原始依据、可选加密邮箱、持久化限速和后台审计关闭已实现；实际拆分/移入/隐藏编辑操作待补 |
 | 事件晋升质量证据 | partial | 规则与测试存在，仍需真实数据验收 |
 
 ### OPC
@@ -51,7 +54,7 @@ updated: 2026-07-24
 | --- | --- | --- |
 | 基础设施/专项服务/游骑兵三入口 | done | 首页及三类独立路由已实现 |
 | 五个专项专业领域 | done | 枚举、筛选和页面已实现 |
-| 十项基础设施 | partial | 数量已实现，但名称仍是旧模型；价格和材料为后续业务输入 |
+| 十项基础设施 | partial | 数量、名称和稳定路由已按冻结能力模型实现；价格、周期和正式材料仍为业务输入 |
 | 十种游骑兵身份 | done | 枚举和入口已实现；档案字段另列 |
 | 责任主体和联系入口区分 | partial | 需要页面文案与真实资料验收 |
 | 服务排除项、修订与历史可追溯 | missing | 当前静态模型缺独立 exclusion/effectiveAt/修订历史 |
@@ -62,60 +65,65 @@ updated: 2026-07-24
 | 要求 | 状态 | 说明 |
 | --- | --- | --- |
 | 四内容组 | partial | 组数与页面已实现，但 `documents` 尚未迁移为规范中的“档案” |
-| GitHub/HF/OpenRouter/skills.sh 原生榜 | partial | 平台顺序已实现；缺 last-success、stale 和错误可见性 |
+| GitHub/HF/OpenRouter/skills.sh 原生榜 | done | 平台顺序、last-success 保留和 stale 明示已实现 |
 | 无 MCP、无本地增量 | done | 当前规范与榜单模块一致，旧 SiC 写接口已删除 |
 | 每日 `07:25`/`19:25` 内容通道 | done | workflow 已配置 |
-| 来源目录计数与状态一致 | done | `scripts/check-docs.mjs` 自动核对 30=29 active+1 retired |
-| 来源目录字段级一致 | partial | 仍需把全部字段和运行时 bundle 纳入同一校验 |
+| 来源目录计数与状态一致 | done | SiC 注册表为 34=26 approved+7 retired+1 pending_review；目录与注册表同次修订 |
+| 来源目录字段级一致 | partial | 来源 bundle 已执行新闻/档案去重；仍需把全部字段和 institutional news 注册表纳入文档自动校验 |
 
 ### 边境计划
 
 | 要求 | 状态 | 说明 |
 | --- | --- | --- |
-| 报名、挑战、基线、排名、奖品、结算 | partial | 模块存在；赛季状态未持久化，结算不是可恢复状态机 |
-| 每小时公开仓库观察 | partial | 境内 tick 可按参赛名单读取；生产 scheduler、失败分类和上一成功快照需完整验证 |
-| 交互式 GitHub 快速路径 | partial | 仓库和挑战核验已直读；缺短超时、条件请求、完整限流与审计 |
-| 异步公开任务回退 | missing | 需要通过 rankings 通道回传失败仓库的签名 observation |
+| 报名、挑战、基线、排名、奖品、结算 | done | 模块存在；重复报名可恢复当前状态，结算具持久租约、失败、重试与幂等结果 |
+| 每小时公开仓库观察 | partial | 境内 tick 可按参赛名单读取并由 systemd timer 调度；目标服务器安装、告警和真实失败演练待完成 |
+| 交互式 GitHub 快速路径 | partial | 仓库和挑战核验已直读并具短超时、条件请求、持久化限流与审计；待生产凭证验收 |
+| 异步公开任务回退 | done | 境内只输出公开仓库任务，rankings 通道回传签名 observation，成功后移除任务 |
 | 邮箱不离境 | partial | 当前 GitHub 请求只需仓库信息；仍需生产数据库和任务 payload 测试证明 |
-| Frontier 生产预览边界 | missing | 页面仍以 CURRENT/LIVE 呈现文件适配器数据 |
+| Frontier 生产预览边界 | done | 文件模式显式显示 LOCAL PREVIEW；生产缺 PostgreSQL 时拒绝写入 |
 | 真实赛季/奖金/条款 | blocked-input | 等待业务与法律输入 |
 
 ## 3. 工程与安全
 
 | 要求 | 状态 | 下一证据 |
 | --- | --- | --- |
-| PostgreSQL 生产写模型 | missing | schema、迁移、事务与适配器测试 |
+| PostgreSQL 生产写模型 | partial | 4 个版本迁移、事务聚合、专用 inbox/审计/限速表及 PostgreSQL 17 集成测试已实现；缺备份恢复与容量测试 |
 | Redis 可选 | done | 当前未强制引入 |
 | 对象存储可选 | done | 当前未强制引入 |
-| 来源修订白名单 | missing | 有 revision 字段，但接收端不拒绝未知修订 |
+| 来源修订白名单 | done | 接收端只接受部署修订和显式灰度重叠修订 |
 | inbox 幂等与重放防护 | done | 接收代码与 E2E 存在 |
 | 批次写入原子性 | partial | 不支持的记录已在写入前拒绝；跨存储写入仍无事务，运行失败可能半提交 |
-| worker 重试/隔离 | missing | failed 可被持续 claim；缺 retryable/quarantined、最大重试和死信闭环 |
-| 后台密码强哈希 | missing | 需采用 Argon2id/scrypt 等并迁移 |
-| 后台限速、锁定、空闲过期 | missing | 仅有进程内限速和固定时长会话 |
-| 不可变审计日志 | missing | 未发现审计日志实现 |
-| 安全响应头 | partial | 已有 HSTS、nosniff、frame/referrer/permissions；CSP 尚未完成 |
-| 可信代理与分布式限速 | missing | 当前限速依赖进程内状态和请求头 |
+| worker 重试/隔离 | done | retryable/quarantined、最大尝试、租约恢复和隔离测试已实现 |
+| 后台密码强哈希 | done | 生产只接受 Node 24 内置 Argon2id 哈希，明文变量被拒绝 |
+| 后台限速、锁定、空闲过期 | done | PostgreSQL 登录锁定、60 分钟空闲和 8 小时绝对过期已实现 |
+| 不可变审计日志 | done | 后台写操作、登录与 GitHub 请求写入 append-only 审计表；更新/删除由触发器拒绝 |
+| 安全响应头 | done | CSP、HSTS、nosniff、frame/referrer/permissions、COOP/CORP 已配置 |
+| 可信代理与分布式限速 | partial | 代理头默认不信任，显式可信代理开关与 PostgreSQL 公开表单限速已实现；需按目标代理验收覆盖行为 |
 | 备份恢复演练 | missing | 无日期、RPO/RTO 和恢复结果 |
-| 监控告警 | missing | 无生产通道新鲜度/积压/任务延迟证据 |
+| 监控告警 | partial | 受保护 `/api/internal/health` 已覆盖迁移、inbox、内容新鲜度、榜单 stale、Frontier 回退和编辑配置；待接入目标告警平台并演练 |
+| 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、预算和备用配置已实现，PostgreSQL 支持并发 worker；尚缺目标容量和持续积压演练 |
+| 生产配置门禁 | done | `npm run deploy:check` 拒绝预览存储、弱/示例密钥、非 TLS 数据库、明文密码、旧共享模型变量和不完整频道配置 |
 
-## 4. 2026-07-24 审计证据
+## 4. 2026-07-25 工程证据
 
-- `npm run docs:check`：通过（44 份项目 Markdown 均有元数据、索引登记和有效本地链接）。
+- `npm run docs:check`：通过（以本轮最终命令输出为准）。
 - `npm run typecheck`：通过。
-- Node 单元测试：91 个通过。
+- Node 单元测试：116 个通过。
 - Python 采集器测试：17 个通过（`collector/tests`）。
 - `npm run build`：通过。
 - 内容管线 E2E：通过。
 - 统一采集 inbox E2E：通过。
+- PostgreSQL 17：迁移首次应用/幂等重跑通过；20 并发聚合更新、`SKIP LOCKED`、重试隔离、持久化限速与不可变审计集成测试通过。
+- 公开来源联网审计：486 个端点完成复验；311 个通道至少有可用端点，29 个通道明确需鉴权，短超时下其余结果保留为 blocked/timeout/error，不伪装为可用。联网健康已与批准/生产路由分离到 `config/source-health.json`；瞬时失败不再自动改写 bundle，只有人工 `--promote true` 才更新准入基线，且 0 可用或传输失败率超过 80% 时拒绝覆盖。
+- 浏览器验收：核心页面在 360/768/1280/1440 检查标题、主区、表单与横向溢出；修复首页/OPC 的 360px 溢出后复验通过，跳到正文焦点、移动菜单、纠错表单标签与后台登录保护可用。
 
 测试通过说明现有实现没有已知回归，不代表生产门禁已满足。
 
 ## 5. 推荐推进顺序
 
-1. 先冻结并迁移统一批次合同：四 lane、修订白名单、失败分类、最大重试、隔离与事务性。
-2. 硬化 Frontier 境内 GitHub 快速路径并实现异步公开任务回退；把 `frontier-hourly.yml` 迁移为境内受监控 scheduler，保留服务端直连。
-3. 完成 PostgreSQL schema、迁移、事务、备份恢复，并把文件适配器降为明确的本地预览。
-4. 完成后台密码、会话、锁定、二次确认、不可变审计、分布式限速和 CSP。
-5. 按冻结名称迁移 OPC，补齐 SiC stale 状态、Vault 引用/分页/纠错和 Frontier 状态机。
-6. 输入真实运营、奖金和法律资料，建立生产监控与四宽度/无障碍验收证据。
+1. 在目标 PostgreSQL 执行迁移，增加真实数据库集成测试、自动备份与实际恢复演练。
+2. 用目标 Vault/SiC 提供方做容量、预算耗尽、主备切换和持续积压测试，保存版本审计证据。
+3. 在目标服务器安装 Frontier timer，把健康接口、任务失败和审计接入告警，并对 GitHub 限流/超时/回退做真实故障演练。
+4. 建立通道新鲜度、积压、隔离、模型预算、任务延迟和备份告警。
+5. 补齐 OPC 修订/授权字段、Vault 纠错后的实际编辑操作和 SiC “档案”术语迁移。
+6. 输入真实运营、奖金和法律资料，完成四宽度、键盘、焦点和溢出验收。

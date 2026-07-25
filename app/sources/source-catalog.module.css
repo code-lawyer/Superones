@@ -36,6 +36,19 @@
   line-height: 1.55;
 }
 
+.pipelineMapLink {
+  display: inline-block;
+  margin-top: 30px;
+  border-bottom: 1px solid currentColor;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pipelineMapLink:hover,
+.pipelineMapLink:focus-visible {
+  color: var(--atlas-intel);
+}
+
 .heroAside {
   border-top: 1px solid var(--carbon);
 }

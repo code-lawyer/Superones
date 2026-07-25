@@ -15,8 +15,11 @@ import {
 import { validateContentBatch, type InboundContentBatch } from "../lib/content-contract.ts";
 import {
   ACQUISITION_LANES,
+  ACQUISITION_RUN_MODES,
   type AcquisitionBatch,
   type AcquisitionLane,
+  type AcquisitionRecord,
+  type AcquisitionRunMode,
 } from "../lib/acquisition-contract.ts";
 import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
@@ -29,6 +32,11 @@ if (!ACQUISITION_LANES.includes(requestedLane as AcquisitionLane)) {
   throw new Error(`未知采集通道：${requestedLane}。`);
 }
 const lane = requestedLane as AcquisitionLane;
+const requestedRunMode = process.env.VAULT2077_ACQUISITION_RUN_MODE || "incremental";
+if (!ACQUISITION_RUN_MODES.includes(requestedRunMode as AcquisitionRunMode)) {
+  throw new Error(`未知采集运行模式：${requestedRunMode}。`);
+}
+const runMode = requestedRunMode as AcquisitionRunMode;
 const vaultOutput = path.join(outputRoot, `legacy-vault-${lane}-${Date.now()}`);
 const rankingData = path.join(outputRoot, "ranking-data");
 const batchOutput = path.join(outputRoot, "acquisition-batches");
@@ -127,7 +135,113 @@ async function collectRankings(context: AcquisitionBuildContext) {
       error,
     }));
   }
+  groups.push(...await collectFrontierFallbacks(context));
   return groups;
+}
+
+type FrontierFallbackTask = {
+  taskId: string;
+  season: string;
+  submissionId: string;
+  owner: string;
+  repo: string;
+  requestedAt: string;
+};
+
+async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promise<AcquisitionSourceGroup[]> {
+  const tasksUrl = process.env.VAULT2077_FRONTIER_PUBLIC_TASKS_URL;
+  if (!tasksUrl) return [];
+  const secret = process.env.VAULT2077_PIPELINE_WORKER_SECRET
+    || process.env.VAULT2077_PIPELINE_SHARED_SECRET;
+  if (!secret) throw new Error("已配置 Frontier 公开任务 URL，但缺少读取密钥。");
+  const response = await fetch(tasksUrl, {
+    headers: { Authorization: `Bearer ${secret}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`Frontier 公开任务接口返回 HTTP ${response.status}。`);
+  const payload = await response.json() as { tasks?: unknown };
+  if (!Array.isArray(payload.tasks)) throw new Error("Frontier 公开任务接口响应格式无效。");
+  const tasks = payload.tasks as FrontierFallbackTask[];
+  const token = process.env.GITHUB_TOKEN;
+
+  return Promise.all(tasks.map(async (task): Promise<AcquisitionSourceGroup> => {
+    const sourceId = `frontier:${task.submissionId}`;
+    const startedAt = new Date().toISOString();
+    const canonicalUrl = `https://github.com/${encodeURIComponent(task.owner)}/${encodeURIComponent(task.repo)}`;
+    try {
+      if (
+        !task
+        || typeof task.taskId !== "string"
+        || typeof task.season !== "string"
+        || typeof task.submissionId !== "string"
+        || !/^[A-Za-z0-9_.-]+$/.test(task.owner)
+        || !/^[A-Za-z0-9_.-]+$/.test(task.repo)
+      ) throw new Error("Frontier 公开任务字段无效。");
+      const github = await fetch(
+        `https://api.github.com/repos/${encodeURIComponent(task.owner)}/${encodeURIComponent(task.repo)}`,
+        {
+          headers: {
+            Accept: "application/vnd.github+json",
+            "User-Agent": "Vault2077-Frontier-Fallback/1.0",
+            "X-GitHub-Api-Version": "2022-11-28",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!github.ok) throw new Error(`GitHub 返回 HTTP ${github.status}。`);
+      const repository = await github.json() as { stargazers_count?: unknown; full_name?: unknown; private?: unknown };
+      if (
+        typeof repository.stargazers_count !== "number"
+        || typeof repository.full_name !== "string"
+        || repository.private === true
+        || repository.full_name.toLowerCase() !== `${task.owner}/${task.repo}`.toLowerCase()
+      ) throw new Error("GitHub 仓库响应与公开任务不匹配。");
+      const record: AcquisitionRecord = {
+        schemaVersion: 1,
+        kind: "repository_observation",
+        recordId: `repository:${createHash("sha256").update(task.taskId).digest("hex")}`,
+        sourceId,
+        externalId: task.taskId,
+        canonicalUrl,
+        observedAt: context.collectedAt,
+        contentHash: createHash("sha256")
+          .update(`${task.season}:${task.submissionId}:${repository.stargazers_count}`)
+          .digest("hex"),
+        payload: {
+          target: "frontier",
+          season: task.season,
+          submissionId: task.submissionId,
+          stars: repository.stargazers_count,
+        },
+      };
+      return {
+        report: {
+          sourceId,
+          adapter: "github-frontier-fallback",
+          status: "succeeded",
+          startedAt,
+          completedAt: new Date().toISOString(),
+          recordCount: 1,
+        },
+        records: [record],
+      };
+    } catch (error) {
+      return {
+        report: {
+          sourceId,
+          adapter: "github-frontier-fallback",
+          status: "failed",
+          startedAt,
+          completedAt: new Date().toISOString(),
+          recordCount: 0,
+          errorCode: "FRONTIER_FALLBACK_FAILED",
+          errorMessage: error instanceof Error ? error.message.slice(0, 1_000) : String(error).slice(0, 1_000),
+        },
+        records: [],
+      };
+    }
+  }));
 }
 
 async function sendBatch(url: string, secret: string, batch: AcquisitionBatch, rawPayload: string) {
@@ -211,7 +325,14 @@ const [sourceBundle, sicRegistry] = await Promise.all([
   }>(sicRegistryPath),
 ]);
 const collectedAt = new Date().toISOString();
-const lookbackHours = lane === "sic" ? 24 : 12;
+const lookbackHours = runMode === "bootstrap"
+  ? lane === "information" || lane === "roadside"
+    ? 30 * 24
+    : 24
+  : lane === "sic"
+    ? 24
+    : 12;
+process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS = String(lookbackHours);
 const windowUntil = collectedAt;
 const windowFrom = new Date(Date.parse(windowUntil) - lookbackHours * 60 * 60 * 1000).toISOString();
 const scheduleId = process.env.VAULT2077_SCHEDULE_ID
@@ -220,6 +341,7 @@ const runId = `run:${process.env.GITHUB_RUN_ID || compactTimestamp(collectedAt)}
 const context: AcquisitionBuildContext = {
   runId,
   lane,
+  runMode,
   scheduleId,
   windowFrom,
   windowUntil,
@@ -268,7 +390,7 @@ if (lane === "information" || lane === "roadside") {
   });
 } else if (lane === "sic") {
   const { collectSicRawContent } = await import("../lib/sic-collector.ts");
-  sicCollection = await collectSicRawContent(fetch, { allowAllFailed: true });
+  sicCollection = await collectSicRawContent(fetch, { allowAllFailed: true, runMode });
   await writeFile(
     path.join(outputRoot, "sic-raw-collection.json"),
     `${JSON.stringify(sicCollection, null, 2)}\n`,
@@ -412,6 +534,7 @@ const recordsByKind = Object.fromEntries(
 const report = {
   runId,
   lane,
+  runMode,
   scheduleId: context.scheduleId,
   windowFrom: context.windowFrom,
   windowUntil: context.windowUntil,
@@ -432,7 +555,7 @@ const report = {
   sourceReports: detailedSourceReports,
   collectionLimits: {
     lookbackHours,
-    maxItemsPerSource: null,
+    maxItemsPerSource: runMode === "bootstrap" && lane === "sic" ? 1 : null,
   },
   processor: {
     provider: process.env.VAULT2077_LLM_BASE_URL

@@ -3,7 +3,10 @@ import "server-only";
 import { compileInformationBatch, withOneRetry, type BatchedInformationEditorial, type EditorialPort, type EventDecision, type EventEditorial, type InformationEditorial } from "./content-compiler.ts";
 import { validateContentBatch, type InformationEnvelope } from "./content-contract.ts";
 import { getStoredContent, replaceStoredContent } from "./content-store.ts";
-import { createOpenAICompatibleClient, loadOpenAICompatibleConfig } from "./openai-compatible-client.ts";
+import {
+  createEditorialProfileClient,
+  loadEditorialProfileConfig,
+} from "./openai-compatible-client.ts";
 import { EVENT_CATEGORIES, type BatchReceipt, type EventCategory } from "./types.ts";
 
 export class BatchConflictError extends Error {
@@ -17,12 +20,8 @@ function cleanText(value: string, limit: number) {
   return value.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
-async function requestModel(task: string, schemaVersion: string, instruction: string, input: unknown) {
-  return createOpenAICompatibleClient(loadOpenAICompatibleConfig()).completeJson({ task, schemaVersion, instruction, input });
-}
-
 export function assertContentModelConfigured() {
-  loadOpenAICompatibleConfig();
+  loadEditorialProfileConfig("vault_editorial");
 }
 
 function object(value: unknown, message: string) {
@@ -60,7 +59,11 @@ function informationChunks(information: InformationEnvelope[]) {
   const chunks: InformationEnvelope[][] = [];
   let current: InformationEnvelope[] = [];
   let currentCharacters = 0;
-  const configuredItems = Number(process.env.VAULT2077_LLM_BATCH_ITEMS ?? "3");
+  const configuredItems = Number(
+    process.env.VAULT2077_VAULT_LLM_BATCH_ITEMS
+    ?? process.env.VAULT2077_LLM_BATCH_ITEMS
+    ?? "3",
+  );
   const maxItems = Number.isFinite(configuredItems)
     ? Math.max(1, Math.min(8, Math.floor(configuredItems)))
     : 3;
@@ -79,7 +82,11 @@ function informationChunks(information: InformationEnvelope[]) {
 }
 
 function modelConcurrency(environment: Record<string, string | undefined> = process.env) {
-  const configured = Number(environment.VAULT2077_LLM_CONCURRENCY ?? "2");
+  const configured = Number(
+    environment.VAULT2077_VAULT_LLM_CONCURRENCY
+    ?? environment.VAULT2077_LLM_CONCURRENCY
+    ?? "2",
+  );
   return Number.isFinite(configured) ? Math.max(1, Math.min(4, Math.floor(configured))) : 2;
 }
 
@@ -124,6 +131,13 @@ function modelEvent(value: unknown): EventEditorial {
 }
 
 function llmEditorialPort(): EditorialPort {
+  const client = createEditorialProfileClient(loadEditorialProfileConfig("vault_editorial"));
+  const requestModel = (
+    task: string,
+    schemaVersion: string,
+    instruction: string,
+    input: unknown,
+  ) => client.completeJson({ task, schemaVersion, instruction, input });
   return {
     async processInformationBatch(input) {
       const chunks = informationChunks(input.information);

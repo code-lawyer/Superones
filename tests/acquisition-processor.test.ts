@@ -12,6 +12,7 @@ function mixedBatch(): AcquisitionBatch {
     batchId: "batch:mixed:processor",
     runId: "run:mixed:processor",
     lane: "information",
+    runMode: "incremental",
     scheduleId: "schedule:test:information",
     windowFrom: "2026-07-24T00:00:00.000Z",
     windowUntil: "2026-07-24T01:00:00.000Z",
@@ -96,14 +97,25 @@ test("processor routes information and publications through domestic adapters", 
       await assert.rejects(fetcher("https://example.com"), /禁止回源/);
     },
   });
-  const result = await processor(mixedBatch(), { payloadHash: "c".repeat(64), attempt: 1 });
-  assert.deepEqual(result, {
+  const information = mixedBatch();
+  information.records = [information.records[0]];
+  information.sourceReports = [information.sourceReports[0]];
+  const sic = mixedBatch();
+  sic.batchId = "batch:sic:processor";
+  sic.lane = "sic";
+  sic.scheduleId = "schedule:test:sic";
+  sic.records = [sic.records[1]];
+  sic.sourceReports = [sic.sourceReports[1]];
+  const informationResult = await processor(information, { payloadHash: "c".repeat(64), attempt: 1 });
+  const sicResult = await processor(sic, { payloadHash: "f".repeat(64), attempt: 1 });
+  assert.deepEqual(informationResult, {
     information: 1,
-    publications: 1,
+    publications: 0,
     profiles: 0,
     repositories: 0,
     rankings: 0,
   });
+  assert.equal(sicResult.publications, 1);
   assert.equal(calls.length, 2);
   assert.equal(requireNoQuarantine, true);
   const content = calls[0].value as { information: Array<{ originalTitle: string }> };
@@ -125,6 +137,8 @@ test("processor routes information and publications through domestic adapters", 
 test("processor persists every ranking provider without invoking the LLM", async () => {
   const providers: string[] = [];
   const value = mixedBatch();
+  value.lane = "rankings";
+  value.scheduleId = "schedule:test:rankings";
   const sourceUrl = "https://github.com/trending?since=daily";
   value.records = [{
     ...value.records[0],
@@ -165,6 +179,8 @@ test("processor persists every ranking provider without invoking the LLM", async
 
 test("processor fails visibly when a record kind has no domestic adapter", async () => {
   const value = mixedBatch();
+  value.lane = "sic";
+  value.scheduleId = "schedule:test:sic";
   value.records = [{
     ...value.records[0],
     kind: "entity_profile",
@@ -197,7 +213,7 @@ test("processor rejects an unsupported mixed batch before any write", async () =
 
   await assert.rejects(
     processor(value, { payloadHash: "e".repeat(64), attempt: 1 }),
-    /尚未覆盖/,
+    /不得携带/,
   );
   assert.equal(writes, 0);
 });

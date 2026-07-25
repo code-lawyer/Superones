@@ -60,5 +60,5 @@ export function listApprovedSicSources() {
 }
 
 export function listCollectableSicSources() {
-  return listApprovedSicSources().filter((source) => source.group !== "documents");
+  return listApprovedSicSources();
 }

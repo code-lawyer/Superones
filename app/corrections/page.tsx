@@ -1,11 +1,28 @@
 import type { Metadata } from "next";
-import { ProsePage } from "@/components/prose-page";
+import { CorrectionForm } from "./correction-form";
 
 export const metadata: Metadata = { title: "纠错" };
+export const dynamic = "force-dynamic";
 
-export default function CorrectionsPage() {
-  return <ProsePage code="CORRECTIONS / PUBLIC RECORD" title="错误需要被看见，也需要被修正。" lead="如果事件归类、信息内容或原始来源存在问题，请提供对应记录号和原始依据。" sections={[
-    { title: "报告范围", paragraphs: ["前台报告分为误合并、信息错误和来源失效。请提供记录号或页面地址、具体问题、支持更正的原始来源，以及一个可选的联系邮箱。正式提交入口将在人工纠错后台设计完成后接入。"] },
-    { title: "处理边界", paragraphs: ["日常资讯归类和事件编排由 AI 自动完成；用户报告的问题由工作人员人工判断和处理，LLM 不自动修改已经发布的事件归属。"] },
-  ]} />;
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function CorrectionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const initialType = first(params.type) === "event" ? "event" : "information";
+  return (
+    <main className="submission-page shell">
+      <header className="submission-intro">
+        <p className="eyebrow mono">CORRECTIONS / PUBLIC RECORD</p>
+        <h1>错误需要被看见，也需要被修正。</h1>
+        <p>只受理误合并、信息错误和来源失效。请提供可核验的原始依据；已发布事件不会由 LLM 因此自动修改。</p>
+      </header>
+      <CorrectionForm initialRecord={first(params.record) ?? ""} initialType={initialType} />
+    </main>
+  );
 }

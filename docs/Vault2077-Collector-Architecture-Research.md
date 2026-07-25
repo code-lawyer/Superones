@@ -6,6 +6,8 @@ updated: 2026-07-24
 
 # Vault2077 境外采集架构研究：TrendRadar 与 Horizon
 
+> 当前决策（ADR-0008）：本文保留对候选架构的历史分析；其中把 Hacker News 等社区源当作外链发现路径的方案已废止。生产以社区讨论页作为 canonical 记录，不递归抓取外链。
+
 > 研究日期：2026-07-22
 > 核查范围：仅使用两个项目的官方 GitHub 仓库、源代码、配置、工作流和许可证。
 > 固定版本：TrendRadar `8ee26026ba6c11dec41a95fb3895a7162876caa1`；Horizon `1e2fdc7ccb177f33c59aef2082c4093e1e82b22c`。
@@ -200,7 +202,7 @@ X、GitHub、Reddit、Telegram 和境外播客平台上的内容不因中文、�
 
 #### Gate B：每条资讯发送前
 
-- 对最终原始 URL 重新解析发布平台。Google News、GDELT、HN 等只是发现路径，真正准入判断针对最终落地页面；
+- 对最终原始 URL 重新解析发布平台。Google News、GDELT 等只作准入前发现；Hacker News/Lobsters 则保留社区讨论页为 canonical 记录，不沿外链解析落地正文；
 - 若跳转后落到已登记的大陆来源平台或与来源登记不一致的域名，拒绝并记录 reason code；
 - 检测并记录实际语言，但不据此丢弃内容；中文原文可以直接进入境内批次；
 - 原始标题和内容必须原样保留。清洗只能去除不可执行标记、压缩多余空白和限制大小，不得以翻译文本覆盖；

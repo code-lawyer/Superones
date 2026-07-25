@@ -13,6 +13,7 @@ export type SicBoard = {
   metric: string;
   description: string;
   capturedAt?: string;
+  stale?: boolean;
   sourceUrl?: string;
   emptyMessage?: string;
   items: SicBoardItem[];

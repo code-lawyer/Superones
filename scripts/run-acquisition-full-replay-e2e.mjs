@@ -110,9 +110,9 @@ const expected = payloads.reduce((totals, { batch }) => {
 }, { records: 0, sources: 0, kinds: {} });
 
 const externalLlmConfigured = [
-  process.env.VAULT2077_LLM_BASE_URL,
-  process.env.VAULT2077_LLM_API_KEY,
-  process.env.VAULT2077_LLM_MODEL,
+  process.env.VAULT2077_VAULT_LLM_BASE_URL ?? process.env.VAULT2077_LLM_BASE_URL,
+  process.env.VAULT2077_VAULT_LLM_API_KEY ?? process.env.VAULT2077_LLM_API_KEY,
+  process.env.VAULT2077_VAULT_LLM_MODEL ?? process.env.VAULT2077_LLM_MODEL,
 ].every((value) => typeof value === "string" && value.trim());
 const sitePort = await availablePort();
 const modelPort = externalLlmConfigured ? null : await availablePort();
@@ -132,17 +132,34 @@ const site = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
   env: {
     ...process.env,
     VAULT2077_DATA_DIR: dataDirectory,
+    VAULT2077_ALLOW_FILE_PREVIEW: "true",
     VAULT2077_PIPELINE_SHARED_SECRET: secret,
-    VAULT2077_LLM_BASE_URL: externalLlmConfigured
-      ? process.env.VAULT2077_LLM_BASE_URL
+    VAULT2077_VAULT_LLM_BASE_URL: externalLlmConfigured
+      ? process.env.VAULT2077_VAULT_LLM_BASE_URL ?? process.env.VAULT2077_LLM_BASE_URL
       : `http://127.0.0.1:${modelPort}/v1`,
-    VAULT2077_LLM_API_KEY: externalLlmConfigured
-      ? process.env.VAULT2077_LLM_API_KEY
+    VAULT2077_VAULT_LLM_API_KEY: externalLlmConfigured
+      ? process.env.VAULT2077_VAULT_LLM_API_KEY ?? process.env.VAULT2077_LLM_API_KEY
       : "local-replay-key",
-    VAULT2077_LLM_MODEL: externalLlmConfigured
-      ? process.env.VAULT2077_LLM_MODEL
+    VAULT2077_VAULT_LLM_MODEL: externalLlmConfigured
+      ? process.env.VAULT2077_VAULT_LLM_MODEL ?? process.env.VAULT2077_LLM_MODEL
       : "local-replay-model",
-    VAULT2077_LLM_TIMEOUT_MS: "120000",
+    VAULT2077_VAULT_LLM_TIMEOUT_MS: "120000",
+    VAULT2077_SIC_LLM_BASE_URL: externalLlmConfigured
+      ? process.env.VAULT2077_SIC_LLM_BASE_URL
+        ?? process.env.VAULT2077_VAULT_LLM_BASE_URL
+        ?? process.env.VAULT2077_LLM_BASE_URL
+      : `http://127.0.0.1:${modelPort}/v1`,
+    VAULT2077_SIC_LLM_API_KEY: externalLlmConfigured
+      ? process.env.VAULT2077_SIC_LLM_API_KEY
+        ?? process.env.VAULT2077_VAULT_LLM_API_KEY
+        ?? process.env.VAULT2077_LLM_API_KEY
+      : "local-replay-key",
+    VAULT2077_SIC_LLM_MODEL: externalLlmConfigured
+      ? process.env.VAULT2077_SIC_LLM_MODEL
+        ?? process.env.VAULT2077_VAULT_LLM_MODEL
+        ?? process.env.VAULT2077_LLM_MODEL
+      : "local-replay-model",
+    VAULT2077_SIC_LLM_TIMEOUT_MS: "120000",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -180,7 +197,13 @@ try {
   assert(processResponse.status === 200, `Worker 处理失败：HTTP ${processResponse.status} ${JSON.stringify(processing)}`);
   assert(processing.processed.length === payloads.length, `应处理 ${payloads.length} 个批次，实际 ${processing.processed.length}。`);
   assert(processing.failed.length === 0, `存在失败批次：${JSON.stringify(processing.failed)}`);
-  assert(processing.queue.pending === 0 && processing.queue.processing === 0 && processing.queue.failed === 0, "处理后队列并非全绿。");
+  assert(
+    processing.queue.received === 0
+      && processing.queue.processing === 0
+      && processing.queue.retryable === 0
+      && processing.queue.quarantined === 0,
+    "处理后队列并非全绿。",
+  );
 
   const processedKinds = processing.processed.reduce((totals, item) => {
     for (const [kind, count] of Object.entries(item.result)) {

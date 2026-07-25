@@ -33,10 +33,9 @@ const viewCopy: Record<WorkspaceView, { code: string; title: string; note: strin
 };
 
 const infrastructureNavigation = [
-  { id: "start", label: "开始经营", note: "从主体到第一条交易链", slugs: ["company-setup", "commercial-transactions", "digital-business"] },
-  { id: "operate", label: "持续运行", note: "财税、资产与协作", slugs: ["finance-operations", "core-assets", "work-and-collaboration"] },
-  { id: "expand", label: "扩张与特殊场景", note: "跨境、内容与行业", slugs: ["cross-border", "content-and-live", "industry-launch"] },
-  { id: "exit", label: "暂停与退出", note: "有序收束经营活动", slugs: ["pause-and-exit"] },
+  { id: "start", label: "建立经营底座", note: "主体、交易与财税核算", slugs: ["entity-and-compliance", "contracts-and-transactions", "finance-and-tax"] },
+  { id: "operate", label: "持续安全运行", note: "协作、知识产权与数据", slugs: ["workforce-and-collaboration", "intellectual-property", "data-and-privacy"] },
+  { id: "deliver", label: "构建与交付", note: "品牌内容、产品、软件与 AI", slugs: ["brand-and-content-assets", "product-delivery", "software-and-automation", "ai-application-governance"] },
 ];
 
 export function OpcWorkspace({ infrastructure, specialties, rangers }: OpcWorkspaceProps) {

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(
       { ok: true, ...result },
-      { status: result.duplicate && result.status === "succeeded" ? 200 : 202 },
+      { status: result.duplicate && result.status === "processed" ? 200 : 202 },
     );
   } catch (error) {
     if (error instanceof AcquisitionReceiveError) {

@@ -1,7 +1,6 @@
 import "server-only";
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 import type { SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
 
 type SicContentStore = {
@@ -11,28 +10,27 @@ type SicContentStore = {
   reports: SicSourceCollectionReport[];
 };
 
-const dataRoot = process.env.VAULT2077_DATA_DIR
-  ? path.resolve(process.env.VAULT2077_DATA_DIR)
-  : path.join(process.cwd(), "data");
-const storePath = path.join(dataRoot, "sic-content-store.json");
-let writeChain: Promise<void> = Promise.resolve();
-
 function emptyStore(): SicContentStore {
   return { version: 1, updatedAt: null, items: [], reports: [] };
 }
 
-async function readStore(): Promise<SicContentStore> {
-  await mkdir(dataRoot, { recursive: true });
-  try {
-    const parsed = JSON.parse(await readFile(storePath, "utf8")) as SicContentStore;
-    if (parsed.version !== 1 || !Array.isArray(parsed.items) || !Array.isArray(parsed.reports)) throw new Error("invalid store");
-    return parsed;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new Error("SiC 内容库格式无效。");
-    const store = emptyStore();
-    await writeFile(storePath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
-    return store;
+function parseStore(value: unknown): SicContentStore {
+  const parsed = value as SicContentStore;
+  if (parsed.version !== 1 || !Array.isArray(parsed.items) || !Array.isArray(parsed.reports)) {
+    throw new Error("SiC 内容库格式无效。");
   }
+  return parsed;
+}
+
+const sicDocument: StateDocumentDefinition<SicContentStore> = {
+  namespace: "sic-content",
+  fileName: "sic-content-store.json",
+  create: emptyStore,
+  parse: parseStore,
+};
+
+async function readStore() {
+  return readStateDocument(sicDocument);
 }
 
 function state(store: SicContentStore): SicContentState {
@@ -87,23 +85,14 @@ export function mergeSicContentItems(
 }
 
 export async function mergeSicStoredContent(input: { items: SicContentItem[]; reports: SicSourceCollectionReport[]; updatedAt?: string }) {
-  const operation = writeChain.then(async () => {
-    const current = await readStore();
+  return mutateStateDocument(sicDocument, (current) => {
     const replaceSourceIds = new Set(input.reports
       .filter((report) => report.sourceId === "google-ml-courses" && report.status === "success")
       .map((report) => report.sourceId));
     const items = mergeSicContentItems(current.items, input.items, { replaceSourceIds });
-    const next: SicContentStore = {
-      version: 1,
-      updatedAt: input.updatedAt ?? new Date().toISOString(),
-      items,
-      reports: input.reports,
-    };
-    const temporaryPath = `${storePath}.${process.pid}.tmp`;
-    await writeFile(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-    await rename(temporaryPath, storePath);
-    return { items: next.items, reports: next.reports, state: state(next) };
+    current.updatedAt = input.updatedAt ?? new Date().toISOString();
+    current.items = items;
+    current.reports = input.reports;
+    return { items: current.items, reports: current.reports, state: state(current) };
   });
-  writeChain = operation.then(() => undefined, () => undefined);
-  return operation;
 }

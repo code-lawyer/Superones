@@ -12,6 +12,7 @@ import {
   listPublicRankings,
   listSeasonHistory,
 } from "@/lib/frontier-store";
+import { persistenceMode } from "@/lib/state-document-store";
 import { ManifestoContent, RulesContent } from "./frontier-copy";
 import { FrontierDialog } from "./frontier-dialog";
 import { FrontierPrinciples } from "./frontier-principles";
@@ -25,6 +26,7 @@ function displayTime(value: string | null) {
 }
 
 export default async function FrontierPage() {
+  const productionData = persistenceMode() === "postgresql";
   const season = currentSeason();
   const [seasonYear, seasonLabel] = season.name.split(" ");
   const [rankings, updatedAt, prizes, history] = await Promise.all([
@@ -57,7 +59,7 @@ export default async function FrontierPage() {
       <section className="shell frontier-live" aria-labelledby="frontier-live-title">
         <header className="frontier-live__header">
           <div>
-            <p className="eyebrow mono">CURRENT SEASON / LIVE</p>
+            <p className="eyebrow mono">{productionData ? "CURRENT SEASON / LIVE" : "LOCAL PREVIEW / NON-PRODUCTION"}</p>
             <h2 id="frontier-live-title">这一季，正在发生。</h2>
           </div>
           <p>从验证通过的那一刻起，只计算真实发生的变化。没有评审席，排行榜就是公共记录。</p>

@@ -495,6 +495,60 @@ h3 {
   font-weight: 650;
 }
 
+@media (max-width: 900px) {
+  .home-masthead {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 22px;
+  }
+
+  .home-masthead__note {
+    max-width: 560px;
+  }
+
+  .home-waterfall {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .home-side {
+    grid-template-rows: auto;
+  }
+
+  .home-frontier {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .home-frontier__action {
+    justify-self: start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 620px) {
+  .home-stage {
+    padding-top: 30px;
+  }
+
+  .home-masthead {
+    margin-bottom: 28px;
+  }
+
+  .home-masthead h1 {
+    font-size: clamp(48px, 15vw, 60px);
+  }
+
+  .home-pane {
+    padding: 22px;
+  }
+
+  .home-content-item {
+    margin-inline: -22px;
+    padding-inline: 22px;
+  }
+}
+
 .hero-folio {
   display: flex;
   min-height: 100%;
@@ -7660,7 +7714,12 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   }
 
   .opc-reading-pane__facts {
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .opc-reading-pane__facts span + span {
+    padding-left: 20px;
   }
 
   .opc-reading-pane__boundary {

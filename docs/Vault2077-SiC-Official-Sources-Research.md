@@ -6,6 +6,8 @@ updated: 2026-07-24
 
 # Vault2077 SiC：档案与课程首批正式来源目录
 
+> 当前决策（ADR-0008）：本文是历史调研证据，不再是 approved 清单。OpenAI/Anthropic 新闻已迁入 Vault 资讯瀑布；例行 Release Notes/Changelog 已从 SiC 档案退役；现行清单只以 [SiC 来源目录](Vault2077-SiC-Source-Catalog.md) 为准。
+
 > 调研日期：2026-07-23
 > 结论：以下清单是建议直接进入 SiC `approved` 状态的**完整来源目录**，不是候选池。每个条目都由发布方自营；接入后读取其整个已定义频道，不按单篇文章、视频主题或作者再做选择。
 

@@ -3,16 +3,14 @@ import { seasonFromCode } from "@/lib/frontier-domain";
 import { challengeMatches, getSubmission, markSubmissionVerified } from "@/lib/frontier-store";
 import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, readGitHubChallengeFile } from "@/lib/github";
-import { withinRateLimit } from "@/lib/rate-limit";
+import { withinDurableRateLimit } from "@/lib/rate-limit";
+import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
 export const runtime = "nodejs";
 
-function clientKey(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-}
-
 export async function POST(request: NextRequest) {
-  if (!withinRateLimit(`frontier:verify:${clientKey(request)}`, 12, 60 * 60 * 1000)) {
+  const clientHash = anonymizeClientAddress(requestClientAddress(request));
+  if (!(await withinDurableRateLimit(`frontier:verify:${clientHash}`, 12, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "当前验证次数过多，请稍后再试。" }, { status: 429 });
   }
 

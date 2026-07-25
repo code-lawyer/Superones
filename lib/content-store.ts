@@ -1,7 +1,6 @@
 import "server-only";
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 import type { BatchReceipt, ContentState, EventRecord, InformationItem, QuarantinedContent, TrendProject } from "./types.ts";
 
 type ContentStore = {
@@ -23,12 +22,6 @@ type LegacyContentStore = {
   events: EventRecord[];
   projects: TrendProject[];
 };
-
-const dataRoot = process.env.VAULT2077_DATA_DIR
-  ? path.resolve(process.env.VAULT2077_DATA_DIR)
-  : path.join(process.cwd(), "data");
-const storePath = path.join(dataRoot, "content-store.json");
-let writeChain: Promise<void> = Promise.resolve();
 
 function emptyStore(): ContentStore {
   return {
@@ -62,18 +55,8 @@ function deduplicateInformation(items: InformationItem[]) {
   });
 }
 
-async function ensureStore() {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  try {
-    await readFile(storePath, "utf8");
-  } catch {
-    await writeFile(storePath, `${JSON.stringify(emptyStore(), null, 2)}\n`, "utf8");
-  }
-}
-
-async function readStore(): Promise<ContentStore> {
-  await ensureStore();
-  const parsed = JSON.parse(await readFile(storePath, "utf8")) as ContentStore | LegacyContentStore;
+function parseStore(value: unknown): ContentStore {
+  const parsed = value as ContentStore | LegacyContentStore;
   const store: ContentStore = parsed.version === 1
     ? { ...emptyStore(), updatedAt: parsed.updatedAt, sourceCount: parsed.sourceCount, events: parsed.events, projects: parsed.projects }
     : parsed;
@@ -92,6 +75,17 @@ async function readStore(): Promise<ContentStore> {
   }
   store.information = deduplicateInformation(store.information);
   return store;
+}
+
+const contentDocument: StateDocumentDefinition<ContentStore> = {
+  namespace: "content",
+  fileName: "content-store.json",
+  create: emptyStore,
+  parse: parseStore,
+};
+
+async function readStore() {
+  return readStateDocument(contentDocument);
 }
 
 function contentState(store: ContentStore): ContentState {
@@ -128,32 +122,22 @@ export async function replaceStoredContent(input: {
   sourceCount: number;
   updatedAt?: string;
 }) {
-  const operation = writeChain.then(async () => {
-    const current = await readStore();
-    const next: ContentStore = {
-      version: 2,
-      updatedAt: input.updatedAt ?? new Date().toISOString(),
-      sourceCount: input.sourceCount,
-      publicationVersion: current.publicationVersion + 1,
-      events: input.events,
-      information: deduplicateInformation(input.information),
-      projects: input.projects,
-      quarantine: [...current.quarantine, ...(input.quarantine ?? [])].slice(-500),
-      batches: input.receipt ? [...current.batches, input.receipt].slice(-500) : current.batches,
-    };
-    await ensureStore();
-    const temporaryPath = `${storePath}.${process.pid}.tmp`;
-    await writeFile(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", flag: "w" });
-    await rename(temporaryPath, storePath);
+  return mutateStateDocument(contentDocument, (current) => {
+    current.updatedAt = input.updatedAt ?? new Date().toISOString();
+    current.sourceCount = input.sourceCount;
+    current.publicationVersion += 1;
+    current.events = input.events;
+    current.information = deduplicateInformation(input.information);
+    current.projects = input.projects;
+    current.quarantine = [...current.quarantine, ...(input.quarantine ?? [])].slice(-500);
+    current.batches = input.receipt ? [...current.batches, input.receipt].slice(-500) : current.batches;
     return {
-      state: contentState(next),
-      events: next.events,
-      information: next.information,
-      projects: next.projects,
-      quarantine: next.quarantine,
-      batches: next.batches,
+      state: contentState(current),
+      events: current.events,
+      information: current.information,
+      projects: current.projects,
+      quarantine: current.quarantine,
+      batches: current.batches,
     };
   });
-  writeChain = operation.then(() => undefined, () => undefined);
-  return operation;
 }

@@ -134,7 +134,7 @@ const confidenceLabels: Record<string, string> = {
 
 const sicGroupLabels = {
   papers: { label: "SiC / 论文", href: "/sic#sic-group-papers", channel: "论文发现" },
-  documents: { label: "SiC / 文档", href: "/sic#sic-group-documents", channel: "官方技术文档" },
+  documents: { label: "SiC / 档案", href: "/sic#sic-group-documents", channel: "深度技术档案" },
   courses: { label: "SiC / 课程", href: "/sic#sic-group-courses", channel: "课程与讲座" },
   podcasts: { label: "SiC / 播客", href: "/sic#sic-group-podcasts", channel: "长对谈" },
 } as const;
@@ -189,7 +189,7 @@ function statementProvenance(source: InformationSource) {
     const registry = source.discoveredFrom[0];
     const registryLabel = registry ? `${registry.repository} / ${registry.path}` : "项目运行清单";
     return source.channelType === "community"
-      ? `社区原生主题直连；外链条目只进入发现候选区；清单来自 ${registryLabel}`
+      ? `社区原生条目与讨论入口直连；外链仅作为条目字段保存，不递归抓取；清单来自 ${registryLabel}`
       : `个人原始发布直连；清单来自 ${registryLabel}`;
   }
   const paths = source.discoveredFrom.map((item) => `${item.repository} / ${item.path}`);
@@ -469,12 +469,10 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
   const roadside = sourceBundle.sources
     .filter((source) => source.contentGroup === "roadside" || ["roadside", "statements"].includes(source.sourceStream))
     .map(statementItem);
-  const documents = sourceBundle.sources
-    .filter((source) => source.contentGroup === "documents")
-    .map(informationItem);
   const sic = sicSources
-    .filter((source) => source.status === "approved" && source.group !== "documents")
+    .filter((source) => source.status === "approved")
     .map(sicItem);
+  const documents = sic.filter((source) => source.sectionId === "documents");
   const papers = sic.filter((source) => source.sectionId === "papers");
   const podcasts = sic.filter((source) => source.sectionId === "podcasts");
   const courses = sic.filter((source) => source.sectionId === "courses");
@@ -495,7 +493,7 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
       "information-flow",
       "INTEL / EDITORIAL",
       "资讯瀑布",
-      "只收有明确编辑或发布责任主体的第三方完整报道、通讯和新闻文章；可独立形成事件。",
+      "只收新闻型内容：第三方完整报道，以及机构的正式公告、重大发布和时效性更新；可参与事件编排。",
       "/feed",
       information,
       informationMethods,
@@ -504,7 +502,7 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
       "roadside",
       "ROADSIDE / PEOPLE",
       "路边社",
-      "自然人 X 言论、个人博客和社区原生主题；外链聚合条目只作发现，评论不进入正文。",
+      "自然人 X 言论、个人博客和社区原生条目。Hacker News 与 Lobsters 对其条目、排序和讨论入口负责；外链只展示，不递归抓取。",
       "/feed",
       roadside,
       statementMethods,
@@ -512,8 +510,8 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
     section(
       "documents",
       "DOCUMENTS / FIRST PARTY",
-      "文档",
-      "公司、机构、基金会和开源项目的第一方文章、研究、Release 与 Changelog；可参与事件归并。",
+      "档案",
+      "机构的深度研究、技术报告、系统卡、方法论与长篇工程材料；不收新闻稿、例行 Release 或 Changelog，也不重复进入资讯瀑布。",
       "/sic#sic-group-documents",
       documents,
       informationMethods,

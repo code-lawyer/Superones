@@ -43,6 +43,11 @@ export function FeedInformationDetail({
           <a className="original-source-action" href={sourceUrl} target="_blank" rel="noreferrer">
             {isX ? "查看原始 X 言论" : "查看原始发布"}
           </a>
+          {community && item.externalUrl ? (
+            <a className="original-source-action" href={item.externalUrl} target="_blank" rel="noreferrer">
+              查看社区条目指向的外链（未递归抓取）
+            </a>
+          ) : null}
         </div>
         <aside className="feed-detail__aside">
           <section>

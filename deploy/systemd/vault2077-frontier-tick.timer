@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Vault2077 Frontier observation hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=180
+Unit=vault2077-frontier-tick.service
+
+[Install]
+WantedBy=timers.target

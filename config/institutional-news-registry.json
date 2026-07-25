@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "openai-news",
+      "status": "approved",
+      "name": "OpenAI News",
+      "publisher": "OpenAI",
+      "kind": "official_rss",
+      "homeUrl": "https://openai.com/news/",
+      "endpoint": "https://openai.com/news/rss.xml",
+      "admissionRule": "完整接入 OpenAI 官方 News RSS 的公告、产品发布、公司变化与公共回应。",
+      "rationale": "这是 OpenAI 对时效性变化承担发布责任的官方新闻入口；研究材料只有进入独立深度发布源时才进入 SiC 档案。"
+    },
+    {
+      "id": "anthropic-news",
+      "status": "approved",
+      "name": "Anthropic News",
+      "publisher": "Anthropic",
+      "kind": "official_sitemap",
+      "homeUrl": "https://www.anthropic.com/news",
+      "endpoint": "https://www.anthropic.com/sitemap.xml",
+      "pathPrefix": "/news/",
+      "admissionRule": "仅接入 Anthropic 官方 sitemap 中 /news/ 前缀下的新增公告、产品发布、公司变化与公共回应。",
+      "rationale": "官方 sitemap 能在不依赖第三方 RSS 代理的情况下稳定追踪 Anthropic 新闻；/research/ 由 SiC 档案独立接入。"
+    }
+  ]
+}

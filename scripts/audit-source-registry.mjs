@@ -6,13 +6,35 @@ for (let index = 2; index < process.argv.length; index += 2) options.set(process
 
 const registryPath = resolve(options.get("--registry") ?? "config/source-registry.json");
 const csvPath = resolve(options.get("--csv") ?? "docs/Vault2077-Source-Registry.csv");
+const healthPath = resolve(options.get("--health") ?? "config/source-health.json");
 const concurrency = Math.max(1, Number.parseInt(options.get("--concurrency") ?? "8", 10));
 const perHostConcurrency = Math.max(1, Number.parseInt(options.get("--per-host") ?? "2", 10));
 const timeoutMs = Math.max(3_000, Number.parseInt(options.get("--timeout") ?? "15000", 10));
 const resume = options.get("--resume") === "true";
 const retryFailed = options.get("--retry-failed") === "true";
+const allowDegraded = options.get("--allow-degraded") === "true";
+const promote = options.get("--promote") === "true";
 const maxBytes = 256 * 1024;
 const registry = JSON.parse(await readFile(registryPath, "utf8"));
+if (resume || retryFailed) {
+  try {
+    const previousHealth = JSON.parse(await readFile(healthPath, "utf8"));
+    if (previousHealth.registryGeneratedAt === registry.generatedAt) {
+      const previousChannels = new Map(previousHealth.channels.map((channel) => [channel.id, channel]));
+      for (const channel of registry.channels) {
+        const previous = previousChannels.get(channel.id);
+        if (!previous) continue;
+        const previousEndpoints = new Map(previous.endpoints.map((endpoint) => [endpoint.url, endpoint]));
+        for (const endpoint of channel.endpoints) {
+          const observed = previousEndpoints.get(endpoint.url);
+          if (observed?.validation) endpoint.validation = observed.validation;
+        }
+      }
+    }
+  } catch (error) {
+    if (!error || typeof error !== "object" || error.code !== "ENOENT") throw error;
+  }
+}
 const tasks = registry.channels.flatMap((channel) => channel.endpoints.map((endpoint) => ({ channel, endpoint })));
 const hostActive = new Map();
 let cursor = 0;
@@ -169,6 +191,26 @@ async function worker() {
 
 await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
+const endpointStatuses = tasks.map(({ endpoint }) => endpoint.validation?.status ?? "not_checked");
+const publicEndpointStatuses = endpointStatuses.filter((status) => status !== "auth_required");
+const usableEndpointCount = endpointStatuses.filter((status) => status === "usable").length;
+const transportFailureCount = publicEndpointStatuses
+  .filter((status) => status === "network_error" || status === "timeout")
+  .length;
+const transportFailureRatio = publicEndpointStatuses.length > 0
+  ? transportFailureCount / publicEndpointStatuses.length
+  : 1;
+if (
+  !allowDegraded
+  && (usableEndpointCount === 0 || transportFailureRatio > 0.8)
+) {
+  throw new Error(
+    `来源审计拒绝覆盖最后一次结果：usable=${usableEndpointCount}，`
+    + `transportFailureRatio=${transportFailureRatio.toFixed(3)}。`
+    + "仅限调查时可显式传入 --allow-degraded true。",
+  );
+}
+
 for (const channel of registry.channels) {
   const statuses = channel.endpoints.map((endpoint) => endpoint.validation.status);
   const status = statuses.includes("usable")
@@ -193,8 +235,29 @@ registry.audit = {
   timeoutMs,
   concurrency,
   perHostConcurrency,
+  usableEndpointCount,
+  transportFailureCount,
+  transportFailureRatio: Number(transportFailureRatio.toFixed(4)),
   statusCounts: Object.fromEntries([...new Set(registry.channels.map((channel) => channel.validation.status))].sort().map((status) => [status, registry.channels.filter((channel) => channel.validation.status === status).length])),
 };
+
+const healthReport = {
+  version: 1,
+  registryGeneratedAt: registry.generatedAt,
+  ...registry.audit,
+  channels: registry.channels.map((channel) => ({
+    id: channel.id,
+    identity: channel.identity,
+    status: channel.validation.status,
+    endpoints: channel.endpoints.map((endpoint) => ({
+      url: endpoint.url,
+      connectorType: endpoint.connectorType,
+      requiresAuth: endpoint.requiresAuth,
+      validation: endpoint.validation,
+    })),
+  })),
+};
+await writeFile(healthPath, `${JSON.stringify(healthReport, null, 2)}\n`, "utf8");
 
 function csvCell(value) {
   const text = value == null ? "" : String(value);
@@ -235,6 +298,12 @@ for (const channel of registry.channels) {
   }
 }
 
-await writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
-await writeFile(csvPath, `${csvRows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`, "utf8");
-console.log(JSON.stringify(registry.audit, null, 2));
+if (promote) {
+  await writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
+  await writeFile(csvPath, `${csvRows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`, "utf8");
+}
+console.log(JSON.stringify({
+  ...registry.audit,
+  healthPath,
+  promoted: promote,
+}, null, 2));

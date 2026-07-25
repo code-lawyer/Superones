@@ -34,8 +34,22 @@ type ContentState = {
   projectCount: number;
 };
 
+type Correction = {
+  id: string;
+  issueType: "incorrect_merge" | "factual_error" | "source_unavailable";
+  recordType: "event" | "information";
+  recordId: string;
+  pageUrl: string;
+  description: string;
+  evidenceUrl: string;
+  email: string | null;
+  status: "open" | "closed";
+  createdAt: string;
+  resolution: string | null;
+};
+
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; corrections?: Correction[]; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "请求暂时无法完成。");
   return body;
 }
@@ -44,6 +58,7 @@ export function AdminConsole() {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
   const [contentState, setContentState] = useState<ContentState | null>(null);
+  const [corrections, setCorrections] = useState<Correction[]>([]);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -58,6 +73,7 @@ export function AdminConsole() {
       setSubmissions(null);
       setDonations([]);
       setContentState(null);
+      setCorrections([]);
       return;
     }
     const body = await jsonMessage(response);
@@ -65,6 +81,7 @@ export function AdminConsole() {
     setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
     setDonations(Array.isArray(body?.donations) ? body.donations : []);
     setContentState(content?.state ?? null);
+    setCorrections(Array.isArray(content?.corrections) ? content.corrections : []);
   }, []);
 
   useEffect(() => { void load().catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。")); }, [load]);
@@ -86,11 +103,12 @@ export function AdminConsole() {
   }
 
   async function refreshStars() {
+    if (!window.confirm("确认立即读取所有已验证参赛仓库并写入新的 Star 快照？")) return;
     setPending(true);
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refresh-stars" }) });
+      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refresh-stars", confirm: true }) });
       const body = await jsonMessage(response);
       setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
       setDonations(Array.isArray(body?.donations) ? body.donations : []);
@@ -103,11 +121,13 @@ export function AdminConsole() {
   }
 
   async function updateDonation(donationId: string, action: "confirm-donation" | "reject-donation" | "withdraw-donation") {
+    const actionLabel = action === "confirm-donation" ? "确认并公开" : action === "reject-donation" ? "拒绝" : "撤回";
+    if (!window.confirm(`确认${actionLabel}这条奖品记录？该操作会写入不可变审计日志。`)) return;
     setPending(true);
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, donationId }) });
+      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, donationId, confirm: true }) });
       const body = await jsonMessage(response);
       setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
       setDonations(Array.isArray(body?.donations) ? body.donations : []);
@@ -124,7 +144,36 @@ export function AdminConsole() {
     setSubmissions(null);
     setDonations([]);
     setContentState(null);
+    setCorrections([]);
     setNotice("");
+  }
+
+  async function closeCorrection(correction: Correction) {
+    const resolution = window.prompt("填写处理说明（6–500 字）；说明会进入内部审计记录。", correction.resolution ?? "");
+    if (!resolution || resolution.trim().length < 6) return;
+    if (!window.confirm(`确认关闭纠错报告 ${correction.id}？`)) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "close-correction",
+          correctionId: correction.id,
+          resolution: resolution.trim(),
+          confirm: true,
+        }),
+      });
+      const body = await jsonMessage(response);
+      setCorrections(Array.isArray(body?.corrections) ? body.corrections : []);
+      setNotice("纠错报告已关闭并写入审计记录。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "暂时无法关闭纠错。");
+    } finally {
+      setPending(false);
+    }
   }
 
   if (submissions === null) {
@@ -138,7 +187,7 @@ export function AdminConsole() {
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <button className="text-action" type="submit" disabled={pending}>{pending ? "正在登录" : "进入后台"}</button>
-        <p className="form-note mono">生产环境通过 VAULT2077_ADMIN_PASSWORD 配置共享密码。</p>
+        <p className="form-note mono">生产环境只接受 Argon2id 密码哈希，不保存明文密码。</p>
       </form>
     );
   }
@@ -190,6 +239,33 @@ export function AdminConsole() {
             <span>LAST RUN <strong>{contentState.updatedAt ? new Date(contentState.updatedAt).toLocaleString("zh-CN", { hour12: false }) : "—"}</strong></span>
           </div>
         ) : <p className="ranking-empty">暂时无法读取信息管道状态。</p>}
+      </section>
+      <section className="admin-donations" aria-labelledby="admin-corrections-title">
+        <div className="admin-section-heading">
+          <p className="eyebrow mono">CONTENT / CORRECTIONS</p>
+          <h2 id="admin-corrections-title">匿名纠错报告</h2>
+        </div>
+        <div className="admin-donation-list">
+          {corrections.length === 0 ? <p className="ranking-empty">当前没有纠错报告。</p> : corrections.map((correction) => (
+            <article key={correction.id}>
+              <div>
+                <p className="mono muted">{correction.issueType} / {correction.status} / {correction.recordType}</p>
+                <h3>{correction.recordId}</h3>
+                <p>{correction.description}</p>
+                <p><a href={correction.evidenceUrl} target="_blank" rel="noreferrer">查看原始依据 ↗</a></p>
+              </div>
+              <div className="admin-donation-meta">
+                <span className="mono">{correction.email ?? "匿名"}</span>
+                <time className="mono">{new Date(correction.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
+              </div>
+              {correction.status === "open" ? (
+                <div className="admin-actions">
+                  <button className="text-action" type="button" disabled={pending} onClick={() => closeCorrection(correction)}>记录处理并关闭</button>
+                </div>
+              ) : <p className="form-note">{correction.resolution}</p>}
+            </article>
+          ))}
+        </div>
       </section>
     </section>
   );

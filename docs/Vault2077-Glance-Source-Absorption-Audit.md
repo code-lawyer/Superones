@@ -6,6 +6,8 @@ updated: 2026-07-24
 
 # Vault2077：Glance 信源吸收审计
 
+> 当前决策（ADR-0008）：本文的来源吸收证据继续保留，但“HN/Lobsters 只作发现层”的建议已废止。两者现在是社区条目、排序和讨论入口的一手来源，外链不递归抓取。
+
 > 审计对象：`glanceapp/glance` 固定提交 [`91324e8de762702e97b0ac5c8e36271d644d8642`](https://github.com/glanceapp/glance/tree/91324e8de762702e97b0ac5c8e36271d644d8642)
 > 本地对照：`config/source-registry.json`（475 个逻辑信源、486 个端点）与 `config/source-bundle.json`（201 active、255 pending）
 > 审计口径：只把上游固定配置中具名、可定位的发布方或数据目标视为“具体信源”；通用连接器能力和文档演示值单列，不自动进入生产清单。
@@ -28,8 +30,8 @@ Glance 的示例配置已经被系统逐项检查，但没有被无条件照搬�
 
 | 上游目标 | 类型 | 本地连接器 | 是否需要浏览器 | 当前判断 |
 | --- | --- | --- | --- | --- |
-| Hacker News | 社区 | Firebase JSON API | 否 | active；可作为发现线索，不是原始事实来源 |
-| Lobsters | 社区 | `hottest.json` | 否 | active；可作为开发者社区线索 |
+| Hacker News | 社区 | Firebase JSON API | 否 | active；作为条目、排序与讨论入口的一手社区来源，不为外链正文背书 |
+| Lobsters | 社区 | `hottest.json` | 否 | active；作为条目、排序与讨论入口的一手社区来源，不递归抓取外链 |
 | `glanceapp/glance` | GitHub Release | GitHub REST API | 否 | active；接口可靠，但与 AI 主线相关性弱 |
 | `go-gitea/gitea` | GitHub Release | GitHub REST API | 否 | active；接口可靠，但与 AI 主线相关性弱 |
 | `immich-app/immich` | GitHub Release | GitHub REST API | 否 | active；接口可靠，但不属于 AI 核心信源 |
@@ -130,7 +132,7 @@ Calendar、Clock、Todo、Bookmarks、Search、iframe、HTML、Docker Containers
 
 ## 5. 建议
 
-1. 保留 Hacker News 与 Lobsters 作为“发现层”，但事件事实必须回链到官方公告、论文、仓库或作者原文。
+1. 保留 Hacker News 与 Lobsters 作为社区原生来源；社区条目和讨论状态可作为社区证据，外链事实若需采用则必须由另一个已批准来源独立采集，不能沿条目递归抓取。
 2. 对当前 active 的 Glance、Gitea、Immich、Syncthing Releases 再做一次主题相关性清理。接口合格不代表内容适合 AI 信息流。
 3. 5 个个人技术 Feed 即便地域审核通过，也不要自动 active；先判断其 AI 内容密度。
 4. Reddit 只有在官方 OAuth 接入获批后再评估，不开发 HTML 或匿名接口兜底。

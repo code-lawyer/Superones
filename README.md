@@ -1,14 +1,14 @@
 ---
 type: project-readme
 status: active
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Vault2077
 
 面向超级个体与一人公司的公开网站，包含 Vault 信息流、OPC 服务台、SiC 学院和边境计划。
 
-当前仓库处于 MVP 预览阶段：页面、主要业务模块、统一采集批次与测试链路已经可运行，但生产数据库、Frontier GitHub 快速路径的超时/限流/异步回退、后台安全硬化、真实业务输入和运维证据尚未完成，因此不能视为生产就绪。
+当前仓库已进入准上线工程阶段：统一四通道、bootstrap、双编辑配置、PostgreSQL 适配与迁移、Frontier GitHub 快速路径/公开回退、境内 scheduler 任务、后台安全、生产配置门禁和统一 E2E 已实现。尚未完成的发布门禁主要是目标生产数据库的备份恢复演练、目标模型容量/切换证据、监控告警接入、真实 OPC/赛季/法律输入和最终发布签字，因此仍不能直接视为生产就绪。
 
 ## 本地运行
 
@@ -25,6 +25,14 @@ npm.cmd run typecheck
 npm.cmd test
 python -m unittest discover -s collector/tests -p "test_*.py"
 npm.cmd run build
+```
+
+生产部署还必须在最终环境变量下执行：
+
+```powershell
+npm.cmd run deploy:check
+npm.cmd run db:migrate
+npm.cmd run frontier:tick
 ```
 
 ## 文档

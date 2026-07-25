@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { getStoredContent } from "./content-store";
 import { getSicStoredContent } from "./sic-content-store";
+import { configuredPostgresPool, persistenceMode } from "./state-document-store";
 import type { EventRecord, InformationItem } from "./types";
 import type { SicContentItem } from "./sic-content-types";
 
@@ -70,9 +71,13 @@ type AcquisitionReport = {
     }>;
     failed?: unknown[];
     queue?: {
+      received?: number;
       pending?: number;
       processing?: number;
+      processed?: number;
       succeeded?: number;
+      retryable?: number;
+      quarantined?: number;
       failed?: number;
     };
   } | null;
@@ -135,37 +140,58 @@ function newest<T>(
 }
 
 async function liveQueue(dataRoot: string) {
-  const inbox = path.join(dataRoot, "acquisition-inbox");
-  const files = await readdir(inbox).catch(() => []);
-  const records = await Promise.all(files
-    .filter((name) => name.endsWith(".json"))
-    .map(async (name) => {
-      const raw = await readFile(path.join(inbox, name), "utf8").catch(() => null);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as {
-        status?: unknown;
-        attempts?: unknown;
-        lane?: unknown;
-        scheduleId?: unknown;
-        receivedAt?: unknown;
-        completedAt?: unknown;
-      };
+  const rawRecords: Array<{
+    status?: unknown;
+    attempts?: unknown;
+    lane?: unknown;
+    scheduleId?: unknown;
+    receivedAt?: unknown;
+    completedAt?: unknown;
+  }> = persistenceMode() === "postgresql"
+    ? (await configuredPostgresPool().query(
+      `SELECT status, attempts, lane, schedule_id AS "scheduleId",
+              received_at AS "receivedAt", completed_at AS "completedAt"
+       FROM vault2077_acquisition_inbox`,
+    )).rows
+    : await (async () => {
+      const inbox = path.join(dataRoot, "acquisition-inbox");
+      const files = await readdir(inbox).catch(() => []);
+      return Promise.all(files
+        .filter((name) => name.endsWith(".json"))
+        .map(async (name) => {
+          const raw = await readFile(path.join(inbox, name), "utf8").catch(() => null);
+          return raw ? JSON.parse(raw) : null;
+        }))
+        .then((values) => values.filter((value): value is Record<string, unknown> => Boolean(value)));
+    })();
+  const records = rawRecords.map((parsed) => {
+      const normalizedStatus = parsed.status === "pending"
+        ? "received"
+        : parsed.status === "succeeded"
+          ? "processed"
+          : parsed.status === "failed"
+            ? "retryable"
+            : parsed.status;
       return (
-        typeof parsed.status === "string"
-        && ["pending", "processing", "succeeded", "failed"].includes(parsed.status)
+        typeof normalizedStatus === "string"
+        && ["received", "processing", "processed", "retryable", "quarantined"].includes(normalizedStatus)
       )
         ? {
-            status: parsed.status as "pending" | "processing" | "succeeded" | "failed",
+            status: normalizedStatus as "received" | "processing" | "processed" | "retryable" | "quarantined",
             attempts: typeof parsed.attempts === "number" ? parsed.attempts : 0,
             lane: PIPELINE_SECTIONS.includes((parsed.lane === "statements" ? "roadside" : parsed.lane) as PipelineSection)
               ? (parsed.lane === "statements" ? "roadside" : parsed.lane) as PipelineSection
               : null,
             scheduleId: typeof parsed.scheduleId === "string" ? parsed.scheduleId : null,
-            receivedAt: typeof parsed.receivedAt === "string" ? parsed.receivedAt : null,
-            completedAt: typeof parsed.completedAt === "string" ? parsed.completedAt : null,
+            receivedAt: parsed.receivedAt instanceof Date
+              ? parsed.receivedAt.toISOString()
+              : typeof parsed.receivedAt === "string" ? parsed.receivedAt : null,
+            completedAt: parsed.completedAt instanceof Date
+              ? parsed.completedAt.toISOString()
+              : typeof parsed.completedAt === "string" ? parsed.completedAt : null,
           }
         : null;
-    }));
+    });
   const valid = records.filter((record): record is NonNullable<typeof record> => Boolean(record));
   if (valid.length === 0) return null;
   const lanes = Object.fromEntries(PIPELINE_SECTIONS.map((lane) => {
@@ -174,10 +200,10 @@ async function liveQueue(dataRoot: string) {
       Date.parse(right.receivedAt ?? "") - Date.parse(left.receivedAt ?? "")
     ))[0];
     return [lane, {
-      pending: laneRecords.filter((record) => record.status === "pending").length,
+      pending: laneRecords.filter((record) => record.status === "received").length,
       processing: laneRecords.filter((record) => record.status === "processing").length,
-      succeeded: laneRecords.filter((record) => record.status === "succeeded").length,
-      failed: laneRecords.filter((record) => record.status === "failed").length,
+      succeeded: laneRecords.filter((record) => record.status === "processed").length,
+      failed: laneRecords.filter((record) => record.status === "retryable" || record.status === "quarantined").length,
       retryAttempts: laneRecords.reduce((sum, record) => sum + Math.max(0, record.attempts - 1), 0),
       scheduleId: newest?.scheduleId ?? null,
       receivedAt: newest?.receivedAt ?? null,
@@ -186,10 +212,10 @@ async function liveQueue(dataRoot: string) {
   })) as PipelineRunSnapshot["lanes"];
   return {
     queue: {
-      pending: valid.filter((record) => record.status === "pending").length,
+      pending: valid.filter((record) => record.status === "received").length,
       processing: valid.filter((record) => record.status === "processing").length,
-      succeeded: valid.filter((record) => record.status === "succeeded").length,
-      failed: valid.filter((record) => record.status === "failed").length,
+      succeeded: valid.filter((record) => record.status === "processed").length,
+      failed: valid.filter((record) => record.status === "retryable" || record.status === "quarantined").length,
     },
     retryAttempts: valid.reduce((sum, record) => sum + Math.max(0, record.attempts - 1), 0),
     lanes,
@@ -241,10 +267,10 @@ export async function getPipelineRunSnapshot(): Promise<PipelineRunSnapshot> {
   );
   const reportQueue = report?.processing?.queue;
   const queue = liveProcessing?.queue ?? {
-    pending: reportQueue?.pending ?? 0,
+    pending: reportQueue?.received ?? reportQueue?.pending ?? 0,
     processing: reportQueue?.processing ?? 0,
-    succeeded: reportQueue?.succeeded ?? 0,
-    failed: reportQueue?.failed ?? 0,
+    succeeded: reportQueue?.processed ?? reportQueue?.succeeded ?? 0,
+    failed: ((reportQueue?.retryable ?? 0) + (reportQueue?.quarantined ?? 0)) || reportQueue?.failed || 0,
   };
   const emptyLane = {
     pending: 0,

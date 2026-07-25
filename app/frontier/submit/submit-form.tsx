@@ -7,6 +7,7 @@ import { RulesContent } from "../frontier-copy";
 type Step = "form" | "challenge" | "verified";
 
 type ChallengeResponse = {
+  alreadyVerified?: boolean;
   id: string;
   season: string;
   seasonName: string;
@@ -42,8 +43,9 @@ export function SubmitForm() {
         body: JSON.stringify({ repo, email, note, rulesAccepted }),
       });
       if (!response.ok) throw new Error(await responseMessage(response));
-      setChallenge(await response.json() as ChallengeResponse);
-      setStep("challenge");
+      const result = await response.json() as ChallengeResponse;
+      setChallenge(result);
+      setStep(result.alreadyVerified ? "verified" : "challenge");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "暂时无法生成验证文件。" );
     } finally {
@@ -85,7 +87,7 @@ export function SubmitForm() {
       <div className="verification-result" role="status">
         <p className="eyebrow mono">VERIFIED / {challenge.season}</p>
         <h2>仓库已通过验证。</h2>
-        <p><span className="mono">{challenge.repository}</span> 已加入 {challenge.seasonName}。系统已记录验证时的 Star 基线，排行榜会在下一次小时更新后显示。</p>
+        <p><span className="mono">{challenge.repository}</span> 已加入 {challenge.seasonName}。{challenge.alreadyVerified ? "这是现有有效报名，不需要重新生成挑战文件。" : "系统已记录验证时的 Star 基线，排行榜会在下一次小时更新后显示。"}</p>
         <p className="verification-warning"><strong>不要删除挑战文件。</strong>网站将在赛季结算时再次检查；文件缺失或内容改变会使项目失去最终排名和随机奖品资格。</p>
         <button className="text-link" type="button" onClick={reset}>提交另一个仓库</button>
       </div>

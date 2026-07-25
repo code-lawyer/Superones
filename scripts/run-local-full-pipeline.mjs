@@ -42,12 +42,14 @@ if (!localGithubToken) {
   }
 }
 
-const requiredModelVariables = [
-  "VAULT2077_LLM_BASE_URL",
-  "VAULT2077_LLM_API_KEY",
-  "VAULT2077_LLM_MODEL",
-];
-const missingModelVariables = requiredModelVariables.filter((key) => !process.env[key]?.trim());
+const modelValues = {
+  baseUrl: process.env.VAULT2077_VAULT_LLM_BASE_URL ?? process.env.VAULT2077_LLM_BASE_URL,
+  apiKey: process.env.VAULT2077_VAULT_LLM_API_KEY ?? process.env.VAULT2077_LLM_API_KEY,
+  model: process.env.VAULT2077_VAULT_LLM_MODEL ?? process.env.VAULT2077_LLM_MODEL,
+};
+const missingModelVariables = Object.entries(modelValues)
+  .filter(([, value]) => !value?.trim())
+  .map(([key]) => key);
 if (missingModelVariables.length > 0) {
   throw new Error(`本地全量试跑缺少模型配置：${missingModelVariables.join(", ")}`);
 }
@@ -87,14 +89,22 @@ const site = spawn(process.execPath, [
     ...(localGithubToken ? { GITHUB_TOKEN: localGithubToken } : {}),
     ...(useEnvironmentProxy ? { NODE_USE_ENV_PROXY: "1" } : {}),
     VAULT2077_DATA_DIR: dataRoot,
+    VAULT2077_ALLOW_FILE_PREVIEW: "true",
     VAULT2077_PIPELINE_RUN_DIR: collectorRoot,
     VAULT2077_PIPELINE_SHARED_SECRET: localSecret,
     VAULT2077_PIPELINE_WORKER_SECRET: localSecret,
     VAULT2077_CONTENT_PREVIEW_LABEL: "本地全量真实试跑",
-    VAULT2077_LLM_TIMEOUT_MS: process.env.VAULT2077_LLM_TIMEOUT_MS ?? "120000",
-    VAULT2077_LLM_BATCH_ITEMS: process.env.VAULT2077_LLM_BATCH_ITEMS ?? "5",
-    VAULT2077_LLM_MAX_TOKENS: process.env.VAULT2077_LLM_MAX_TOKENS ?? "6000",
-    VAULT2077_LLM_REASONING_EFFORT: process.env.VAULT2077_LLM_REASONING_EFFORT ?? "low",
+    VAULT2077_VAULT_LLM_BASE_URL: modelValues.baseUrl,
+    VAULT2077_VAULT_LLM_API_KEY: modelValues.apiKey,
+    VAULT2077_VAULT_LLM_MODEL: modelValues.model,
+    VAULT2077_VAULT_LLM_TIMEOUT_MS: process.env.VAULT2077_VAULT_LLM_TIMEOUT_MS ?? process.env.VAULT2077_LLM_TIMEOUT_MS ?? "120000",
+    VAULT2077_VAULT_LLM_BATCH_ITEMS: process.env.VAULT2077_VAULT_LLM_BATCH_ITEMS ?? process.env.VAULT2077_LLM_BATCH_ITEMS ?? "5",
+    VAULT2077_VAULT_LLM_MAX_TOKENS: process.env.VAULT2077_VAULT_LLM_MAX_TOKENS ?? process.env.VAULT2077_LLM_MAX_TOKENS ?? "6000",
+    VAULT2077_VAULT_LLM_REASONING_EFFORT: process.env.VAULT2077_VAULT_LLM_REASONING_EFFORT ?? process.env.VAULT2077_LLM_REASONING_EFFORT ?? "low",
+    VAULT2077_SIC_LLM_BASE_URL: process.env.VAULT2077_SIC_LLM_BASE_URL ?? modelValues.baseUrl,
+    VAULT2077_SIC_LLM_API_KEY: process.env.VAULT2077_SIC_LLM_API_KEY ?? modelValues.apiKey,
+    VAULT2077_SIC_LLM_MODEL: process.env.VAULT2077_SIC_LLM_MODEL ?? modelValues.model,
+    VAULT2077_SIC_LLM_TIMEOUT_MS: process.env.VAULT2077_SIC_LLM_TIMEOUT_MS ?? "120000",
   },
   stdio: ["ignore", siteStdout, siteStderr],
 });
@@ -151,8 +161,8 @@ function mergeProcessing(previous, retry) {
   const retriedSuccessIds = new Set((retry.processed ?? []).map((item) => item.batchId));
   return {
     ...previous,
-    ok: retry.failed?.length === 0 && retry.queue?.failed === 0,
-    partial: retry.failed?.length > 0 || retry.queue?.failed > 0,
+    ok: retry.failed?.length === 0 && retry.queue?.retryable === 0 && retry.queue?.quarantined === 0,
+    partial: retry.failed?.length > 0 || retry.queue?.retryable > 0 || retry.queue?.quarantined > 0,
     processed: [
       ...(previous?.processed ?? []),
       ...(retry.processed ?? []),
@@ -232,7 +242,8 @@ try {
     retries < retryLimit
     && (
       (report.processing?.failed?.length ?? 0) > 0
-      || (report.processing?.queue?.failed ?? 0) > 0
+      || (report.processing?.queue?.retryable ?? 0) > 0
+      || (report.processing?.queue?.quarantined ?? 0) > 0
     )
   ) {
     retries += 1;

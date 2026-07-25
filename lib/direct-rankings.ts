@@ -1,8 +1,7 @@
 import "server-only";
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { fetchJsonBounded, fetchTextBounded } from "./sic-fetch.ts";
+import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 
 export type DirectRankingProvider = "github" | "hugging_face" | "openrouter" | "skills";
 
@@ -44,11 +43,18 @@ export type DirectRankingRefreshResult = {
 };
 
 const MAX_BOARD_AGE_MS = 36 * 60 * 60 * 1000;
-const dataRoot = process.env.VAULT2077_DATA_DIR
-  ? path.resolve(process.env.VAULT2077_DATA_DIR)
-  : path.join(process.cwd(), "data");
-const rankingStorePath = path.join(dataRoot, "direct-rankings.json");
-let writeChain: Promise<void> = Promise.resolve();
+const directRankingsDocument: StateDocumentDefinition<DirectRankingStore> = {
+  namespace: "direct-rankings",
+  fileName: "direct-rankings.json",
+  create: () => ({ version: 1, boards: [] }),
+  parse: (value) => {
+    const parsed = value as DirectRankingStore;
+    if (parsed.version !== 1 || !Array.isArray(parsed.boards)) {
+      throw new Error("平台原生榜单存储格式无效。");
+    }
+    return parsed;
+  },
+};
 
 function decodeHtml(value: string) {
   const entities: Record<string, string> = {
@@ -290,32 +296,15 @@ async function skillsBoard(
 }
 
 async function readStore(): Promise<DirectRankingStore> {
-  await mkdir(dataRoot, { recursive: true });
-  try {
-    const parsed = JSON.parse(await readFile(rankingStorePath, "utf8")) as DirectRankingStore;
-    if (parsed.version !== 1 || !Array.isArray(parsed.boards)) throw new Error("invalid");
-    return parsed;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, boards: [] };
-    throw new Error("平台原生榜单存储格式无效。");
-  }
-}
-
-async function writeStore(value: DirectRankingStore) {
-  await mkdir(dataRoot, { recursive: true });
-  const temporary = `${rankingStorePath}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  await rename(temporary, rankingStorePath);
+  return readStateDocument(directRankingsDocument);
 }
 
 export function persistDirectRankingBoards(boards: DirectRankingBoard[]) {
-  writeChain = writeChain.then(async () => {
-    const current = await readStore();
+  return mutateStateDocument(directRankingsDocument, (current) => {
     const byId = new Map(current.boards.map((value) => [value.id, value]));
     for (const value of boards) byId.set(value.id, value);
-    await writeStore({ version: 1, boards: [...byId.values()] });
+    current.boards = [...byId.values()];
   });
-  return writeChain;
 }
 
 export async function refreshDirectRankings(): Promise<DirectRankingRefreshResult> {
@@ -349,9 +338,12 @@ export async function refreshDirectRankings(): Promise<DirectRankingRefreshResul
 export async function getDirectRankingBoards() {
   const now = Date.now();
   return (await readStore()).boards
-    .filter((value) => {
+    .map((value) => {
       const age = now - Date.parse(value.capturedAt);
-      return Number.isFinite(age) && age >= 0 && age <= MAX_BOARD_AGE_MS;
+      return {
+        ...value,
+        stale: !Number.isFinite(age) || age < 0 || age > MAX_BOARD_AGE_MS,
+      };
     })
     .sort((left, right) => left.id.localeCompare(right.id));
 }

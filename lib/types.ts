@@ -47,6 +47,7 @@ export type InformationItem = {
   sourceName: string;
   sourceRole: SourceRole;
   sourceUrl: string;
+  externalUrl?: string;
   author: string;
   publishedAt: string | null;
   discoveredAt: string;

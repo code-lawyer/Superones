@@ -12,6 +12,7 @@ function batch() {
     batchId: "batch:2026-07-24T000000Z:demo",
     runId: "run:2026-07-24T000000Z:demo",
     lane: "sic",
+    runMode: "incremental",
     scheduleId: "schedule:test:sic",
     windowFrom: "2026-07-24T00:00:00.000Z",
     windowUntil: "2026-07-24T01:00:00.000Z",
@@ -48,6 +49,7 @@ function batch() {
 test("validates and normalizes a unified acquisition batch", () => {
   const result = validateAcquisitionBatch(batch());
   assert.equal(result.schemaVersion, 1);
+  assert.equal(result.runMode, "incremental");
   assert.equal(result.records[0].kind, "publication");
   assert.equal(result.sourceReports[0].recordCount, 1);
   assert.equal(result.collectedAt, "2026-07-24T01:01:00.000Z");
@@ -75,6 +77,24 @@ test("rejects unsupported record kinds", () => {
   assert.throws(() => validateAcquisitionBatch(value), /kind/);
 });
 
+test("rejects record kinds that do not belong to the declared lane", () => {
+  const value = batch();
+  value.lane = "information";
+  assert.throws(
+    () => validateAcquisitionBatch(value),
+    (error) => error instanceof AcquisitionContractError
+      && error.code === "LANE_RECORD_KIND_MISMATCH",
+  );
+});
+
 test("shared signature input remains stable for legacy and unified receivers", () => {
   assert.equal(signingInput("123", "batch-1", "deadbeef"), "123.batch-1.deadbeef");
+});
+
+test("accepts bootstrap batches and defaults legacy batches to incremental", () => {
+  const bootstrap = batch();
+  bootstrap.runMode = "bootstrap";
+  assert.equal(validateAcquisitionBatch(bootstrap).runMode, "bootstrap");
+  const { runMode: _legacyRunMode, ...legacy } = batch();
+  assert.equal(validateAcquisitionBatch(legacy).runMode, "incremental");
 });

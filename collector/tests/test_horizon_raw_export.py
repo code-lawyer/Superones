@@ -6,9 +6,7 @@ from unittest.mock import patch
 import httpx
 
 from collector.horizon_raw_export import (
-    canonical_source_for_url,
     collect_one,
-    promote_discovery_candidates,
     repair_utf8_mojibake,
     selected_sources,
 )
@@ -48,9 +46,8 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
         end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
         async with httpx.AsyncClient(transport=transport) as client:
-            information, candidates, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
-        self.assertEqual(candidates, [])
         self.assertEqual(outcome.adapter, "horizon-rss")
         self.assertEqual(outcome.status, "success")
         self.assertEqual(len(information), 1)
@@ -88,10 +85,9 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
         end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            information, candidates, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
         self.assertEqual(information, [])
-        self.assertEqual(candidates, [])
         self.assertEqual(outcome.status, "failure")
         self.assertIn("HTTP 503", outcome.error)
 
@@ -130,14 +126,13 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
         end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            information, candidates, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
         self.assertEqual(calls, 2)
-        self.assertEqual(candidates, [])
         self.assertEqual(outcome.status, "success")
         self.assertEqual(len(information), 1)
 
-    async def test_hacker_news_external_story_is_discovery_only_and_never_fetches_comments(self):
+    async def test_hacker_news_external_story_is_a_canonical_community_topic_without_recursive_fetch(self):
         source = {
             "id": "source-hn-test",
             "name": "Hacker News",
@@ -173,13 +168,15 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
         with patch("collector.feed_collector.fetch_json", side_effect=upstream):
             async with httpx.AsyncClient() as client:
-                information, candidates, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+                information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
-        self.assertEqual(information, [])
         self.assertEqual(outcome.status, "success")
-        self.assertEqual(len(candidates), 1)
-        self.assertEqual(candidates[0]["canonicalUrl"], "https://publisher.example.test/story")
-        self.assertEqual(candidates[0]["status"], "candidate")
+        self.assertEqual(len(information), 1)
+        self.assertEqual(information[0]["originalUrl"], "https://news.ycombinator.com/item?id=101")
+        self.assertEqual(information[0]["externalUrl"], "https://publisher.example.test/story")
+        self.assertEqual(information[0]["contentGroup"], "roadside")
+        self.assertEqual(information[0]["publisherKind"], "community")
+        self.assertEqual(information[0]["provenanceStatus"], "verified")
         self.assertFalse(any("/item/202.json" in url for url in requested))
 
     async def test_hacker_news_native_topic_enters_roadside_without_comments(self):
@@ -213,83 +210,47 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
         with patch("collector.feed_collector.fetch_json", side_effect=upstream):
             async with httpx.AsyncClient() as client:
-                information, candidates, _ = await collect_one(source, start, end, client, asyncio.Semaphore(1))
-        self.assertEqual(candidates, [])
+                information, _ = await collect_one(source, start, end, client, asyncio.Semaphore(1))
         self.assertEqual(len(information), 1)
         self.assertEqual(information[0]["contentGroup"], "roadside")
         self.assertEqual(information[0]["itemKind"], "community_topic")
-        self.assertEqual(information[0]["publisherKind"], "community_user")
+        self.assertEqual(information[0]["publisherKind"], "community")
         self.assertEqual(information[0]["originalAuthor"], "community-name")
         self.assertNotIn("203", information[0]["originalContent"])
 
-    async def test_known_discovery_domains_are_promoted_and_routed_by_original_publisher(self):
-        def source(source_id, host, group, publisher_kind):
-            return {
-                "id": source_id,
-                "name": source_id,
-                "connector": "rss",
-                "endpoint": f"https://{host}/feed.xml",
-                "homeUrl": f"https://{host}/",
-                "contentGroup": group,
-                "provenanceRole": "canonical",
-                "provenanceStatus": "verified",
-                "originPlatform": "web",
-                "primaryLanguage": "en",
-                "contentCapability": "fulltext",
-                "evidenceNature": "primary" if group == "documents" else "reported_analysis",
-                "publisherKind": publisher_kind,
-                "classificationConfidence": "high",
-            }
+    async def test_lobsters_external_story_keeps_the_discussion_as_canonical(self):
+        source = {
+            "id": "source-lobsters-test",
+            "name": "Lobsters",
+            "connector": "json",
+            "channelIdentifier": "lobsters",
+            "endpoint": "https://lobste.rs/hottest.json",
+            "contentGroup": "roadside",
+            "primaryLanguage": "en",
+            "contentCapability": "metadata",
+            "evidenceNature": "social_community",
+            "publisherKind": "community",
+            "classificationConfidence": "high",
+        }
+        payload = [{
+            "short_id": "abc123",
+            "title": "A systems story",
+            "url": "https://publisher.example.test/story",
+            "comments_url": "https://lobste.rs/s/abc123/systems_story",
+            "created_at": "2026-07-22T09:00:00Z",
+            "submitter_user": {"username": "lobster"},
+        }]
+        start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
+        with patch("collector.feed_collector.fetch_json", return_value=payload):
+            async with httpx.AsyncClient() as client:
+                information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
-        sources = [
-            source("editorial-source", "media.example.test", "information", "editorial_media"),
-            source("organization-source", "company.example.test", "documents", "organization"),
-            source("person-source", "person.example.test", "roadside", "person"),
-        ]
-        candidates = [
-            {
-                "canonicalUrl": f"https://{host}/post",
-                "discoveryUrl": f"https://news.ycombinator.com/item?id={index}",
-                "title": "Discovery title",
-                "publishedAt": "2026-07-22T09:00:00Z",
-            }
-            for index, host in enumerate(
-                ("media.example.test", "company.example.test", "person.example.test"),
-                start=1,
-            )
-        ]
-        candidates.append({
-            "canonicalUrl": "https://unknown.example.test/post",
-            "discoveryUrl": "https://news.ycombinator.com/item?id=4",
-            "title": "Unknown publisher",
-            "publishedAt": "2026-07-22T09:00:00Z",
-        })
-        body = """
-        <html><head>
-          <meta property="og:title" content="Canonical original title">
-          <meta property="article:published_time" content="2026-07-22T09:00:00Z">
-          <meta name="author" content="Original Author">
-        </head><body><article>
-          This is the complete original publisher document. It contains enough
-          substantive text to pass full-text admission and is not a community comment.
-          The original publisher remains responsible for this complete document.
-        </article></body></html>
-        """
-
-        async def handler(request):
-            return httpx.Response(200, text=body, request=request)
-
-        with patch("collector.horizon_raw_export.validate_public_https_url"):
-            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-                promoted, discoveries, stats = await promote_discovery_candidates(candidates, sources, client)
-
-        self.assertEqual([item["contentGroup"] for item in promoted], ["information", "documents", "roadside"])
-        self.assertTrue(all(item["contentCompleteness"] == "fulltext" for item in promoted))
-        self.assertTrue(all("community comment" in item["originalContent"] for item in promoted))
-        self.assertEqual({item["sourceChannelId"] for item in promoted}, set(stats))
-        self.assertEqual(sum(item["status"] == "promoted" for item in discoveries), 3)
-        self.assertEqual(discoveries[-1]["status"], "candidate")
-        self.assertIsNone(canonical_source_for_url("https://unknown.example.test/post", sources))
+        self.assertEqual(outcome.status, "success")
+        self.assertEqual(len(information), 1)
+        self.assertEqual(information[0]["originalUrl"], "https://lobste.rs/s/abc123/systems_story")
+        self.assertEqual(information[0]["externalUrl"], "https://publisher.example.test/story")
+        self.assertEqual(information[0]["provenanceRole"], "canonical")
 
     async def test_github_adapter_sends_configured_read_token(self):
         source = {
@@ -321,9 +282,8 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
         with patch.dict("os.environ", {"GITHUB_TOKEN": "test-read-token"}):
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-                information, candidates, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+                information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
-        self.assertEqual(candidates, [])
         self.assertEqual(outcome.status, "success")
         self.assertEqual(len(information), 1)
         self.assertEqual(information[0]["originalTitle"], "example/project released v1.0.0")
