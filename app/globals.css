@@ -779,27 +779,6 @@ h3 {
   line-height: 1.45;
 }
 
-.detail-meta {
-  margin-bottom: 0;
-}
-
-.detail-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(260px, 0.8fr);
-  gap: clamp(52px, 10vw, 150px);
-  padding-top: clamp(60px, 8vw, 112px);
-}
-
-.detail-body {
-  max-width: 820px;
-}
-
-.detail-body section {
-  margin-bottom: 72px;
-}
-
-.detail-body h2,
-.service-contact-card h2,
 .challenge-panel h2,
 .verification-result h2,
 .prose-content h2 {
@@ -808,39 +787,11 @@ h3 {
   line-height: 1.1;
 }
 
-.detail-body p,
-.detail-body li {
-  color: var(--graphite);
-  font-size: 18px;
-}
-
 .detail-lead {
   max-width: 900px;
   color: var(--graphite);
   font-size: clamp(21px, 2.4vw, 34px) !important;
   line-height: 1.55;
-}
-
-.detail-aside {
-  align-self: start;
-  border-top: 1px solid var(--carbon);
-  padding-top: 18px;
-  font-size: 13px;
-}
-
-.detail-aside > p:not(.eyebrow) {
-  margin-bottom: 8px;
-}
-
-.aside-note {
-  margin-top: 44px;
-  border-top: 1px solid var(--rule);
-  padding-top: 18px;
-}
-
-.aside-note .text-link,
-.aside-note .text-action {
-  margin-top: 14px;
 }
 
 .timeline {
@@ -893,7 +844,6 @@ h3 {
   font-size: 10px;
 }
 
-.service-offer,
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -903,7 +853,6 @@ h3 {
   border-bottom: 1px solid var(--carbon);
 }
 
-.service-offer > div,
 .metric-strip > div {
   display: flex;
   min-height: 120px;
@@ -913,47 +862,17 @@ h3 {
   padding: 18px;
 }
 
-.service-offer > div:last-child,
 .metric-strip > div:last-child {
   border-right: 0;
 }
 
-.service-offer span,
 .metric-strip span {
   color: var(--ash);
   font-size: 10px;
 }
 
-.service-offer strong,
 .metric-strip strong {
   font-size: clamp(20px, 2.6vw, 38px);
-}
-
-.service-sections ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: service-list;
-}
-
-.service-sections li {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
-  border-top: 1px solid var(--rule);
-  padding: 16px 0;
-  counter-increment: service-list;
-}
-
-.service-sections li::before {
-  color: var(--ash);
-  content: counter(service-list, decimal-leading-zero);
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.service-contact-card .text-action {
-  margin-top: 20px;
 }
 
 .project-owner {
@@ -1182,6 +1101,46 @@ h3 {
   padding-top: 24px;
 }
 
+.admin-console__navigation {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 64px;
+  border-top: 1px solid var(--carbon);
+  border-left: 1px solid var(--carbon);
+}
+
+.admin-console__navigation a {
+  display: grid;
+  min-height: 118px;
+  align-content: space-between;
+  gap: 6px;
+  border-right: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  padding: 16px;
+}
+
+.admin-console__navigation a:hover,
+.admin-console__navigation a:focus-visible {
+  background: var(--carbon);
+  color: var(--paper-bright);
+  outline: 0;
+}
+
+.admin-console__navigation span {
+  color: var(--ash);
+  font-size: 8px;
+}
+
+.admin-console__navigation strong {
+  align-self: end;
+  font-size: 15px;
+}
+
+.admin-console__navigation small {
+  color: var(--ash);
+  font-size: 10px;
+}
+
 .admin-console__top {
   display: flex;
   align-items: end;
@@ -1198,6 +1157,27 @@ h3 {
   display: flex;
   align-items: center;
   gap: 22px;
+}
+
+.admin-reauth-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.7fr);
+  gap: clamp(28px, 6vw, 80px);
+  align-items: end;
+  margin: 0 0 42px;
+  border-top: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  padding: 22px 0;
+}
+
+.admin-reauth-panel h3 {
+  margin: 8px 0 10px;
+  font-size: clamp(22px, 3vw, 34px);
+}
+
+.admin-reauth-panel p {
+  margin: 0;
+  color: var(--graphite);
 }
 
 .admin-notice {
@@ -1267,6 +1247,207 @@ h3 {
   display: block;
   margin-top: 7px;
   font-size: 12px;
+}
+
+.admin-opc-editor {
+  margin-top: 64px;
+  border-top: 1px solid var(--carbon);
+  padding-top: 24px;
+}
+
+.admin-opc-editor__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr);
+  gap: clamp(32px, 7vw, 96px);
+  align-items: end;
+  margin-bottom: 28px;
+}
+
+.admin-opc-editor__header h2 {
+  margin: 8px 0 16px;
+}
+
+.admin-opc-editor__header > div:first-child > p:last-child {
+  max-width: 680px;
+  margin-bottom: 0;
+  color: var(--graphite);
+}
+
+.admin-opc-editor__status {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
+  font-size: 9px;
+}
+
+.admin-opc-editor__status span {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.admin-opc-editor__status strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-opc-editor__error {
+  white-space: pre-wrap;
+}
+
+.admin-opc-editor__validation {
+  margin: 22px 0;
+  border: 1px solid var(--rule);
+  padding: 14px 16px;
+  color: var(--graphite);
+  font-size: 12px;
+}
+
+.admin-opc-editor__validation summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.admin-opc-editor__validation ul {
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+.admin-opc-editor__sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 30px;
+  border-top: 1px solid var(--carbon);
+  border-left: 1px solid var(--carbon);
+}
+
+.admin-opc-editor__sections button {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 0;
+  border-right: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  border-radius: 0;
+  padding: 14px 18px;
+  background: transparent;
+  color: var(--carbon);
+}
+
+.admin-opc-editor__sections button.is-active {
+  background: var(--carbon);
+  color: var(--paper-bright);
+}
+
+.admin-opc-editor__workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 2fr);
+  min-height: 640px;
+  border-right: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  border-left: 1px solid var(--carbon);
+}
+
+.admin-opc-editor__records {
+  border-right: 1px solid var(--carbon);
+}
+
+.admin-opc-editor__records-actions {
+  padding: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.admin-opc-editor__records > button {
+  display: grid;
+  width: 100%;
+  gap: 5px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 14px;
+  background: transparent;
+  color: var(--carbon);
+  text-align: left;
+}
+
+.admin-opc-editor__records > button.is-active {
+  background: color-mix(in srgb, var(--carbon) 8%, transparent);
+}
+
+.admin-opc-editor__records > button span {
+  color: var(--ash);
+  font-size: 9px;
+}
+
+.admin-opc-editor__records > button strong {
+  font-size: 13px;
+}
+
+.admin-opc-editor__form {
+  padding: clamp(22px, 4vw, 52px);
+}
+
+.admin-opc-editor__item-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-bottom: 32px;
+}
+
+.admin-opc-editor__item-actions button {
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 8px 11px;
+  background: transparent;
+  font-size: 11px;
+}
+
+.admin-opc-editor__item-actions .is-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.admin-opc-editor__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+}
+
+.admin-opc-editor__fields .form-field:has(textarea) {
+  grid-column: 1 / -1;
+}
+
+.admin-opc-editor__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding-top: 22px;
+}
+
+.admin-opc-editor__footer .form-note {
+  margin: 0;
+}
+
+.admin-opc-editor__reauth {
+  display: grid;
+  width: min(100%, 620px);
+  gap: 12px;
+  margin-top: 18px;
+  border-top: 1px solid var(--carbon);
+  padding-top: 16px;
+}
+
+.admin-opc-editor__reauth p {
+  margin: 0;
+  color: var(--graphite);
+  font-size: 12px;
+}
+
+.admin-opc-editor__reauth .form-field {
+  margin-bottom: 0;
 }
 
 .admin-status {
@@ -1384,11 +1565,6 @@ h3 {
   .trend-row .trend-value:nth-last-child(2),
   .frontier-row .trend-value:last-child {
     display: block;
-  }
-
-  .detail-layout {
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 48px;
   }
 
   .submission-page {
@@ -1564,13 +1740,8 @@ h3 {
     grid-column: 2;
   }
 
-  .detail-layout,
   .prose-layout {
     grid-template-columns: 1fr;
-  }
-
-  .detail-aside {
-    order: -1;
   }
 
   .source-list a {
@@ -1587,19 +1758,16 @@ h3 {
     gap: 8px;
   }
 
-  .service-offer,
   .metric-strip {
     grid-template-columns: 1fr;
   }
 
-  .service-offer > div,
   .metric-strip > div {
     min-height: 96px;
     border-right: 0;
     border-bottom: 1px solid var(--rule);
   }
 
-  .service-offer > div:last-child,
   .metric-strip > div:last-child {
     border-bottom: 0;
   }
@@ -1619,17 +1787,74 @@ h3 {
   }
 
   .admin-console__top,
+  .admin-reauth-panel,
   .admin-actions {
     align-items: flex-start;
+  }
+
+  .admin-console__top,
+  .admin-actions {
     flex-direction: column;
+  }
+
+  .admin-reauth-panel {
+    grid-template-columns: 1fr;
   }
 
   .admin-pipeline__metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .admin-opc-editor__header,
+  .admin-opc-editor__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-console__navigation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-opc-editor__records {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 360px;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--carbon);
+  }
+
+  .admin-opc-editor__records-actions,
+  .admin-opc-editor__records .ranking-empty {
+    grid-column: 1 / -1;
+  }
+
+  .admin-opc-editor__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .footer-meta {
     text-align: left;
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-console__navigation {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-console__navigation a {
+    min-height: 84px;
+  }
+
+  .admin-opc-editor__sections,
+  .admin-opc-editor__records,
+  .admin-opc-editor__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-opc-editor__fields .form-field:has(textarea) {
+    grid-column: auto;
   }
 }
 

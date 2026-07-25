@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { ADMIN_COOKIE, isValidAdminSession } from "@/lib/admin-auth";
+import { cookies, headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+import { adminCookieName } from "@/lib/admin-auth";
+import { assertAdminPageHost } from "@/lib/admin-request-security";
+import { readAdminSession } from "@/lib/admin-session-store";
 import { informationHref, roadsideHref } from "@/lib/feed-route";
 import {
   PIPELINE_SECTIONS,
@@ -128,9 +130,14 @@ function HealthLedger({
 
 export default async function PipelinePage() {
   if (process.env.NODE_ENV === "production") {
+    try {
+      assertAdminPageHost(await headers());
+    } catch {
+      notFound();
+    }
     const cookieStore = await cookies();
-    const session = cookieStore.get(ADMIN_COOKIE)?.value;
-    if (!isValidAdminSession(session)) {
+    const session = await readAdminSession(cookieStore.get(adminCookieName())?.value);
+    if (!session) {
       redirect("/admin");
     }
   }

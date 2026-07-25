@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { OpcServiceRecords } from "@/components/opc-service-records";
 import { PageIntro } from "@/components/page-intro";
-import { specialtyDomains, specialtyServices } from "@/lib/opc-catalog";
+import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
+import { specialtyDomains } from "@/lib/opc-catalog";
 
 export const metadata: Metadata = { title: "专项服务" };
+export const dynamic = "force-dynamic";
 
-export default function SpecialtiesPage() {
+export default async function SpecialtiesPage() {
+  const { specialties } = await readPublishedServiceCatalog();
   return (
     <>
       <PageIntro code="OPC / SPECIALTIES" title="解决一个明确问题" lead="专项服务以一个边界清楚的问题和一个主要结果完成交付；不按文件类型或办理动作无限拆分。" meta="WORKING PROTOTYPE / 公开菜单前仍需专业确认" />
@@ -15,7 +18,7 @@ export default function SpecialtiesPage() {
       </nav>
       <section className="shell opc-catalog-page opc-specialties-page">
         {specialtyDomains.map((domain, index) => {
-          const services = specialtyServices.filter((service) => service.domain === domain);
+          const services = specialties.filter((service) => service.domain === domain);
           return <section className="opc-specialty-domain" id={domain} key={domain}>
             <header><p className="mono">{String(index + 1).padStart(2, "0")} / SPECIALTY DOMAIN</p><h2>{domain}</h2><span className="mono">{String(services.length).padStart(2, "0")} RECORDS</span></header>
             <OpcServiceRecords items={services} />

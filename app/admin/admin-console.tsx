@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { AdminOpcCatalogEditor } from "@/components/admin-opc-catalog-editor";
 
 type Submission = {
   id: string;
@@ -48,9 +49,34 @@ type Correction = {
   resolution: string | null;
 };
 
+type AdminLoginMode = "identity-gateway" | "local-password";
+
+const adminMutationHeaders = {
+  "Content-Type": "application/json",
+  "X-Vault2077-Admin-Request": "1",
+};
+
+class AdminApiError extends Error {
+  readonly code?: string;
+  readonly reauthenticationUrl?: string;
+
+  constructor(message: string, code?: string, reauthenticationUrl?: string) {
+    super(message);
+    this.name = "AdminApiError";
+    this.code = code;
+    this.reauthenticationUrl = reauthenticationUrl;
+  }
+}
+
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; corrections?: Correction[]; refreshed?: unknown; failed?: unknown } | null;
-  if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "请求暂时无法完成。");
+  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; corrections?: Correction[]; refreshed?: unknown; failed?: unknown } | null;
+  if (!response.ok) {
+    throw new AdminApiError(
+      typeof body?.error === "string" ? body.error : "请求暂时无法完成。",
+      typeof body?.code === "string" ? body.code : undefined,
+      typeof body?.reauthenticationUrl === "string" ? body.reauthenticationUrl : undefined,
+    );
+  }
   return body;
 }
 
@@ -60,6 +86,10 @@ export function AdminConsole() {
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [password, setPassword] = useState("");
+  const [loginMode, setLoginMode] = useState<AdminLoginMode>("local-password");
+  const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
+  const [reauthenticationUrl, setReauthenticationUrl] = useState("");
+  const [reauthenticationPassword, setReauthenticationPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
@@ -84,14 +114,27 @@ export function AdminConsole() {
     setCorrections(Array.isArray(content?.corrections) ? content.corrections : []);
   }, []);
 
-  useEffect(() => { void load().catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。")); }, [load]);
+  useEffect(() => {
+    void Promise.all([
+      fetch("/api/admin/login", { cache: "no-store" })
+        .then((response) => response.json())
+        .then((body: { mode?: AdminLoginMode }) => {
+          if (body.mode === "identity-gateway" || body.mode === "local-password") setLoginMode(body.mode);
+        }),
+      load(),
+    ]).catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。"));
+  }, [load]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify(loginMode === "local-password" ? { password } : {}),
+      });
       await jsonMessage(response);
       setPassword("");
       await load();
@@ -108,7 +151,7 @@ export function AdminConsole() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refresh-stars", confirm: true }) });
+      const response = await fetch("/api/admin/frontier", { method: "POST", headers: adminMutationHeaders, body: JSON.stringify({ action: "refresh-stars", confirm: true }) });
       const body = await jsonMessage(response);
       setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
       setDonations(Array.isArray(body?.donations) ? body.donations : []);
@@ -127,20 +170,48 @@ export function AdminConsole() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/frontier", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, donationId, confirm: true }) });
+      const response = await fetch("/api/admin/frontier", { method: "POST", headers: adminMutationHeaders, body: JSON.stringify({ action, donationId, confirm: true }) });
       const body = await jsonMessage(response);
       setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
       setDonations(Array.isArray(body?.donations) ? body.donations : []);
       setNotice("奖品状态已更新。");
     } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
       setError(cause instanceof Error ? cause.message : "暂时无法更新奖品状态。");
     } finally {
       setPending(false);
     }
   }
 
+  async function reauthenticate() {
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/reauthenticate", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify(loginMode === "local-password" ? { password: reauthenticationPassword } : {}),
+      });
+      const body = await response.json().catch(() => null) as { error?: string; reauthenticationUrl?: string } | null;
+      if (!response.ok) {
+        setReauthenticationUrl(body?.reauthenticationUrl ?? reauthenticationUrl);
+        throw new Error(body?.error ?? "身份重新验证失败。");
+      }
+      setReauthenticationRequired(false);
+      setReauthenticationPassword("");
+      setNotice("高风险操作权限已重新验证，有效期五分钟。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "身份重新验证失败。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
+    await fetch("/api/admin/logout", { method: "POST", headers: adminMutationHeaders, body: "{}" });
     setSubmissions(null);
     setDonations([]);
     setContentState(null);
@@ -158,7 +229,7 @@ export function AdminConsole() {
     try {
       const response = await fetch("/api/admin/content", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: adminMutationHeaders,
         body: JSON.stringify({
           action: "close-correction",
           correctionId: correction.id,
@@ -179,25 +250,57 @@ export function AdminConsole() {
   if (submissions === null) {
     return (
       <form className="admin-login" onSubmit={login}>
-        <p className="eyebrow mono">SHARED OPERATOR ACCESS</p>
+        <p className="eyebrow mono">SECURE OPERATOR ACCESS</p>
         <h2>进入运营后台。</h2>
         <div className="form-field">
-          <label htmlFor="admin-password">共享密码</label>
-          <input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} required />
+          {loginMode === "identity-gateway"
+            ? <><strong>安全身份入口</strong><p className="form-note">身份网关已完成白名单与 MFA 后，点击下方按钮建立可撤销的后台会话。</p></>
+            : <><label htmlFor="admin-password">本地开发密码</label><input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} required /></>}
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button className="text-action" type="submit" disabled={pending}>{pending ? "正在登录" : "进入后台"}</button>
-        <p className="form-note mono">生产环境只接受 Argon2id 密码哈希，不保存明文密码。</p>
+        <button className="text-action" type="submit" disabled={pending}>{pending ? "正在验证" : loginMode === "identity-gateway" ? "使用安全身份进入" : "进入本地后台"}</button>
+        <p className="form-note mono">{loginMode === "identity-gateway" ? "PROTECTED BY IDENTITY GATEWAY / REVOCABLE SESSION" : "LOCAL DEVELOPMENT ADAPTER ONLY"}</p>
       </form>
     );
   }
 
   return (
     <section className="admin-console">
-      <div className="admin-console__top">
-        <div><p className="eyebrow mono">FRONTIER / OPERATOR VIEW</p><h2>报名与 Star 快照</h2></div>
+      <nav className="admin-console__navigation" aria-label="后台功能">
+        <a href="#admin-overview"><span className="mono">READ ONLY</span><strong>运行概览</strong><small>自动资讯与榜单状态</small></a>
+        <a href="#admin-corrections"><span className="mono">EXCEPTION</span><strong>内容异常</strong><small>只处理用户纠错报告</small></a>
+        <a href="/sources"><span className="mono">GOVERNANCE</span><strong>来源组合</strong><small>查看受控来源目录</small></a>
+        <a href="#admin-opc"><span className="mono">EDITABLE</span><strong>OPC 菜单</strong><small>人工服务目录</small></a>
+        <a href="#admin-frontier"><span className="mono">BUSINESS</span><strong>边境计划</strong><small>报名与奖品异常</small></a>
+        <a href="/pipeline"><span className="mono">DIAGNOSTIC</span><strong>系统记录</strong><small>受保护管线诊断</small></a>
+      </nav>
+      <div className="admin-console__top" id="admin-frontier">
+        <div><p className="eyebrow mono">FRONTIER / BUSINESS OPERATIONS</p><h2>报名与奖品业务</h2><p className="form-note">排名和 Star 观察由系统自动完成；手动刷新只用于故障恢复，不能编辑基线、分数或名次。</p></div>
         <div className="admin-actions"><button className="text-action" type="button" disabled={pending} onClick={refreshStars}>{pending ? "正在刷新" : "刷新 Star"}</button><button className="text-link" type="button" onClick={logout}>退出后台</button></div>
       </div>
+      {reauthenticationRequired ? (
+        <section className="admin-reauth-panel" aria-labelledby="admin-reauth-title">
+          <div>
+            <p className="eyebrow mono">STEP-UP AUTHENTICATION</p>
+            <h3 id="admin-reauth-title">重新验证高风险操作权限</h3>
+            <p>{loginMode === "identity-gateway" ? "先通过身份网关完成 Passkey/MFA，再刷新当前权限。" : "输入本地开发密码；生产环境不会显示此密码框。"}</p>
+          </div>
+          {loginMode === "identity-gateway" ? (
+            <div className="admin-actions">
+              {reauthenticationUrl ? <a className="text-link" href={reauthenticationUrl}>进入安全身份验证 ↗</a> : null}
+              <button className="text-action" type="button" disabled={pending} onClick={() => void reauthenticate()}>身份已更新，刷新权限</button>
+            </div>
+          ) : (
+            <div className="admin-actions">
+              <div className="form-field">
+                <label htmlFor="admin-reauth-password">本地开发密码</label>
+                <input id="admin-reauth-password" type="password" autoComplete="current-password" value={reauthenticationPassword} onChange={(event) => setReauthenticationPassword(event.target.value)} />
+              </div>
+              <button className="text-action" type="button" disabled={pending || !reauthenticationPassword} onClick={() => void reauthenticate()}>验证权限</button>
+            </div>
+          )}
+        </section>
+      ) : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {notice ? <p className="admin-notice" role="status">{notice}</p> : null}
       <div className="admin-table" role="region" aria-label="边境计划报名记录" tabIndex={0}>
@@ -227,7 +330,7 @@ export function AdminConsole() {
           ))}
         </div>
       </section>
-      <section className="admin-pipeline" aria-label="信息管道状态">
+      <section className="admin-pipeline" id="admin-overview" aria-label="信息管道状态">
         <p className="eyebrow mono">CONTENT PIPELINE / DOMESTIC VIEW</p>
         <h2>信息管道状态</h2>
         {contentState ? (
@@ -240,7 +343,8 @@ export function AdminConsole() {
           </div>
         ) : <p className="ranking-empty">暂时无法读取信息管道状态。</p>}
       </section>
-      <section className="admin-donations" aria-labelledby="admin-corrections-title">
+      <AdminOpcCatalogEditor />
+      <section className="admin-donations" id="admin-corrections" aria-labelledby="admin-corrections-title">
         <div className="admin-section-heading">
           <p className="eyebrow mono">CONTENT / CORRECTIONS</p>
           <h2 id="admin-corrections-title">匿名纠错报告</h2>

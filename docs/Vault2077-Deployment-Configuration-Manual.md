@@ -17,8 +17,7 @@ updated: 2026-07-25
 | 变量 | 生产要求 | 用途 |
 | --- | --- | --- |
 | `VAULT2077_DATA_KEY` | 必需 | 私人字段加密 |
-| `VAULT2077_ADMIN_PASSWORD_HASH` | 必需 | Argon2id 后台共享口令哈希 |
-| `VAULT2077_ADMIN_SESSION_SECRET` | 必需 | 后台会话签名 |
+| `VAULT2077_ADMIN_SESSION_SECRET` | 必需 | 后台会话令牌摘要密钥 |
 | `VAULT2077_AUDIT_HASH_SECRET` | 必需 | 客户地址匿名化 |
 | `VAULT2077_PIPELINE_SHARED_SECRET` | 必需 | 统一批次签名 |
 | `VAULT2077_PIPELINE_WORKER_SECRET` | 必须独立 | 处理入口鉴权 |
@@ -27,6 +26,21 @@ updated: 2026-07-25
 | `VAULT2077_HEALTH_SECRET` | 必需 | 受保护健康/新鲜度检查鉴权 |
 
 所有值由秘密管理注入；生产不得使用开发默认值。
+
+生产后台身份配置：
+
+| 变量 | 生产要求 | 用途 |
+| --- | --- | --- |
+| `VAULT2077_PUBLIC_ORIGIN` | 必需 | 公开站规范来源 |
+| `VAULT2077_ADMIN_ORIGIN` | 必需且不同于公开来源 | 独立管理来源 |
+| `VAULT2077_ADMIN_IDENTITY_ISSUER` | 必需 | 身份网关 JWT 发行者 |
+| `VAULT2077_ADMIN_IDENTITY_AUDIENCE` | 必需 | 身份网关 JWT 受众 |
+| `VAULT2077_ADMIN_IDENTITY_JWKS_URL` | 必需且为 HTTPS | 签名公钥与轮换入口 |
+| `VAULT2077_ADMIN_IDENTITY_HEADER` | 必需 | 受信任代理注入 JWT 的请求头 |
+| `VAULT2077_ADMIN_IDENTITY_ALLOWLIST` | 必需 | 逗号分隔的 `owner` 邮箱白名单 |
+| `VAULT2077_ADMIN_REAUTH_URL` | 必需且同属管理来源 | 强制重新进入身份网关的地址 |
+
+身份网关必须对允许身份强制 Passkey 或其他抗钓鱼 MFA。源站必须只接受网关或回环网络；仅验证 JWT 而仍允许任意公网流量直达源站不算完成部署。
 
 ## 3. 采集与投递
 
@@ -74,7 +88,7 @@ updated: 2026-07-25
 
 `VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。Next 生产进程只有在显式设置 `VAULT2077_ALLOW_FILE_PREVIEW=true` 时才允许文件模式，该开关只用于 E2E/本地预览，生产部署必须保持关闭。
 
-生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、不可变审计、登录锁定和分布式限速；迁移文件应用后不得修改。Redis 与对象存储保持未配置，除非容量和恢复需求已经形成批准决策。
+生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、不可变审计、登录锁定、分布式限速和可撤销后台会话；迁移文件应用后不得修改。Redis 与对象存储保持未配置，除非容量和恢复需求已经形成批准决策。
 
 ## 6. GitHub Actions
 
@@ -93,8 +107,11 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 
 ## 7. 反向代理与公开边界
 
+- 仓库中的 `deploy/nginx/vault2077.conf.example`、`deploy/nginx/vault2077-admin-proxy.conf.example` 和 `deploy/systemd/vault2077-web.service` 是双入口与应用服务模板；部署时必须替换域名、证书路径、目录和身份网关配置，并先通过目标环境审查。
 - 只公开产品路由和必要表单 API。
 - acquisition、process、后台与诊断路由由网络策略和应用鉴权共同保护。
+- `/admin` 与 `/api/admin/*` 只在 `VAULT2077_ADMIN_ORIGIN` 的主机上提供；公开站主机显式拒绝这些路径。
+- 管理入口前置身份访问网关，网关覆盖身份断言头；反向代理只监听回环应用端口，防火墙拒绝服务器 IP 绕过。
 - 监控以 Bearer 密钥读取 `/api/internal/health`；`503` 或任一 degraded 检查触发告警，不向公网匿名暴露检查详情。
 - `/pipeline` 只允许回环/内部网络或认证后台访问，并设置 `noindex`。
 - 配置 TLS、HSTS、CSP、MIME 防护、Referrer Policy、请求体限制与日志脱敏。
@@ -102,12 +119,12 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 ## 8. 部署步骤
 
 1. 固定提交、运行时和锁文件。
-2. 用 `VAULT2077_ADMIN_PASSWORD_INPUT` 临时注入至少 20 字符口令并运行 `npm run admin:hash-password`，只保存输出哈希；注入其余秘密并拒绝开发默认值。
+2. 配置独立管理来源、身份网关白名单、Passkey/MFA 策略、JWT 发行者/受众/JWKS 与再认证地址；注入会话及审计秘密并拒绝开发默认值。
 3. 在最终生产环境变量下运行 `npm run deploy:check`，再运行文档、类型、单元、采集器、构建和 E2E。
 4. 生产运行 PostgreSQL 迁移并确认恢复点。
 5. 部署应用但暂不开放内容频道；执行一次性 bootstrap，把 SiC 每个 approved 来源的最近一条合格内容与 Vault 最近 30 天真实内容写入生产事实源。
 6. 验证 bootstrap 的逐来源覆盖、原始日期、稳定 ID、分批处理和幂等补跑，再启用统一增量计划和境内 Frontier 业务调度。
-7. 验证四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台鉴权和 `/pipeline` 边界。
+7. 在生产等价预发布环境验证四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台身份断言、单会话撤销、再认证、公共主机拒绝、服务器 IP 绕过失败和 `/pipeline` 边界。
 8. 保存证据；失败按上一版本和数据库迁移策略回滚。
 
 bootstrap 是一次性受审计作业，不是应用启动钩子。多副本启动不得各自触发回填；新增 approved 来源时只对该来源执行同一基线规则。

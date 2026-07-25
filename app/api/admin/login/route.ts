@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ADMIN_COOKIE,
+  adminCookieName,
   adminCookieOptions,
-  adminSessionAnonymousId,
-  createAdminSession,
-  isValidAdminPassword,
-  readAdminSession,
+  isValidLocalAdminPassword,
 } from "@/lib/admin-auth";
-import { withinRateLimit } from "@/lib/rate-limit";
+import { adminAccessMode, localAdminIdentity, readGatewayAdminIdentity } from "@/lib/admin-identity";
+import { assertAdminHost, assertAdminMutationRequest, AdminRequestSecurityError } from "@/lib/admin-request-security";
+import { createAdminSession } from "@/lib/admin-session-store";
+import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 import {
   clearLoginFailures,
@@ -18,59 +18,86 @@ import {
 
 export const runtime = "nodejs";
 
+export async function GET(request: NextRequest) {
+  try {
+    assertAdminHost(request);
+    return NextResponse.json({ mode: adminAccessMode() });
+  } catch (error) {
+    if (error instanceof AdminRequestSecurityError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    throw error;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const clientHash = anonymizeClientAddress(requestClientAddress(request));
+  try {
+    assertAdminMutationRequest(request);
+  } catch (error) {
+    if (error instanceof AdminRequestSecurityError) {
+      await recordAuditEvent({
+        actorHash: clientHash,
+        action: "admin.login",
+        targetType: "session",
+        targetId: adminAccessMode(),
+        result: "rejected",
+        reason: error.code,
+      }).catch(() => undefined);
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    throw error;
+  }
   if (
-    !withinRateLimit(`admin:login:${clientHash}`, 8, 60 * 60 * 1000)
+    !(await withinDurableRateLimit(`admin:login:${clientHash}`, 8, 60 * 60 * 1000))
     || (await loginThrottleState(clientHash)).locked
   ) {
     await recordAuditEvent({
       actorHash: clientHash,
       action: "admin.login",
       targetType: "session",
-      targetId: "shared-admin",
+      targetId: adminAccessMode(),
       result: "rejected",
       reason: "locked",
     });
-    return NextResponse.json({ error: "登录尝试次数过多，请稍后再试。" }, { status: 429 });
+    return NextResponse.json({ error: "登录尝试次数过多，请稍后再试。", code: "ADMIN_LOGIN_LOCKED" }, { status: 429 });
   }
   try {
     const body = await request.json() as { password?: unknown };
-    if (typeof body.password !== "string" || !(await isValidAdminPassword(body.password))) {
-      await recordLoginFailure(clientHash);
-      await recordAuditEvent({
-        actorHash: clientHash,
-        action: "admin.login",
-        targetType: "session",
-        targetId: "shared-admin",
-        result: "rejected",
-        reason: "invalid-credential",
-      });
-      return NextResponse.json({ error: "密码不正确。" }, { status: 401 });
-    }
+    const identity = adminAccessMode() === "identity-gateway"
+      ? await readGatewayAdminIdentity(request.headers)
+      : typeof body.password === "string" && await isValidLocalAdminPassword(body.password)
+        ? localAdminIdentity()
+        : null;
+    if (!identity) throw new Error("invalid-credential");
     await clearLoginFailures(clientHash);
-    const token = createAdminSession();
-    const session = readAdminSession(token);
-    if (!session) throw new Error("无法创建后台会话。");
+    const created = await createAdminSession(identity);
     await recordAuditEvent({
-      actorHash: adminSessionAnonymousId(session),
+      actorHash: created.session.actorHash,
       action: "admin.login",
       targetType: "session",
-      targetId: "shared-admin",
+      targetId: created.session.id,
       result: "success",
+      diff: { role: created.session.role, mode: adminAccessMode() },
     });
-    const response = NextResponse.json({ ok: true });
-    response.cookies.set(ADMIN_COOKIE, token, adminCookieOptions);
+    const response = NextResponse.json({ ok: true, role: created.session.role });
+    response.cookies.set(adminCookieName(), created.token, adminCookieOptions());
     return response;
   } catch (error) {
+    await recordLoginFailure(clientHash);
     await recordAuditEvent({
       actorHash: clientHash,
       action: "admin.login",
       targetType: "session",
-      targetId: "shared-admin",
-      result: "failed",
-      reason: error instanceof Error ? error.message.slice(0, 120) : "invalid-request",
+      targetId: adminAccessMode(),
+      result: "rejected",
+      reason: error instanceof Error ? error.message.slice(0, 120) : "invalid-identity",
     }).catch(() => undefined);
-    return NextResponse.json({ error: "登录请求无效。" }, { status: 400 });
+    return NextResponse.json({
+      error: adminAccessMode() === "identity-gateway"
+        ? "安全身份验证失败。"
+        : "密码不正确。",
+      code: "ADMIN_IDENTITY_REJECTED",
+    }, { status: 401 });
   }
 }

@@ -42,11 +42,14 @@ updated: 2026-07-25
 - [ADR-0008：公开内容单一主去向](adr/0008-single-destination-content-routing.md)
 - [ADR-0009：内容频道采用独立编辑配置](adr/0009-channel-editorial-profiles.md)
 - [ADR-0010：生产持久化与安全状态统一进入 PostgreSQL](adr/0010-production-persistence-and-security-seam.md)
+- [ADR-0011：人工编辑只进入结构化服务目录](adr/0011-managed-service-catalog.md)
+- [ADR-0012：生产后台采用身份网关与可撤销应用会话](adr/0012-production-admin-access.md)
 
 ## 当前运行文档
 
 - [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
 - [部署配置手册](Vault2077-Deployment-Configuration-Manual.md)
+- [OPC 服务目录后台操作手册](Vault2077-OPC-Admin-Manual.md)
 - [Content Pipeline Operations](Content-Pipeline-Operations.md) 已被统一采集手册取代，只保留迁移指引。
 
 ## 支持性方案

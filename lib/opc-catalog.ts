@@ -6,6 +6,7 @@ export type OpcService = {
   code: string;
   name: string;
   domain: string;
+  group: string;
   outcome: string;
   audience: string;
   includes: string[];
@@ -16,6 +17,8 @@ export type OpcService = {
   period: string;
   revision: string;
   status: string;
+  effectiveAt: string;
+  reviewNote: string;
 };
 
 export type RangerProfile = {
@@ -27,6 +30,15 @@ export type RangerProfile = {
   credential?: string;
   contactLabel: string;
   contactState: string;
+  verificationDate?: string;
+  profileUpdatedAt?: string;
+  authorizationStatus?: string;
+};
+
+export type OpcCatalogContent = {
+  infrastructure: OpcService[];
+  specialties: OpcService[];
+  rangers: RangerProfile[];
 };
 
 const previewFacts = {
@@ -34,6 +46,8 @@ const previewFacts = {
   period: "待专业确认",
   revision: "DRAFT.01",
   status: "内容建模中",
+  effectiveAt: "待专业确认",
+  reviewNote: "待专业确认",
 };
 
 function infrastructure(
@@ -45,12 +59,14 @@ function infrastructure(
   includes: string[],
   boundary: string,
 ): OpcService {
+  const sequence = Number(code.split("/").at(-1));
   return {
     kind: "infrastructure",
     code,
     slug,
     name,
     domain: "基础设施",
+    group: sequence <= 3 ? "建立经营底座" : sequence <= 6 ? "持续安全运行" : "构建与交付",
     outcome,
     audience,
     includes,
@@ -74,6 +90,7 @@ function specialty(
     code,
     slug,
     domain,
+    group: domain,
     name,
     outcome,
     audience: "需要在固定范围内完成一次明确专业处理的超级个体或 OPC。",
@@ -144,6 +161,14 @@ export const rangerProfiles: RangerProfile[] = [
 ];
 
 export const allOpcServices = [...infrastructureServices, ...specialtyServices];
+
+export function createDefaultOpcCatalog(): OpcCatalogContent {
+  return structuredClone({
+    infrastructure: infrastructureServices,
+    specialties: specialtyServices,
+    rangers: rangerProfiles,
+  });
+}
 
 export function getOpcService(kind: OpcServiceKind, slug: string) {
   return allOpcServices.find((service) => service.kind === kind && service.slug === slug);

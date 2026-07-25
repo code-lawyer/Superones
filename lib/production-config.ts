@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isIP } from "node:net";
 import { loadEditorialProfileConfig, type EditorialProfileId } from "./openai-compatible-client.ts";
 
 export type ProductionConfigurationReport = {
@@ -8,6 +9,9 @@ export type ProductionConfigurationReport = {
   warnings: string[];
   summary: {
     databaseHost: string | null;
+    publicOrigin: string | null;
+    adminOrigin: string | null;
+    identityIssuer: string | null;
     editorialProviders: Record<EditorialProfileId, string | null>;
     trustedProxyHeaders: boolean;
   };
@@ -41,21 +45,6 @@ function positiveInteger(
   }
 }
 
-function passwordHashIssue(value: string | undefined) {
-  if (!value) return "VAULT2077_ADMIN_PASSWORD_HASH 未配置。";
-  const match = /^argon2id\$v=1\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/.exec(value);
-  if (!match) return "VAULT2077_ADMIN_PASSWORD_HASH 格式无效。";
-  const memory = Number(match[1]);
-  const passes = Number(match[2]);
-  const parallelism = Number(match[3]);
-  const nonce = Buffer.from(match[4], "base64url");
-  const expected = Buffer.from(match[5], "base64url");
-  if (memory < 19_456 || passes < 2 || parallelism < 1 || nonce.length < 16 || expected.length < 32) {
-    return "VAULT2077_ADMIN_PASSWORD_HASH 的 Argon2id 参数低于最低安全基线。";
-  }
-  return null;
-}
-
 function providerHost(
   profile: EditorialProfileId,
   environment: Record<string, string | undefined>,
@@ -72,6 +61,47 @@ function providerHost(
     return url.hostname;
   } catch (error) {
     errors.push(error instanceof Error ? error.message : `${profile} 配置无效。`);
+    return null;
+  }
+}
+
+function parseHttpsOrigin(
+  environment: Record<string, string | undefined>,
+  name: string,
+  errors: string[],
+) {
+  const value = environment[name]?.trim() ?? "";
+  if (!value) {
+    errors.push(`${name} 未配置。`);
+    return null;
+  }
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" || parsed.origin !== value.replace(/\/$/, "")) {
+      errors.push(`${name} 必须是不带路径的 HTTPS origin。`);
+    }
+    if (isIP(parsed.hostname)) errors.push(`${name} 必须使用域名，不能使用服务器 IP。`);
+    if (placeholder(value)) errors.push(`${name} 仍含示例占位值。`);
+    return parsed.origin;
+  } catch {
+    errors.push(`${name} 不是有效 URL。`);
+    return null;
+  }
+}
+
+function parseHttpsUrl(
+  environment: Record<string, string | undefined>,
+  name: string,
+  errors: string[],
+) {
+  const value = environment[name]?.trim() ?? "";
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:") errors.push(`${name} 必须使用 HTTPS。`);
+    if (placeholder(value)) errors.push(`${name} 仍含示例占位值。`);
+    return parsed;
+  } catch {
+    errors.push(`${name} 不是有效 URL。`);
     return null;
   }
 }
@@ -120,10 +150,53 @@ export function validateProductionConfiguration(
     else if (placeholder(value)) errors.push(`${name} 仍含示例或开发占位值。`);
   }
 
-  const hashIssue = passwordHashIssue(environment.VAULT2077_ADMIN_PASSWORD_HASH);
-  if (hashIssue) errors.push(hashIssue);
-  if (environment.VAULT2077_ADMIN_PASSWORD) {
-    errors.push("生产环境不得配置明文 VAULT2077_ADMIN_PASSWORD。");
+  for (const localCredential of [
+    "VAULT2077_ADMIN_PASSWORD",
+    "VAULT2077_ADMIN_PASSWORD_HASH",
+  ]) {
+    if (environment[localCredential]) {
+      errors.push(`生产环境不得配置本地密码变量 ${localCredential}。`);
+    }
+  }
+
+  const publicOrigin = parseHttpsOrigin(environment, "VAULT2077_PUBLIC_ORIGIN", errors);
+  const adminOrigin = parseHttpsOrigin(environment, "VAULT2077_ADMIN_ORIGIN", errors);
+  if (publicOrigin && adminOrigin && new URL(publicOrigin).host === new URL(adminOrigin).host) {
+    errors.push("VAULT2077_ADMIN_ORIGIN 必须使用与公开站不同的独立主机。");
+  }
+
+  const identityIssuerUrl = parseHttpsUrl(
+    environment,
+    "VAULT2077_ADMIN_IDENTITY_ISSUER",
+    errors,
+  );
+  const identityIssuer = identityIssuerUrl?.origin ?? null;
+  const audience = environment.VAULT2077_ADMIN_IDENTITY_AUDIENCE?.trim() ?? "";
+  if (!audience || placeholder(audience)) {
+    errors.push("VAULT2077_ADMIN_IDENTITY_AUDIENCE 未配置或仍是占位值。");
+  }
+  parseHttpsUrl(environment, "VAULT2077_ADMIN_IDENTITY_JWKS_URL", errors);
+  const identityHeader = (environment.VAULT2077_ADMIN_IDENTITY_HEADER ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9-]+$/.test(identityHeader)) {
+    errors.push("VAULT2077_ADMIN_IDENTITY_HEADER 必须是明确的 HTTP 请求头名。");
+  }
+  const allowlist = (environment.VAULT2077_ADMIN_IDENTITY_ALLOWLIST ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowlist.length === 0 || allowlist.some((value) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))) {
+    errors.push("VAULT2077_ADMIN_IDENTITY_ALLOWLIST 必须包含至少一个有效管理员邮箱。");
+  }
+  if (new Set(allowlist).size !== allowlist.length) {
+    errors.push("VAULT2077_ADMIN_IDENTITY_ALLOWLIST 不得包含重复邮箱。");
+  }
+  const reauthenticationUrl = parseHttpsUrl(
+    environment,
+    "VAULT2077_ADMIN_REAUTH_URL",
+    errors,
+  );
+  if (adminOrigin && reauthenticationUrl && reauthenticationUrl.origin !== adminOrigin) {
+    errors.push("VAULT2077_ADMIN_REAUTH_URL 必须属于管理 origin。");
   }
 
   const githubToken = environment.GITHUB_TOKEN?.trim() ?? "";
@@ -179,6 +252,9 @@ export function validateProductionConfiguration(
     warnings,
     summary: {
       databaseHost,
+      publicOrigin,
+      adminOrigin,
+      identityIssuer,
       editorialProviders,
       trustedProxyHeaders: environment.VAULT2077_TRUST_PROXY_HEADERS === "true",
     },

@@ -9,9 +9,16 @@ function validEnvironment() {
     VAULT2077_DATABASE_URL: "postgresql://vault2077:secure@db.internal/vault2077",
     VAULT2077_DATABASE_SSL: "require",
     VAULT2077_DATA_KEY: secret,
-    VAULT2077_ADMIN_PASSWORD_HASH: "argon2id$v=1$m=65536,t=3,p=1$MTIzNDU2Nzg5MGFiY2RlZg$MTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWY",
     VAULT2077_ADMIN_SESSION_SECRET: `${secret}1`,
     VAULT2077_AUDIT_HASH_SECRET: `${secret}2`,
+    VAULT2077_PUBLIC_ORIGIN: "https://vault2077.test",
+    VAULT2077_ADMIN_ORIGIN: "https://admin.vault2077.test",
+    VAULT2077_ADMIN_IDENTITY_ISSUER: "https://identity.vault2077.test",
+    VAULT2077_ADMIN_IDENTITY_AUDIENCE: "vault2077-production-admin",
+    VAULT2077_ADMIN_IDENTITY_JWKS_URL: "https://identity.vault2077.test/.well-known/jwks.json",
+    VAULT2077_ADMIN_IDENTITY_HEADER: "cf-access-jwt-assertion",
+    VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "owner@vault2077.test",
+    VAULT2077_ADMIN_REAUTH_URL: "https://admin.vault2077.test/cdn-cgi/access/logout",
     VAULT2077_PIPELINE_SHARED_SECRET: `${secret}3`,
     VAULT2077_PIPELINE_WORKER_SECRET: `${secret}4`,
     VAULT2077_FRONTIER_TICK_SECRET: `${secret}5`,
@@ -51,4 +58,28 @@ test("production configuration gate warns when both editorial channels share a p
   const report = validateProductionConfiguration(environment);
   assert.equal(report.ok, true);
   assert.ok(report.warnings.some((issue) => issue.includes("故障隔离")));
+});
+
+test("production configuration gate rejects shared host and local password adapters", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_ADMIN_ORIGIN: "https://vault2077.test",
+    VAULT2077_ADMIN_PASSWORD_HASH: "development-only",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("独立主机")));
+  assert.ok(report.errors.some((issue) => issue.includes("ADMIN_PASSWORD_HASH")));
+});
+
+test("production configuration gate rejects an invalid identity gateway contract", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_ADMIN_IDENTITY_JWKS_URL: "http://identity.vault2077.test/jwks",
+    VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "not-an-email",
+    VAULT2077_ADMIN_REAUTH_URL: "https://other.vault2077.test/reauthenticate",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("JWKS_URL")));
+  assert.ok(report.errors.some((issue) => issue.includes("ALLOWLIST")));
+  assert.ok(report.errors.some((issue) => issue.includes("REAUTH_URL")));
 });

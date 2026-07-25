@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import type { OpcService, RangerProfile } from "@/lib/opc-catalog";
+import {
+  rangerIdentities,
+  specialtyDomains,
+  type OpcService,
+  type RangerProfile,
+} from "@/lib/opc-catalog";
 
 type WorkspaceView = "infrastructure" | "specialties" | "rangers";
 
@@ -10,6 +16,8 @@ type OpcWorkspaceProps = {
   infrastructure: OpcService[];
   specialties: OpcService[];
   rangers: RangerProfile[];
+  initialView?: WorkspaceView;
+  initialServiceSlug?: string;
 };
 
 type ServiceGroup = {
@@ -32,26 +40,32 @@ const viewCopy: Record<WorkspaceView, { code: string; title: string; note: strin
   rangers: { code: "03", title: "游骑兵协会", note: "外部独立专家" },
 };
 
-const infrastructureNavigation = [
-  { id: "start", label: "建立经营底座", note: "主体、交易与财税核算", slugs: ["entity-and-compliance", "contracts-and-transactions", "finance-and-tax"] },
-  { id: "operate", label: "持续安全运行", note: "协作、知识产权与数据", slugs: ["workforce-and-collaboration", "intellectual-property", "data-and-privacy"] },
-  { id: "deliver", label: "构建与交付", note: "品牌内容、产品、软件与 AI", slugs: ["brand-and-content-assets", "product-delivery", "software-and-automation", "ai-application-governance"] },
-];
+const infrastructureGroupNames = ["建立经营底座", "持续安全运行", "构建与交付"] as const;
 
-export function OpcWorkspace({ infrastructure, specialties, rangers }: OpcWorkspaceProps) {
-  const infrastructureGroups = useMemo<ServiceGroup[]>(() => infrastructureNavigation.map((group) => ({
-    id: group.id,
-    label: group.label,
-    note: group.note,
-    items: group.slugs.map((slug) => infrastructure.find((service) => service.slug === slug)).filter((service): service is OpcService => Boolean(service)),
-  })), [infrastructure]);
-  const specialtyGroups = useMemo<ServiceGroup[]>(() => Array.from(new Set(specialties.map((service) => service.domain))).map((domain) => ({
+export function OpcWorkspace({
+  infrastructure,
+  specialties,
+  rangers,
+  initialView = "infrastructure",
+  initialServiceSlug,
+}: OpcWorkspaceProps) {
+  const router = useRouter();
+  const infrastructureGroups = useMemo<ServiceGroup[]>(() => infrastructureGroupNames.map((group) => {
+    const items = infrastructure.filter((service) => service.group === group);
+    return {
+      id: group,
+      label: group,
+      note: `${items.length} 项完整经营能力`,
+      items,
+    };
+  }), [infrastructure]);
+  const specialtyGroups = useMemo<ServiceGroup[]>(() => specialtyDomains.map((domain) => ({
     id: domain,
     label: domain,
-    note: "五项固定范围服务",
+    note: `${specialties.filter((service) => service.domain === domain).length} 项固定范围服务`,
     items: specialties.filter((service) => service.domain === domain),
   })), [specialties]);
-  const rangerGroups = useMemo<RangerGroup[]>(() => Array.from(new Set(rangers.map((profile) => profile.identity))).map((identity) => {
+  const rangerGroups = useMemo<RangerGroup[]>(() => rangerIdentities.map((identity) => {
     const items = rangers.filter((profile) => profile.identity === identity);
     return {
       id: identity,
@@ -61,22 +75,50 @@ export function OpcWorkspace({ infrastructure, specialties, rangers }: OpcWorksp
     };
   }), [rangers]);
 
-  const [view, setView] = useState<WorkspaceView>("infrastructure");
-  const [openGroup, setOpenGroup] = useState("start");
-  const [selectedService, setSelectedService] = useState<OpcService | null>(infrastructure[0]);
+  const initialServices = initialView === "specialties" ? specialties : infrastructure;
+  const initialService = initialView === "rangers"
+    ? null
+    : initialServices.find((service) => service.slug === initialServiceSlug) ?? initialServices[0] ?? null;
+  const initialGroups = initialView === "specialties" ? specialtyGroups : infrastructureGroups;
+  const initialOpenGroup = initialService
+    ? initialGroups.find((group) => group.items.some((service) => service.slug === initialService.slug))?.id
+    : initialGroups[0]?.id;
+
+  const [view, setView] = useState<WorkspaceView>(initialView);
+  const [openGroup, setOpenGroup] = useState(initialView === "rangers" ? rangerGroups[0]?.id ?? "" : initialOpenGroup ?? "");
+  const [selectedService, setSelectedService] = useState<OpcService | null>(initialService);
   const serviceGroups = view === "infrastructure" ? infrastructureGroups : specialtyGroups;
+
+  function replaceWorkspaceLocation(nextView: WorkspaceView, service?: OpcService | null) {
+    const parameters = new URLSearchParams({ view: nextView });
+    if (service) parameters.set("service", service.slug);
+    router.replace(`/opc?${parameters.toString()}`, { scroll: false });
+  }
 
   function changeView(nextView: WorkspaceView) {
     setView(nextView);
     if (nextView === "infrastructure") {
-      setOpenGroup("start");
-      setSelectedService(null);
+      setOpenGroup(infrastructureGroups[0]?.id ?? "");
+      const service = infrastructure[0] ?? null;
+      setSelectedService(service);
+      replaceWorkspaceLocation(nextView, service);
     }
     if (nextView === "specialties") {
       setOpenGroup(specialtyGroups[0]?.id ?? "");
-      setSelectedService(null);
+      const service = specialties[0] ?? null;
+      setSelectedService(service);
+      replaceWorkspaceLocation(nextView, service);
     }
-    if (nextView === "rangers") setOpenGroup(rangerGroups[0]?.id ?? "");
+    if (nextView === "rangers") {
+      setOpenGroup(rangerGroups[0]?.id ?? "");
+      setSelectedService(null);
+      replaceWorkspaceLocation(nextView);
+    }
+  }
+
+  function selectService(service: OpcService) {
+    setSelectedService(service);
+    replaceWorkspaceLocation(view, service);
   }
 
   return (
@@ -106,7 +148,7 @@ export function OpcWorkspace({ infrastructure, specialties, rangers }: OpcWorksp
         {view === "rangers" ? (
           <RangerNavigation groups={rangerGroups} openGroup={openGroup} onToggle={setOpenGroup} />
         ) : (
-          <ServiceNavigation groups={serviceGroups} openGroup={openGroup} selected={selectedService} onToggle={setOpenGroup} onSelect={setSelectedService} />
+          <ServiceNavigation groups={serviceGroups} openGroup={openGroup} selected={selectedService} onToggle={setOpenGroup} onSelect={selectService} />
         )}
       </aside>
 
@@ -177,7 +219,6 @@ function ServiceEmptyPane({ title }: { title: string }) {
 }
 
 function ServiceReadingPane({ service }: { service: OpcService }) {
-  const href = service.kind === "infrastructure" ? `/opc/infrastructure/${service.slug}` : `/opc/specialties/${service.slug}`;
   return <article className="opc-reading-pane">
     <header>
       <div className="opc-reading-pane__meta mono"><span>{service.code}</span><span>{service.domain}</span><span>{service.status} / {service.revision}</span></div>
@@ -190,9 +231,19 @@ function ServiceReadingPane({ service }: { service: OpcService }) {
       <section><p className="mono">WHAT IS INCLUDED / 包含内容</p><h3>{service.kind === "infrastructure" ? "建立这套能力" : "完成这个结果"}</h3><ol>{service.includes.map((item) => <li key={item}>{item}</li>)}</ol></section>
       <section><p className="mono">MATERIALS / 开始条件</p><h3>需要准备</h3><ol>{service.materials.map((item) => <li key={item}>{item}</li>)}</ol></section>
       <section><p className="mono">DELIVERABLES / 交付成果</p><h3>最终获得</h3><ol>{service.deliverables.map((item) => <li key={item}>{item}</li>)}</ol></section>
-      <section className="opc-reading-pane__boundary"><p className="mono">OUT OF SCOPE / 转交边界</p><h3>超出标准范围时</h3><p>{service.boundary}</p><Link href="/opc/rangers">查看游骑兵协会 ↗</Link></section>
+      <section><p className="mono">REVIEW / 专业复核</p><h3>复核与生效</h3><p>{service.reviewNote}</p><p className="mono muted">{service.effectiveAt}</p></section>
+      <section className="opc-reading-pane__boundary">
+        <div className="opc-reading-pane__boundary-title">
+          <p className="mono">OUT OF SCOPE / 转交边界</p>
+          <h3>超出标准范围时</h3>
+        </div>
+        <div className="opc-reading-pane__boundary-copy">
+          <p>{service.boundary}</p>
+          <Link href="/opc?view=rangers">转至游骑兵协会 <span aria-hidden="true">↗</span></Link>
+        </div>
+        <span className="opc-reading-pane__boundary-mark" aria-hidden="true">↗</span>
+      </section>
     </div>
-    <footer><p>当前为内容工作原型。正式价格、周期、专业复核和联系方式确认后才会进入公开菜单。</p><Link href={href}>查看独立服务页面 ↗</Link></footer>
   </article>;
 }
 
@@ -201,7 +252,7 @@ function RangerWall({ profiles }: { profiles: RangerProfile[] }) {
     <header>
       <p className="mono">RANGER ASSOCIATION / PORTRAIT WALL</p>
       <h2>找到具体的人。</h2>
-      <p>按身份浏览外部独立专家。头像为原型使用的虚构人物素材，正式上线仅展示顾问本人授权肖像。</p>
+      <p>按身份浏览外部独立专家。公开档案只展示顾问本人已授权的资料与联系信息。</p>
     </header>
     <div className="opc-ranger-wall__portraits">
       {profiles.map((profile, index) => <Link className={`opc-ranger-portrait opc-ranger-portrait--${index}`} href={`/opc/rangers/${profile.slug}`} aria-label={`查看 ${profile.publicName} 的专家档案`} key={profile.slug}>

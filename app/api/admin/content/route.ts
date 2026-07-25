@@ -1,11 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
-  ADMIN_COOKIE,
-  adminCookieOptions,
-  adminSessionAnonymousId,
-  readAdminSession,
-  refreshAdminSession,
-} from "@/lib/admin-auth";
+  adminAccessErrorResponse,
+  authenticateAdminRequest,
+  authenticatedAdminJson,
+} from "@/lib/admin-access";
 import { configuredAcquisitionReceiver } from "@/lib/acquisition-inbox";
 import { getStoredContent } from "@/lib/content-store";
 import { closeCorrectionReport, listAdminCorrectionReports } from "@/lib/correction-store";
@@ -14,24 +12,28 @@ import { recordAuditEvent } from "@/lib/security-audit";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const session = readAdminSession(request.cookies.get(ADMIN_COOKIE)?.value);
-  if (!session) {
-    return NextResponse.json({ error: "需要后台登录。" }, { status: 401 });
+  let access;
+  try {
+    access = await authenticateAdminRequest(request);
+  } catch (error) {
+    return adminAccessErrorResponse(error);
   }
   const [content, queue, corrections] = await Promise.all([
     getStoredContent(),
     configuredAcquisitionReceiver().stats(),
     listAdminCorrectionReports(),
   ]);
-  const response = NextResponse.json({ state: content.state, queue, corrections });
-  response.cookies.set(ADMIN_COOKIE, refreshAdminSession(session), adminCookieOptions);
-  return response;
+  return authenticatedAdminJson(access, { state: content.state, queue, corrections });
 }
 
 export async function POST(request: NextRequest) {
-  const session = readAdminSession(request.cookies.get(ADMIN_COOKIE)?.value);
-  if (!session) return NextResponse.json({ error: "需要后台登录。" }, { status: 401 });
-  const actorHash = adminSessionAnonymousId(session);
+  let access;
+  try {
+    access = await authenticateAdminRequest(request, { mutation: true });
+  } catch (error) {
+    return adminAccessErrorResponse(error);
+  }
+  const actorHash = access.session.actorHash;
   try {
     const body = await request.json() as {
       action?: unknown;
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
         result: "rejected",
         reason: "invalid-or-unconfirmed-request",
       });
-      return NextResponse.json({ error: "关闭纠错需要明确确认和 6–500 字处理说明。" }, { status: 400 });
+      return authenticatedAdminJson(access, { error: "关闭纠错需要明确确认和 6–500 字处理说明。" }, { status: 400 });
     }
     await closeCorrectionReport(body.correctionId, body.resolution.trim());
     await recordAuditEvent({
@@ -66,9 +68,7 @@ export async function POST(request: NextRequest) {
       result: "success",
       diff: { status: "closed" },
     });
-    const response = NextResponse.json({ corrections: await listAdminCorrectionReports() });
-    response.cookies.set(ADMIN_COOKIE, refreshAdminSession(session), adminCookieOptions);
-    return response;
+    return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "暂时无法关闭纠错。";
     await recordAuditEvent({
@@ -79,6 +79,6 @@ export async function POST(request: NextRequest) {
       result: "failed",
       reason: reason.slice(0, 200),
     }).catch(() => undefined);
-    return NextResponse.json({ error: reason }, { status: 500 });
+    return authenticatedAdminJson(access, { error: reason }, { status: 500 });
   }
 }

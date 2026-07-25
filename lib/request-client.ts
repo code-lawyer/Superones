@@ -15,9 +15,9 @@ export function requestClientAddress(request: NextRequest) {
 export function anonymizeClientAddress(address: string) {
   const secret = process.env.VAULT2077_AUDIT_HASH_SECRET
     || process.env.VAULT2077_ADMIN_SESSION_SECRET
-    || (process.env.NODE_ENV === "production" ? "" : "vault2077-local-audit-secret!");
+    || (process.env.NODE_ENV === "production" ? "" : "vault2077-local-audit-secret-development!");
   if (Buffer.byteLength(secret, "utf8") < 32) {
-    throw new Error("生产审计哈希密钥至少需要 32 字节。");
+    throw new Error("审计哈希密钥至少需要 32 字节。");
   }
   return createHmac("sha256", secret).update(address).digest("hex").slice(0, 24);
 }

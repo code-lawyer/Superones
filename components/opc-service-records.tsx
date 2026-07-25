@@ -17,9 +17,8 @@ export function OpcServiceRecords({ items, variant = "light", compact = false }:
         <span>周期 / 修订</span>
       </div>
       {items.map((service) => {
-        const href = service.kind === "infrastructure"
-          ? `/opc/infrastructure/${service.slug}`
-          : `/opc/specialties/${service.slug}`;
+        const view = service.kind === "infrastructure" ? "infrastructure" : "specialties";
+        const href = `/opc?view=${view}&service=${encodeURIComponent(service.slug)}`;
 
         return (
           <article className="opc-record" key={service.code}>

@@ -17,6 +17,11 @@ import {
   readStateDocument,
   type StateDocumentDefinition,
 } from "../lib/state-document-store.ts";
+import {
+  createAdminSession,
+  readAdminSession,
+  revokeAdminSession,
+} from "../lib/admin-session-store.ts";
 
 if (!process.env.VAULT2077_DATABASE_URL && !process.env.DATABASE_URL) {
   throw new Error("PostgreSQL 集成测试需要 VAULT2077_DATABASE_URL。");
@@ -29,6 +34,7 @@ const secret = "vault2077-postgres-integration-secret-value";
 const revision = "registry:postgres-integration";
 const batchIds = [`batch:${testId}:1`, `batch:${testId}:2`];
 const pool = configuredPostgresPool();
+let adminSessionId: string | null = null;
 
 const counterDocument: StateDocumentDefinition<{ version: 1; count: number }> = {
   namespace,
@@ -137,6 +143,17 @@ try {
     /append-only/,
   );
 
+  const adminSession = await createAdminSession({
+    subject: `integration-admin:${testId}`,
+    email: "integration-admin@vault2077.invalid",
+    role: "owner",
+    authenticatedAt: new Date().toISOString(),
+  });
+  adminSessionId = adminSession.session.id;
+  assert.equal((await readAdminSession(adminSession.token))?.id, adminSessionId);
+  assert.equal(await revokeAdminSession(adminSession.token), true);
+  assert.equal(await readAdminSession(adminSession.token), null);
+
   console.log(JSON.stringify({
     ok: true,
     stateDocumentCount: 20,
@@ -144,10 +161,14 @@ try {
     finalQueue: stats,
     durableRateLimit: "enforced",
     immutableAudit: "enforced",
+    revocableAdminSession: "enforced",
   }));
 } finally {
   await pool.query("DELETE FROM vault2077_acquisition_inbox WHERE batch_id = ANY($1::text[])", [batchIds]).catch(() => undefined);
   await pool.query("DELETE FROM vault2077_state_documents WHERE namespace = $1", [namespace]).catch(() => undefined);
   await pool.query("DELETE FROM vault2077_rate_limits WHERE key = $1", [rateLimitKey]).catch(() => undefined);
+  if (adminSessionId) {
+    await pool.query("DELETE FROM vault2077_admin_sessions WHERE id = $1", [adminSessionId]).catch(() => undefined);
+  }
   await closePersistencePool();
 }

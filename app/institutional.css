@@ -2263,11 +2263,16 @@ h3 {
 }
 
 /* OPC / Hierarchical service browser */
+.opc-service-browser-shell {
+  --opc-left-viewport-bleed: calc(max(0px, (100vw - var(--shell)) / 2) + var(--gutter));
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .opc-service-browser {
   display: grid;
   grid-template-columns: minmax(150px, 1fr) minmax(260px, 2fr) minmax(0, 4fr);
   min-height: 880px;
-  border-bottom: 1px solid var(--carbon);
 }
 
 .opc-service-browser__primary,
@@ -2666,36 +2671,8 @@ h3 {
   grid-column: 1 / -1;
 }
 
-.opc-reading-pane__boundary > p:not(.mono) {
-  max-width: 760px;
-}
-
 .opc-reading-pane__boundary a {
   display: inline-block;
-  margin-top: 18px;
-  border-bottom: 1px solid currentColor;
-  padding-bottom: 3px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.opc-reading-pane > footer {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 30px;
-  border-top: 1px solid var(--carbon);
-  padding-top: 18px;
-}
-
-.opc-reading-pane > footer p {
-  max-width: 580px;
-  margin-bottom: 0;
-  color: var(--ash);
-  font-size: 11px;
-}
-
-.opc-reading-pane > footer a {
   border-bottom: 1px solid currentColor;
   padding-bottom: 3px;
   font-size: 12px;
@@ -3034,11 +3011,6 @@ h3 {
 
   .opc-reading-pane__facts span + span {
     padding-left: 0;
-  }
-
-  .opc-reading-pane > footer {
-    align-items: start;
-    flex-direction: column;
   }
 
   .opc-ranger-wall__portraits {
@@ -3845,15 +3817,6 @@ h3 {
   padding: 26px 0;
   color: var(--ash);
   font-size: 13px;
-}
-
-.opc-service-detail .detail-kicker a + a {
-  text-decoration: none;
-}
-
-.opc-detail-ranger-link {
-  display: inline-block;
-  margin-top: 18px;
 }
 
 .opc-mobile-contact {
@@ -7129,18 +7092,18 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 
 /* OPC / Visual refinement — hierarchy through space, tone and type */
 .opc-service-browser {
-  background: #f3f3ee;
+  background: var(--paper);
 }
 
 .opc-service-browser__primary,
 .opc-service-browser__secondary {
-  border-right-color: color-mix(in srgb, var(--carbon) 32%, transparent);
+  border-right-color: var(--carbon);
 }
 
 .opc-service-browser__primary {
   --opc-primary-pad: clamp(18px, 2.1vw, 32px);
   padding: 48px var(--opc-primary-pad) 34px;
-  background: #eeeee8;
+  background: var(--paper);
 }
 
 .opc-service-browser__primary > .mono,
@@ -7157,6 +7120,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 }
 
 .opc-service-browser__primary nav button {
+  position: relative;
   min-height: 78px;
   border: 0;
   padding: 14px var(--opc-primary-pad);
@@ -7171,6 +7135,16 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 .opc-service-browser__primary nav button.is-active {
   background: var(--carbon);
   color: var(--paper-bright);
+}
+
+.opc-service-browser__primary nav button.is-active::before {
+  position: absolute;
+  inset-block: 0;
+  right: 100%;
+  width: var(--opc-left-viewport-bleed);
+  background: var(--carbon);
+  content: "";
+  pointer-events: none;
 }
 
 .opc-service-browser__primary nav button:focus-visible {
@@ -7197,7 +7171,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 .opc-service-browser__secondary {
   --opc-secondary-pad: clamp(24px, 2.8vw, 42px);
   padding-top: 48px;
-  background: #f7f7f2;
+  background: var(--paper);
 }
 
 .opc-service-browser__secondary header {
@@ -7252,7 +7226,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 
 .opc-service-browser__content {
   padding: clamp(58px, 6vw, 94px) clamp(42px, 6.2vw, 108px) clamp(84px, 9vw, 140px);
-  background: #fbfbf7;
+  background: var(--paper);
 }
 
 .opc-reading-pane > header {
@@ -7295,7 +7269,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   row-gap: clamp(58px, 7vw, 94px);
 }
 
-.opc-reading-pane__body section {
+.opc-reading-pane__body section:not(.opc-reading-pane__boundary) {
   border-top: 0;
   padding: 0;
 }
@@ -7315,22 +7289,46 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 }
 
 .opc-reading-pane__boundary {
+  display: grid;
+  grid-template-columns: minmax(180px, .75fr) minmax(0, 1.25fr) 42px;
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
   margin-top: 4px;
-  padding: clamp(28px, 4vw, 48px);
-  background: var(--carbon);
-  color: var(--paper-bright);
+  border-top: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--rule);
+  padding: clamp(26px, 3.5vw, 42px) 0;
+  background: transparent;
+  color: var(--carbon);
 }
 
-.opc-reading-pane__boundary > .mono,
-.opc-reading-pane__boundary > p:not(.mono) {
-  color: #c7c8c1;
+.opc-reading-pane__boundary-title > .mono {
+  margin-bottom: 18px;
+  color: var(--ash);
 }
 
-.opc-reading-pane > footer {
-  margin-top: clamp(70px, 8vw, 110px);
-  border-top: 0;
-  padding: 24px;
-  background: #efefe9;
+.opc-reading-pane__boundary-title h3 {
+  margin-bottom: 0;
+  font-size: clamp(26px, 2.6vw, 38px);
+}
+
+.opc-reading-pane__boundary-copy {
+  max-width: 640px;
+  padding-top: 30px;
+}
+
+.opc-reading-pane__boundary-copy p {
+  margin-bottom: 22px;
+  color: var(--graphite);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.opc-reading-pane__boundary-mark {
+  justify-self: end;
+  font-family: var(--font-editorial);
+  font-size: clamp(34px, 4vw, 56px);
+  font-weight: 500;
+  line-height: 1;
 }
 
 .opc-reading-empty {
@@ -7546,55 +7544,6 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   color: #c9cac3;
 }
 
-/* OPC service and expert detail pages */
-.opc-service-detail .detail-header {
-  border-bottom: 0;
-  padding-bottom: clamp(64px, 8vw, 104px);
-}
-
-.opc-service-detail .service-offer {
-  gap: 10px;
-  border: 0;
-}
-
-.opc-service-detail .service-offer > div {
-  min-height: 112px;
-  border: 0;
-  padding: 20px;
-  background: #efefe9;
-}
-
-.opc-service-detail .detail-layout {
-  grid-template-columns: minmax(0, 2.2fr) minmax(280px, .8fr);
-  gap: clamp(64px, 10vw, 148px);
-  padding-top: 0;
-}
-
-.opc-service-detail .detail-body section {
-  margin-bottom: clamp(64px, 8vw, 104px);
-}
-
-.opc-service-detail .service-sections li {
-  border-top: 0;
-  padding: 10px 12px;
-}
-
-.opc-service-detail .service-sections li:nth-child(odd) {
-  background: #f0f0ea;
-}
-
-.opc-service-detail .service-contact-card {
-  border-top: 0;
-  padding: clamp(26px, 3.5vw, 42px);
-  background: var(--carbon);
-  color: var(--paper-bright);
-}
-
-.opc-service-detail .service-contact-card .eyebrow,
-.opc-service-detail .service-contact-card > p:not(.eyebrow) {
-  color: #c9cac3;
-}
-
 .opc-ranger-profile-page {
   border-bottom: 0;
   background: #fbfbf7;
@@ -7659,7 +7608,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   .opc-service-browser__primary,
   .opc-service-browser__secondary {
     border-right: 0;
-    border-bottom: 0;
+    border-bottom: 1px solid var(--carbon);
   }
 
   .opc-service-browser__primary {
@@ -7667,7 +7616,15 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   }
 
   .opc-service-browser__primary nav {
-    gap: 4px;
+    gap: 0;
+  }
+
+  .opc-service-browser__primary nav button {
+    border-right: 1px solid color-mix(in srgb, var(--carbon) 24%, transparent);
+  }
+
+  .opc-service-browser__primary nav button:last-child {
+    border-right: 0;
   }
 
   .opc-service-browser__secondary {
@@ -7676,14 +7633,6 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 
   .opc-service-browser__content {
     padding-inline: var(--gutter);
-  }
-
-  .opc-service-detail .detail-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .opc-service-detail .service-contact-card {
-    max-width: 620px;
   }
 
   .opc-ranger-profile-page__portrait {
@@ -7705,7 +7654,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 
 @media (max-width: 620px) {
   .opc-service-browser__primary nav {
-    margin-inline: calc(var(--gutter) * -1);
+    margin-inline: calc(var(--gutter) * -2);
     padding-inline: 0;
   }
 
@@ -7723,8 +7672,20 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   }
 
   .opc-reading-pane__boundary {
-    margin-inline: calc(var(--gutter) * -1);
-    padding-inline: var(--gutter);
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
+  .opc-reading-pane__boundary-copy {
+    grid-column: 1 / -1;
+    padding-top: 0;
+  }
+
+  .opc-reading-pane__boundary-mark {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .opc-record {

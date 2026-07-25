@@ -3,24 +3,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { PageIntro } from "@/components/page-intro";
-import { getRangerProfile, rangerProfiles } from "@/lib/opc-catalog";
+import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
 
-export function generateStaticParams() {
-  return rangerProfiles.map((profile) => ({ slug: profile.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const profile = getRangerProfile(slug);
+  const catalog = await readPublishedServiceCatalog();
+  const profile = catalog.rangers.find((item) => item.slug === slug);
   return { title: profile ? `${profile.publicName}｜游骑兵协会` : "游骑兵协会" };
 }
 
 export default async function RangerProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const profile = getRangerProfile(slug);
+  const catalog = await readPublishedServiceCatalog();
+  const profile = catalog.rangers.find((item) => item.slug === slug);
   if (!profile) notFound();
 
-  const portraitIndex = rangerProfiles.findIndex((item) => item.slug === profile.slug);
+  const portraitIndex = catalog.rangers.findIndex((item) => item.slug === profile.slug);
 
   return (
     <>
@@ -50,6 +50,7 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
           <section>
             <p className="mono">PUBLIC RECORD / 公开记录</p>
             <p>{profile.credential ?? "公开职业记录将在专家本人确认后展示。"}</p>
+            <p className="mono muted">核验：{profile.verificationDate ?? "待核验"} / 更新：{profile.profileUpdatedAt ?? "待更新"} / 授权：{profile.authorizationStatus ?? "待确认"}</p>
           </section>
 
           <section className="opc-ranger-profile-page__contact">

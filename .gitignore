@@ -17,6 +17,10 @@ data/sic-content-store.json
 data/sic-snapshots.json
 data/sic-github-rankings.json
 data/sic-extension-snapshots.json
+data/opc-service-catalog.json
+data/admin-sessions.json
+data/corrections.json
+data/security-audit.jsonl
 data/pipeline-report.json
 config/feed-sources.json
 .collector-rss.json

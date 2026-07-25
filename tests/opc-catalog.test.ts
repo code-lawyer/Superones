@@ -6,7 +6,7 @@ import {
   specialtyDomains,
 } from "../lib/opc-catalog.ts";
 
-test("OPC catalog uses the ten frozen infrastructure capability names", () => {
+test("OPC catalog initializes the ten approved infrastructure baseline names", () => {
   assert.deepEqual(infrastructureServices.map((service) => service.name), [
     "主体设立与基础合规",
     "合同与交易基础",
