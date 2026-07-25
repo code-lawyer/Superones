@@ -1,3 +1,9 @@
+---
+type: audit
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 SiC：Frontier AI 资源清单审计
 
 > 审计日期：2026-07-23

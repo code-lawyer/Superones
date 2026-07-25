@@ -1,18 +1,12 @@
-# ADR 0005：四通道调度与平台原生榜单
+---
+type: adr
+status: accepted
+updated: 2026-07-24
+amends: ADR-0004
+---
 
-状态：Accepted
-日期：2026-07-24
+# 平台原生榜与四采集通道
 
-## 决策
+SiC 直接转呈 GitHub Trending、Hugging Face Trending、OpenRouter `top-weekly` 与 skills.sh 的平台原生视图，不再用本地快照计算增长，也不设 MCP 榜。统一境外采集仍由一个 workflow 文件和一种签名协议承担，但按 information、roadside、sic、rankings 四个通道独立调度、重试和观测，从而隔离职责而不复制系统。
 
-信息管线拆为 `information`、`roadside`、`sic`、`rankings` 四个独立通道。`statements` 只作为旧批次兼容值读取，不再生成。GitHub Actions 按通道隔离并发，避免平台自动取消其他通道；境内 Worker 作为全局队列串行领取批次，内容处理共享并发为 2 的 LLM 池；排行榜不调用 LLM。
-
-名人说只允许经过核验的自然人 X 账号。X 原生内容不得进入资讯瀑布，X status ID 是跨 RSS 与聚合入口的根源去重键。
-
-所有技术榜单改为平台原生视图：GitHub Trending Today/This week/This month、Hugging Face Trending、OpenRouter top-weekly，以及 skills.sh All Time/Trending 24h/Hot。MCP 排行暂时删除。项目不得再以本地快照差或事件聚合结果冒充平台榜单。
-
-`direct-rankings.json` 只保存每个视图最近一次成功抓取的原始顺序。每条记录必须包含 provider、providerView、providerRank、providerMetric、capturedAt 与 sourceUrl。
-
-## 影响
-
-本决策替代早期设计和调研文档中关于 GH Archive 24H/7D、新增下载差值、Skill/MCP 快照增量以及相关 Google Cloud、Smithery、Vercel OIDC 凭据的实施建议。旧调研文档只作为历史研究记录，不再代表生产架构。
+rankings 通道每小时唤醒以处理边境计划公开任务与整点快照；SiC 平台榜只在各自到期时刷新。其余通道的基准节奏为 information 北京时间偶数小时 `:05`、roadside 偶数小时 `:55`、sic 每日 `07:25` 与 `19:25`。

@@ -1,3 +1,9 @@
+---
+type: audit
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 信源核验与运行清单
 
 > 核验日期：2026-07-22

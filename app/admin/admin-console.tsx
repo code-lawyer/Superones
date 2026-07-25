@@ -27,7 +27,7 @@ type Donation = {
 };
 
 type ContentState = {
-  mode: "demo" | "live";
+  mode: "demo" | "live" | "degraded";
   updatedAt: string | null;
   sourceCount: number;
   eventCount: number;

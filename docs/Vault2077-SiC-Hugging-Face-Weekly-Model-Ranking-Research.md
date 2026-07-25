@@ -1,4 +1,13 @@
+---
+type: research
+status: superseded
+updated: 2026-07-24
+superseded-by: Vault2077-SiC-Design-Spec.md
+---
+
 # Vault2077 SiC：Hugging Face 模型周榜与数据接口研究
+
+> 本文只保留研究过程；关于“当前实现”的旧描述已经失效，现行产品只转呈 Hugging Face Trending 平台原生顺序。
 
 > 研究日期：2026-07-23
 > 状态：历史研究证据，不是当前运行规范。现行实现只对官方累计下载 Top 1000 候选做每日快照并计算约 7 日增量；平台榜展示为 Top 5/10。以 SiC 专项规格和部署手册为准。

@@ -1,3 +1,9 @@
+---
+type: audit
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077：Glance 信源吸收审计
 
 > 审计对象：`glanceapp/glance` 固定提交 [`91324e8de762702e97b0ac5c8e36271d644d8642`](https://github.com/glanceapp/glance/tree/91324e8de762702e97b0ac5c8e36271d644d8642)

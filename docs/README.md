@@ -1,90 +1,69 @@
-# Vault2077 设计文档地图
+---
+type: index
+status: active
+updated: 2026-07-24
+---
 
-> 状态：规范性文件。本文定义文档权威层级、变更规则和项目落地的阅读顺序。
+# Vault2077 文档权威索引
 
-## 1. 阅读顺序
+“权威规格”是一套有明确职责、顺序和更新规则的文档体系，不是某一份永远压过其他文件的文档。被较高层决策改变的正文必须在同一次修订中同步更新，不允许长期保留“ADR 覆盖旧正文”的矛盾状态。
 
-1. [领域语言](../CONTEXT.md)：只定义 Vault2077 特有概念。产品、设计、内容和代码必须使用相同术语。
-2. [产品与设计总规格](Vault2077-Design-Spec.md)：定义全站目标、范围、信息架构、视觉系统和跨模块规则。
-3. 专项规格：定义各模块的完整行为。在所属模块内，专项规格优先于总规格中的摘要。
-4. [系统交付规格](Vault2077-System-Delivery-Spec.md)：定义模块接口、数据流、错误模式、部署和质量门槛。
-5. [实施追踪矩阵](Vault2077-Implementation-Traceability.md)：记录每项要求对应的页面、模块、验收方式和当前状态。
-6. ADR：记录难以逆转且存在真实取舍的架构决策。
-7. [配置与部署手册](Vault2077-Deployment-Configuration-Manual.md)及其他运行手册：说明已经落地的实现如何运行，不得创造或修改产品规则。
-8. 调研资料：提供候选、证据和风险，不具有决策权。
+## 权威层级
 
-## 2. 文档清单与权威性
+1. [`CONTEXT.md`](../CONTEXT.md)：只定义统一语言，不规定页面或实现。
+2. 产品规格：总规格定义跨频道体验，频道规格定义本频道产品行为。
+3. 已接受 ADR：记录难以逆转的架构边界与取舍；接受后必须同步修改受影响规格。
+4. [系统交付规格](Vault2077-System-Delivery-Spec.md)：把已接受产品与架构决定转为工程合同。
+5. [上线清单](Vault2077-Launch-Checklist.md)：发布门禁，不创造新需求。
+6. [实现追踪矩阵](Vault2077-Implementation-Traceability.md)：只记录状态与证据，不是需求来源。
+7. 当前运行手册：只描述当前可执行操作。
+8. 方案、调研、审计与历史材料：提供背景或证据，不具规范效力。
 
-| 文档 | 类型 | 状态 | 决定什么 |
-| --- | --- | --- | --- |
-| `CONTEXT.md` | 领域语言 | 规范 | 全站概念及禁用近义词 |
-| `Vault2077-Design-Spec.md` | 总规格 | 规范 | 产品、品牌、全站体验和共同约束 |
-| `Vault2077-Feed-Design-Spec.md` | 专项规格 | 规范 | Vault 信息流 |
-| `Vault2077-OPC-Design-Spec.md` | 专项规格 | 规范 | OPC 服务台 |
-| `Vault2077-OPC-Development-Plan.md` | 开发计划 | 已确认 | OPC 三个入口、十项基础设施、二十五项专项服务和十类游骑兵顾问身份 |
-| `Vault2077-SiC-Design-Spec.md` | 专项规格 | 规范 | SiC 学院 |
-| `Vault2077-SiC-Source-Catalog.md` | 专项来源目录 | 规范 | SiC 当前 26 个 approved 固定来源、1 个退役来源、入口、完整接入边界与采用理由 |
-| `Vault2077-Frontier-Design-Spec.md` | 专项规格 | 规范 | 边境计划 |
-| `Vault2077-Admin-Operations-Spec.md` | 专项规格 | 规范 | 共享密码后台和人工操作边界 |
-| `Vault2077-System-Delivery-Spec.md` | 工程规格 | 规范 | 模块接口、部署、安全和发布门槛 |
-| `adr/0004-unified-overseas-acquisition-pipeline.md` | 架构决策 | 规范 | 所有境外公开数据共用一套采集模块、批次、HMAC 投递、状态和监控 |
-| `Vault2077-Launch-Checklist.md` | 发布清单 | 规范 | 从 MVP 到正式上线所需输入和证据 |
-| `Vault2077-Implementation-Traceability.md` | 追踪矩阵 | 规范 | 需求、代码与验证的对应关系 |
-| `Vault2077-Deployment-Configuration-Manual.md` | 运行手册 | 实现现状 | 境内外配置归属、部署拓扑、密钥、备份和恢复；覆盖边境计划、Vault 信息管道与 SiC 学院 |
-| `Content-Pipeline-Operations.md` | 运行手册 | 实现现状 | 当前 Vault HMAC 与 SiC Bearer 兼容管线的采集、环境、接口、发布、备份与恢复；统一管线迁移目标以 ADR-0004 和系统交付规格为准 |
-| `Vault2077-SiC-Content-Architecture-Plan.md` | 决策记录 | 非规范 | 四内容组的形成过程；旧布局不再生效，当前页面以 SiC 专项规格为准 |
-| `Vault2077-Information-Pipeline-Research.md` | 调研 | 非规范 | 内容管道候选技术 |
-| `Vault2077-Source-Inventory.md` | 调研 | 非规范 | 参考项目中的来源与连接器线索 |
-| `Vault2077-Source-Audit-Research.md` | 调研 | 非规范 | 固定提交下逐仓库拆解、来源证据与动态缺口 |
-| `Vault2077-Source-Audit-Report.md` | 运行记录 | 非规范 | 去重注册表、在线核验结果与运行 bundle 口径 |
-| `Vault2077-Current-Source-Inventory-Report.md` | 调研与审计快照 | 非规范 | 当前 active／pending 构成、接口形态、无浏览器门禁与生产切分建议 |
-| `Vault2077-Source-Taxonomy-Report.md` | 调研 | 非规范 | 信源载体、发布者性质、证据性质和集中度风险 |
-| `Vault2077-Collector-Architecture-Research.md` | 调研 | 非规范 | TrendRadar 与 Horizon 的采集架构、复用边界和迁移建议 |
-| `Vault2077-Collector-Adoption-Decision.md` | 调研 | 非规范 | 六个候选项目的运行时定位、Horizon 采集层采用边界与组合方案 |
-| `Vault2077-Glance-Source-Absorption-Audit.md` | 调研 | 非规范 | Glance 固定示例信源逐项吸收状态、接口性质与复用边界 |
+同层冲突时，专项规格优先于总规格；仍无法判断则暂停实现，先修正文档。
 
-调研文档中的“推荐、优先、分层、首发”均不自动成为产品决策。海外信源和连接器只有在专项讨论确认并写入规范性文件后，才可进入生产来源注册表。
+## 当前规范文档
 
-## 3. 冲突处理
+- 全站：[总设计规格](Vault2077-Design-Spec.md)
+- Vault：[信息流设计规格](Vault2077-Feed-Design-Spec.md)
+- OPC：[OPC 设计规格](Vault2077-OPC-Design-Spec.md)
+- SiC：[SiC 设计规格](Vault2077-SiC-Design-Spec.md)、[SiC 来源目录](Vault2077-SiC-Source-Catalog.md)
+- 边境计划：[边境计划设计规格](Vault2077-Frontier-Design-Spec.md)
+- 运营：[后台运营规格](Vault2077-Admin-Operations-Spec.md)
 
-- 术语冲突：以 `CONTEXT.md` 为准。
-- 全站规则与专项规则冲突：专项规格在其模块内优先，并立即同步修正总规格摘要。
-- 规范与代码冲突：规范优先；追踪矩阵将代码标记为“待改”，不得用现状倒推需求。
-- 规范与运行手册冲突：规范优先；运行手册必须随实现修正。
-- 两份规范性文件冲突且无法判断先后：停止实施，将冲突写入追踪矩阵并请求产品决策。
+## 已接受 ADR
 
-## 4. 变更规则
+- [ADR-0001：跨区域公开内容管线](adr/0001-cross-region-public-content-pipeline.md)
+- [ADR-0002：无账户公开产品](adr/0002-accountless-public-product.md)
+- [ADR-0003：独立无状态境外采集器](adr/0003-independent-stateless-overseas-collector.md)
+- [ADR-0004：统一境外公开数据采集](adr/0004-unified-overseas-acquisition-pipeline.md)
+- [ADR-0005：平台原生榜与四采集通道](adr/0005-platform-native-rankings-and-lanes.md)
+- [ADR-0006：生产数据与公开任务边界](adr/0006-production-data-and-public-task-boundary.md)
 
-一个产品决策只有同时满足以下条件才算冻结：
+## 当前运行文档
 
-1. 使用了 `CONTEXT.md` 中的规范术语；
-2. 写入对应专项规格，并包含正常流程、空状态、失败状态和边界情况；
-3. 如影响全站目标、导航、视觉或商业边界，同步更新总规格；
-4. 在追踪矩阵中拥有验收方式；
-5. 如属于难以逆转的架构取舍，新增或更新 ADR；
-6. 文档和相关实现进入同一 Git 提交或明确关联的提交序列。
+- [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
+- [部署配置手册](Vault2077-Deployment-Configuration-Manual.md)
+- [Content Pipeline Operations](Content-Pipeline-Operations.md) 已被统一采集手册取代，只保留迁移指引。
 
-研究发现、聊天结论和示例数据本身都不构成冻结。
+## 支持性方案
 
-## 5. “可以指导落地”的最低标准
+- [OPC 开发计划](Vault2077-OPC-Development-Plan.md)：内容已吸收到 OPC 规格，保留实施分解。
+- [OPC 页面设计提案](Vault2077-OPC-Page-Design-Proposal.md)：已被 OPC 规格取代。
+- [SiC 内容架构计划](Vault2077-SiC-Content-Architecture-Plan.md)：已被 SiC 规格取代。
 
-每个模块的专项规格必须回答：
+## 调研、审计与证据
 
-- 为谁解决什么问题，以及明确不做什么；
-- 核心记录、状态和不可破坏的业务规则；
-- 列表、详情、操作、空状态和失败状态；
-- 对外接口所需输入、输出、顺序约束和错误模式；
-- 哪些行为自动完成，哪些必须人工完成；
-- 隐私、版权、安全和数据保留边界；
-- 桌面与移动端的内容优先级；
-- 可自动验证和必须人工验收的完成条件；
-- 上线前必须由业务方提供的真实输入。
+以下文档均不产生当前需求：
 
-## 6. 当前冻结边界
+- 项目审计：[2026-07-24 深层次项目审计](Vault2077-Deep-Audit-2026-07-24.md)
+- 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)
+- 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)
+- SiC 调研：[Source Candidates Batch 1](Vault2077-SiC-Source-Candidates-Batch-1.md)、[Official Sources Research](Vault2077-SiC-Official-Sources-Research.md)、[Papers and Official Archives Research](Vault2077-SiC-Papers-and-Official-Archives-Research.md)、[Frontier AI Resource Audit](Vault2077-SiC-Frontier-AI-Resource-Audit.md)、[GitHub Trending API Research](Vault2077-SiC-GitHub-Trending-API-Research.md)、[Hugging Face Ranking Research](Vault2077-SiC-Hugging-Face-Weekly-Model-Ranking-Research.md)、[OpenRouter Ranking Research](Vault2077-SiC-OpenRouter-Model-Ranking-Research.md)、[Skill Market Research](Vault2077-Skill-Market-Integration-Research.md)
 
-- 已冻结：产品定位、四频道关系、以纯文字为主且仅允许 OPC 专家头像与业务二维码例外的视觉、首页结构、Vault 信息流公开体验、OPC 线下成交模式、SiC 趋势雷达定位、边境计划核心赛制、普通用户无账号、共享密码后台、“排除大陆来源平台、不按内容语言过滤”的信源准入边界，以及所有境外公开数据统一采集、统一签名投递、境内持久化后由境内 LLM 处理的跨区管线。
-- 当前临时运行集：2026-07-22 审计库存按平台归属生成的 201 个来源；其中海外平台上的中文内容正常保留。采集器独立仓库迁移和直接网站来源归属复核完成前，不视为正式生产全集。
-- 尚未选择：境内 LLM 提供方、正式数据库和云资源供应商；需授权或当前无法核验的 pending 信源不属于已启用全集。
-- 尚待业务输入：正式 OPC 服务目录和联系方式、正式赛事条款和奖池、备案与法律文本、投诉和隐私联系人。
+## 维护规则
 
-“尚未选择”不阻止模块按稳定接口开发；“尚待业务输入”必须在发布清单中作为生产上线阻断项。
+- 所有 `docs/` 下的 Markdown 必须有 `type`、`status`、`updated` 元数据并在本页登记。
+- 规范正文不得引用已废止的接口、榜单或运行命令，除非明确写在迁移段落。
+- 接受 ADR 时，必须同步更新总规格、受影响专项规格、系统规格、追踪矩阵与上线清单。
+- 调研结论只有被吸收到规范文档后才生效。
+- 每次文档修订必须运行 `npm run docs:check`。

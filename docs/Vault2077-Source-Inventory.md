@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 信息源与连接器拆解研究
 
 > 状态修正（2026-07-22）：本文保留参考仓库原始内容的调查记录，因此仍会提到上游存在的 YouTube 配置；Vault2077 已决定不处理视频媒体，所有 YouTube 频道均已从当前注册表、CSV、pending 和运行 bundle 删除，文中的视频条目不得作为实施清单。

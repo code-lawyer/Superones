@@ -1,11 +1,8 @@
-import type { EventRecord, FrontierEntry, InformationItem, Service } from "./types";
+import type { EventRecord, InformationItem } from "./types";
 
 export const siteStatus = {
   updated: "2026-07-22T18:00:00+08:00",
   sources: 128,
-  season: "2026 夏季赛",
-  seasonState: "开放报名",
-  settlement: "2026.09.30",
 };
 
 export const events: EventRecord[] = [
@@ -626,38 +623,6 @@ export const informationItems: InformationItem[] = [
     eventSlugs: [],
     originalDisplay: "excerpt",
   },
-];
-
-export const services: Service[] = [
-  { slug: "contract-review", code: "OPC/LEGAL/001", category: "法务", name: "单份标准商业合同审阅", price: "¥699", period: "3 个工作日", audience: "需要签署常见采购、服务或合作合同的一人公司。", includes: ["审阅一份不超过 20 页的中文合同", "标注主要风险与修改建议", "一次 30 分钟交付说明"], excludes: ["合同起草", "跨境交易", "诉讼或争议处理"], materials: ["可编辑合同文件", "交易背景说明", "期望达成的核心目标"], deliverables: ["修订标注版合同", "风险摘要"], revision: "REV.01" },
-  { slug: "website-legal-pack", code: "OPC/LEGAL/002", category: "法务", name: "网站用户协议与隐私政策基础包", price: "¥1,999", period: "7 个工作日", audience: "面向中国大陆用户提供基础网络服务的早期产品。", includes: ["用户协议基础版本", "隐私政策基础版本", "一次业务信息访谈"], excludes: ["医疗、金融等强监管业务", "跨境数据专项评估", "定制交易条款"], materials: ["产品功能说明", "数据收集清单", "经营主体信息"], deliverables: ["用户协议", "隐私政策", "上线检查清单"], revision: "REV.01" },
-  { slug: "tax-health-check", code: "OPC/TAX/001", category: "税务与财务", name: "经营主体税务健康检查", price: "¥899", period: "5 个工作日", audience: "已经开始经营，希望检查基础申报与票据风险的个体或公司。", includes: ["基础申报记录检查", "票据与收入匹配检查", "风险清单说明"], excludes: ["税务稽查代理", "历史账务重建", "专项税收筹划"], materials: ["主体基础信息", "近期申报表", "收入与票据汇总"], deliverables: ["税务健康检查报告", "整改事项清单"], revision: "REV.01" },
-  { slug: "finance-consult", code: "OPC/TAX/002", category: "税务与财务", name: "一人公司基础财税咨询", price: "¥599", period: "60 分钟", audience: "正在选择经营主体或梳理日常财税流程的超级个体。", includes: ["一次线上咨询", "问题清单预审", "会后行动摘要"], excludes: ["出具正式鉴证意见", "代理申报", "复杂股权架构设计"], materials: ["背景说明", "拟咨询问题", "现有主体信息"], deliverables: ["咨询会议", "行动摘要"], revision: "REV.01" },
-  { slug: "trademark-application", code: "OPC/IP/001", category: "知识产权", name: "单类别商标注册申请", price: "¥799 起", period: "以官方流程为准", audience: "需要为产品或品牌申请中国大陆商标的经营者。", includes: ["一个商标一个类别的基础检索", "材料整理", "申请提交"], excludes: ["驳回复审", "异议答辩", "复杂近似分析"], materials: ["申请主体材料", "商标图样或文字", "拟使用范围"], deliverables: ["申请材料", "官方受理文件"], revision: "REV.01" },
-  { slug: "software-copyright", code: "OPC/IP/002", category: "知识产权", name: "软件著作权材料整理与申报", price: "¥1,499", period: "以官方流程为准", audience: "拥有可提交版本的软件产品或代码成果的一人公司。", includes: ["基础材料检查", "代码与说明书整理指引", "申请提交"], excludes: ["源代码代写", "权属争议处理", "加急官方费用"], materials: ["主体材料", "软件说明", "源代码样本"], deliverables: ["申报材料", "官方流程文件"], revision: "REV.01" },
-  { slug: "icp-precheck", code: "OPC/FILING/001", category: "申报与备案", name: "ICP 备案材料预审", price: "¥499", period: "3 个工作日", audience: "准备在中国大陆服务器上线网站的经营主体。", includes: ["主体与域名材料检查", "网站信息检查", "提交前问题清单"], excludes: ["代替接入商提交", "许可证申请", "不符合政策业务整改"], materials: ["主体证件", "域名信息", "网站说明"], deliverables: ["材料预审结果", "补正清单"], revision: "REV.01" },
-  { slug: "first-hire-pack", code: "OPC/HR/001", category: "人力资源", name: "首位员工入职文件包", price: "¥999", period: "5 个工作日", audience: "准备首次招聘全职员工的一人公司。", includes: ["劳动合同基础模板", "保密与知识产权条款", "入职材料清单"], excludes: ["高级管理人员激励", "劳务争议处理", "境外雇佣"], materials: ["主体信息", "岗位信息", "薪酬与试用期方案"], deliverables: ["入职文件包", "使用说明"], revision: "REV.01" },
-  { slug: "founder-media-pack", code: "OPC/MEDIA/001", category: "传媒与传播", name: "创始人基础媒体资料包", price: "¥1,999", period: "7 个工作日", audience: "需要统一对外介绍产品、团队与创始人的早期项目。", includes: ["创始人简介", "产品标准介绍", "媒体问答基础版"], excludes: ["媒体投放", "舆情处置", "新闻稿代发"], materials: ["创始人与产品背景", "关键数据", "已有公开资料"], deliverables: ["媒体资料包", "版本维护清单"], revision: "REV.01" },
-];
-
-export const frontierEntries: FrontierEntry[] = [
-  { rank: 1, repo: "northstar-labs/relay", description: "可恢复的长任务 Agent 运行时", baseline: 10122, current: 12840, delta: 2718, submitted: "2026.07.02" },
-  { rank: 2, repo: "carbon-stack/memoryline", description: "可审计的长期记忆层", baseline: 5220, current: 7621, delta: 2401, submitted: "2026.07.04" },
-  { rank: 3, repo: "open-workbench/mcp-audit", description: "MCP 服务安全审计工具", baseline: 16988, current: 19102, delta: 2114, submitted: "2026.07.01" },
-  { rank: 4, repo: "small-models/routekit", description: "成本感知的模型路由", baseline: 4078, current: 5934, delta: 1856, submitted: "2026.07.06" },
-  { rank: 5, repo: "silent-systems/briefcase", description: "业务流程 Skill 封装工具", baseline: 6950, current: 8430, delta: 1480, submitted: "2026.07.03" },
-  { rank: 6, repo: "solo-ops/ledger", description: "一人公司事件账本", baseline: 3204, current: 4420, delta: 1216, submitted: "2026.07.08" },
-  { rank: 7, repo: "context-labs/handoff", description: "Agent 间最小上下文传递", baseline: 2102, current: 3105, delta: 1003, submitted: "2026.07.11" },
-  { rank: 8, repo: "paperplane-ai/extractor", description: "带来源定位的事实提取", baseline: 14880, current: 15602, delta: 722, submitted: "2026.07.09" },
-];
-
-export const prizes = ["端侧 AI 工作站一台", "年度云算力额度", "开源项目法律体检", "品牌与媒体资料包", "开发者工具年度订阅", "专业录音设备"];
-
-export const historicalWinners = [
-  { season: "2026 春季", repo: "field-notes/atlas", rank: 1, prize: "端侧 AI 工作站" },
-  { season: "2026 春季", repo: "micro-studio/queue", rank: 2, prize: "年度云算力额度" },
-  { season: "2026 春季", repo: "open-contracts/plain", rank: 3, prize: "开源项目法律体检" },
-  { season: "2025 冬季", repo: "one-person-os/logbook", rank: 1, prize: "开发者工具年度订阅" },
 ];
 
 export function formatNumber(value: number) {

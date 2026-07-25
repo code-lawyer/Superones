@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { ADMIN_COOKIE, isValidAdminSession } from "@/lib/admin-auth";
 import { informationHref, roadsideHref } from "@/lib/feed-route";
 import {
   PIPELINE_SECTIONS,
@@ -13,6 +16,10 @@ import styles from "./pipeline.module.css";
 export const metadata: Metadata = {
   title: "信息管线实况 — Vault2077",
   description: "查看境外抓取、境内接收、模型处理与最终发布的真实试运行结果。",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 export const dynamic = "force-dynamic";
 
@@ -120,6 +127,14 @@ function HealthLedger({
 }
 
 export default async function PipelinePage() {
+  if (process.env.NODE_ENV === "production") {
+    const cookieStore = await cookies();
+    const session = cookieStore.get(ADMIN_COOKIE)?.value;
+    if (!isValidAdminSession(session)) {
+      redirect("/admin");
+    }
+  }
+
   const snapshot = await getPipelineRunSnapshot();
   const report = snapshot.report;
   if (!snapshot.available || !report) {

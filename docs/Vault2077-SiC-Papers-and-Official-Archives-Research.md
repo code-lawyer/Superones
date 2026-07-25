@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 SiC：论文雷达、论文解析与官方技术档案研究
 
 > 研究日期：2026-07-23

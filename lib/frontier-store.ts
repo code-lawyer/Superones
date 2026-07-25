@@ -91,7 +91,10 @@ export type AdminSubmission = Omit<StoredSubmission, "emailEncrypted" | "challen
 export type AdminPrizeDonation = Omit<StoredPrizeDonation, "emailEncrypted"> & { email: string };
 export type PublicPrizeDonation = Pick<StoredPrizeDonation, "id" | "season" | "name" | "description" | "status">;
 
-const storePath = path.join(process.cwd(), "data", "mvp-store.json");
+const dataRoot = process.env.VAULT2077_DATA_DIR
+  ? path.resolve(process.env.VAULT2077_DATA_DIR)
+  : path.join(process.cwd(), "data");
+const storePath = path.join(dataRoot, "mvp-store.json");
 let writeChain: Promise<void> = Promise.resolve();
 
 function hash(value: string) {

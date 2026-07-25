@@ -177,3 +177,27 @@ test("processor fails visibly when a record kind has no domestic adapter", async
     /尚未覆盖/,
   );
 });
+
+test("processor rejects an unsupported mixed batch before any write", async () => {
+  const value = mixedBatch();
+  value.records.push({
+    ...value.records[0],
+    kind: "entity_profile",
+    recordId: "profile:test:1",
+  });
+  let writes = 0;
+  const processor = createAcquisitionBatchProcessor({
+    async processContent() {
+      writes += 1;
+    },
+    async processPublications() {
+      writes += 1;
+    },
+  });
+
+  await assert.rejects(
+    processor(value, { payloadHash: "e".repeat(64), attempt: 1 }),
+    /尚未覆盖/,
+  );
+  assert.equal(writes, 0);
+});

@@ -1,5 +1,7 @@
 ---
+type: adr
 status: accepted
+updated: 2026-07-24
 ---
 
 # 公开内容采用境外采集、境内处理

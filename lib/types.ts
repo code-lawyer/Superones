@@ -97,21 +97,6 @@ export type BatchReceipt = {
   quarantinedCount: number;
 };
 
-export type Service = {
-  slug: string;
-  code: string;
-  category: "法务" | "税务与财务" | "知识产权" | "申报与备案" | "人力资源" | "传媒与传播";
-  name: string;
-  price: string;
-  period: string;
-  audience: string;
-  includes: string[];
-  excludes: string[];
-  materials: string[];
-  deliverables: string[];
-  revision: string;
-};
-
 export type TrendProject = {
   owner: string;
   repo: string;
@@ -130,6 +115,17 @@ export type TrendProject = {
   readmeSha?: string;
 };
 
+export type ContentState = {
+  mode: "demo" | "live" | "degraded";
+  updatedAt: string | null;
+  sourceCount: number;
+  eventCount: number;
+  informationCount: number;
+  projectCount: number;
+  quarantinedCount: number;
+  publicationVersion: number;
+};
+
 export type FrontierEntry = {
   rank: number;
   repo: string;
@@ -138,15 +134,4 @@ export type FrontierEntry = {
   current: number;
   delta: number;
   submitted: string;
-};
-
-export type ContentState = {
-  mode: "demo" | "live";
-  updatedAt: string | null;
-  sourceCount: number;
-  eventCount: number;
-  informationCount: number;
-  projectCount: number;
-  quarantinedCount: number;
-  publicationVersion: number;
 };

@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 境外采集器采用决策
 
 > 状态：非规范性技术调研，供后续 ADR 与实施计划确认

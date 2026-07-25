@@ -250,6 +250,13 @@ export function createAcquisitionBatchProcessor(input: {
     const rankings = batch.records.filter((record) => record.kind === "ranking_observation");
     const frontierRecords = repositoryRecords.filter((record) => repositoryTarget(record) === "frontier");
 
+    if (profiles.length > 0 || frontierRecords.length !== repositoryRecords.length) {
+      const unsupported = profiles.length
+        ? `${profiles.length} profiles`
+        : `${repositoryRecords.length - frontierRecords.length} repositories`;
+      throw new Error(`统一处理 adapter 尚未覆盖：${unsupported}。`);
+    }
+
     if (informationRecords.length > 0) {
       const legacy = validateContentBatch({
         version: 2,
@@ -288,13 +295,6 @@ export function createAcquisitionBatchProcessor(input: {
     }
     for (const [season, updates] of frontierBySeason) {
       await persistFrontier(season, updates, batch.collectedAt);
-    }
-
-    if (profiles.length > 0 || frontierRecords.length !== repositoryRecords.length) {
-      const unsupported = profiles.length
-        ? `${profiles.length} profiles`
-        : `${repositoryRecords.length - frontierRecords.length} repositories`;
-      throw new Error(`统一处理 adapter 尚未覆盖：${unsupported}。`);
     }
 
     return {

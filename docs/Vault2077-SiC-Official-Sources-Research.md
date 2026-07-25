@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 SiC：档案与课程首批正式来源目录
 
 > 调研日期：2026-07-23

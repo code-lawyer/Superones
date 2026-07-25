@@ -355,11 +355,3 @@ export async function getDirectRankingBoards() {
     })
     .sort((left, right) => left.id.localeCompare(right.id));
 }
-
-export async function getDirectGithubProject(owner: string, repo: string) {
-  const key = `${owner}/${repo}`.toLowerCase();
-  return (await readStore()).boards
-    .filter((value) => value.provider === "github")
-    .flatMap((value) => value.items)
-    .find((value) => value.id.toLowerCase() === key) ?? null;
-}

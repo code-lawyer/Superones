@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 境外采集架构研究：TrendRadar 与 Horizon
 
 > 研究日期：2026-07-22

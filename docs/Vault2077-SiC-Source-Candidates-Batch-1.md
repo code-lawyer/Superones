@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 SiC 信息源候选审查：第一批技术出版物
 
 研究日期：2026-07-23

@@ -1,6 +1,9 @@
 ---
 title: Vault2077 信源分类调查报告
 date: 2026-07-22
+type: research
+status: historical
+updated: 2026-07-24
 tags:
   - source-audit
   - taxonomy

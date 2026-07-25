@@ -1,147 +1,85 @@
-# Vault2077 统一信息管线运行手册
+---
+type: runbook
+status: active
+updated: 2026-07-24
+---
 
-> 状态：四通道采集、签名投递、境内串行队列、LLM 并发池和平台原生榜单已经进入同一主链。本文以 2026-07-24 的实现为准。
+# Vault2077 统一采集运行手册
 
-## 1. 四个独立通道
+本手册只描述当前统一采集入口及目标生产操作。历史 ContentBatch、SiC 独立推送和 Frontier 独立刷新命令不再作为有效操作。
 
-全部时间按北京时间理解，GitHub Actions 的 cron 已换算为 UTC：
+## 1. 通道
 
-| 通道 | 北京时间 | 窗口 | LLM |
-|---|---|---:|---|
-| `information` | 双数小时 `:05` | 12 小时重叠 | 是 |
-| `roadside` | 双数小时 `:55` | 12 小时重叠 | 是 |
-| `sic` | `07:25 / 19:25` | 24 小时重叠 | 是 |
-| `rankings` | `07:55 / 19:55` | 12 小时 | 否 |
+| 通道 | 北京时间 | 重叠 | 处理 | 说明 |
+| --- | --- | --- | --- | --- |
+| `information` | 偶数小时 `:05` | 12h | 境内编辑处理 | 正式资讯 |
+| `roadside` | 偶数小时 `:55` | 12h | 境内编辑处理 | 个人/社区发布 |
+| `sic` | `07:25`、`19:25` | 24h | 境内编辑处理 | 论文、档案、课程、播客 |
+| `rankings` | 每小时唤醒 | 按任务 | 无编辑模型 | 平台原生榜、Frontier 定时观察和公开任务 |
 
-每次工作流只生成一个通道的批次。GitHub Actions 按通道使用独立 `concurrency` 组，避免 GitHub 自动取消其他通道的等待任务；真正的全局串行边界位于境内 Inbox，Worker 一次只领取一个批次，因此不同内容通道不会同时压向 LLM。LLM 默认并发为 2；单批超过 30 分钟写入 `LANE_PROCESSING_SLOW` 告警，不自动提高并发。
+当前仓库的 `collect-content.yml` 已支持四通道，但 rankings 仍为每日两次，且存在独立 `frontier-hourly.yml`。在这两项合并前，生产发布门禁不通过；不要把当前部分实现解释为规范已完成。
 
-统一批次必须包含：
+## 2. 本地验证
 
-```text
-lane
-scheduleId
-windowFrom
-windowUntil
-```
-
-重复投递相同 `batchId` 与正文只返回已有回执；相同 ID 的不同正文被拒绝。内容层继续按内容哈希、规范 URL 和 X status ID 去重。
-
-## 2. 主链
-
-```text
-GitHub Actions（境外）
-  ├─ 按 lane 读取获批来源
-  ├─ 抓取窗口内全部可接受记录，禁止单源截断
-  ├─ 逐源生成 succeeded / partial / empty / failed
-  ├─ 生成不可变 AcquisitionBatch 与 artifact
-  └─ HMAC 签名投递
-          ↓
-国内 VPS /api/internal/acquisition
-  ├─ 限流、验签、时钟窗口与 Schema 校验
-  ├─ 原始正文和来源状态原子落盘
-  └─ 幂等接收并进入全局队列
-          ↓
-国内 VPS /api/internal/acquisition/process
-  ├─ information：翻译、摘要、事件判断
-  ├─ roadside：翻译、摘要、事件判断
-  ├─ sic：翻译与摘要
-  ├─ rankings：按平台原序落库，不调用 LLM
-  └─ 成功确认；失败保留并等待重试
-```
-
-境内处理器禁止回源访问境外页面。供 LLM 使用的材料必须随境外批次送达。
-
-## 3. 来源与榜单政策
-
-- 资讯瀑布不接受 `originPlatform=x` 的原生内容。
-- 名人说只接受 `publisherKind=person`，当前白名单为 34 个已核验自然人。
-- RSS 返回的 handle 必须和注册 handle 完全一致，否则来源失败。
-- 机构、项目和媒体的 X 账号不进入名人说；其动态只能从官网、Newsroom、Blog、Release 或研究档案进入资讯。
-- GitHub 只展示官方 Trending 的 Today、This week、This month。
-- Hugging Face 展示官方 Trending 顺序。
-- OpenRouter 展示官方 `top-weekly` 顺序。
-- skills.sh 展示 All Time、Trending 24h、Hot。
-- MCP 榜暂时删除。
-- 不保存历史累计量来推算 GitHub、Hugging Face 或 Skill 增量。
-
-每个榜单条目保存 `provider`、`providerView`、`providerRank`、`providerMetric`、`capturedAt`、`sourceUrl`，展示层不得重排。
-
-## 4. 必需配置
-
-GitHub Actions 仅需要：
-
-```text
-VAULT2077_DOMESTIC_ACQUISITION_URL=https://<国内域名>/api/internal/acquisition
-VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL=https://<国内域名>/api/internal/acquisition/process
-VAULT2077_PIPELINE_SHARED_SECRET=<至少 32 字节随机值>
-VAULT2077_PIPELINE_WORKER_SECRET=<可选；默认复用 shared secret>
-```
-
-公开来源使用内建 `github.token`，不需要 GH Archive、Google Cloud、Smithery、Vercel OIDC、Hugging Face 或 X Token。
-
-国内 VPS 需要：
-
-```text
-VAULT2077_DATA_DIR=/srv/vault2077/data
-VAULT2077_PIPELINE_SHARED_SECRET=<与 Action 相同>
-VAULT2077_PIPELINE_WORKER_SECRET=<与 Action 相同或留空>
-VAULT2077_LLM_BASE_URL=https://<OpenAI-compatible-provider>/v1
-VAULT2077_LLM_API_KEY=<secret>
-VAULT2077_LLM_MODEL=<model-id>
-VAULT2077_LLM_TIMEOUT_MS=120000
-VAULT2077_LLM_CONCURRENCY=2
-```
-
-不要把 API Key 写入仓库、artifact 或日志。
-
-## 5. 验证
-
-```bash
-npm test
-npm run typecheck
-npm run build
+```powershell
+npm.cmd run docs:check
+npm.cmd run typecheck
+npm.cmd test
 python -m unittest discover -s collector/tests -p "test_*.py"
+npm.cmd run build
+npm.cmd run test:acquisition:e2e
 ```
 
-本地完整真实试跑前，在当前终端安全设置三个 LLM 环境变量，然后运行：
+验证四通道完整本地演练：
 
-```bash
-npm run pipeline:local
+```powershell
+npm.cmd run pipeline:local
 ```
 
-脚本按 `information → roadside → sic → rankings` 顺序运行，不再把所有数据同时送入模型。结果写入独立运行目录，`/pipeline` 展示四通道队列、逐源健康度和最终内容。
+该命令使用临时数据目录启动本地站点、采集四通道、投递统一 inbox、处理并生成报告。报告中的 `/pipeline` 仅供本地诊断。
 
-仅验证某个境外通道：
+## 3. 手动运行通道
 
-```bash
-VAULT2077_ACQUISITION_LANE=rankings npm run acquisition:collect
+```powershell
+$env:VAULT2077_ACQUISITION_LANE='information'
+$env:VAULT2077_SCHEDULE_ID='manual-information-001'
+npm.cmd run acquisition:collect
 ```
 
-GitHub Actions 的手动触发允许选择通道，并可在国内 VPS 尚未接入时关闭 `require_delivery`，只验证境外抓取和 artifact。
+可选 lane 为 `information`、`roadside`、`sic`、`rankings`。手动运行必须使用唯一 schedule ID；生产投递还需要接收 URL 和签名密钥。
 
-## 6. 健康判定
+## 4. 发布配置
 
-一轮只有同时满足以下条件才算全绿：
+采集侧至少配置：
 
-- 注册来源都有来源报告，没有静默跳过；
-- 窗口内记录没有被单源上限截断；
-- 所有批次都有境内回执并进入终态；
-- `pending=0`、`processing=0`、`failed=0`；
-- 内容通道没有无法解释的隔离；
-- 榜单顺序和平台原始响应一致；
-- 详情地址返回 HTTP 200；
-- 同一批次重投不重复调用 LLM。
+- `VAULT2077_DOMESTIC_ACQUISITION_URL`
+- `VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL`
+- `VAULT2077_PIPELINE_SHARED_SECRET`
+- `VAULT2077_PIPELINE_WORKER_SECRET`
+- `VAULT2077_REQUIRE_DOMESTIC_DELIVERY=true`
 
-`empty` 是健康状态；`partial` 和 `failed` 必须显式显示并使正式采集任务失败。失败恢复时保留原批次和 `batchId`，修复网络、模型或磁盘后重跑 Worker，不能生成新 ID 绕过失败。
+境内侧至少配置签名/worker 密钥、来源 bundle 与允许 revision、生产数据库，以及三个内容通道使用的编辑提供方。rankings 不使用编辑模型。密钥不得进入仓库、日志或 artifact。
 
-持久卷至少备份：
+## 5. 成功标准
 
-```text
-acquisition-inbox/
-content-store.json
-sic-content-store.json
-direct-rankings.json
-mvp-store.json
-```
+一次通道运行只有同时满足以下条件才成功：
 
-当前文件存储只支持单写实例。扩容前必须迁移到具备事务、锁与备份恢复能力的存储。
+1. 来源解析完成并生成带 `sourceReports` 的批次；
+2. 境内接收成功且 `batchId` 可追踪；
+3. 处理完成或明确进入可重试状态；
+4. 最后成功时间只在完整发布后推进；
+5. artifact 不包含私人资料或密钥。
+
+“采集完成但未投递”不得在生产计划任务中显示绿色。
+
+## 6. 故障处理
+
+- 签名/重放拒绝：核对密钥、原始请求体、时间戳、`batchId` 与时钟，不得放宽验证。
+- 未知来源修订：隔离批次，先审核并部署注册表，再重放。
+- 单一来源失败：允许其他来源继续，但按新鲜度告警，不得虚构数据补齐。
+- 处理失败：保留 inbox，以同一 `batchId` 幂等重试，不重新采集制造重复批次。
+- Frontier 延迟：检查 rankings 每小时唤醒、任务积压和签名 observation；不得从境内后台直连 GitHub。
+
+## 7. 备份与恢复
+
+预览文件不构成生产备份。生产 v1 备份 PostgreSQL 并定期实际恢复；若未来启用对象存储，再把原始包与归档纳入清单。记录日期、负责人、恢复点、耗时和结果。

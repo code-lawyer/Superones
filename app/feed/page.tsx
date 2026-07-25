@@ -63,6 +63,13 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const visibleRoadside = roadsideItems.slice(0, state.roadsideLimit);
   const updatedAt = content.state.updatedAt ?? siteStatus.updated;
   const previewLabel = process.env.VAULT2077_CONTENT_PREVIEW_LABEL?.trim();
+  const modeLabel = previewLabel
+    ? ` / ${previewLabel}`
+    : content.state.mode === "demo"
+      ? " / 示例数据"
+      : content.state.mode === "degraded"
+        ? " / 服务降级"
+        : "";
 
   return (
     <>
@@ -70,7 +77,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         code="VAULT / INFORMATION FLOW"
         title="维度收束，视界引擎"
         lead="全球 AI 资讯经翻译与摘要后流经资讯瀑布；只有多条信息共同构成值得持续追踪的变化，才沉淀为事件。"
-        meta={`LAST PUBLISHED ${beijingTime(updatedAt, true)}${previewLabel ? ` / ${previewLabel}` : content.state.mode === "demo" ? " / 示例数据" : ""}`}
+        meta={`LAST PUBLISHED ${beijingTime(updatedAt, true)}${modeLabel}`}
       />
       <ChannelRibbon identity="VAULT INTEL" slogan="WITHIN THE LIGHT CONE LIES DESTINY." />
 

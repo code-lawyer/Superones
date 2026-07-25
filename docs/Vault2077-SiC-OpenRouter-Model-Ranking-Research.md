@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 SiC：OpenRouter 模型使用榜研究
 
 > 研究日期：2026-07-23

@@ -1,3 +1,9 @@
+---
+type: research
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 信息管道：开源组件调研与首发建议
 
 > 状态：非规范性调研。调研日期：2026-07-21。只使用项目维护方的 GitHub 仓库、Release 和 GitHub 官方 API 文档作为来源。候选和建议不代表已确认的生产选型，也不替代许可证与安全审查。

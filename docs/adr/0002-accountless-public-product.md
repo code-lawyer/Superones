@@ -1,5 +1,7 @@
 ---
+type: adr
 status: accepted
+updated: 2026-07-24
 ---
 
 # 公开用户无账号，OPC 在线下成交

@@ -1,3 +1,9 @@
+---
+type: audit
+status: historical
+updated: 2026-07-24
+---
+
 # Vault2077 当前信源清单与无浏览器采集审计
 
 > 审计快照：`config/source-registry.json`（475 个逻辑信源、486 个候选端点）与当前 `config/source-bundle.json`。本文统计的是当前文件状态，不代表未来准入数量。

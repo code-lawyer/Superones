@@ -2,16 +2,21 @@
 title: Vault2077 OPC 页面设计方案
 aliases:
   - OPC 页面方案
-status: review-draft
+type: supporting-plan
+status: superseded
+updated: 2026-07-24
+superseded-by: Vault2077-OPC-Design-Spec.md
 version: "0.1"
 date: 2026-07-23
 scope: OPC website section only
 ---
 
-# Vault2077 OPC 页面设计方案
+# Vault2077 OPC 页面设计方案（已取代）
+
+> 本提案已被 [OPC 设计规格](Vault2077-OPC-Design-Spec.md) 取代，仅保留为设计过程记录，不产生当前需求。
 
 > [!important] 审阅边界
-> 本文只设计网站中的 OPC 板块，不定义网站之外的获客、销售、支付、履约、顾问合作或争议处理机制。本文是供审阅的页面方案；确认后再修订 [[Vault2077-OPC-Design-Spec]] 并进入实现。
+> 本文只保留网站 OPC 板块的历史页面方案，不定义当前要求。当前要求见 [OPC 设计规格](Vault2077-OPC-Design-Spec.md)。
 
 ## 1. 页面要解决的核心问题
 
@@ -489,7 +494,7 @@ flowchart TD
 - 当前“全部由 Vault2077 内部专业人员直接交付”的概括不适用于游骑兵协会。
 - 当前服务分类模型无法表达“十项基础设施 + 五领域专项服务 + 十类顾问身份”。
 - 当前 `/opc/[slug]` 需要演进为两类标准服务详情路由。
-- 当前 OPC 设计规范中的旧专业分类，需要以 [[Vault2077-OPC-Development-Plan]] 的已确认分类为准完成修订。
+- 本提案提出的分类已经由当前 OPC 设计规格统一，本条不再产生待办。
 
 ## 14. 建议实施顺序
 
@@ -512,7 +517,7 @@ flowchart TD
 
 ## 16. 关联文档
 
-- [[Vault2077-OPC-Development-Plan|OPC 开发计划]]
-- [[Vault2077-OPC-Design-Spec|OPC 现行设计规范]]
-- [[Vault2077-Design-Spec|全站设计规范]]
-- [[CONTEXT|项目统一术语]]
+- [OPC 开发计划](Vault2077-OPC-Development-Plan.md)
+- [OPC 现行设计规范](Vault2077-OPC-Design-Spec.md)
+- [全站设计规范](Vault2077-Design-Spec.md)
+- [项目统一术语](../CONTEXT.md)

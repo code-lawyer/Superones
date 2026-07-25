@@ -1,7 +1,9 @@
 ---
 title: Vault2077 OPC 开发计划
 date: 2026-07-23
-status: approved-plan
+type: supporting-plan
+status: reference
+updated: 2026-07-24
 tags:
   - vault2077
   - opc
@@ -10,8 +12,10 @@ tags:
 
 # Vault2077 OPC 开发计划
 
+> 本计划的三入口模型已经吸收到 [OPC 设计规格](Vault2077-OPC-Design-Spec.md)。若两者有差异，以规格为准；本文件只保留业务输入和实施分解，不再定义产品结构。
+
 > [!warning] 文档状态
-> 本文固定 OPC 板块已经确认的内容开发方向，但不构成正式服务承诺。价格、地区、适用条件、交付周期、专业责任和正式服务范围仍须由对应专业负责人确认，并写入 [[Vault2077-OPC-Design-Spec]] 后方可进入生产状态。
+> 本文固定 OPC 板块已经确认的内容开发方向，但不构成正式服务承诺。价格、地区、适用条件、交付周期、专业责任和正式服务范围仍须由对应专业负责人确认，并写入 [OPC 设计规格](Vault2077-OPC-Design-Spec.md) 后方可进入生产状态。
 
 ## 1. 计划目标与边界
 
@@ -950,7 +954,7 @@ RangerContact
 
 ## 26. 关联文档
 
-- [[CONTEXT|领域语言]]
-- [[Vault2077-Design-Spec|产品与设计总规格]]
-- [[Vault2077-OPC-Design-Spec|OPC 服务台首版设计基线]]
-- [[Vault2077-Admin-Operations-Spec|后台与运营首版设计基线]]
+- [领域语言](../CONTEXT.md)
+- [产品与设计总规格](Vault2077-Design-Spec.md)
+- [OPC 服务台设计规格](Vault2077-OPC-Design-Spec.md)
+- [后台与运营首版设计基线](Vault2077-Admin-Operations-Spec.md)

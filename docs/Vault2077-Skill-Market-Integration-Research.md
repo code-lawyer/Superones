@@ -1,4 +1,13 @@
+---
+type: research
+status: superseded
+updated: 2026-07-24
+superseded-by: adr/0005-platform-native-rankings-and-lanes.md
+---
+
 # Vault2077 Skill 与 MCP 市场接入研究
+
+> 本文只保留被否决方案的研究过程。关于 Smithery、MCP 和本地飙升值的“当前实现”描述已经失效；现行产品只转呈 skills.sh 的 All Time、Trending 24h 与 Hot。
 
 > 调研日期：2026-07-23
 > 范围：只核查市场运营方的官方网站、官方文档、官方 API 与官方开源仓库。

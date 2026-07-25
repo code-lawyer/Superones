@@ -10,14 +10,36 @@ export type PublicContent = {
   state: ContentState;
 };
 
+function degradedContent(state?: ContentState): PublicContent {
+  return {
+    events: [],
+    information: [],
+    state: {
+      mode: "degraded",
+      updatedAt: state?.updatedAt ?? null,
+      sourceCount: state?.sourceCount ?? 0,
+      eventCount: 0,
+      informationCount: 0,
+      projectCount: state?.projectCount ?? 0,
+      quarantinedCount: state?.quarantinedCount ?? 0,
+      publicationVersion: state?.publicationVersion ?? 0,
+    },
+  };
+}
+
 export async function getPublicContent(): Promise<PublicContent> {
   try {
     const stored = await getStoredContent();
     if (stored.state.mode === "live") {
       return { events: stored.events, information: stored.information, state: stored.state };
     }
+    if (process.env.NODE_ENV === "production") {
+      return degradedContent(stored.state);
+    }
   } catch {
-    // A blank or malformed local store must never take down the public demo fallback.
+    if (process.env.NODE_ENV === "production") {
+      return degradedContent();
+    }
   }
   return {
     events: demoEvents,
