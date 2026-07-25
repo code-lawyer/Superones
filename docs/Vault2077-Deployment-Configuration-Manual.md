@@ -21,6 +21,8 @@ updated: 2026-07-24
 | `VAULT2077_ADMIN_SESSION_SECRET` | 必需 | 后台会话签名 |
 | `VAULT2077_PIPELINE_SHARED_SECRET` | 必需 | 统一批次签名 |
 | `VAULT2077_PIPELINE_WORKER_SECRET` | 建议独立 | 处理入口鉴权 |
+| `GITHUB_TOKEN` | Frontier 生产必需 | 境内只读公开仓库快速路径 |
+| `VAULT2077_FRONTIER_TICK_SECRET` | Frontier 生产必需 | 境内每小时观察入口鉴权 |
 
 所有值由秘密管理注入；生产不得使用开发默认值。
 
@@ -39,7 +41,7 @@ updated: 2026-07-24
 | `VAULT2077_PROCESS_TIMEOUT_SECONDS` | 采集侧 | 等待处理上限 |
 | `VAULT2077_TRIGGER_PROCESSING` | 采集侧 | 投递后触发处理 |
 
-旧 SiC 独立 URL 仅用于迁移兼容，生产配置应为空并最终删除。
+已删除的旧 SiC 独立 URL 不得重新加入生产配置。
 
 ## 4. 编辑处理
 
@@ -47,20 +49,22 @@ updated: 2026-07-24
 
 ## 5. 数据
 
-`VAULT2077_DATA_DIR` 只规范预览文件和本地报告。当前 Frontier 仍固定使用 `data/mvp-store.json`，这是待修复差距，不能据此宣称统一备份完成。
+`VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。
 
 生产 v1 必须配置 PostgreSQL 并在启动前运行兼容迁移。Redis 与对象存储保持未配置，除非容量和恢复需求已经形成批准决策。
 
 ## 6. GitHub Actions
 
-目标只保留一个采集 workflow，支持四 lane：
+目标只保留一个境外采集 workflow，支持四 lane：
 
 - information：北京时间偶数小时 `:05`
 - roadside：北京时间偶数小时 `:55`
 - sic：北京时间 `07:25`、`19:25`
 - rankings：每小时
 
-计划任务必须要求成功投递。workflow 权限保持 `contents: read`，artifact 不得含密钥、邮箱或后台数据。
+计划任务必须要求成功投递。workflow 权限保持 `contents: read`，artifact 不得含密钥、邮箱或后台数据。Frontier 的每小时观察是境内业务调度，不属于第二套境外采集 workflow；生产应由境内受监控 scheduler 触发，当前 `frontier-hourly.yml` 仅为迁移期业务时钟。
+
+Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限流、缓存或条件请求并记录最近成功时间。普通页面不得触发 GitHub 请求；直读失败必须转为只含公开仓库标识的 rankings 回退任务。
 
 ## 7. 反向代理与公开边界
 
@@ -75,8 +79,8 @@ updated: 2026-07-24
 2. 注入秘密并拒绝开发默认值。
 3. 运行文档、类型、单元、采集器、构建和 E2E。
 4. 生产运行 PostgreSQL 迁移并确认恢复点。
-5. 部署应用，再启用统一采集计划。
-6. 验证四通道新鲜度、公开降级、后台鉴权和 `/pipeline` 边界。
+5. 部署应用，再启用统一采集计划和境内 Frontier 业务调度。
+6. 验证四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台鉴权和 `/pipeline` 边界。
 7. 保存证据；失败按上一版本和数据库迁移策略回滚。
 
 ## 9. 轮换与事故

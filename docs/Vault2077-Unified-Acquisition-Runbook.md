@@ -15,9 +15,9 @@ updated: 2026-07-24
 | `information` | 偶数小时 `:05` | 12h | 境内编辑处理 | 正式资讯 |
 | `roadside` | 偶数小时 `:55` | 12h | 境内编辑处理 | 个人/社区发布 |
 | `sic` | `07:25`、`19:25` | 24h | 境内编辑处理 | 论文、档案、课程、播客 |
-| `rankings` | 每小时唤醒 | 按任务 | 无编辑模型 | 平台原生榜、Frontier 定时观察和公开任务 |
+| `rankings` | 每小时唤醒 | 按任务 | 无编辑模型 | 平台原生榜与 Frontier 失败回退任务 |
 
-当前仓库的 `collect-content.yml` 已支持四通道，但 rankings 仍为每日两次，且存在独立 `frontier-hourly.yml`。在这两项合并前，生产发布门禁不通过；不要把当前部分实现解释为规范已完成。
+当前仓库的 `collect-content.yml` 已支持四通道，但 rankings 仍为每日两次，尚未达到每小时处理到期平台榜和 Frontier 回退任务的目标。`frontier-hourly.yml` 当前触发境内 Frontier 业务刷新，不是第二套境外采集器；生产前仍应把它迁移为受监控的境内后台调度，避免用 GitHub Actions 充当长期业务时钟。
 
 ## 2. 本地验证
 
@@ -60,6 +60,8 @@ npm.cmd run acquisition:collect
 
 境内侧至少配置签名/worker 密钥、来源 bundle 与允许 revision、生产数据库，以及三个内容通道使用的编辑提供方。rankings 不使用编辑模型。密钥不得进入仓库、日志或 artifact。
 
+Frontier 境内侧另配置只读 GitHub 服务端凭证和 tick 鉴权。交互式核验先写报名再尝试短时直读；失败必须保持待验证并写公开回退任务。每小时观察只读取境内事实源中的当前已验证仓库，保存最近成功时间、限流信息和失败分类；页面不触发 GitHub 请求。
+
 ## 5. 成功标准
 
 一次通道运行只有同时满足以下条件才成功：
@@ -78,7 +80,8 @@ npm.cmd run acquisition:collect
 - 未知来源修订：隔离批次，先审核并部署注册表，再重放。
 - 单一来源失败：允许其他来源继续，但按新鲜度告警，不得虚构数据补齐。
 - 处理失败：保留 inbox，以同一 `batchId` 幂等重试，不重新采集制造重复批次。
-- Frontier 延迟：检查 rankings 每小时唤醒、任务积压和签名 observation；不得从境内后台直连 GitHub。
+- Frontier 交互核验延迟：检查境内 GitHub 快速路径的超时、限流和凭证；失败记录必须已进入公开回退任务。
+- Frontier 排名延迟：检查境内每小时观察、当前参赛名单、上一成功快照，以及 rankings 回退任务积压和签名 observation。
 
 ## 7. 备份与恢复
 

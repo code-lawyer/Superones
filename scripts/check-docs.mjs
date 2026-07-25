@@ -26,6 +26,7 @@ const required = [
   "docs/adr/0004-unified-overseas-acquisition-pipeline.md",
   "docs/adr/0005-platform-native-rankings-and-lanes.md",
   "docs/adr/0006-production-data-and-public-task-boundary.md",
+  "docs/adr/0007-frontier-github-hybrid-access.md",
 ];
 const allowedStatuses = new Set([
   "active", "accepted", "amended", "reference", "historical", "superseded",
@@ -119,6 +120,31 @@ const forbiddenByFile = new Map([
   ]],
   ["docs/Vault2077-Unified-Acquisition-Runbook.md", [
     "VAULT2077_SIC_SNAPSHOT_URL", "VAULT2077_SIC_CONTENT_URL",
+    "不得从境内后台直连 GitHub",
+  ]],
+  ["docs/Vault2077-Frontier-Design-Spec.md", [
+    "所有 GitHub 读取均通过统一采集器",
+    "不得由浏览器或境内业务服务直接请求 GitHub",
+  ]],
+  ["docs/Vault2077-System-Delivery-Spec.md", [
+    "所有境外公开读取（包括边境计划仓库核验）",
+  ]],
+  ["docs/Vault2077-Launch-Checklist.md", [
+    "境内服务与浏览器不直接请求境外公开上游",
+  ]],
+  ["docs/Vault2077-Implementation-Traceability.md", [
+    "删除境内直连 GitHub 路径",
+    "违反单一 workflow 边界",
+  ]],
+  ["docs/Vault2077-Deep-Audit-2026-07-24.md", [
+    "Frontier 绕过统一跨区边界",
+    "删除境内 GitHub 直连和旧 tick",
+  ]],
+  ["docs/adr/0004-unified-overseas-acquisition-pipeline.md", [
+    "接收侧也不得绕过签名协议直接抓取境外页面",
+  ]],
+  ["docs/adr/0006-production-data-and-public-task-boundary.md", [
+    "所有境外公开读取（包括边境计划 GitHub 核验）",
   ]],
   ["CONTEXT.md", [
     "/api/", "VAULT2077_", "PostgreSQL", "Redis", "BigQuery", "Smithery",
@@ -128,6 +154,28 @@ for (const [relative, phrases] of forbiddenByFile) {
   const body = bodies.get(path.join(root, relative));
   for (const phrase of phrases) {
     if (body.includes(phrase)) errors.push(`旧口径重新进入当前文档：${relative} → ${phrase}`);
+  }
+}
+
+const requiredByFile = new Map([
+  ["CONTEXT.md", ["交互式仓库核验", "参赛仓库观察"]],
+  ["docs/Vault2077-Design-Spec.md", ["境内服务端优先即时核验"]],
+  ["docs/Vault2077-Frontier-Design-Spec.md", ["境内 GitHub 快速路径", "异步公开任务"]],
+  ["docs/Vault2077-System-Delivery-Spec.md", ["Frontier GitHub 集成", "境内 GitHub 快速路径"]],
+  ["docs/Vault2077-Launch-Checklist.md", ["Frontier 境内 GitHub 快速路径"]],
+  ["docs/Vault2077-Unified-Acquisition-Runbook.md", ["Frontier 境内侧另配置只读 GitHub 服务端凭证"]],
+  ["docs/Vault2077-Deployment-Configuration-Manual.md", ["Frontier 境内 GitHub 请求"]],
+  ["docs/Vault2077-Implementation-Traceability.md", ["Frontier GitHub 混合访问"]],
+  ["docs/Vault2077-Deep-Audit-2026-07-24.md", ["根据 ADR-0007"]],
+  ["docs/adr/0004-unified-overseas-acquisition-pipeline.md", ["ADR-0007"]],
+  ["docs/adr/0005-platform-native-rankings-and-lanes.md", ["ADR-0007"]],
+  ["docs/adr/0006-production-data-and-public-task-boundary.md", ["ADR-0007"]],
+  ["docs/adr/0007-frontier-github-hybrid-access.md", ["境内直读是快速路径，不是唯一成功路径"]],
+]);
+for (const [relative, phrases] of requiredByFile) {
+  const body = bodies.get(path.join(root, relative));
+  for (const phrase of phrases) {
+    if (!body.includes(phrase)) errors.push(`当前口径缺失：${relative} → ${phrase}`);
   }
 }
 

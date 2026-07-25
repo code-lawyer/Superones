@@ -15,7 +15,7 @@ updated: 2026-07-24
 当前最主要的风险不是页面数量或代码量，而是规范已经冻结的新边界仍与旧实现双轨运行：
 
 1. 统一采集只有接口外形统一，字段、状态、修订白名单、重试隔离和事务语义尚未统一。
-2. Frontier 仍保留独立 workflow 和境内直接访问 GitHub 的路径，尚未落实异步公开任务边界。
+2. Frontier 已确认采用境内 GitHub 快速路径，但现有直读缺少短超时、条件请求、完整限流、审计与异步可靠回退。
 3. 生产数据仍依赖文件适配器；PostgreSQL、迁移、事务、备份恢复和预览隔离均未完成。
 4. 后台已有可用入口，但密码、会话、限速、二次确认和不可变审计尚未达到规范。
 5. OPC、SiC、Vault 和 Frontier 的部分公开页面仍沿用旧领域模型或缺少冻结交互。
@@ -30,9 +30,9 @@ updated: 2026-07-24
 
 混合批次中“不支持记录在其他记录写入后才失败”的直接风险已在本轮修正为写入前拒绝，并新增回归测试；跨多个文件存储的运行失败仍可能半提交，必须由数据库事务最终解决。
 
-### P0-2 Frontier 绕过统一跨区边界
+### P0-2 Frontier 混合访问可靠性未闭环
 
-rankings 在统一采集 workflow 中不是每小时运行，同时仍有独立 Frontier workflow。挑战、验证、刷新和结算还会由境内业务代码直接读取 GitHub。应先实现公开任务 producer/collector/consumer，再合并 workflow；替代链路上线前不能直接删除现有路径。
+根据 ADR-0007，挑战、验证和当前参赛仓库观察由境内业务服务直接读取 GitHub 是正式产品边界，不再视为违规；这能让用户即时看到报名状态，并让观察集合随参赛名单变化。当前问题是直读尚未完整实现短超时、缓存/条件请求、限流、来源审计和异步回退。`frontier-hourly.yml` 只触发境内业务刷新，不是第二套境外采集器，但生产前应迁移为受监控的境内 scheduler。
 
 ### P0-3 生产持久化与预览边界缺失
 
@@ -89,7 +89,7 @@ rankings 在统一采集 workflow 中不是每小时运行，同时仍有独立 
 ### 暂不删除
 
 - 旧 `/api/internal/content` 与 process route：仍被内容 E2E、rehearsal 和旧 collector 脚本使用。应先把调用方迁移到 unified endpoint。
-- Frontier hourly workflow、internal tick 和直接 GitHub refresh：异步公开任务尚未替代，直接删除会中断业务。
+- Frontier internal tick 和直接 GitHub refresh：它们属于正式快速路径，不能删除；应补齐可靠性边界，并把 GitHub Actions 业务时钟迁移到境内 scheduler。
 - `content-contract.ts` 与 `content-pipeline.ts`：虽然名称偏旧，但当前统一 processor 仍复用其核心转换和处理能力。
 
 ### 结构性复杂度
@@ -109,12 +109,12 @@ rankings 在统一采集 workflow 中不是每小时运行，同时仍有独立 
 - 引入 retryable/quarantined、最大重试和死信处理。
 - 保证预校验无副作用，并为事务提交准备存储接口。
 
-### Gate B：Frontier 公开任务
+### Gate B：Frontier GitHub 混合访问
 
-- 境内只产生不含私密数据的 GitHub 观察任务。
-- 境外统一 collector 执行任务并签名回传 observation。
-- rankings 改为每小时，合并 workflow。
-- 替代路径验证完成后，删除境内 GitHub 直连和旧 tick。
+- 境内交互核验和每小时观察只读取当前参赛名单中的公开仓库。
+- 直读增加服务端只读凭证、短超时、限流、缓存/条件请求和来源审计。
+- 暂时不可达时保持待验证或上一成功值，由境外 collector 执行公开回退任务并签名回传 observation。
+- rankings 改为每小时处理到期平台榜和 Frontier 回退；业务时钟迁移到境内受监控 scheduler，保留境内 GitHub 直连。
 
 ### Gate C：生产数据与安全
 
@@ -134,10 +134,10 @@ rankings 在统一采集 workflow 中不是每小时运行，同时仍有独立 
 
 ## 6. 本轮验证
 
-- `npm run docs:check`：43 份 Markdown 通过元数据、索引和本地链接校验。
+- `npm run docs:check`：44 份 Markdown 通过元数据、索引和本地链接校验。
 - `npm run typecheck`：通过。
 - `npm test`：91 项通过。
 - `npm run build`：通过。
 - `npm run test:pipeline:e2e`：通过。
 - `npm run test:acquisition:e2e`：通过。
-- 当前仓库没有 Python 测试文件；历史追踪矩阵中的“17 个 Python 测试”证据已撤销。
+- Python 采集器测试：17 项通过（`collector/tests`）。

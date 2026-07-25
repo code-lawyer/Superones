@@ -38,6 +38,7 @@ updated: 2026-07-24
 - [ADR-0004：统一境外公开数据采集](adr/0004-unified-overseas-acquisition-pipeline.md)
 - [ADR-0005：平台原生榜与四采集通道](adr/0005-platform-native-rankings-and-lanes.md)
 - [ADR-0006：生产数据与公开任务边界](adr/0006-production-data-and-public-task-boundary.md)
+- [ADR-0007：Frontier GitHub 混合访问](adr/0007-frontier-github-hybrid-access.md)
 
 ## 当前运行文档
 

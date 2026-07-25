@@ -10,7 +10,7 @@ updated: 2026-07-24
 
 ## 1. 当前结论
 
-项目已达到“可构建、可演示、主要频道可浏览、统一采集主体可测试”的 MVP 预览阶段，但尚未达到生产上线条件。最大缺口集中在统一批次合同和事务边界、生产数据库、边境计划统一公开任务、后台安全、真实业务输入和运维证据。
+项目已达到“可构建、可演示、主要频道可浏览、统一采集主体可测试”的 MVP 预览阶段，但尚未达到生产上线条件。最大缺口集中在统一批次合同和事务边界、生产数据库、Frontier GitHub 快速路径的可靠回退、后台安全、真实业务输入和运维证据。
 
 | 领域 | 状态 | 证据/缺口 |
 | --- | --- | --- |
@@ -24,8 +24,9 @@ updated: 2026-07-24
 | 运营后台 | partial | 共享密码后台存在；安全硬化和完整审计证据不足 |
 | 统一采集批次/inbox | partial | 签名、幂等、租约和 E2E 已实现；字段、状态、修订白名单、重试上限和隔离语义未完全符合规范 |
 | 四采集通道 | partial | `collect-content.yml` 已支持四通道；rankings 仍为每日两次而非每小时 |
-| 单一 workflow | missing | 仍有独立 `frontier-hourly.yml`，必须并入统一 workflow 后删除 |
-| 边境异步公开任务 | missing | 当前 Frontier 仍有独立境内 tick/上游访问路径 |
+| 单一境外采集 workflow | done | `collect-content.yml` 是唯一境外采集 workflow；`frontier-hourly.yml` 仅触发境内业务刷新 |
+| Frontier GitHub 混合访问 | partial | 境内交互核验和观察已直读 GitHub；短超时、限流、缓存/条件请求、审计与异步回退未闭环 |
+| Frontier 境内业务调度 | partial | 当前由 `frontier-hourly.yml` 触发；生产应迁移到受监控的境内 scheduler |
 | 生产持久化 | missing | 文件适配器已统一支持 `VAULT2077_DATA_DIR`，但 PostgreSQL、事务和迁移仍未实现 |
 | 生产降级语义 | partial | Vault 已在生产返回显式 degraded 空态；SiC 等读取端仍需统一错误语义 |
 | `/pipeline` 访问边界 | done | 生产环境要求后台会话且页面 noindex；开发环境保留本地诊断能力 |
@@ -72,9 +73,10 @@ updated: 2026-07-24
 | 要求 | 状态 | 说明 |
 | --- | --- | --- |
 | 报名、挑战、基线、排名、奖品、结算 | partial | 模块存在；赛季状态未持久化，结算不是可恢复状态机 |
-| 每小时公开仓库观察 | partial | 独立 workflow 已运行，但违反单一 workflow 边界 |
-| 异步公开任务与签名回传 | missing | 需要并入 rankings 通道 |
-| 邮箱不离境 | partial | 本地文件适配器保留邮箱；异步公开任务和生产数据库仍需验证 |
+| 每小时公开仓库观察 | partial | 境内 tick 可按参赛名单读取；生产 scheduler、失败分类和上一成功快照需完整验证 |
+| 交互式 GitHub 快速路径 | partial | 仓库和挑战核验已直读；缺短超时、条件请求、完整限流与审计 |
+| 异步公开任务回退 | missing | 需要通过 rankings 通道回传失败仓库的签名 observation |
+| 邮箱不离境 | partial | 当前 GitHub 请求只需仓库信息；仍需生产数据库和任务 payload 测试证明 |
 | Frontier 生产预览边界 | missing | 页面仍以 CURRENT/LIVE 呈现文件适配器数据 |
 | 真实赛季/奖金/条款 | blocked-input | 等待业务与法律输入 |
 
@@ -99,10 +101,10 @@ updated: 2026-07-24
 
 ## 4. 2026-07-24 审计证据
 
-- `npm run docs:check`：通过（43 份项目 Markdown 均有元数据、索引登记和有效本地链接）。
+- `npm run docs:check`：通过（44 份项目 Markdown 均有元数据、索引登记和有效本地链接）。
 - `npm run typecheck`：通过。
 - Node 单元测试：91 个通过。
-- Python 采集器测试：当前仓库未发现 Python 测试文件，旧“17 个通过”证据已撤销。
+- Python 采集器测试：17 个通过（`collector/tests`）。
 - `npm run build`：通过。
 - 内容管线 E2E：通过。
 - 统一采集 inbox E2E：通过。
@@ -112,7 +114,7 @@ updated: 2026-07-24
 ## 5. 推荐推进顺序
 
 1. 先冻结并迁移统一批次合同：四 lane、修订白名单、失败分类、最大重试、隔离与事务性。
-2. 实现 Frontier 异步公开任务，再合并 workflow 和删除境内直连 GitHub 路径。
+2. 硬化 Frontier 境内 GitHub 快速路径并实现异步公开任务回退；把 `frontier-hourly.yml` 迁移为境内受监控 scheduler，保留服务端直连。
 3. 完成 PostgreSQL schema、迁移、事务、备份恢复，并把文件适配器降为明确的本地预览。
 4. 完成后台密码、会话、锁定、二次确认、不可变审计、分布式限速和 CSP。
 5. 按冻结名称迁移 OPC，补齐 SiC stale 状态、Vault 引用/分页/纠错和 Frontier 状态机。
