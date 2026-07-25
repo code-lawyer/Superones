@@ -9,8 +9,10 @@ for (let index = 2; index < process.argv.length; index += 2) options.set(process
 const registryPath = resolve(options.get("--registry") ?? "config/source-registry.json");
 const outputPath = resolve(options.get("--output") ?? "config/source-bundle.json");
 const runtimePolicyPath = resolve(options.get("--runtime-policy") ?? "config/runtime-source-policy.json");
+const sicRegistryPath = resolve(options.get("--sic-registry") ?? "config/sic-source-registry.json");
 const registry = JSON.parse(await readFile(registryPath, "utf8"));
 const runtimePolicy = JSON.parse(await readFile(runtimePolicyPath, "utf8"));
+const sicRegistry = JSON.parse(await readFile(sicRegistryPath, "utf8"));
 if (runtimePolicy.version !== 1 || !Array.isArray(runtimePolicy.excluded)) {
   throw new Error("Runtime source policy must contain a version 1 excluded list.");
 }
@@ -57,6 +59,8 @@ const collectorSupport = new Set([
   "github-user-events",
   "newsnow",
   "json",
+  "sitemap",
+  "dated-index",
 ]);
 const unstructuredHtmlConnectors = new Set([
   "html-index",
@@ -115,6 +119,9 @@ function sourceAdmission(channel) {
   if (runtimeExclusions.has(channel.id)) return runtimeExclusions.get(channel.id).reason;
   if (isMainlandOrigin(channel)) return "mainland_origin_platform";
   if (channel.channelType === "github-trending") return "platform_ranking_moved_to_direct_lane";
+  if (channel.channelType === "github-user-events") return "github_activity_is_not_published_speech";
+  if (channel.channelType === "podcast") return "podcast_moved_to_sic_lane";
+  if (["reddit", "telegram"].includes(channel.channelType)) return "community_channel_not_in_initial_policy";
   if (
     channel.channelType === "x"
     && !xPolicy.accounts.has(normalizeXHandle(channel.channelIdentifier))
@@ -125,6 +132,99 @@ function sourceAdmission(channel) {
     if (!/^[A-Z]{2}$/.test(channel.geography ?? "")) return "unverified_direct_publisher_origin";
   }
   return null;
+}
+
+function contentRouting(channel) {
+  if (channel.channelType === "x") {
+    return {
+      contentGroup: "roadside",
+      itemKind: "personal_post",
+      provenanceRole: "canonical",
+      provenanceStatus: "verified",
+    };
+  }
+  if (channel.channelType === "community") {
+    return {
+      contentGroup: "roadside",
+      itemKind: "community_topic",
+      provenanceRole: "discovery",
+      provenanceStatus: "declared",
+    };
+  }
+  if (channel.publisherKind === "person") {
+    return {
+      contentGroup: "roadside",
+      itemKind: "personal_post",
+      provenanceRole: "canonical",
+      provenanceStatus: "verified",
+    };
+  }
+  if (channel.channelType === "github-release") {
+    return {
+      contentGroup: "documents",
+      itemKind: "release",
+      provenanceRole: "canonical",
+      provenanceStatus: "verified",
+    };
+  }
+  if (channel.publisherKind === "organization" || channel.publisherKind === "open_source_project") {
+    return {
+      contentGroup: "documents",
+      itemKind: "article",
+      provenanceRole: "canonical",
+      provenanceStatus: "verified",
+    };
+  }
+  return {
+    contentGroup: "information",
+    itemKind: "article",
+    provenanceRole: "canonical",
+    provenanceStatus: "verified",
+  };
+}
+
+function sicDocumentSource(source) {
+  const connector = source.kind === "official_sitemap"
+    ? "sitemap"
+    : source.kind === "official_dated_index"
+      ? "dated-index"
+      : "rss";
+  const itemKind = source.kind === "official_dated_index" ? "changelog" : "article";
+  return {
+    id: `sic-document:${source.id}`,
+    identity: `sic-document:${source.id}`,
+    name: source.name,
+    role: "官方",
+    ownerEntity: `organization:${source.publisher.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    publisherKind: "organization",
+    evidenceNature: "primary",
+    classificationConfidence: "high",
+    classificationSource: "sic_fixed_source_registry",
+    language: "en",
+    primaryLanguage: "en",
+    geography: "US",
+    channelType: source.kind === "official_dated_index" ? "official-changelog" : "official-blog",
+    channelIdentifier: source.id,
+    homeUrl: source.homeUrl,
+    evidenceEligible: true,
+    contentCapability: source.kind === "official_dated_index" ? "fulltext" : "feed-content",
+    discoveredFrom: [{ repository: "code-lawyer/Superones", path: "config/sic-source-registry.json" }],
+    sourceStream: "information",
+    contentGroup: "documents",
+    itemKind,
+    provenanceRole: "canonical",
+    provenanceStatus: "verified",
+    originPlatform: "web",
+    authorityTier: null,
+    endpoint: source.endpoint,
+    connector,
+    aggregator: null,
+    validation: {
+      status: "usable",
+      checkedAt: new Date().toISOString(),
+      finalUrl: source.endpoint,
+    },
+  };
 }
 
 function priority(endpoint) {
@@ -151,6 +251,7 @@ for (const channel of registry.channels) {
   const xPolicyAccount = channel.channelType === "x"
     ? xPolicy.accounts.get(normalizeXHandle(channel.channelIdentifier))
     : undefined;
+  const routing = contentRouting(channel);
   const item = {
     id: channel.id,
     identity: channel.identity,
@@ -170,7 +271,8 @@ for (const channel of registry.channels) {
     evidenceEligible: channel.evidenceEligible,
     contentCapability: channel.contentCapability,
     discoveredFrom: channel.discoveredFrom,
-    sourceStream: channel.channelType === "x" ? "statements" : "information",
+    sourceStream: routing.contentGroup === "roadside" ? "roadside" : "information",
+    ...routing,
     originPlatform: channel.channelType === "x" ? "x" : "web",
     authorityTier: xPolicyAccount?.authorityTier ?? null,
   };
@@ -203,6 +305,35 @@ for (const channel of registry.channels) {
   }
 }
 
+if (!sicRegistry || sicRegistry.version !== 1 || !Array.isArray(sicRegistry.sources)) {
+  throw new Error("SiC source registry must contain a version 1 sources list.");
+}
+for (const source of sicRegistry.sources.filter((item) => (
+  item.group === "documents" && item.status === "approved"
+))) {
+  const curated = sicDocumentSource(source);
+  const curatedHome = curated.homeUrl.replace(/\/$/, "").toLowerCase();
+  const duplicateNames = new Set({
+    "anthropic-news": ["Anthropic News"],
+    "google-deepmind-blog": ["Google DeepMind Blog"],
+    "meta-engineering": ["Engineering at Meta"],
+    "openai-news": ["OpenAI Blog"],
+  }[source.id] ?? []);
+  const duplicateIndexes = sources
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate }) => (
+      candidate.contentGroup === "documents"
+      && (
+        String(candidate.homeUrl ?? "").replace(/\/$/, "").toLowerCase() === curatedHome
+        || duplicateNames.has(candidate.name)
+      )
+    ))
+    .map(({ index }) => index)
+    .reverse();
+  for (const index of duplicateIndexes) sources.splice(index, 1);
+  sources.push(curated);
+}
+
 sources.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
 pending.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
 const bundleRevision = createHash("sha256")
@@ -210,7 +341,18 @@ const bundleRevision = createHash("sha256")
     xPolicyHash,
     runtimePolicy,
     repositories: registry.repositories.map(({ name, commit }) => ({ name, commit })),
-    sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature }) => ({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature })),
+    sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature, contentGroup, itemKind, provenanceRole, provenanceStatus }) => ({
+      id,
+      endpoint,
+      connector,
+      ownerEntity,
+      publisherKind,
+      evidenceNature,
+      contentGroup,
+      itemKind,
+      provenanceRole,
+      provenanceStatus,
+    })),
   }))
   .digest("hex")
   .slice(0, 16);
@@ -221,14 +363,16 @@ const bundle = {
   generatedAt: new Date().toISOString(),
   registryGeneratedAt: registry.generatedAt,
   registryAuditedAt: registry.audit?.checkedAt ?? null,
-  policy: "One verified primary endpoint per deduplicated source channel. X statements and document-style information are equal event inputs but remain separate presentation streams. Only X accounts admitted by the fail-closed authority policy enter the runtime bundle; directory and RSS relay duplication never creates additional logical accounts. Content language is not an admission criterion. Mainland-China origin platforms are excluded; international publishing platforms may carry content in any language. YouTube and other video-only channels are excluded because the product does not perform video download, transcription, or summarization. Runtime connectors must use machine-readable interfaces. Browser automation and unstructured HTML index connectors are disallowed. Sources that repeatedly block the unattended GitHub Actions collector remain auditable in the registry but are excluded from the active runtime policy until a stable official endpoint exists.",
+  policy: "Core direct sources plus discovery-only aggregators with canonical provenance. Editorial publications enter information; verified people, personal blogs and native community topics enter roadside; first-party organizations and project releases enter documents. Podcasts run in the SiC lane. GitHub user activity is not published speech. Aggregator comments and summaries never become original content. Unknown publishers and unresolved canonical URLs are quarantined.",
   counts: {
     active: sources.length,
     pending: pending.length,
     rss: sources.filter((source) => source.connector === "rss").length,
     structured: sources.filter((source) => source.connector !== "rss").length,
-    information: sources.filter((source) => source.sourceStream === "information").length,
-    statements: sources.filter((source) => source.sourceStream === "statements").length,
+    information: sources.filter((source) => source.contentGroup === "information").length,
+    documents: sources.filter((source) => source.contentGroup === "documents").length,
+    roadside: sources.filter((source) => source.sourceStream === "roadside").length,
+    statements: sources.filter((source) => source.sourceStream === "roadside" && source.originPlatform === "x").length,
     xCandidates: registry.channels.filter((channel) => channel.channelType === "x").length,
     xRunnableCandidates: registry.channels.filter((channel) => (
       channel.channelType === "x"

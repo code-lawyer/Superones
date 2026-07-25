@@ -86,6 +86,38 @@ test("Vault adapter removes exact duplicates repeated across legacy packets", ()
   assert.equal(batches[0].sourceReports[0].recordCount, 1);
 });
 
+test("roadside discovery lane carries a verified canonical document to domestic routing", () => {
+  const discovered = packet();
+  discovered.information[0] = {
+    ...discovered.information[0],
+    sourceChannelId: "company-source",
+    discoveryPath: "https://news.ycombinator.com/item?id=42",
+    discoveryPaths: ["https://news.ycombinator.com/item?id=42"],
+    originalPublisher: "Company Source",
+    originalUrl: "https://company.example.com/news/original",
+    contentGroup: "documents",
+    itemKind: "article",
+    provenanceRole: "canonical",
+    provenanceStatus: "verified",
+    sourceStream: "information",
+  };
+  const batches = buildVaultAcquisitionBatches({
+    context: {
+      ...context,
+      lane: "roadside",
+      scheduleId: "schedule:test:roadside",
+    },
+    packets: [discovered],
+    outcomes: [{ sourceId: "company-source", status: "success" }],
+    connectorBySource: new Map([["company-source", "rss"]]),
+    sourceStreamBySource: new Map([["company-source", "information"]]),
+    lane: "roadside",
+  });
+  assert.equal(batches.flatMap((batch) => batch.records).length, 1);
+  assert.equal(batches[0].records[0].payload.contentGroup, "documents");
+  assert.equal(batches[0].sourceReports[0].recordCount, 1);
+});
+
 test("packer splits source groups before the record limit", () => {
   const groups = Array.from({ length: 6 }, (_, sourceIndex) => ({
     report: {

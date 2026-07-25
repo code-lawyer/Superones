@@ -9,7 +9,7 @@ on:
         type: choice
         options:
           - information
-          - statements
+          - roadside
           - sic
           - rankings
       require_delivery:
@@ -20,7 +20,7 @@ on:
   schedule:
     # All schedules are UTC. Beijing = UTC+8.
     - cron: "5 */2 * * *"       # Information: even Beijing hours at :05.
-    - cron: "55 */2 * * *"      # Statements: even Beijing hours at :55.
+    - cron: "55 */2 * * *"      # Roadside: even Beijing hours at :55.
     - cron: "25 11,23 * * *"    # SiC: Beijing 07:25 / 19:25.
     - cron: "55 11,23 * * *"    # Rankings: Beijing 07:55 / 19:55.
 
@@ -59,7 +59,7 @@ jobs:
           else
             case "$CRON" in
               "5 */2 * * *") lane="information" ;;
-              "55 */2 * * *") lane="statements" ;;
+              "55 */2 * * *") lane="roadside" ;;
               "25 11,23 * * *") lane="sic" ;;
               "55 11,23 * * *") lane="rankings" ;;
               *) echo "Unknown schedule: $CRON" >&2; exit 1 ;;
@@ -68,12 +68,12 @@ jobs:
           echo "value=$lane" >> "$GITHUB_OUTPUT"
           echo "schedule_id=${lane}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
-        if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'statements'
+        if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         with:
           python-version: "3.12"
           cache: pip
       - name: Install and test overseas feed collectors
-        if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'statements'
+        if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         run: |
           pip install -r collector/requirements.txt
           python -m unittest discover -s collector/tests -p "test_*.py"

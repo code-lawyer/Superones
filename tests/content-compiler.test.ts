@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { activeEvents, compileInformationBatch, meetsEventThreshold, withOneRetry, type EditorialPort } from "../lib/content-compiler.ts";
 import type { InboundContentBatch, InformationEnvelope } from "../lib/content-contract.ts";
-import type { EventRecord, InformationItem, SourceRole } from "../lib/types.ts";
+import { SOURCE_ROLES, type EventRecord, type InformationItem, type SourceRole } from "../lib/types.ts";
 
 function envelope(index: number, publisher: string, sourceRole: SourceRole): InformationEnvelope {
   return {
@@ -257,6 +257,49 @@ test("the same canonical URL is processed once even when an aggregate body chang
   });
   assert.equal(result.information.length, 1);
   assert.equal(translated, 1);
+});
+
+test("a duplicate canonical URL retains every discovery path without another LLM call", async () => {
+  const direct = {
+    ...envelope(1, "A", SOURCE_ROLES[1]),
+    contentGroup: "documents" as const,
+    discoveryPaths: ["rss:https://example.com/feed"],
+  };
+  const first = await compileInformationBatch({
+    batch: batch([direct]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial(),
+  });
+  let translated = 0;
+  const discovered = {
+    ...direct,
+    idempotencyKey: "item-discovered",
+    discoveryPath: "https://news.ycombinator.com/item?id=42",
+    discoveryPaths: ["https://news.ycombinator.com/item?id=42"],
+    originalContent: "A separately extracted full-text copy.",
+    contentHash: "f".repeat(64),
+  };
+  const second = await compileInformationBatch({
+    batch: batch([discovered]),
+    previousInformation: first.information,
+    previousEvents: [],
+    editorial: editorial({
+      async translateInformation(item) {
+        translated += 1;
+        return {
+          translatedTitle: item.originalTitle,
+          summary: item.originalTitle,
+          translatedContent: item.originalContent ?? item.originalTitle,
+        };
+      },
+    }),
+  });
+  assert.equal(translated, 0);
+  assert.deepEqual(second.information[0].discoveryPaths, [
+    "rss:https://example.com/feed",
+    "https://news.ycombinator.com/item?id=42",
+  ]);
 });
 
 test("the same root X post from different transports is processed once before the LLM", async () => {

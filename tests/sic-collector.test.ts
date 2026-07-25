@@ -5,7 +5,7 @@ import type { SicSource } from "../lib/sic-source-registry.ts";
 
 const rssSource: SicSource = {
   id: "test-feed",
-  group: "archive",
+  group: "documents",
   status: "approved",
   name: "Test Feed",
   publisher: "Test Publisher",
@@ -113,4 +113,35 @@ test("SiC source may explicitly approve a canonical redirect origin", () => {
     <script type="application/ld+json">{"headline":"Release notes","url":"https://platform.example.com/releases","datePublished":"2026-07-22"}</script>
   `);
   assert.equal(entries[0].url, "https://platform.example.com/releases");
+});
+
+test("Hugging Face paper discovery is normalized to arXiv identifiers", () => {
+  const records = sicCollectorTestUtils.huggingFacePaperRecords(JSON.stringify([
+    { paper: { id: "2607.12345", title: "Discovery title" }, upvotes: 42 },
+    { id: "https://arxiv.org/abs/2607.54321v2" },
+    { id: "not-an-arxiv-id" },
+  ]));
+  assert.deepEqual(records, [
+    { id: "2607.12345", discoveryUrl: "https://huggingface.co/papers/2607.12345" },
+    { id: "2607.54321", discoveryUrl: "https://huggingface.co/papers/2607.54321" },
+  ]);
+});
+
+test("arXiv metadata replaces discovery metadata and becomes the canonical paper record", () => {
+  const discoveries = new Map([["2607.12345", "https://huggingface.co/papers/2607.12345"]]);
+  const entries = sicCollectorTestUtils.arxivEntries(`
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/2607.12345v2</id>
+        <title>Verified Frontier Paper</title>
+        <summary>Verified abstract from arXiv.</summary>
+        <published>2026-07-22T00:00:00Z</published>
+      </entry>
+    </feed>
+  `, discoveries);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].canonicalId, "arxiv:2607.12345");
+  assert.equal(entries[0].url, "https://arxiv.org/abs/2607.12345");
+  assert.equal(entries[0].discoveryUrl, "https://huggingface.co/papers/2607.12345");
+  assert.equal(entries[0].title, "Verified Frontier Paper");
 });

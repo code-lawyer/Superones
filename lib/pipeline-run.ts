@@ -9,7 +9,7 @@ import type { SicContentItem } from "./sic-content-types";
 
 export const PIPELINE_SECTIONS = [
   "information",
-  "statements",
+  "roadside",
   "sic",
   "rankings",
 ] as const;
@@ -101,7 +101,7 @@ export type PipelineRunSnapshot = {
   retryAttempts: number;
   processingTotals: Record<string, number>;
   information: InformationItem[];
-  statements: InformationItem[];
+  roadside: InformationItem[];
   events: EventRecord[];
   sicItems: SicContentItem[];
   quarantineCount: number;
@@ -157,8 +157,8 @@ async function liveQueue(dataRoot: string) {
         ? {
             status: parsed.status as "pending" | "processing" | "succeeded" | "failed",
             attempts: typeof parsed.attempts === "number" ? parsed.attempts : 0,
-            lane: PIPELINE_SECTIONS.includes(parsed.lane as PipelineSection)
-              ? parsed.lane as PipelineSection
+            lane: PIPELINE_SECTIONS.includes((parsed.lane === "statements" ? "roadside" : parsed.lane) as PipelineSection)
+              ? (parsed.lane === "statements" ? "roadside" : parsed.lane) as PipelineSection
               : null,
             scheduleId: typeof parsed.scheduleId === "string" ? parsed.scheduleId : null,
             receivedAt: typeof parsed.receivedAt === "string" ? parsed.receivedAt : null,
@@ -228,11 +228,15 @@ export async function getPipelineRunSnapshot(): Promise<PipelineRunSnapshot> {
   }
 
   const information = newest(
-    stored.information.filter((item) => item.sourceStream !== "statements"),
+    stored.information.filter((item) => (
+      (item.contentGroup ?? (item.sourceStream === "statements" ? "roadside" : item.sourceStream)) === "information"
+    )),
     (item) => item.publishedAt ?? item.discoveredAt,
   );
-  const statements = newest(
-    stored.information.filter((item) => item.sourceStream === "statements"),
+  const roadside = newest(
+    stored.information.filter((item) => (
+      (item.contentGroup ?? item.sourceStream) === "roadside" || item.sourceStream === "statements"
+    )),
     (item) => item.publishedAt ?? item.discoveredAt,
   );
   const reportQueue = report?.processing?.queue;
@@ -265,7 +269,7 @@ export async function getPipelineRunSnapshot(): Promise<PipelineRunSnapshot> {
     retryAttempts: liveProcessing?.retryAttempts ?? 0,
     processingTotals,
     information,
-    statements,
+    roadside,
     events: newest(stored.events, (item) => item.updated),
     sicItems: newest(sic.items, (item) => item.publishedAt ?? item.collectedAt),
     quarantineCount: stored.quarantine.length,

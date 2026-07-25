@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { beijingTime, eventCategory, eventJudgment, informationTime } from "@/lib/feed-format";
 import { getPublicContent } from "@/lib/public-content";
+import { documentHref, informationHref, roadsideHref } from "@/lib/feed-route";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,17 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
                       <span>{item.sourceRole}</span>
                       <span>{item.author}</span>
                     </div>
-                    <h2><Link href={`/feed/info/${item.slug}`}>{item.translatedTitle}</Link></h2>
+                    <h2>
+                      <Link href={
+                        item.contentGroup === "documents"
+                          ? documentHref(item.slug)
+                          : (item.contentGroup ?? item.sourceStream) === "roadside" || item.sourceStream === "statements"
+                          ? roadsideHref(item.slug)
+                          : informationHref(item.slug)
+                      }>
+                        {item.translatedTitle}
+                      </Link>
+                    </h2>
                     <p>{item.translatedContent}</p>
                     <div className="source-record__original" lang={item.originalLanguage}>
                       <p className="mono">{item.originalDisplay === "full" ? "EN / ORIGINAL" : "EN / ORIGINAL EXCERPT"}</p>

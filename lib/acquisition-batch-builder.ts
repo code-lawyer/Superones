@@ -169,15 +169,31 @@ export function buildVaultAcquisitionBatches(input: {
   packets: InboundContentBatch[];
   outcomes: VaultCollectionOutcome[];
   connectorBySource: Map<string, string>;
-  sourceStreamBySource?: Map<string, "information" | "statements">;
-  lane?: "information" | "statements";
+  sourceStreamBySource?: Map<string, "information" | "roadside" | "statements">;
+  lane?: "information" | "roadside" | "statements";
   maxRecords?: number;
 }) {
   const recordsBySource = new Map<string, AcquisitionRecord[]>();
   const informationById = new Map<string, AcquisitionRecord>();
   for (const packet of input.packets) {
     for (const item of packet.information) {
-      if (input.lane && (item.sourceStream === "statements" ? "statements" : "information") !== input.lane) continue;
+      const itemLane = item.contentGroup === "roadside"
+        || item.sourceStream === "roadside"
+        || item.sourceStream === "statements"
+        ? "roadside"
+        : "information";
+      const requestedLane = input.lane === "statements" ? "roadside" : input.lane;
+      const promotedFromRoadsideDiscovery = item.provenanceRole === "canonical"
+        && itemLane === "information"
+        && item.discoveryPaths?.some((path) => (
+          path.startsWith("https://news.ycombinator.com/")
+          || path.startsWith("https://lobste.rs/")
+        ));
+      if (
+        requestedLane
+        && itemLane !== requestedLane
+        && !(requestedLane === "roadside" && promotedFromRoadsideDiscovery)
+      ) continue;
       const recordId = `information:${sha256(item.idempotencyKey)}`;
       const existing = informationById.get(recordId);
       if (existing) {
@@ -198,6 +214,7 @@ export function buildVaultAcquisitionBatches(input: {
         contentHash: item.contentHash,
         payload: jsonObject({
           discoveryPath: item.discoveryPath,
+          discoveryPaths: item.discoveryPaths,
           originalPublisher: item.originalPublisher,
           ownerEntity: item.ownerEntity,
           publisherKind: item.publisherKind,
@@ -210,6 +227,10 @@ export function buildVaultAcquisitionBatches(input: {
           originalTitle: item.originalTitle,
           originalContent: item.originalContent,
           contentCompleteness: item.contentCompleteness,
+          contentGroup: item.contentGroup,
+          itemKind: item.itemKind,
+          provenanceRole: item.provenanceRole,
+          provenanceStatus: item.provenanceStatus,
           sourceStream: item.sourceStream,
           originPlatform: item.originPlatform,
           originAccount: item.originAccount,
@@ -230,9 +251,13 @@ export function buildVaultAcquisitionBatches(input: {
     outcome.sourceId ?? outcome.source_id ?? "",
     outcome,
   ]));
-  const belongsToLane = (sourceId: string) => (
-    !input.lane || (input.sourceStreamBySource?.get(sourceId) ?? "information") === input.lane
-  );
+  const belongsToLane = (sourceId: string) => {
+    if (!input.lane) return true;
+    const sourceLane = input.sourceStreamBySource?.get(sourceId);
+    const normalizedSourceLane = sourceLane === "statements" ? "roadside" : sourceLane ?? "information";
+    const normalizedInputLane = input.lane === "statements" ? "roadside" : input.lane;
+    return normalizedSourceLane === normalizedInputLane;
+  };
   const allSourceIds = new Set([
     ...[...input.connectorBySource.keys()].filter(belongsToLane),
     ...[...outcomeBySource.keys()].filter(belongsToLane),
@@ -296,6 +321,9 @@ export function buildSicAcquisitionBatches(input: {
         summary: item.summary,
         sourceMaterial: item.sourceMaterial,
         publishedAt: item.publishedAt,
+        canonicalId: item.canonicalId,
+        discoveryUrl: item.discoveryUrl,
+        provenanceStatus: item.provenanceStatus,
       }),
     }));
     const sourceReport = reportBySource.get(sourceId);

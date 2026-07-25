@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { beijingTime } from "@/lib/feed-format";
-import { informationHref } from "@/lib/feed-route";
+import { roadsideHref } from "@/lib/feed-route";
 import { cleanStatementText } from "@/lib/statement-text";
 import type { InformationItem } from "@/lib/types";
 
@@ -9,16 +9,19 @@ function personName(item: InformationItem) {
 }
 
 function account(item: InformationItem) {
+  if (item.publisherKind === "community_user" || item.publisherKind === "community") {
+    return "未核验社区身份";
+  }
   const value = item.originAccount?.replace(/^@/, "").trim();
-  return value ? `@${value}` : "X 账号待核验";
+  return value ? `@${value}` : "个人博客";
 }
 
-export function StatementList({ items }: { items: InformationItem[] }) {
+export function RoadsideList({ items }: { items: InformationItem[] }) {
   return (
     <div className="statement-list">
       {items.map((item) => (
         <article className="statement-row" key={item.slug}>
-          <Link className="statement-row__link" href={informationHref(item.slug)}>
+          <Link className="statement-row__link" href={roadsideHref(item.slug)}>
             <header>
               <strong>{personName(item)}</strong>
               <span className="mono">{account(item)}</span>
@@ -32,7 +35,7 @@ export function StatementList({ items }: { items: InformationItem[] }) {
             target="_blank"
             rel="noreferrer"
           >
-            原始 X
+            {item.originPlatform === "x" ? "原始 X" : "原始发布"}
           </a>
         </article>
       ))}

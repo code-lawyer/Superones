@@ -22,7 +22,7 @@ test("X policy is fail-closed, explicit, and contains no duplicate handles", () 
 
 test("runtime X stream contains only policy-approved authoritative accounts", () => {
   const policy = compileXSourcePolicy(policyInput);
-  const statements = bundle.sources.filter((source: { sourceStream: string }) => source.sourceStream === "statements");
+  const statements = bundle.sources.filter((source: { sourceStream: string; originPlatform: string }) => source.sourceStream === "roadside" && source.originPlatform === "x");
   const handles = statements.map((source: { channelIdentifier: string }) => normalizeXHandle(source.channelIdentifier));
 
   assert.equal(statements.length, 34);
@@ -37,6 +37,7 @@ test("X cleanup accounting distinguishes candidates, removals, and merged direct
   assert.equal(bundle.counts.xCandidates, 179);
   assert.equal(bundle.counts.xRunnableCandidates, 160);
   assert.equal(bundle.counts.statements, 34);
+  assert.equal(bundle.counts.roadside, 37);
   assert.equal(bundle.counts.xExcludedFromRuntime, 126);
   assert.equal(bundle.counts.xDuplicateDiscoveriesMerged, 9);
 });

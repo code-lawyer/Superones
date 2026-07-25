@@ -15,6 +15,7 @@ import hmac
 import ipaddress
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -139,7 +140,7 @@ def source_role(source: dict) -> str:
 
 
 def provenance(source: dict, original_url: str) -> dict:
-    source_stream = source.get("sourceStream") or ("statements" if source.get("channelType") == "x" else "information")
+    source_stream = source.get("sourceStream") or ("roadside" if source.get("channelType") == "x" else "information")
     origin_platform = source.get("originPlatform") or ("x" if source.get("channelType") == "x" else "web")
     transport_provider = source.get("aggregator") or urlparse(source.get("endpoint", "")).hostname or "direct"
     result = {
@@ -183,7 +184,8 @@ def clean_x_transport_text(value: str) -> str:
     return value[:min(positions)].rstrip() if positions else value
 
 
-def document(source: dict, url, title, content="", published_at="", author="") -> dict | None:
+def document(source: dict, url, title, content="", published_at="", author="", overrides: dict | None = None) -> dict | None:
+    overrides = overrides or {}
     original_url = as_text(url, 2048)
     original_title = as_text(title, 500)
     if not original_url or not original_title or urlparse(original_url).scheme != "https":
@@ -193,14 +195,17 @@ def document(source: dict, url, title, content="", published_at="", author="") -
     if source_provenance["originPlatform"] == "x":
         original_content = clean_x_transport_text(original_content)
     source_channel_id = as_text(source.get("id"), 180)
+    discovery_path = as_text(overrides.get("discoveryPath") or f"{source.get('connector')}:{source.get('endpoint')}", 2048)
     content_hash = hashlib.sha256(f"{original_title}\n{original_content}".encode()).hexdigest()
     return {
         "idempotencyKey": hashlib.sha256(f"{source_channel_id}:{original_url}:{content_hash}".encode()).hexdigest(),
         "sourceChannelId": source_channel_id,
-        "discoveryPath": f"{source.get('connector')}:{source.get('endpoint')}",
-        "originalPublisher": as_text(source.get("name"), 180),
+        "discoveryPath": discovery_path,
+        "discoveryPaths": [discovery_path],
+        "canonicalUrl": original_url,
+        "originalPublisher": as_text(overrides.get("originalPublisher") or source.get("name"), 180),
         "ownerEntity": as_text(source.get("ownerEntity"), 180) or None,
-        "publisherKind": source.get("publisherKind"),
+        "publisherKind": overrides.get("publisherKind") or source.get("publisherKind"),
         "evidenceNature": source.get("evidenceNature"),
         "classificationConfidence": source.get("classificationConfidence"),
         "originalAuthor": as_text(author, 180) or None,
@@ -220,6 +225,10 @@ def document(source: dict, url, title, content="", published_at="", author="") -
             "transcript": "transcript",
         }.get(source.get("contentCapability"), "metadata"),
         "contentHash": content_hash,
+        "contentGroup": overrides.get("contentGroup") or source.get("contentGroup") or ("roadside" if source_provenance["sourceStream"] in {"roadside", "statements"} else "information"),
+        "itemKind": overrides.get("itemKind") or source.get("itemKind") or "article",
+        "provenanceRole": overrides.get("provenanceRole") or source.get("provenanceRole") or "canonical",
+        "provenanceStatus": overrides.get("provenanceStatus") or source.get("provenanceStatus") or "verified",
         **source_provenance,
     }
 
@@ -234,18 +243,44 @@ def request_headers(url: str, accept: str) -> dict[str, str]:
     return headers
 
 
-def fetch_bytes(url: str, accept: str = "application/json") -> bytes:
+def fetch_bytes(url: str, accept: str = "application/json", attempts: int = 3) -> bytes:
     validate_public_https_url(url)
-    request = Request(url, headers=request_headers(url, accept))
-    with _public_opener.open(request, timeout=TIMEOUT_SECONDS) as response:
-        payload = response.read(MAX_UPSTREAM_BYTES + 1)
-        if len(payload) > MAX_UPSTREAM_BYTES:
-            raise ValueError(f"Upstream response exceeds {MAX_UPSTREAM_BYTES} bytes.")
-        return payload
+    last_error = None
+    for attempt in range(1, max(1, attempts) + 1):
+        request = Request(url, headers=request_headers(url, accept))
+        try:
+            with _public_opener.open(request, timeout=TIMEOUT_SECONDS) as response:
+                payload = response.read(MAX_UPSTREAM_BYTES + 1)
+                if len(payload) > MAX_UPSTREAM_BYTES:
+                    raise ValueError(f"Upstream response exceeds {MAX_UPSTREAM_BYTES} bytes.")
+                return payload
+        except HTTPError as error:
+            if error.code < 500 and error.code != 429:
+                raise
+            last_error = error
+        except (URLError, TimeoutError) as error:
+            last_error = error
+        if attempt < attempts:
+            time.sleep(attempt * 1.5)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError(f"Upstream request failed without a captured error: {url}")
 
 
 def fetch_json(url: str):
     return json.loads(fetch_bytes(url).decode("utf-8"))
+
+
+def source_url_allowed(source: dict, url: str) -> bool:
+    try:
+        candidate = urlparse(url)
+        allowed_hosts = {
+            urlparse(str(source.get("homeUrl") or "")).hostname,
+            urlparse(str(source.get("endpoint") or "")).hostname,
+        }
+        return candidate.scheme == "https" and candidate.hostname in allowed_hosts
+    except ValueError:
+        return False
 
 
 def collect_rss(source: dict, start: datetime, end: datetime) -> list[dict]:
@@ -276,25 +311,163 @@ def collect_rss(source: dict, start: datetime, end: datetime) -> list[dict]:
     return results
 
 
-def collect_hackernews(source: dict, start: datetime, end: datetime) -> list[dict]:
+def discovery_candidate(source: dict, canonical_url: str, discovery_url: str, title: str, published_at: str, author: str) -> dict:
+    return {
+        "sourceChannelId": as_text(source.get("id"), 180),
+        "canonicalUrl": as_text(canonical_url, 2048),
+        "discoveryUrl": as_text(discovery_url, 2048),
+        "title": as_text(title, 500),
+        "publishedAt": as_text(published_at, 64) or None,
+        "author": as_text(author, 180) or None,
+        "status": "candidate",
+        "reason": "external_discovery_requires_registered_canonical_publisher",
+    }
+
+
+def collect_hackernews(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
     ids = fetch_json(source["endpoint"])
     ids = ids if isinstance(ids, list) else []
     with ThreadPoolExecutor(max_workers=min(8, len(ids) or 1)) as pool:
         values = list(pool.map(lambda item_id: fetch_json(f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json"), ids))
     results = []
+    candidates = []
     for value in values:
         if not isinstance(value, dict):
             continue
         published = datetime.fromtimestamp(value["time"], timezone.utc) if value.get("time") else None
         if not in_window(published, start, end):
             continue
+        discussion_url = f"https://news.ycombinator.com/item?id={value.get('id')}"
+        external_url = value.get("url")
+        if external_url:
+            candidates.append(discovery_candidate(
+                source,
+                external_url,
+                discussion_url,
+                value.get("title", ""),
+                now_iso(published) if published else "",
+                value.get("by", ""),
+            ))
+            continue
         item = document(
             source,
-            value.get("url") or f"https://news.ycombinator.com/item?id={value.get('id')}",
+            discussion_url,
             value.get("title"),
-            value.get("text", ""),
+            value.get("text") or value.get("title", ""),
             now_iso(published) if published else "",
             value.get("by", ""),
+            {
+                "contentGroup": "roadside",
+                "itemKind": "community_topic",
+                "publisherKind": "community_user",
+                "originalPublisher": "Hacker News",
+                "provenanceRole": "canonical",
+                "provenanceStatus": "declared",
+            },
+        )
+        if item:
+            results.append(item)
+    return results, candidates
+
+
+def collect_lobsters(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
+    payload = fetch_json(source["endpoint"])
+    results = []
+    candidates = []
+    for value in candidate_values(payload):
+        if not isinstance(value, dict):
+            continue
+        published_at = value.get("created_at") or value.get("published_at")
+        if not in_window(published_at, start, end):
+            continue
+        discussion_url = value.get("comments_url") or value.get("short_id_url") or ""
+        external_url = value.get("url") or ""
+        author = value.get("submitter_user", {}).get("username", "") if isinstance(value.get("submitter_user"), dict) else value.get("submitter_user", "")
+        if external_url and (urlparse(external_url).hostname or "").lower() not in {"lobste.rs", "www.lobste.rs"}:
+            candidates.append(discovery_candidate(source, external_url, discussion_url, value.get("title", ""), published_at, author))
+            continue
+        canonical_url = discussion_url or external_url
+        item = document(
+            source,
+            canonical_url,
+            value.get("title"),
+            value.get("description") or value.get("title", ""),
+            published_at,
+            author,
+            {
+                "contentGroup": "roadside",
+                "itemKind": "community_topic",
+                "publisherKind": "community_user",
+                "originalPublisher": "Lobsters",
+                "provenanceRole": "canonical",
+                "provenanceStatus": "declared",
+            },
+        )
+        if item:
+            results.append(item)
+    return results, candidates
+
+
+def collect_sitemap(source: dict, start: datetime, end: datetime) -> list[dict]:
+    import xml.etree.ElementTree as element_tree
+
+    root = element_tree.fromstring(fetch_bytes(source["endpoint"], "application/xml, text/xml"))
+    pages = []
+    for element in root.iter():
+        if not element.tag.endswith("url"):
+            continue
+        values = {child.tag.rsplit("}", 1)[-1]: (child.text or "").strip() for child in element}
+        url = values.get("loc", "")
+        published_at = values.get("lastmod", "")
+        if not source_url_allowed(source, url) or not in_window(published_at, start, end):
+            continue
+        pages.append((url, published_at))
+    results = []
+    for url, published_at in pages[:40]:
+        payload = fetch_bytes(url, "text/html, application/xhtml+xml").decode("utf-8", errors="replace")
+        title_match = re.search(r"<meta\b[^>]*(?:property|name)=[\"']og:title[\"'][^>]*content=[\"']([^\"']+)", payload, re.I)
+        if not title_match:
+            title_match = re.search(r"<title[^>]*>([\s\S]*?)</title>", payload, re.I)
+        description_match = re.search(r"<meta\b[^>]*(?:property|name)=[\"'](?:og:description|description)[\"'][^>]*content=[\"']([^\"']+)", payload, re.I)
+        article_match = re.search(r"<(?:article|main)\b[^>]*>([\s\S]*?)</(?:article|main)>", payload, re.I)
+        item = document(
+            source,
+            url,
+            plain_text(title_match.group(1)) if title_match else url.rsplit("/", 1)[-1],
+            plain_text(article_match.group(1) if article_match else (description_match.group(1) if description_match else "")),
+            published_at,
+        )
+        if item:
+            results.append(item)
+    return results
+
+
+def collect_dated_index(source: dict, start: datetime, end: datetime) -> list[dict]:
+    payload = fetch_bytes(source["endpoint"], "text/html, application/xhtml+xml").decode("utf-8", errors="replace")
+    headings = list(re.finditer(r"<h([2-4])\b[^>]*>([\s\S]*?)</h\1>", payload, re.I))
+    results = []
+    for index, heading in enumerate(headings):
+        published_at = as_text(plain_text(heading.group(2)), 80)
+        parsed = parse_time(published_at)
+        if parsed is None:
+            try:
+                parsed = datetime.strptime(published_at, "%B %d, %Y").replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        if not in_window(parsed, start, end):
+            continue
+        content_start = heading.end()
+        content_end = headings[index + 1].start() if index + 1 < len(headings) else len(payload)
+        content = as_text(plain_text(payload[content_start:content_end]), 48000)
+        if not content:
+            continue
+        item = document(
+            source,
+            source["homeUrl"],
+            content.split(". ", 1)[0][:500] or f"{source['name']} {published_at}",
+            content,
+            now_iso(parsed),
+            overrides={"itemKind": "changelog"},
         )
         if item:
             results.append(item)
@@ -373,9 +546,15 @@ def collect_source(source: dict, start: datetime, end: datetime) -> tuple[list[d
         if source.get("connector") == "rss":
             return collect_rss(source, start, end), []
         if source.get("connector") == "hackernews":
-            return collect_hackernews(source, start, end), []
+            return collect_hackernews(source, start, end)
+        if source.get("connector") == "json" and source.get("channelIdentifier") == "lobsters":
+            return collect_lobsters(source, start, end)
+        if source.get("connector") == "sitemap":
+            return collect_sitemap(source, start, end), []
+        if source.get("connector") == "dated-index":
+            return collect_dated_index(source, start, end), []
         payload = fetch_json(source["endpoint"])
-        if source.get("connector") in {"github-releases", "github-user-events"}:
+        if source.get("connector") == "github-releases":
             return collect_github(source, payload, start, end), []
         return collect_generic(source, payload, start, end), []
 

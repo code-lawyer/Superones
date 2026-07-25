@@ -22,7 +22,9 @@ import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
 
 const outputRoot = path.resolve(process.env.VAULT2077_COLLECTOR_OUTPUT_DIR || ".collector-output");
-const requestedLane = process.env.VAULT2077_ACQUISITION_LANE || "information";
+const requestedLane = (process.env.VAULT2077_ACQUISITION_LANE || "information") === "statements"
+  ? "roadside"
+  : process.env.VAULT2077_ACQUISITION_LANE || "information";
 if (!ACQUISITION_LANES.includes(requestedLane as AcquisitionLane)) {
   throw new Error(`未知采集通道：${requestedLane}。`);
 }
@@ -80,7 +82,7 @@ async function collectVault(sourceIds: string[]) {
   await mkdir(vaultOutput, { recursive: true });
   await run(python, [...pythonPrefix, "-m", "collector.horizon_raw_export"], withoutLegacyDeliveryEnvironment(sourceIds));
   const files = (await readdir(vaultOutput))
-    .filter((name) => name.endsWith(".json") && name !== "report.json")
+    .filter((name) => name.endsWith(".json") && !["report.json", "discovery-candidates.json"].includes(name))
     .sort();
   const packets = await Promise.all(files.map(async (name) => (
     validateContentBatch(await readJson<unknown>(path.join(vaultOutput, name)))
@@ -193,7 +195,8 @@ const [sourceBundle, sicRegistry] = await Promise.all([
       id: string;
       name: string;
       connector: string;
-      sourceStream?: "information" | "statements";
+      sourceStream?: "information" | "roadside" | "statements";
+      contentGroup?: "information" | "roadside" | "documents";
       originPlatform?: "web" | "x";
     }>;
   }>(sourceBundlePath),
@@ -235,9 +238,13 @@ let sicCollection: SicRawCollection | null = null;
 let rankingGroups: AcquisitionSourceGroup[] = [];
 let batches: AcquisitionBatch[] = [];
 
-if (lane === "information" || lane === "statements") {
+if (lane === "information" || lane === "roadside") {
   const sourceIds = sourceBundle.sources
-    .filter((source) => (source.sourceStream === "statements" ? "statements" : "information") === lane)
+    .filter((source) => (
+      (source.contentGroup === "roadside" || ["roadside", "statements"].includes(source.sourceStream ?? ""))
+        ? "roadside"
+        : "information"
+    ) === lane)
     .map((source) => source.id);
   vault = await collectVault(sourceIds);
   context.collectedFrom = vault.report.collectedFrom;
@@ -252,7 +259,9 @@ if (lane === "information" || lane === "statements") {
     connectorBySource: new Map(sourceBundle.sources.map((source) => [source.id, source.connector])),
     sourceStreamBySource: new Map(sourceBundle.sources.map((source) => [
       source.id,
-      source.sourceStream === "statements" ? "statements" : "information",
+      source.contentGroup === "roadside" || ["roadside", "statements"].includes(source.sourceStream ?? "")
+        ? "roadside"
+        : "information",
     ])),
     lane,
     maxRecords: acquisitionMaxRecords,
@@ -361,7 +370,9 @@ const detailedSourceReports = [...consolidatedReports.values()]
     const rankingName = rankingNames.get(item.sourceId);
     const synthetic = item.sourceId === "vault:github-projects";
     const section = vaultSource
-      ? vaultSource.sourceStream === "statements" ? "statements" : "information"
+      ? vaultSource.contentGroup === "roadside" || ["roadside", "statements"].includes(vaultSource.sourceStream ?? "")
+        ? "roadside"
+        : "information"
       : sicSource
         ? "sic"
         : rankingName
@@ -377,7 +388,7 @@ const detailedSourceReports = [...consolidatedReports.values()]
         ?? (synthetic ? "GitHub 项目补全" : item.sourceId),
       section,
       connector: vaultSource?.connector ?? sicSource?.kind ?? item.adapter,
-      originPlatform: vaultSource?.originPlatform ?? (section === "statements" ? "x" : "web"),
+      originPlatform: vaultSource?.originPlatform ?? (section === "roadside" ? "x" : "web"),
       registered: !synthetic,
       durationMs: vaultOutcomeById.get(item.sourceId)?.duration_ms ?? null,
     };

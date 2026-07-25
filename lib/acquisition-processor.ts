@@ -57,6 +57,15 @@ function array(payload: JsonObject, field: string) {
   return value;
 }
 
+function optionalStringArray(payload: JsonObject, field: string) {
+  const value = payload[field];
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new Error(`统一采集记录的 ${field} 必须是文本数组。`);
+  }
+  return value as string[];
+}
+
 function https(payload: JsonObject, field: string) {
   const value = string(payload, field);
   const parsed = new URL(value);
@@ -70,6 +79,7 @@ function information(record: AcquisitionRecord): InformationEnvelope {
     idempotencyKey: record.recordId,
     sourceChannelId: record.sourceId,
     discoveryPath: string(payload, "discoveryPath"),
+    discoveryPaths: optionalStringArray(payload, "discoveryPaths"),
     originalPublisher: string(payload, "originalPublisher"),
     ownerEntity: string(payload, "ownerEntity", false),
     publisherKind: string(payload, "publisherKind", false) as InformationEnvelope["publisherKind"],
@@ -85,6 +95,10 @@ function information(record: AcquisitionRecord): InformationEnvelope {
     originalContent: string(payload, "originalContent", false),
     contentCompleteness: string(payload, "contentCompleteness") as InformationEnvelope["contentCompleteness"],
     contentHash: record.contentHash,
+    contentGroup: string(payload, "contentGroup", false) as InformationEnvelope["contentGroup"],
+    itemKind: string(payload, "itemKind", false) as InformationEnvelope["itemKind"],
+    provenanceRole: string(payload, "provenanceRole", false) as InformationEnvelope["provenanceRole"],
+    provenanceStatus: string(payload, "provenanceStatus", false) as InformationEnvelope["provenanceStatus"],
     sourceStream: string(payload, "sourceStream", false) as InformationEnvelope["sourceStream"],
     originPlatform: string(payload, "originPlatform", false) as InformationEnvelope["originPlatform"],
     originAccount: string(payload, "originAccount", false),
@@ -123,6 +137,9 @@ function publication(record: AcquisitionRecord): SicRawContentItem {
     url: record.canonicalUrl,
     publishedAt: string(payload, "publishedAt", false) ?? null,
     collectedAt: record.observedAt,
+    canonicalId: string(payload, "canonicalId", false),
+    discoveryUrl: string(payload, "discoveryUrl", false),
+    provenanceStatus: string(payload, "provenanceStatus", false) as SicRawContentItem["provenanceStatus"],
   };
 }
 

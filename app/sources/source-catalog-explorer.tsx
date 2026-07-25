@@ -148,7 +148,7 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
             <p className="eyebrow mono">SOURCE ATLAS / 采集航图</p>
             <h1>数据从哪里来，最后流向哪里</h1>
             <p className={styles.heroLead}>
-              这里列出清理后真正进入运行管线的来源。资讯瀑布与名人说是两条平级事件输入，SiC 内容和生态榜单保持独立；每一行都说明根源、传输方式、用途和最终流向。
+              这里列出真正进入运行管线的来源。资讯瀑布、路边社与文档是平级事件输入；播客、论文和课程进入 SiC 独立阅读区。每一行都说明根源、发现路径、传输方式和最终流向。
             </p>
           </div>
           <aside className={styles.heroAside} aria-label="来源清单概览">

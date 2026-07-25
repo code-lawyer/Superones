@@ -21,6 +21,8 @@ type InformationSource = {
   aggregator: string | null;
   discoveredFrom: Array<{ repository: string; path: string }>;
   sourceStream: string;
+  contentGroup?: string;
+  itemKind?: string;
   originPlatform: string;
   authorityTier: string | null;
 };
@@ -110,6 +112,7 @@ const informationPurposes: Record<string, string> = {
 const publisherKinds: Record<string, string> = {
   aggregator: "聚合发现源",
   community: "社区平台",
+  community_user: "未核验社区身份",
   editorial_media: "编辑媒体",
   open_source_project: "开源项目",
   organization: "机构",
@@ -131,7 +134,7 @@ const confidenceLabels: Record<string, string> = {
 
 const sicGroupLabels = {
   papers: { label: "SiC / 论文", href: "/sic#sic-group-papers", channel: "论文发现" },
-  archive: { label: "SiC / 档案", href: "/sic#sic-group-archive", channel: "官方技术档案" },
+  documents: { label: "SiC / 文档", href: "/sic#sic-group-documents", channel: "官方技术文档" },
   courses: { label: "SiC / 课程", href: "/sic#sic-group-courses", channel: "课程与讲座" },
   podcasts: { label: "SiC / 播客", href: "/sic#sic-group-podcasts", channel: "长对谈" },
 } as const;
@@ -182,6 +185,13 @@ function informationProvenance(source: InformationSource) {
 }
 
 function statementProvenance(source: InformationSource) {
+  if (source.originPlatform !== "x") {
+    const registry = source.discoveredFrom[0];
+    const registryLabel = registry ? `${registry.repository} / ${registry.path}` : "项目运行清单";
+    return source.channelType === "community"
+      ? `社区原生主题直连；外链条目只进入发现候选区；清单来自 ${registryLabel}`
+      : `个人原始发布直连；清单来自 ${registryLabel}`;
+  }
   const paths = source.discoveredFrom.map((item) => `${item.repository} / ${item.path}`);
   const merged = paths.length > 1 ? `；已将 ${paths.length} 条目录声明合并为一个账号` : "";
   return `根源为 X @${source.channelIdentifier}；经 ${source.aggregator ?? "RSS 转接"} 传输；目录来自 ${paths.join("、")}${merged}`;
@@ -198,7 +208,7 @@ function informationItem(source: InformationSource): SourceCatalogItem {
     id: source.id,
     name: source.name,
     publisher: source.name,
-    sectionId: "information-flow",
+    sectionId: source.contentGroup === "documents" ? "documents" : "information-flow",
     methodId: method.id,
     methodLabel: method.label,
     channelLabel: informationChannelLabels[source.channelType] ?? source.channelType,
@@ -217,8 +227,18 @@ function informationItem(source: InformationSource): SourceCatalogItem {
 }
 
 function statementItem(source: InformationSource): SourceCatalogItem {
-  const method = statementMethods[source.connector] ?? statementMethods.rss;
-  const authorityLabel = authorityTierLabels[source.authorityTier ?? ""] ?? "权威账号";
+  const method = source.originPlatform === "x"
+    ? statementMethods[source.connector] ?? statementMethods.rss
+    : informationMethods[source.connector] ?? {
+        id: source.connector,
+        label: source.connector,
+        description: "个人或社区原始发布的结构化公开入口。",
+      };
+  const authorityLabel = source.originPlatform === "x"
+    ? authorityTierLabels[source.authorityTier ?? ""] ?? "高权威自然人"
+    : source.publisherKind === "person"
+      ? "个人博客"
+      : "社区原生主题";
   const purpose = source.publisherKind === "person"
     ? "追踪具有一手角色或长期专业权威的人物公开发言；多条独立观点可以形成事件，也可以与资讯事件归并。"
     : source.publisherKind === "editorial_media"
@@ -228,11 +248,11 @@ function statementItem(source: InformationSource): SourceCatalogItem {
     id: source.id,
     name: source.name,
     publisher: source.name,
-    sectionId: "statements",
+    sectionId: "roadside",
     methodId: method.id,
     methodLabel: method.label,
     channelLabel: authorityLabel,
-    destinationLabel: "Vault 信息流 / 名人说",
+    destinationLabel: "Vault 信息流 / 路边社",
     destinationHref: "/feed",
     sourceUrl: informationOrigin(source),
     endpointUrl: source.endpoint,
@@ -261,7 +281,7 @@ function sicItem(source: SicSource): SourceCatalogItem {
     id: `sic:${source.id}`,
     name: source.name,
     publisher: source.publisher,
-    sectionId: "sic-library",
+    sectionId: source.group,
     methodId: method.id,
     methodLabel: method.label,
     channelLabel: destination.channel,
@@ -444,14 +464,20 @@ function section(
 
 export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSource[]): SourceCatalog {
   const information = sourceBundle.sources
-    .filter((source) => source.sourceStream !== "statements")
+    .filter((source) => source.contentGroup === "information")
     .map(informationItem);
-  const statements = sourceBundle.sources
-    .filter((source) => source.sourceStream === "statements")
+  const roadside = sourceBundle.sources
+    .filter((source) => source.contentGroup === "roadside" || ["roadside", "statements"].includes(source.sourceStream))
     .map(statementItem);
+  const documents = sourceBundle.sources
+    .filter((source) => source.contentGroup === "documents")
+    .map(informationItem);
   const sic = sicSources
-    .filter((source) => source.status === "approved")
+    .filter((source) => source.status === "approved" && source.group !== "documents")
     .map(sicItem);
+  const papers = sic.filter((source) => source.sectionId === "papers");
+  const podcasts = sic.filter((source) => source.sectionId === "podcasts");
+  const courses = sic.filter((source) => source.sectionId === "courses");
   const rankings = rankingSources.map((source) => ({ ...source, sectionId: "sic-rankings" as const }));
   const rankingMethods = Object.fromEntries(
     rankingSources.map((source) => [source.methodId, {
@@ -467,29 +493,56 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
   const sections = [
     section(
       "information-flow",
-      "INTEL / DOCUMENTS",
+      "INTEL / EDITORIAL",
       "资讯瀑布",
-      "文章、公告、播客、社区与开源版本组成完整信息流；它可以独立形成事件，不要求 X 观点佐证。",
+      "只收有明确编辑或发布责任主体的第三方完整报道、通讯和新闻文章；可独立形成事件。",
       "/feed",
       information,
       informationMethods,
     ),
     section(
-      "statements",
-      "VOICE / X",
-      "名人说 / X 动态",
-      "经过身份核验的高权威自然人即时公开发言；它与资讯瀑布平级，可以独立形成观点事件，也可以与相关事件归并。",
+      "roadside",
+      "ROADSIDE / PEOPLE",
+      "路边社",
+      "自然人 X 言论、个人博客和社区原生主题；外链聚合条目只作发现，评论不进入正文。",
       "/feed",
-      statements,
+      roadside,
       statementMethods,
     ),
     section(
-      "sic-library",
-      "LIBRARY / SIC",
-      "SiC 固定内容源",
-      "论文、官方技术档案、课程与长对谈进入 SiC 阅读区，由境内模型完成中文编辑。",
-      "/sic",
-      sic,
+      "documents",
+      "DOCUMENTS / FIRST PARTY",
+      "文档",
+      "公司、机构、基金会和开源项目的第一方文章、研究、Release 与 Changelog；可参与事件归并。",
+      "/sic#sic-group-documents",
+      documents,
+      informationMethods,
+    ),
+    section(
+      "papers",
+      "PAPERS / VERIFIED",
+      "论文",
+      "Hugging Face Daily Papers 仅负责发现，标题、作者、日期和摘要以 arXiv 核验结果为准。",
+      "/sic#sic-group-papers",
+      papers,
+      sicMethods,
+    ),
+    section(
+      "podcasts",
+      "PODCASTS / EPISODES",
+      "播客",
+      "正式播客 Feed 发布的新节目，独立于个人言论和资讯瀑布。",
+      "/sic#sic-group-podcasts",
+      podcasts,
+      sicMethods,
+    ),
+    section(
+      "courses",
+      "COURSES / SIC",
+      "课程",
+      "课程和公开教学内容继续保留在 SiC，不参与本轮事件归并。",
+      "/sic#sic-group-courses",
+      courses,
       sicMethods,
     ),
     section(

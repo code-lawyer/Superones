@@ -7,16 +7,21 @@
       "status": "approved",
       "name": "Hugging Face Daily Papers",
       "publisher": "Hugging Face",
-      "kind": "official_index",
+      "kind": "official_api",
       "homeUrl": "https://huggingface.co/papers",
-      "endpoint": "https://huggingface.co/papers",
-      "admissionRule": "完整接入 Hugging Face Papers 页面正式收录的每日论文条目。",
-      "rationale": "官方开源模型平台维护的论文发现入口，能将论文、作者与模型生态连接起来。"
+      "endpoint": "https://huggingface.co/api/daily_papers?limit=100&p=0&sort=publishedAt",
+      "allowedRedirectOrigins": [
+        "https://arxiv.org",
+        "https://export.arxiv.org"
+      ],
+      "admissionRule": "分页接入 Hugging Face Daily Papers 的全部每日条目，并按 arXiv ID 核验规范元数据。",
+      "rationale": "HF 社区精选只负责前沿发现；标题、作者、日期和摘要最终以 arXiv 为准。"
     },
     {
       "id": "dair-ai-papers-of-the-week",
       "group": "papers",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "Hugging Face Daily Papers 已提供日、周、月和趋势视图；保留第二份人工周报会产生重复发现。",
       "name": "AI Papers of the Week",
       "publisher": "DAIR.AI",
       "kind": "official_api",
@@ -27,7 +32,7 @@
     },
     {
       "id": "google-research-blog",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Google Research Blog",
       "publisher": "Google Research",
@@ -39,7 +44,7 @@
     },
     {
       "id": "google-deepmind-blog",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Google DeepMind Blog",
       "publisher": "Google DeepMind",
@@ -51,7 +56,7 @@
     },
     {
       "id": "openai-news",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "OpenAI News",
       "publisher": "OpenAI",
@@ -63,7 +68,7 @@
     },
     {
       "id": "anthropic-news",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Anthropic News",
       "publisher": "Anthropic",
@@ -75,7 +80,7 @@
     },
     {
       "id": "anthropic-research",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Anthropic Research",
       "publisher": "Anthropic",
@@ -87,7 +92,7 @@
     },
     {
       "id": "meta-engineering",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Meta Engineering",
       "publisher": "Meta",
@@ -99,7 +104,7 @@
     },
     {
       "id": "microsoft-research-blog",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Microsoft Research",
       "publisher": "Microsoft Research",
@@ -111,7 +116,7 @@
     },
     {
       "id": "nvidia-developer-blog",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "NVIDIA Developer Blog",
       "publisher": "NVIDIA",
@@ -123,20 +128,19 @@
     },
     {
       "id": "openai-release-notes",
-      "group": "archive",
-      "status": "retired",
-      "statusReason": "The official Help Center page blocks unattended GitHub Actions collection and has no stable machine-readable release-notes endpoint; OpenAI News remains active.",
-      "name": "OpenAI Release Notes",
+      "group": "documents",
+      "status": "approved",
+      "name": "OpenAI API Changelog",
       "publisher": "OpenAI",
       "kind": "official_dated_index",
-      "homeUrl": "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
-      "endpoint": "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
-      "admissionRule": "仅接入该页面明确按日期发布的全部版本条目。",
-      "rationale": "把正式模型、产品与平台能力变化作为档案事件，而不把整站文档改动误作更新。"
+      "homeUrl": "https://developers.openai.com/api/docs/changelog",
+      "endpoint": "https://developers.openai.com/api/docs/changelog",
+      "admissionRule": "仅接入 OpenAI 官方 API Changelog 页面明确按日期发布的全部版本条目。",
+      "rationale": "保留 API、模型与平台能力的正式变化；不用会阻断无人值守采集的 Help Center 页面，也不接第三方代理。"
     },
     {
       "id": "anthropic-release-notes",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Anthropic Release Notes",
       "publisher": "Anthropic",
@@ -148,7 +152,7 @@
     },
     {
       "id": "gemini-api-changelog",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Gemini API Changelog",
       "publisher": "Google AI",
@@ -160,7 +164,7 @@
     },
     {
       "id": "azure-ai-foundry-whats-new",
-      "group": "archive",
+      "group": "documents",
       "status": "approved",
       "name": "Azure AI Foundry What's New",
       "publisher": "Microsoft",
@@ -325,6 +329,51 @@
       "endpoint": "https://deepmind.google/the-podcast/",
       "admissionRule": "完整接入该官方节目页按季列出的全部新一期节目。",
       "rationale": "Google DeepMind 自营、由 Hannah Fry 主持，直接连接实验室研究、科学与现实世界影响。"
+    },
+    {
+      "id": "no-priors-podcast",
+      "group": "podcasts",
+      "status": "approved",
+      "name": "No Priors",
+      "publisher": "No Priors",
+      "kind": "hosted_podcast",
+      "homeUrl": "https://www.nopriors.com/",
+      "endpoint": "https://feeds.megaphone.fm/nopriors",
+      "allowedRedirectOrigins": [
+        "https://www.nopriors.com"
+      ],
+      "admissionRule": "完整接入该节目官方 RSS 的全部新一期节目。",
+      "rationale": "持续采访 AI 创业者、研究者和基础设施建设者的长期节目。"
+    },
+    {
+      "id": "training-data-podcast",
+      "group": "podcasts",
+      "status": "approved",
+      "name": "Training Data",
+      "publisher": "Training Data",
+      "kind": "hosted_podcast",
+      "homeUrl": "https://trainingdata.libsyn.com/",
+      "endpoint": "https://feeds.megaphone.fm/trainingdata",
+      "allowedRedirectOrigins": [
+        "https://trainingdata.libsyn.com"
+      ],
+      "admissionRule": "完整接入该节目官方 RSS 的全部新一期节目。",
+      "rationale": "聚焦模型训练、数据与 AI 公司建设的一手长对谈。"
+    },
+    {
+      "id": "unsupervised-learning-podcast",
+      "group": "podcasts",
+      "status": "approved",
+      "name": "Unsupervised Learning",
+      "publisher": "Daniel Miessler",
+      "kind": "hosted_podcast",
+      "homeUrl": "https://danielmiessler.com/podcast/",
+      "endpoint": "https://feeds.simplecast.com/dOSE_bdP",
+      "allowedRedirectOrigins": [
+        "https://danielmiessler.com"
+      ],
+      "admissionRule": "完整接入该节目官方 RSS 的全部新一期节目。",
+      "rationale": "持续追踪 AI、安全与技术趋势的个人主理长内容来源。"
     }
   ]
 }

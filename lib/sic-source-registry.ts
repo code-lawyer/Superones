@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const registry = JSON.parse(readFileSync(new URL("../config/sic-source-registry.json", import.meta.url), "utf8")) as { version: number; sources: unknown[] };
 
-export const SIC_SOURCE_GROUPS = ["papers", "archive", "courses", "podcasts"] as const;
+export const SIC_SOURCE_GROUPS = ["papers", "documents", "courses", "podcasts"] as const;
 export const SIC_SOURCE_STATUSES = ["pending_review", "approved", "paused", "retired", "rejected"] as const;
 
 export type SicSourceGroup = (typeof SIC_SOURCE_GROUPS)[number];
@@ -57,4 +57,8 @@ export function listSicSources() {
 
 export function listApprovedSicSources() {
   return listSicSources().filter((source) => source.status === "approved");
+}
+
+export function listCollectableSicSources() {
+  return listApprovedSicSources().filter((source) => source.group !== "documents");
 }

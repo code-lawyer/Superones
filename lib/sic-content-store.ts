@@ -48,29 +48,51 @@ export async function getSicStoredContent() {
   return { items: store.items, reports: store.reports, state: state(store) };
 }
 
+export function sicContentIdentityKey(item: Pick<SicContentItem, "sourceId" | "canonicalId" | "url">) {
+  if (item.canonicalId) return `${item.sourceId}:canonical:${item.canonicalId}`;
+  try {
+    const url = new URL(item.url);
+    for (const key of [...url.searchParams.keys()]) {
+      if (key === "hl" || key.startsWith("utm_")) url.searchParams.delete(key);
+    }
+    url.hash = "";
+    return `${item.sourceId}:url:${url.toString()}`;
+  } catch {
+    return `${item.sourceId}:url:${item.url}`;
+  }
+}
+
+export function mergeSicContentItems(
+  current: SicContentItem[],
+  incoming: SicContentItem[],
+  options: { replaceSourceIds?: Set<string> } = {},
+) {
+  const retained = current.filter((item) => !options.replaceSourceIds?.has(item.sourceId));
+  const currentByIdentity = new Map(current.map((item) => [sicContentIdentityKey(item), item]));
+  const retainedByIdentity = new Map(retained.map((item) => [sicContentIdentityKey(item), item]));
+  const merged = new Map(retainedByIdentity);
+  for (const item of incoming) {
+    const identity = sicContentIdentityKey(item);
+    const previous = currentByIdentity.get(identity);
+    merged.set(identity, {
+      ...item,
+      translatedTitle: item.translatedTitle ?? previous?.translatedTitle,
+      description: item.description ?? previous?.description,
+      contentSummary: item.contentSummary ?? previous?.contentSummary,
+    });
+  }
+  return [...merged.values()]
+    .sort((left, right) => Date.parse(right.publishedAt ?? right.collectedAt) - Date.parse(left.publishedAt ?? left.collectedAt))
+    .slice(0, 2_000);
+}
+
 export async function mergeSicStoredContent(input: { items: SicContentItem[]; reports: SicSourceCollectionReport[]; updatedAt?: string }) {
   const operation = writeChain.then(async () => {
     const current = await readStore();
-    const currentById = new Map(current.items.map((item) => [item.id, item]));
-    const successful = new Set(input.reports
-      .filter((report) => report.status === "success" || report.status === "partial")
+    const replaceSourceIds = new Set(input.reports
+      .filter((report) => report.sourceId === "google-ml-courses" && report.status === "success")
       .map((report) => report.sourceId));
-    const merged = new Map<string, SicContentItem>();
-    for (const item of current.items) {
-      if (!successful.has(item.sourceId)) merged.set(item.id, item);
-    }
-    for (const item of input.items) {
-      const previous = currentById.get(item.id);
-      merged.set(item.id, {
-        ...item,
-        translatedTitle: item.translatedTitle ?? previous?.translatedTitle,
-        description: item.description ?? previous?.description,
-        contentSummary: item.contentSummary ?? previous?.contentSummary,
-      });
-    }
-    const items = [...merged.values()]
-      .sort((left, right) => Date.parse(right.publishedAt ?? right.collectedAt) - Date.parse(left.publishedAt ?? left.collectedAt))
-      .slice(0, 2_000);
+    const items = mergeSicContentItems(current.items, input.items, { replaceSourceIds });
     const next: SicContentStore = {
       version: 1,
       updatedAt: input.updatedAt ?? new Date().toISOString(),

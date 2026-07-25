@@ -5661,7 +5661,7 @@ h3 {
   }
 
   .sic-group--papers,
-  .sic-group--archive,
+  .sic-group--documents,
   .sic-group--courses,
   .sic-group--podcasts {
     grid-column: span 6;
@@ -5697,7 +5697,7 @@ h3 {
   }
 
   .sic-group--papers,
-  .sic-group--archive,
+  .sic-group--documents,
   .sic-group--courses,
   .sic-group--podcasts {
     grid-column: span 12;
@@ -6007,7 +6007,7 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 
 .sic-group,
 .sic-group--papers,
-.sic-group--archive,
+.sic-group--documents,
 .sic-group--courses,
 .sic-group--podcasts {
   min-height: clamp(330px, 30vw, 472px);
@@ -6018,7 +6018,7 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 }
 
 .sic-group--papers,
-.sic-group--archive {
+.sic-group--documents {
   border-bottom: 1px solid var(--carbon);
 }
 
@@ -6072,8 +6072,8 @@ body .sic-ranking-grid--five .sic-board--position-4 {
   content: "";
 }
 
-.sic-group--archive .sic-content-list a:hover::before,
-.sic-group--archive .sic-content-list a:focus-visible::before,
+.sic-group--documents .sic-content-list a:hover::before,
+.sic-group--documents .sic-content-list a:focus-visible::before,
 .sic-group--podcasts .sic-content-list a:hover::before,
 .sic-group--podcasts .sic-content-list a:focus-visible::before {
   left: 100%;
@@ -6115,7 +6115,7 @@ body .sic-ranking-grid--five .sic-board--position-4 {
   }
 
   .sic-group--papers,
-  .sic-group--archive,
+  .sic-group--documents,
   .sic-group--courses,
   .sic-group--podcasts {
     grid-column: span 6;
@@ -6148,7 +6148,7 @@ body .sic-ranking-grid--five .sic-board--position-4 {
   }
 
   .sic-group--papers,
-  .sic-group--archive,
+  .sic-group--documents,
   .sic-group--courses,
   .sic-group--podcasts {
     grid-column: span 12;

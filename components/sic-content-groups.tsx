@@ -27,6 +27,7 @@ export function SicContentGroups({ groups, content }: { groups: SicContentGroup[
         const items = content[group.id].slice(0, 6);
         return (
           <section className={`sic-magazine__section sic-magazine__section--${group.id}`} key={group.id} aria-labelledby={`sic-group-${group.id}`}>
+            {group.id === "documents" ? <span id="sic-group-archive" aria-hidden="true" /> : null}
             <header className="sic-magazine__header">
               <div className="sic-magazine__folio mono">
                 <p>SIC / {group.id.toUpperCase()}</p>

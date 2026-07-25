@@ -9,7 +9,7 @@
 | 通道 | 北京时间 | 窗口 | LLM |
 |---|---|---:|---|
 | `information` | 双数小时 `:05` | 12 小时重叠 | 是 |
-| `statements` | 双数小时 `:55` | 12 小时重叠 | 是 |
+| `roadside` | 双数小时 `:55` | 12 小时重叠 | 是 |
 | `sic` | `07:25 / 19:25` | 24 小时重叠 | 是 |
 | `rankings` | `07:55 / 19:55` | 12 小时 | 否 |
 
@@ -43,7 +43,7 @@ GitHub Actions（境外）
           ↓
 国内 VPS /api/internal/acquisition/process
   ├─ information：翻译、摘要、事件判断
-  ├─ statements：翻译、摘要、事件判断
+  ├─ roadside：翻译、摘要、事件判断
   ├─ sic：翻译与摘要
   ├─ rankings：按平台原序落库，不调用 LLM
   └─ 成功确认；失败保留并等待重试
@@ -109,7 +109,7 @@ python -m unittest discover -s collector/tests -p "test_*.py"
 npm run pipeline:local
 ```
 
-脚本按 `information → statements → sic → rankings` 顺序运行，不再把所有数据同时送入模型。结果写入独立运行目录，`/pipeline` 展示四通道队列、逐源健康度和最终内容。
+脚本按 `information → roadside → sic → rankings` 顺序运行，不再把所有数据同时送入模型。结果写入独立运行目录，`/pipeline` 展示四通道队列、逐源健康度和最终内容。
 
 仅验证某个境外通道：
 

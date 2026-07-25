@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { informationHref } from "@/lib/feed-route";
+import { informationHref, roadsideHref } from "@/lib/feed-route";
 import {
   PIPELINE_SECTIONS,
   getPipelineRunSnapshot,
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 const sectionLabels: Record<PipelineSection, { code: string; title: string }> = {
   information: { code: "INTEL", title: "资讯瀑布" },
-  statements: { code: "VOICE", title: "名人说 / X 动态" },
+  roadside: { code: "ROADSIDE", title: "路边社 / 个人与社区" },
   sic: { code: "SIC", title: "SiC 固定内容源" },
   rankings: { code: "SIGNAL", title: "榜单与生态信号" },
 };
@@ -138,7 +138,7 @@ export default async function PipelinePage() {
   const completedProcessing = snapshot.queue.succeeded;
   const failedProcessing = snapshot.queue.failed;
   const visibleContent = snapshot.information.length
-    + snapshot.statements.length
+    + snapshot.roadside.length
     + snapshot.sicItems.length
     + snapshot.events.length;
   const stages = [
@@ -283,20 +283,20 @@ export default async function PipelinePage() {
             {snapshot.information.length === 0 ? <p className={styles.noResult}>本轮没有可见资讯。</p> : null}
           </section>
 
-          <section className={styles.resultColumn} data-stream="statements">
+          <section className={styles.resultColumn} data-stream="roadside">
             <header>
-              <p>VOICE / X</p>
-              <h3>名人说</h3>
-              <strong>{snapshot.statements.length}</strong>
+              <p>ROADSIDE / PEOPLE</p>
+              <h3>路边社</h3>
+              <strong>{snapshot.roadside.length}</strong>
             </header>
-            {snapshot.statements.slice(0, 6).map((item) => (
+            {snapshot.roadside.slice(0, 6).map((item) => (
               <article key={item.slug}>
-                <Link href={informationHref(item.slug)}>{item.translatedTitle}</Link>
+                <Link href={roadsideHref(item.slug)}>{item.translatedTitle}</Link>
                 <p lang={item.originalLanguage}>{item.originalTitle}</p>
                 <span>@{item.originAccount ?? item.author} · {dateTime(item.publishedAt ?? item.discoveredAt)}</span>
               </article>
             ))}
-            {snapshot.statements.length === 0 ? <p className={styles.noResult}>本轮没有可见 X 动态。</p> : null}
+            {snapshot.roadside.length === 0 ? <p className={styles.noResult}>本轮没有可见个人或社区发布。</p> : null}
           </section>
 
           <section className={styles.resultColumn} data-stream="sic">

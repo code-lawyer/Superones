@@ -8,13 +8,25 @@ import {
   type PublisherKind,
   type SourceRole,
 } from "./types.ts";
+import {
+  CONTENT_GROUPS,
+  ITEM_KINDS,
+  PROVENANCE_ROLES,
+  PROVENANCE_STATUSES,
+  legacySourceStream,
+  resolveContentGroup,
+  type ContentGroup,
+  type ItemKind,
+  type ProvenanceRole,
+  type ProvenanceStatus,
+} from "./content-provenance.ts";
 export { payloadHash, signingInput } from "./batch-signing.ts";
 
 export const CONTENT_BATCH_VERSION = 2 as const;
 export const MAX_BATCH_ITEMS = 200;
 
 export type ContentCompleteness = "metadata" | "excerpt" | "fulltext" | "transcript";
-export type SourceStream = "information" | "statements";
+export type SourceStream = "information" | "roadside" | "statements";
 export type OriginPlatform = "web" | "x";
 export type OriginResolution = "declared" | "verified" | "unresolved";
 
@@ -22,6 +34,7 @@ export type InformationEnvelope = {
   idempotencyKey: string;
   sourceChannelId: string;
   discoveryPath: string;
+  discoveryPaths?: string[];
   originalPublisher: string;
   ownerEntity?: string;
   publisherKind?: PublisherKind;
@@ -37,6 +50,10 @@ export type InformationEnvelope = {
   originalContent?: string;
   contentCompleteness: ContentCompleteness;
   contentHash: string;
+  contentGroup?: ContentGroup;
+  itemKind?: ItemKind;
+  provenanceRole?: ProvenanceRole;
+  provenanceStatus?: ProvenanceStatus;
   sourceStream?: SourceStream;
   originPlatform?: OriginPlatform;
   originAccount?: string;
@@ -159,8 +176,20 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   if (!/^[a-f0-9]{64}$/.test(contentHash)) {
     throw new ContentContractError(`information[${index}].contentHash 必须是 SHA-256 十六进制值。`);
   }
-  if (item.sourceStream !== undefined && !["information", "statements"].includes(String(item.sourceStream))) {
+  if (item.sourceStream !== undefined && !["information", "roadside", "statements"].includes(String(item.sourceStream))) {
     throw new ContentContractError(`information[${index}].sourceStream is invalid.`);
+  }
+  if (item.contentGroup !== undefined && !CONTENT_GROUPS.includes(item.contentGroup as ContentGroup)) {
+    throw new ContentContractError(`information[${index}].contentGroup 无效。`);
+  }
+  if (item.itemKind !== undefined && !ITEM_KINDS.includes(item.itemKind as ItemKind)) {
+    throw new ContentContractError(`information[${index}].itemKind 无效。`);
+  }
+  if (item.provenanceRole !== undefined && !PROVENANCE_ROLES.includes(item.provenanceRole as ProvenanceRole)) {
+    throw new ContentContractError(`information[${index}].provenanceRole 无效。`);
+  }
+  if (item.provenanceStatus !== undefined && !PROVENANCE_STATUSES.includes(item.provenanceStatus as ProvenanceStatus)) {
+    throw new ContentContractError(`information[${index}].provenanceStatus 无效。`);
   }
   if (item.originPlatform !== undefined && !["web", "x"].includes(String(item.originPlatform))) {
     throw new ContentContractError(`information[${index}].originPlatform is invalid.`);
@@ -168,27 +197,43 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   if (item.originResolution !== undefined && !["declared", "verified", "unresolved"].includes(String(item.originResolution))) {
     throw new ContentContractError(`information[${index}].originResolution is invalid.`);
   }
-  const sourceStream = (item.sourceStream ?? "information") as SourceStream;
+  const contentGroup = resolveContentGroup({
+    contentGroup: item.contentGroup as ContentGroup | undefined,
+    sourceStream: item.sourceStream as SourceStream | undefined,
+    publisherKind: item.publisherKind as string | undefined,
+    itemKind: item.itemKind as ItemKind | undefined,
+    channelType: typeof item.transportKind === "string" ? item.transportKind : undefined,
+  });
+  const sourceStream = legacySourceStream(contentGroup);
   const originPlatform = (item.originPlatform ?? "web") as OriginPlatform;
-  if (sourceStream === "information" && originPlatform === "x") {
+  if (contentGroup !== "roadside" && originPlatform === "x") {
     throw new ContentContractError(`information[${index}] 的 X 原生内容不得进入资讯瀑布。`);
   }
   if (
-    sourceStream === "statements"
+    contentGroup === "roadside"
+    && originPlatform === "x"
     && (
-      originPlatform !== "x"
-      || item.publisherKind !== "person"
+      item.publisherKind !== "person"
       || !item.originAccount
       || !item.originContentId
       || !item.originUrl
     )
   ) {
-    throw new ContentContractError(`information[${index}] 的名人说记录缺少真人 X 身份或原始状态地址。`);
+    throw new ContentContractError(`information[${index}] 的路边社 X 记录缺少真人身份或原始状态地址。`);
   }
+  const discoveryPath = requiredText(item.discoveryPath, `information[${index}].discoveryPath`, 500);
+  const discoveryPaths = Array.isArray(item.discoveryPaths)
+    ? [...new Set(item.discoveryPaths.map((value, pathIndex) => requiredText(
+      value,
+      `information[${index}].discoveryPaths[${pathIndex}]`,
+      500,
+    )))]
+    : [discoveryPath];
   return {
     idempotencyKey: requiredText(item.idempotencyKey, `information[${index}].idempotencyKey`, 180),
     sourceChannelId: requiredText(item.sourceChannelId, `information[${index}].sourceChannelId`, 180),
-    discoveryPath: requiredText(item.discoveryPath, `information[${index}].discoveryPath`, 500),
+    discoveryPath,
+    discoveryPaths,
     originalPublisher: requiredText(item.originalPublisher, `information[${index}].originalPublisher`, 180),
     ownerEntity: optionalText(item.ownerEntity, `information[${index}].ownerEntity`, 180),
     publisherKind: item.publisherKind as PublisherKind | undefined,
@@ -204,6 +249,20 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     originalContent: optionalText(item.originalContent, `information[${index}].originalContent`, 48_000),
     contentCompleteness: completeness as ContentCompleteness,
     contentHash,
+    contentGroup,
+    itemKind: (item.itemKind as ItemKind | undefined) ?? (
+      contentGroup === "roadside"
+        ? item.publisherKind === "community" || item.publisherKind === "community_user"
+          ? "community_topic"
+          : "personal_post"
+        : contentGroup === "documents"
+          ? "article"
+          : "article"
+    ),
+    provenanceRole: (item.provenanceRole as ProvenanceRole | undefined) ?? "canonical",
+    provenanceStatus: (item.provenanceStatus as ProvenanceStatus | undefined) ?? (
+      item.originResolution === "unresolved" ? "unresolved" : "verified"
+    ),
     sourceStream,
     originPlatform,
     originAccount: optionalText(item.originAccount, `information[${index}].originAccount`, 100),

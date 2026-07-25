@@ -56,6 +56,9 @@ function mixedBatch(): AcquisitionBatch {
           summary: "Source summary.",
           sourceMaterial: "Full source material collected overseas.",
           publishedAt: "2026-07-23T10:00:00.000Z",
+          canonicalId: "arxiv:2607.00001",
+          discoveryUrl: "https://huggingface.co/papers/2607.00001",
+          provenanceStatus: "verified",
         },
       },
     ],
@@ -105,8 +108,18 @@ test("processor routes information and publications through domestic adapters", 
   assert.equal(requireNoQuarantine, true);
   const content = calls[0].value as { information: Array<{ originalTitle: string }> };
   assert.equal(content.information[0].originalTitle, "A material event");
-  const publications = calls[1].value as { items: Array<{ sourceMaterial?: string }> };
+  const publications = calls[1].value as {
+    items: Array<{
+      sourceMaterial?: string;
+      canonicalId?: string;
+      discoveryUrl?: string;
+      provenanceStatus?: string;
+    }>;
+  };
   assert.equal(publications.items[0].sourceMaterial, "Full source material collected overseas.");
+  assert.equal(publications.items[0].canonicalId, "arxiv:2607.00001");
+  assert.equal(publications.items[0].discoveryUrl, "https://huggingface.co/papers/2607.00001");
+  assert.equal(publications.items[0].provenanceStatus, "verified");
 });
 
 test("processor persists every ranking provider without invoking the LLM", async () => {

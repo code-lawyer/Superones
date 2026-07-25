@@ -10,6 +10,23 @@ type BoundedFetchOptions = {
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
+const PER_HOST_CONCURRENCY = 2;
+const hostState = new Map<string, { active: number; waiters: Array<() => void> }>();
+
+async function acquireHost(url: string) {
+  const host = new URL(url).hostname;
+  const state = hostState.get(host) ?? { active: 0, waiters: [] };
+  hostState.set(host, state);
+  if (state.active >= PER_HOST_CONCURRENCY) {
+    await new Promise<void>((resolve) => state.waiters.push(resolve));
+  }
+  state.active += 1;
+  return () => {
+    state.active -= 1;
+    state.waiters.shift()?.();
+    if (state.active === 0 && state.waiters.length === 0) hostState.delete(host);
+  };
+}
 
 async function readBoundedStream(
   body: ReadableStream<Uint8Array> | null,
@@ -71,9 +88,10 @@ export async function fetchTextBounded(
   options: BoundedFetchOptions = {},
 ) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const attempts = Math.max(1, Math.min(3, options.attempts ?? 2));
+  const attempts = Math.max(1, Math.min(3, options.attempts ?? 3));
   const retryableStatuses = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const releaseHost = await acquireHost(url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
@@ -86,7 +104,10 @@ export async function fetchTextBounded(
         });
       } catch (error) {
         if (attempt + 1 < attempts) {
-          await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? 200));
+          await new Promise((resolve) => setTimeout(
+            resolve,
+            (options.retryDelayMs ?? 500) * (2 ** attempt),
+          ));
           continue;
         }
         const cause = error && typeof error === "object" && "cause" in error
@@ -111,7 +132,10 @@ export async function fetchTextBounded(
       }
       if (!response.ok && retryableStatuses.has(response.status) && attempt + 1 < attempts) {
         await response.body?.cancel();
-        await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? 200));
+        await new Promise((resolve) => setTimeout(
+          resolve,
+          (options.retryDelayMs ?? 500) * (2 ** attempt),
+        ));
         continue;
       }
       if (!response.ok) throw new Error(`${new URL(url).hostname} 返回 HTTP ${response.status}。`);
@@ -121,6 +145,7 @@ export async function fetchTextBounded(
       };
     } finally {
       clearTimeout(timeout);
+      releaseHost();
     }
   }
   throw new Error(`${new URL(url).hostname} 请求未完成。`);

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { FeedInformationDetail } from "@/components/feed-information-detail";
-import { matchesFeedSlug, roadsideHref } from "@/lib/feed-route";
+import { matchesFeedSlug } from "@/lib/feed-route";
 import { getPublicContent } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
@@ -10,21 +10,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const content = await getPublicContent();
   const item = content.information.find((entry) => matchesFeedSlug(entry.slug, slug));
-  return { title: item?.translatedTitle ?? "资讯记录" };
+  return { title: item?.translatedTitle ?? "路边社记录" };
 }
 
-export default async function InformationDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function RoadsideDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const [{ slug }, content] = await Promise.all([params, getPublicContent()]);
   const item = content.information.find((entry) => matchesFeedSlug(entry.slug, slug));
   if (!item) notFound();
   const group = item.contentGroup ?? (item.sourceStream === "statements" ? "roadside" : item.sourceStream);
-  if (group === "roadside") redirect(roadsideHref(item.slug));
-  if (group !== "information") notFound();
+  if (group !== "roadside") notFound();
   return (
     <FeedInformationDetail
       item={item}
       relatedEvents={content.events.filter((event) => item.eventSlugs.includes(event.slug))}
-      section="information"
+      section="roadside"
     />
   );
 }

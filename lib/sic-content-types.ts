@@ -1,4 +1,4 @@
-export const SIC_CONTENT_GROUP_IDS = ["papers", "archive", "courses", "podcasts"] as const;
+export const SIC_CONTENT_GROUP_IDS = ["papers", "documents", "courses", "podcasts"] as const;
 
 export type SicContentGroupId = (typeof SIC_CONTENT_GROUP_IDS)[number];
 
@@ -16,6 +16,9 @@ export type SicContentItem = {
   url: string;
   publishedAt: string | null;
   collectedAt: string;
+  canonicalId?: string;
+  discoveryUrl?: string;
+  provenanceStatus?: "verified" | "declared";
 };
 
 export type SicSourceCollectionReport = {

@@ -4,7 +4,14 @@ export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 export const SOURCE_ROLES = ["官方", "媒体", "测试", "评论", "研究"] as const;
 export type SourceRole = (typeof SOURCE_ROLES)[number];
 
-export const PUBLISHER_KINDS = ["organization", "person", "editorial_media", "community", "platform", "aggregator", "open_source_project"] as const;
+import type {
+  ContentGroup,
+  ItemKind,
+  ProvenanceRole,
+  ProvenanceStatus,
+} from "./content-provenance.ts";
+
+export const PUBLISHER_KINDS = ["organization", "person", "editorial_media", "community", "community_user", "platform", "aggregator", "open_source_project"] as const;
 export type PublisherKind = (typeof PUBLISHER_KINDS)[number];
 
 export const EVIDENCE_NATURES = ["primary", "reported_analysis", "social_community", "discovery_aggregate", "non_information_data"] as const;
@@ -53,7 +60,12 @@ export type InformationItem = {
   publisherKind?: PublisherKind;
   evidenceNature?: EvidenceNature;
   classificationConfidence?: ClassificationConfidence;
-  sourceStream?: "information" | "statements";
+  contentGroup?: ContentGroup;
+  itemKind?: ItemKind;
+  provenanceRole?: ProvenanceRole;
+  provenanceStatus?: ProvenanceStatus;
+  discoveryPaths?: string[];
+  sourceStream?: "information" | "roadside" | "statements";
   originPlatform?: "web" | "x";
   originAccount?: string;
   originContentId?: string;

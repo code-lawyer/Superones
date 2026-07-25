@@ -5,7 +5,7 @@
 
 ## 决策
 
-信息管线拆为 `information`、`statements`、`sic`、`rankings` 四个独立通道。GitHub Actions 按通道隔离并发，避免平台自动取消其他通道；境内 Worker 作为全局队列串行领取批次，内容处理共享并发为 2 的 LLM 池；排行榜不调用 LLM。
+信息管线拆为 `information`、`roadside`、`sic`、`rankings` 四个独立通道。`statements` 只作为旧批次兼容值读取，不再生成。GitHub Actions 按通道隔离并发，避免平台自动取消其他通道；境内 Worker 作为全局队列串行领取批次，内容处理共享并发为 2 的 LLM 池；排行榜不调用 LLM。
 
 名人说只允许经过核验的自然人 X 账号。X 原生内容不得进入资讯瀑布，X status ID 是跨 RSS 与聚合入口的根源去重键。
 

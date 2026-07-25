@@ -1,4 +1,11 @@
-export type SourceCatalogSectionId = "information-flow" | "statements" | "sic-library" | "sic-rankings";
+export type SourceCatalogSectionId =
+  | "information-flow"
+  | "roadside"
+  | "documents"
+  | "papers"
+  | "podcasts"
+  | "courses"
+  | "sic-rankings";
 
 export type SourceCatalogItem = {
   id: string;

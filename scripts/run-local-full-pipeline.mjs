@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import {
@@ -24,6 +24,23 @@ const collectorRoot = path.join(runRoot, "collector");
 const dataRoot = path.join(runRoot, "data");
 const localSecret = `vault2077-local-${randomBytes(24).toString("base64url")}`;
 const localRounds = Math.max(1, Math.min(3, Number(process.env.VAULT2077_LOCAL_ROUNDS ?? "3")));
+const useEnvironmentProxy = Boolean(
+  process.env.HTTP_PROXY
+  || process.env.HTTPS_PROXY
+  || process.env.ALL_PROXY,
+);
+let localGithubToken = process.env.GITHUB_TOKEN?.trim() || "";
+if (!localGithubToken) {
+  try {
+    localGithubToken = execFileSync(
+      process.platform === "win32" ? "gh.exe" : "gh",
+      ["auth", "token"],
+      { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+  } catch {
+    // Public GitHub endpoints remain usable at their anonymous rate limit.
+  }
+}
 
 const requiredModelVariables = [
   "VAULT2077_LLM_BASE_URL",
@@ -67,6 +84,8 @@ const site = spawn(process.execPath, [
   windowsHide: true,
   env: {
     ...process.env,
+    ...(localGithubToken ? { GITHUB_TOKEN: localGithubToken } : {}),
+    ...(useEnvironmentProxy ? { NODE_USE_ENV_PROXY: "1" } : {}),
     VAULT2077_DATA_DIR: dataRoot,
     VAULT2077_PIPELINE_RUN_DIR: collectorRoot,
     VAULT2077_PIPELINE_SHARED_SECRET: localSecret,
@@ -159,6 +178,8 @@ function runCollector(lane, round) {
       windowsHide: true,
       env: {
         ...process.env,
+        ...(localGithubToken ? { GITHUB_TOKEN: localGithubToken } : {}),
+        ...(useEnvironmentProxy ? { NODE_USE_ENV_PROXY: "1" } : {}),
         VAULT2077_PYTHON: python,
         VAULT2077_COLLECTOR_OUTPUT_DIR: collectorRoot,
         VAULT2077_ACQUISITION_LANE: lane,
@@ -193,7 +214,7 @@ try {
   await waitUntilReady();
   const laneReports = [];
   const collectorExitCodes = {};
-  const lanes = ["information", "statements", "sic", "rankings"];
+  const lanes = ["information", "roadside", "sic", "rankings"];
   for (let round = 1; round <= localRounds; round += 1) {
   for (const lane of lanes) {
     const collectorExitCode = await runCollector(lane, round);

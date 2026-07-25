@@ -3,8 +3,12 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createOpenAICompatibleClient, loadOpenAICompatibleConfig } from "./openai-compatible-client.ts";
 import { fetchTextBounded } from "./sic-fetch.ts";
-import { listApprovedSicSources, type SicSource } from "./sic-source-registry.ts";
-import { getSicStoredContent, mergeSicStoredContent } from "./sic-content-store.ts";
+import { listCollectableSicSources, type SicSource } from "./sic-source-registry.ts";
+import {
+  getSicStoredContent,
+  mergeSicStoredContent,
+  sicContentIdentityKey,
+} from "./sic-content-store.ts";
 import type { SicContentItem, SicSourceCollectionReport } from "./sic-content-types.ts";
 
 const SOURCE_CONCURRENCY = 6;
@@ -17,6 +21,9 @@ type Candidate = {
   url: string;
   summary?: string;
   publishedAt?: string | null;
+  canonicalId?: string;
+  discoveryUrl?: string;
+  sourceMaterial?: string;
 };
 
 type SicEditorial = {
@@ -85,9 +92,9 @@ async function enrichItems(
   options: { requireCompleteEditorial?: boolean } = {},
 ) {
   const stored = await getSicStoredContent();
-  const previousById = new Map(stored.items.map((item) => [item.id, item]));
+  const previousByIdentity = new Map(stored.items.map((item) => [sicContentIdentityKey(item), item]));
   const retained = items.map((item) => {
-    const previous = previousById.get(item.id);
+    const previous = previousByIdentity.get(sicContentIdentityKey(item));
     return {
       ...item,
       translatedTitle: item.translatedTitle ?? previous?.translatedTitle,
@@ -209,6 +216,7 @@ function allowedUrl(raw: string, source: SicSource) {
     const candidate = new URL(raw, source.homeUrl);
     if (candidate.protocol !== "https:" || !approvedOrigins(source).has(candidate.origin)) return null;
     candidate.hash = "";
+    if (candidate.hostname === "developers.google.com") candidate.searchParams.delete("hl");
     return candidate.toString();
   } catch {
     return null;
@@ -323,10 +331,115 @@ function datedIndexEntries(source: SicSource, payload: string): Candidate[] {
 function dedupe(candidates: Candidate[]) {
   const unique = new Map<string, Candidate>();
   for (const candidate of candidates) {
-    if (!unique.has(candidate.url)) unique.set(candidate.url, candidate);
+    const key = candidate.canonicalId ?? candidate.url;
+    if (!unique.has(key)) unique.set(key, candidate);
   }
   return [...unique.values()]
     .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""));
+}
+
+function arxivId(value: unknown) {
+  const match = String(value ?? "").match(/(?:arxiv\.org\/abs\/)?(\d{4}\.\d{4,5})(?:v\d+)?/i);
+  return match?.[1] ?? null;
+}
+
+function huggingFacePaperRecords(payload: string): Array<{
+  id: string;
+  discoveryUrl: string;
+  submittedAt?: string;
+}> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return [];
+  }
+  const records = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as { papers?: unknown }).papers)
+      ? (parsed as { papers: unknown[] }).papers
+      : [];
+  return records.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const outer = entry as Record<string, unknown>;
+    const paper = outer.paper && typeof outer.paper === "object"
+      ? outer.paper as Record<string, unknown>
+      : outer;
+    const id = arxivId(paper.id ?? paper.arxivId ?? outer.id);
+    if (!id) return [];
+    const submittedAt = validDate(
+      paper.submittedOnDailyAt
+      ?? outer.submittedOnDailyAt
+      ?? outer.publishedAt,
+    );
+    return [{
+      id,
+      discoveryUrl: `https://huggingface.co/papers/${id}`,
+      ...(submittedAt ? { submittedAt } : {}),
+    }];
+  });
+}
+
+function arxivEntries(payload: string, discoveries: Map<string, string>): Candidate[] {
+  const blocks = [...payload.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi)].map((match) => match[1]);
+  return blocks.flatMap((block) => {
+    const id = arxivId(tagValue(block, "id"));
+    const title = tagValue(block, "title");
+    const summary = tagValue(block, "summary");
+    if (!id || !title || !summary || !discoveries.has(id)) return [];
+    return [{
+      canonicalId: `arxiv:${id}`,
+      discoveryUrl: discoveries.get(id),
+      url: `https://arxiv.org/abs/${id}`,
+      title,
+      summary,
+      sourceMaterial: summary,
+      publishedAt: validDate(tagValue(block, "published") || tagValue(block, "updated")),
+    }];
+  });
+}
+
+async function collectHuggingFacePapers(
+  source: SicSource,
+  fetcher: Fetcher,
+  firstPayload: string,
+  windowFrom: string,
+) {
+  const discoveries = new Map<string, string>();
+  let payload = firstPayload;
+  for (let page = 0; page < 20; page += 1) {
+    const records = huggingFacePaperRecords(payload);
+    for (const record of records) {
+      if (!record.submittedAt || Date.parse(record.submittedAt) >= Date.parse(windowFrom)) {
+        discoveries.set(record.id, record.discoveryUrl);
+      }
+    }
+    if (
+      records.length < 100
+      || records.some((record) => record.submittedAt && Date.parse(record.submittedAt) < Date.parse(windowFrom))
+    ) break;
+    const endpoint = new URL(source.endpoint);
+    endpoint.searchParams.set("p", String(page + 1));
+    payload = await fetchText(fetcher, endpoint.toString(), source);
+  }
+  const ids = [...discoveries.keys()];
+  const candidates: Candidate[] = [];
+  for (let offset = 0; offset < ids.length; offset += 20) {
+    if (offset > 0) await new Promise((resolve) => setTimeout(resolve, 3_200));
+    const query = `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(ids.slice(offset, offset + 20).join(","))}`;
+    let verified = "";
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        verified = await fetchText(fetcher, query, source);
+        break;
+      } catch (error) {
+        if (attempt === 1) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 4_000));
+      }
+    }
+    candidates.push(...arxivEntries(verified, discoveries));
+  }
+  return candidates;
 }
 
 function sitemapUrls(source: SicSource, payload: string, windowFrom?: string): Candidate[] {
@@ -383,7 +496,11 @@ async function fetchText(fetcher: Fetcher, url: string, source: SicSource) {
   const { response, text: payload } = await fetchTextBounded(
     url,
     {
-      headers: { Accept: "application/atom+xml, application/rss+xml, application/xml, text/xml, text/html, application/json", "User-Agent": "Vault2077-SiC-Collector/1.0" },
+      headers: {
+        Accept: "application/atom+xml, application/rss+xml, application/xml, text/xml, text/html, application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Vault2077-SiC-Collector/1.0",
+      },
       redirect: "follow",
     },
     { fetcher, timeoutMs: 20_000, maxBytes: 8 * 1024 * 1024 },
@@ -399,7 +516,9 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
   const payload = await fetchText(fetcher, source.endpoint, source);
   const windowFrom = new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
   let candidates: Candidate[];
-  if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
+  if (source.id === "hugging-face-daily-papers") {
+    candidates = await collectHuggingFacePapers(source, fetcher, payload, windowFrom);
+  } else if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
     candidates = xmlEntries(source, payload);
   } else if (source.kind === "official_api" && source.id === "dair-ai-papers-of-the-week") {
     candidates = githubCommitEntries(source, payload);
@@ -422,7 +541,7 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
     !candidate.publishedAt || Date.parse(candidate.publishedAt) >= Date.parse(windowFrom)
   ));
   const items: SicRawContentItem[] = dedupe(candidates).map((candidate) => ({
-    id: createHash("sha256").update(`${source.id}:${candidate.url}`).digest("hex"),
+    id: createHash("sha256").update(candidate.canonicalId ?? `${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
     group: source.group,
     sourceName: source.name,
@@ -432,6 +551,10 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
     url: candidate.url,
     publishedAt: candidate.publishedAt ?? null,
     collectedAt,
+    canonicalId: candidate.canonicalId,
+    discoveryUrl: candidate.discoveryUrl,
+    provenanceStatus: candidate.canonicalId ? "verified" : "declared",
+    sourceMaterial: candidate.sourceMaterial,
   }));
   let materialFailures = 0;
   let nextItem = 0;
@@ -441,7 +564,9 @@ async function collectSource(source: SicSource, fetcher: Fetcher, collectedAt: s
       nextItem += 1;
       const item = items[index];
       try {
-        const material = item.url === source.endpoint
+        const material = item.sourceMaterial
+          ? item.sourceMaterial
+          : item.url === source.endpoint
           ? readablePageText(payload)
           : readablePageText(await fetchText(fetcher, item.url, source));
         item.sourceMaterial = material || item.summary;
@@ -464,10 +589,13 @@ export type SicRawCollection = {
 
 export async function collectSicRawContent(
   fetcher: Fetcher = fetch,
-  options: { allowAllFailed?: boolean } = {},
+  options: { allowAllFailed?: boolean; sourceIds?: string[] } = {},
 ): Promise<SicRawCollection> {
   const collectedAt = new Date().toISOString();
-  const sources = listApprovedSicSources();
+  const requested = new Set(options.sourceIds ?? []);
+  const sources = listCollectableSicSources().filter((source) => (
+    requested.size === 0 || requested.has(source.id)
+  ));
   const collectOutcome = async (source: SicSource) => {
     try {
       const outcome = await collectSource(source, fetcher, collectedAt);
@@ -533,8 +661,8 @@ function validateRawCollection(value: unknown, options: {
     throw new Error("SiC 境外采集包已过期。");
   }
   if (packet.items.length > 2_000 || packet.reports.length > 200) throw new Error("SiC 境外采集包超过数量限制。");
-  const sources = new Map(listApprovedSicSources().map((source) => [source.id, source]));
-  const items = packet.items.flatMap((raw) => {
+  const sources = new Map(listCollectableSicSources().map((source) => [source.id, source]));
+  const items = packet.items.flatMap((raw): SicRawContentItem[] => {
     if (!raw || typeof raw !== "object") return [];
     const source = sources.get(text(raw.sourceId, 180));
     if (!source) return [];
@@ -543,7 +671,7 @@ function validateRawCollection(value: unknown, options: {
     const summary = text(raw.summary, 1_400);
     if (!url || !title) return [];
     return [{
-      id: createHash("sha256").update(`${source.id}:${url}`).digest("hex"),
+      id: createHash("sha256").update(text(raw.canonicalId, 180) || `${source.id}:${url}`).digest("hex"),
       sourceId: source.id,
       group: source.group,
       sourceName: source.name,
@@ -554,6 +682,9 @@ function validateRawCollection(value: unknown, options: {
       url,
       publishedAt: validDate(raw.publishedAt),
       collectedAt,
+      canonicalId: text(raw.canonicalId, 180) || undefined,
+      discoveryUrl: allowedUrl(String(raw.discoveryUrl ?? ""), source) ?? undefined,
+      provenanceStatus: text(raw.canonicalId, 180) ? "verified" as const : "declared" as const,
     }];
   });
   const reportBySource = new Map(packet.reports.flatMap((raw) => {
@@ -583,7 +714,7 @@ function validateRawCollection(value: unknown, options: {
 
 export async function ingestSicRawContent(value: unknown, fetcher: Fetcher = fetch) {
   const packet = validateRawCollection(value, { enforceAge: true, requireCompleteReports: true });
-  const sources = listApprovedSicSources();
+  const sources = listCollectableSicSources();
   const enriched = await enrichItems(packet.items, fetcher, sources);
   const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
   return mergeSicStoredContent({
@@ -595,7 +726,7 @@ export async function ingestSicRawContent(value: unknown, fetcher: Fetcher = fet
 
 export async function ingestSicAcquisitionContent(value: unknown, fetcher: Fetcher) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
-  const sources = listApprovedSicSources();
+  const sources = listCollectableSicSources();
   const enriched = await enrichItems(packet.items, fetcher, sources, { requireCompleteEditorial: true });
   const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
   return mergeSicStoredContent({
@@ -615,4 +746,6 @@ export const sicCollectorTestUtils = {
   jsonLdEntries,
   anchorEntries,
   datedIndexEntries,
+  huggingFacePaperRecords,
+  arxivEntries,
 };

@@ -2,6 +2,8 @@
   --atlas-intel: #2850d7;
   --atlas-voice: #8f3759;
   --atlas-library: #a45b09;
+  --atlas-documents: #7a4c11;
+  --atlas-sic: #a45b09;
   --atlas-signal: #087564;
   padding-bottom: var(--section);
 }
@@ -95,7 +97,11 @@
 }
 
 .route[data-section="information-flow"] { --route-color: var(--atlas-intel); }
-.route[data-section="statements"] { --route-color: var(--atlas-voice); }
+.route[data-section="roadside"] { --route-color: var(--atlas-voice); }
+.route[data-section="documents"] { --route-color: var(--atlas-documents); }
+.route[data-section="papers"],
+.route[data-section="podcasts"],
+.route[data-section="courses"] { --route-color: var(--atlas-sic); }
 .route[data-section="sic-library"] { --route-color: var(--atlas-library); }
 .route[data-section="sic-rankings"] { --route-color: var(--atlas-signal); }
 
@@ -286,7 +292,11 @@
 }
 
 .section[data-section="information-flow"] { --section-color: var(--atlas-intel); }
-.section[data-section="statements"] { --section-color: var(--atlas-voice); }
+.section[data-section="roadside"] { --section-color: var(--atlas-voice); }
+.section[data-section="documents"] { --section-color: var(--atlas-documents); }
+.section[data-section="papers"],
+.section[data-section="podcasts"],
+.section[data-section="courses"] { --section-color: var(--atlas-sic); }
 .section[data-section="sic-library"] { --section-color: var(--atlas-library); }
 .section[data-section="sic-rankings"] { --section-color: var(--atlas-signal); }
 

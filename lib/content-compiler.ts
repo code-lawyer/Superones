@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { InformationEnvelope, InboundContentBatch } from "./content-contract.ts";
+import { isEventInput } from "./content-provenance.ts";
 import type { EventCategory, EventRecord, InformationItem, QuarantinedContent } from "./types.ts";
 
 export type InformationEditorial = {
@@ -160,30 +161,66 @@ export async function compileInformationBatch(input: {
   const information = [...input.previousInformation];
   const events = [...input.previousEvents];
   const quarantineRecords: QuarantinedContent[] = [];
-  const existingUrls = new Set(information.map((item) => item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()));
   const existingKeys = new Set(information.map((item) => `${item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()}#${item.contentHash ?? ""}`));
+  const existingUrls = new Set(information
+    .filter((item) => item.itemKind !== "changelog")
+    .map((item) => item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()));
   const existingHashes = new Set(information.map((item) => item.contentHash).filter((value): value is string => Boolean(value)));
   const existingOriginIds = new Set(information.map((item) => item.originContentId).filter((value): value is string => Boolean(value)));
+  const existingByUrl = new Map(information
+    .filter((item) => item.itemKind !== "changelog")
+    .map((item) => [item.sourceUrl.replace(/[?#].*$/, "").toLowerCase(), item]));
+  const existingByHash = new Map(information
+    .filter((item) => Boolean(item.contentHash))
+    .map((item) => [item.contentHash as string, item]));
+  const existingByOriginId = new Map(information
+    .filter((item) => Boolean(item.originContentId))
+    .map((item) => [item.originContentId as string, item]));
+  const mergeDiscoveryPaths = (item: InformationItem | undefined, envelope: InformationEnvelope) => {
+    if (!item) return;
+    const paths = [...new Set([
+      ...(item.discoveryPaths ?? []),
+      ...(envelope.discoveryPaths ?? []),
+      envelope.discoveryPath,
+    ].filter((value): value is string => Boolean(value)))];
+    if (paths.length > 0) item.discoveryPaths = paths;
+  };
   const newSlugs = new Set<string>();
   const hiddenSlugs = new Set<string>();
   const active = activeEvents(events, batch.generatedAt).map(({ slug: eventSlug, title, summary }) => ({ slug: eventSlug, title, summary }));
   const batchEligible: InformationEnvelope[] = [];
-  const incomingUrls = new Set(existingUrls);
   const incomingKeys = new Set(existingKeys);
+  const incomingUrls = new Set(existingUrls);
   const incomingHashes = new Set(existingHashes);
   const incomingOriginIds = new Set(existingOriginIds);
   for (const envelope of batch.information) {
     const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
     const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
+    const duplicate = (envelope.itemKind !== "changelog" ? existingByUrl.get(canonicalUrl) : undefined)
+      ?? existingByHash.get(envelope.contentHash)
+      ?? (envelope.originContentId ? existingByOriginId.get(envelope.originContentId) : undefined);
     if (
-      incomingUrls.has(canonicalUrl)
-      || incomingKeys.has(canonicalKey)
+      incomingKeys.has(canonicalKey)
+      || (envelope.itemKind !== "changelog" && incomingUrls.has(canonicalUrl))
       || incomingHashes.has(envelope.contentHash)
       || (envelope.originContentId && incomingOriginIds.has(envelope.originContentId))
-    ) continue;
+    ) {
+      mergeDiscoveryPaths(duplicate, envelope);
+      continue;
+    }
+    if (envelope.provenanceRole === "discovery" || envelope.provenanceStatus === "unresolved") {
+      quarantineRecords.push(quarantine(
+        batch,
+        "information",
+        envelope.idempotencyKey,
+        "UNRESOLVED_PROVENANCE",
+        "发现入口尚未解析为获批原始发布者，禁止进入公开内容。",
+      ));
+      continue;
+    }
     batchEligible.push(envelope);
-    incomingUrls.add(canonicalUrl);
     incomingKeys.add(canonicalKey);
+    if (envelope.itemKind !== "changelog") incomingUrls.add(canonicalUrl);
     incomingHashes.add(envelope.contentHash);
     if (envelope.originContentId) incomingOriginIds.add(envelope.originContentId);
   }
@@ -202,8 +239,8 @@ export async function compileInformationBatch(input: {
     const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
     const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
     if (
-      existingUrls.has(canonicalUrl)
-      || existingKeys.has(canonicalKey)
+      existingKeys.has(canonicalKey)
+      || (envelope.itemKind !== "changelog" && existingUrls.has(canonicalUrl))
       || existingHashes.has(envelope.contentHash)
       || (envelope.originContentId && existingOriginIds.has(envelope.originContentId))
     ) continue;
@@ -242,6 +279,11 @@ export async function compileInformationBatch(input: {
       publisherKind: envelope.publisherKind,
       evidenceNature: envelope.evidenceNature,
       classificationConfidence: envelope.classificationConfidence,
+      contentGroup: envelope.contentGroup,
+      itemKind: envelope.itemKind,
+      provenanceRole: envelope.provenanceRole,
+      provenanceStatus: envelope.provenanceStatus,
+      discoveryPaths: envelope.discoveryPaths,
       sourceStream: envelope.sourceStream,
       originPlatform: envelope.originPlatform,
       originAccount: envelope.originAccount,
@@ -252,6 +294,18 @@ export async function compileInformationBatch(input: {
       transportProvider: envelope.transportProvider,
     };
     try {
+      if (!isEventInput(envelope.contentGroup ?? "information")) {
+        information.push(item);
+        newSlugs.add(item.slug);
+        existingKeys.add(canonicalKey);
+        if (envelope.itemKind !== "changelog") existingUrls.add(canonicalUrl);
+        existingHashes.add(envelope.contentHash);
+        if (envelope.originContentId) existingOriginIds.add(envelope.originContentId);
+        existingByUrl.set(canonicalUrl, item);
+        existingByHash.set(envelope.contentHash, item);
+        if (envelope.originContentId) existingByOriginId.set(envelope.originContentId, item);
+        continue;
+      }
       const recentIndependent = recentIndependentItems(information, batch.generatedAt);
       const decision = batchedDecision ?? await withOneRetry(() => editorial.classifyInformation({ information: item, activeEvents: active, recentIndependent }));
       if (decision.disposition === "existing" && active.some((event) => event.slug === decision.eventSlug)) {
@@ -266,10 +320,13 @@ export async function compileInformationBatch(input: {
     }
     information.push(item);
     newSlugs.add(item.slug);
-    existingUrls.add(canonicalUrl);
     existingKeys.add(canonicalKey);
+    if (envelope.itemKind !== "changelog") existingUrls.add(canonicalUrl);
     existingHashes.add(envelope.contentHash);
     if (envelope.originContentId) existingOriginIds.add(envelope.originContentId);
+    existingByUrl.set(canonicalUrl, item);
+    existingByHash.set(envelope.contentHash, item);
+    if (envelope.originContentId) existingByOriginId.set(envelope.originContentId, item);
   }
 
   const existingAssociations = new Map<string, InformationItem[]>();

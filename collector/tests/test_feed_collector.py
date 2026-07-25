@@ -63,7 +63,8 @@ class CollectorContractTests(unittest.TestCase):
             "name": "Example Person",
             "channelType": "x",
             "channelIdentifier": "ExamplePerson",
-            "sourceStream": "statements",
+            "sourceStream": "roadside",
+            "contentGroup": "roadside",
             "originPlatform": "x",
             "connector": "rss",
             "aggregator": "api.xgo.ing",
@@ -78,7 +79,8 @@ class CollectorContractTests(unittest.TestCase):
             "Statement",
             "The actual statement. 🔗 View on Twitter 💬15🔄8❤️70 ⚡ Powered by xgo.ing",
         )
-        self.assertEqual(item["sourceStream"], "statements")
+        self.assertEqual(item["sourceStream"], "roadside")
+        self.assertEqual(item["contentGroup"], "roadside")
         self.assertEqual(item["originPlatform"], "x")
         self.assertEqual(item["originAccount"], "exampleperson")
         self.assertEqual(item["originContentId"], "x:status:123456789")
@@ -94,7 +96,7 @@ class CollectorContractTests(unittest.TestCase):
             "name": "Expected",
             "channelType": "x",
             "channelIdentifier": "expected",
-            "sourceStream": "statements",
+            "sourceStream": "roadside",
             "originPlatform": "x",
             "connector": "rss",
             "endpoint": "https://api.xgo.ing/rss/user/token",

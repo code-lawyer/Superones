@@ -4,7 +4,7 @@ import { ChannelRibbon } from "@/components/channel-ribbon";
 import { EventList } from "@/components/event-list";
 import { InformationList } from "@/components/information-list";
 import { PageIntro } from "@/components/page-intro";
-import { StatementList } from "@/components/statement-list";
+import { RoadsideList } from "@/components/statement-list";
 import { siteStatus } from "@/lib/data";
 import { beijingTime, compareEventsNewest, compareInformationNewest } from "@/lib/feed-format";
 import { getPublicContent } from "@/lib/public-content";
@@ -19,7 +19,7 @@ const STATEMENT_LIMIT = 8;
 type FeedSearchParams = Record<string, string | string[] | undefined>;
 type FeedState = {
   waterfallLimit: number;
-  statementLimit: number;
+  roadsideLimit: number;
 };
 
 function valueOf(value: string | string[] | undefined) {
@@ -35,9 +35,9 @@ function feedHref(state: FeedState, override: Partial<FeedState>) {
   const next = { ...state, ...override };
   const query = new URLSearchParams();
   if (next.waterfallLimit > WATERFALL_LIMIT) query.set("waterfall", String(next.waterfallLimit));
-  if (next.statementLimit > STATEMENT_LIMIT) query.set("statements", String(next.statementLimit));
+  if (next.roadsideLimit > STATEMENT_LIMIT) query.set("roadside", String(next.roadsideLimit));
   const suffix = query.toString();
-  const anchor = override.statementLimit ? "statements-stream" : "information-waterfall";
+  const anchor = override.roadsideLimit ? "roadside-stream" : "information-waterfall";
   return `${suffix ? `/feed?${suffix}` : "/feed"}#${anchor}`;
 }
 
@@ -45,20 +45,22 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const [content, params] = await Promise.all([getPublicContent(), searchParams]);
   const state: FeedState = {
     waterfallLimit: positiveLimit(valueOf(params.waterfall), WATERFALL_LIMIT),
-    statementLimit: positiveLimit(valueOf(params.statements), STATEMENT_LIMIT),
+    roadsideLimit: positiveLimit(valueOf(params.roadside ?? params.statements), STATEMENT_LIMIT),
   };
 
   const eventItems = [...content.events]
     .sort(compareEventsNewest);
   const informationItems = content.information
-    .filter((item) => item.sourceStream !== "statements")
+    .filter((item) => (item.contentGroup ?? item.sourceStream) === "information")
     .sort(compareInformationNewest);
-  const statementItems = content.information
-    .filter((item) => item.sourceStream === "statements" && item.publisherKind === "person")
+  const roadsideItems = content.information
+    .filter((item) => (
+      (item.contentGroup ?? item.sourceStream) === "roadside" || item.sourceStream === "statements"
+    ))
     .sort(compareInformationNewest);
   const visibleEvents = eventItems.slice(0, EVENT_LIMIT);
   const visibleInformation = informationItems.slice(0, state.waterfallLimit);
-  const visibleStatements = statementItems.slice(0, state.statementLimit);
+  const visibleRoadside = roadsideItems.slice(0, state.roadsideLimit);
   const updatedAt = content.state.updatedAt ?? siteStatus.updated;
   const previewLabel = process.env.VAULT2077_CONTENT_PREVIEW_LABEL?.trim();
 
@@ -101,18 +103,18 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               ) : null}
             </section>
 
-            <section className="feed-stream feed-stream--statements" id="statements-stream" aria-labelledby="statements-stream-title">
+            <section className="feed-stream feed-stream--statements" id="roadside-stream" aria-labelledby="roadside-stream-title">
               <header className="feed-column__header">
-                <p className="eyebrow mono">PEOPLE ON X / 即时言论</p>
-                <h2 id="statements-stream-title">名人说</h2>
-                <p>只保留经核验的真人账号；观点与正式资讯平级，也可独立沉淀为事件。</p>
+                <p className="eyebrow mono">ROADSIDE / 个人与社区</p>
+                <h2 id="roadside-stream-title">路边社</h2>
+                <p>自然人言论、个人博客及社区原生主题；外链只作发现，评论不进入正文。</p>
               </header>
-              <StatementList items={visibleStatements} />
-              {visibleStatements.length === 0 ? <p className="feed-empty">暂无真人言论</p> : null}
-              {visibleStatements.length < statementItems.length ? (
-                <Link className="feed-more" href={feedHref(state, { statementLimit: state.statementLimit + STATEMENT_LIMIT })}>
-                  <span>继续接收言论</span>
-                  <span className="mono">{visibleStatements.length} / {statementItems.length}</span>
+              <RoadsideList items={visibleRoadside} />
+              {visibleRoadside.length === 0 ? <p className="feed-empty">暂无个人或社区发布</p> : null}
+              {visibleRoadside.length < roadsideItems.length ? (
+                <Link className="feed-more" href={feedHref(state, { roadsideLimit: state.roadsideLimit + STATEMENT_LIMIT })}>
+                  <span>继续接收路边社</span>
+                  <span className="mono">{visibleRoadside.length} / {roadsideItems.length}</span>
                 </Link>
               ) : null}
             </section>

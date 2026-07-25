@@ -37,6 +37,17 @@ test("runtime bundle preserves taxonomy for every active source", () => {
   assert.ok(bundle.sources.every((source: Record<string, unknown>) => source.ownerEntity && source.publisherKind && source.evidenceNature && source.classificationConfidence));
 });
 
+test("runtime bundle uses deterministic content groups and excludes misplaced source types", () => {
+  assert.ok(bundle.sources.every((source: { contentGroup: string }) => (
+    ["information", "roadside", "documents"].includes(source.contentGroup)
+  )));
+  assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "github-user-events"));
+  assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "podcast"));
+  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "information").length, 4);
+  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "documents").length, 33);
+  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "roadside").length, 37);
+});
+
 test("runtime bundle excludes mainland origin platforms without filtering content language", () => {
   assert.ok(bundle.pending.some((source: { primaryLanguage: string; reason: string }) => source.primaryLanguage === "zh-CN" && source.reason === "mainland_origin_platform"));
   assert.ok(bundle.pending.every((source: { reason: string }) => source.reason !== "unsupported_language"));
