@@ -27,8 +27,6 @@ export type OpcService = {
   period: string;
   revision: string;
   status: string;
-  effectiveAt: string;
-  reviewNote: string;
 };
 
 export type RangerProfile = {
@@ -56,13 +54,11 @@ const previewFacts = {
   period: "待专业确认",
   revision: "DRAFT.01",
   status: "内容建模中",
-  effectiveAt: "待专业确认",
-  reviewNote: "待专业确认",
 };
 
 type InfrastructureInput = Omit<
   OpcService,
-  "kind" | "domain" | "price" | "revision" | "status" | "effectiveAt" | "reviewNote"
+  "kind" | "domain" | "price" | "revision" | "status"
 >;
 
 function infrastructure(input: InfrastructureInput): OpcService {
@@ -73,8 +69,6 @@ function infrastructure(input: InfrastructureInput): OpcService {
     price: "固定服务费待业务确认；政府、平台及第三方费用另计",
     revision: "RESEARCH.01",
     status: "需求研究稿",
-    effectiveAt: "尚未生效",
-    reviewNote: "需求研究已完成；服务范围、地区、责任人及价格仍须对应专业负责人复核。",
   };
 }
 
@@ -379,16 +373,16 @@ export const researchSpecialtyServices: OpcService[] = [
 export const rangerIdentities = ["法律顾问", "财税顾问", "知识产权顾问", "创业顾问", "产品顾问", "品牌顾问", "自媒体专家", "设计师", "软件工程顾问", "AI 开发专家"] as const;
 
 export const rangerProfiles: RangerProfile[] = [
-  { slug: "ranger-legal-preview", publicName: "公开档案示例 A01", identity: "法律顾问", intro: "面向小型商业合作、交易边界与早期风险判断。", tags: ["商业交易", "合同", "风险判断"], credential: "职业资质或公开经历将在本人授权后展示。", contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-finance-preview", publicName: "公开档案示例 B02", identity: "财税顾问", intro: "关注经营现金、财税边界与复杂事项的前期判断。", tags: ["经营财务", "税务", "跨境"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-ip-preview", publicName: "公开档案示例 C03", identity: "知识产权顾问", intro: "围绕品牌、成果权属和第三方使用形成专业判断。", tags: ["商标", "权属", "开源合规"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-founder-preview", publicName: "公开档案示例 D04", identity: "创业顾问", intro: "支持经营路径、协作关系与关键阶段选择的讨论。", tags: ["经营策略", "协作", "增长"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-product-preview", publicName: "公开档案示例 E05", identity: "产品顾问", intro: "支持从用户问题到产品路径的非标准化一对一讨论。", tags: ["产品策略", "用户研究", "SaaS"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-brand-preview", publicName: "公开档案示例 F06", identity: "品牌顾问", intro: "帮助创作者与产品建立可延续的公共表达方式。", tags: ["品牌策略", "定位", "表达"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-media-preview", publicName: "公开档案示例 G07", identity: "自媒体专家", intro: "面向内容生产、平台协作与个人表达的个案问题。", tags: ["内容", "直播", "平台"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-design-preview", publicName: "公开档案示例 H08", identity: "设计师", intro: "在品牌、产品和界面之间建立一致的视觉判断。", tags: ["品牌系统", "界面", "内容设计"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-engineering-preview", publicName: "公开档案示例 I09", identity: "软件工程顾问", intro: "针对系统架构、工程路径与长期维护提供判断。", tags: ["架构", "工程", "开源"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
-  { slug: "ranger-ai-preview", publicName: "公开档案示例 J10", identity: "AI 开发专家", intro: "围绕 AI 产品、模型能力与工程路线提供个案判断。", tags: ["AI 产品", "模型应用", "工程路线"], contactLabel: "联系方式将在本人确认后公开", contactState: "PROFILE PREVIEW" },
+  { slug: "ranger-legal-preview", publicName: "公开档案示例 A01", identity: "法律顾问", intro: "面向小型商业合作、交易边界与早期风险判断。", tags: ["商业交易", "合同", "风险判断"], credential: "商业交易、合同与早期经营风险顾问。", contactLabel: "ranger.a01@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-finance-preview", publicName: "公开档案示例 B02", identity: "财税顾问", intro: "关注经营现金、财税边界与复杂事项的前期判断。", tags: ["经营财务", "税务", "跨境"], contactLabel: "ranger.b02@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-ip-preview", publicName: "公开档案示例 C03", identity: "知识产权顾问", intro: "围绕品牌、成果权属和第三方使用形成专业判断。", tags: ["商标", "权属", "开源合规"], contactLabel: "ranger.c03@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-founder-preview", publicName: "公开档案示例 D04", identity: "创业顾问", intro: "支持经营路径、协作关系与关键阶段选择的讨论。", tags: ["经营策略", "协作", "增长"], contactLabel: "ranger.d04@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-product-preview", publicName: "公开档案示例 E05", identity: "产品顾问", intro: "支持从用户问题到产品路径的非标准化一对一讨论。", tags: ["产品策略", "用户研究", "SaaS"], contactLabel: "ranger.e05@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-brand-preview", publicName: "公开档案示例 F06", identity: "品牌顾问", intro: "帮助创作者与产品建立可延续的公共表达方式。", tags: ["品牌策略", "定位", "表达"], contactLabel: "ranger.f06@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-media-preview", publicName: "公开档案示例 G07", identity: "自媒体专家", intro: "面向内容生产、平台协作与个人表达的个案问题。", tags: ["内容", "直播", "平台"], contactLabel: "ranger.g07@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-design-preview", publicName: "公开档案示例 H08", identity: "设计师", intro: "在品牌、产品和界面之间建立一致的视觉判断。", tags: ["品牌系统", "界面", "内容设计"], contactLabel: "ranger.h08@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-engineering-preview", publicName: "公开档案示例 I09", identity: "软件工程顾问", intro: "针对系统架构、工程路径与长期维护提供判断。", tags: ["架构", "工程", "开源"], contactLabel: "ranger.i09@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
+  { slug: "ranger-ai-preview", publicName: "公开档案示例 J10", identity: "AI 开发专家", intro: "围绕 AI 产品、模型能力与工程路线提供个案判断。", tags: ["AI 产品", "模型应用", "工程路线"], contactLabel: "ranger.j10@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
 ];
 
 export const infrastructureGroups = selectedInfrastructureGroups;

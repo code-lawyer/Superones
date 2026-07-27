@@ -224,7 +224,7 @@ function ServiceEmptyPane({ title }: { title: string }) {
 function ServiceReadingPane({ service }: { service: OpcService }) {
   return <article className="opc-reading-pane">
     <header>
-      <div className="opc-reading-pane__meta mono"><span>{service.code}</span><span>{service.domain}</span><span>{service.status} / {service.revision}</span></div>
+      <div className="opc-reading-pane__meta mono"><span>{service.code}</span><span>{service.domain}</span><span>{service.revision}</span></div>
       <h2>{service.name}</h2>
       <p>{service.outcome}</p>
       <div className="opc-reading-pane__facts"><span><b className="mono">价格</b>{service.price}</span><span><b className="mono">周期</b>{service.period}</span></div>
@@ -237,7 +237,6 @@ function ServiceReadingPane({ service }: { service: OpcService }) {
       {service.deliveryRoles?.length ? <section><p className="mono">DELIVERY TEAM / 交付协作</p><h3>由谁完成</h3><ol>{service.deliveryRoles.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
       {service.acceptance?.length ? <section><p className="mono">ACCEPTANCE / 验收标准</p><h3>怎样算完成</h3><ol>{service.acceptance.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
       {service.feeNote ? <section><p className="mono">FEE NOTE / 费用说明</p><h3>价格口径</h3><p>{service.feeNote}</p></section> : null}
-      <section><p className="mono">REVIEW / 专业复核</p><h3>复核与生效</h3><p>{service.reviewNote}</p><p className="mono muted">{service.effectiveAt}</p></section>
       <section className="opc-reading-pane__boundary">
         <div className="opc-reading-pane__boundary-title">
           <p className="mono">OUT OF SCOPE / 转交边界</p>

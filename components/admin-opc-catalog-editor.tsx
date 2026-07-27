@@ -93,8 +93,6 @@ function newService(section: "infrastructure" | "specialties", ordinal: number):
     period: "",
     revision: "DRAFT.01",
     status: "草稿",
-    effectiveAt: "",
-    reviewNote: "",
   };
 }
 
@@ -203,7 +201,7 @@ export function AdminOpcCatalogEditor() {
   async function submit(action: "save-draft" | "publish") {
     if (!draft || !state) return;
     const wording = action === "publish"
-      ? "发布会立即替换 OPC 前台的服务目录。确认已完成专业复核并发布？"
+      ? "发布会立即替换 OPC 前台的服务目录。确认当前目录内容可以公开并发布？"
       : "确认保存当前 OPC 服务目录草稿？该操作会写入不可变审计日志。";
     if (!window.confirm(wording)) return;
     setPending(true);
@@ -417,8 +415,6 @@ function ServiceFields({ service, onChange }: { service: OpcService; onChange: (
     <TextField label="标准周期" value={service.period} onChange={(value) => change("period", value)} />
     <TextField label="修订编号" value={service.revision} onChange={(value) => change("revision", value)} />
     <TextField label="公开状态" value={service.status} onChange={(value) => change("status", value)} />
-    <TextField label="修订生效时间" value={service.effectiveAt} onChange={(value) => change("effectiveAt", value)} help="建议使用 YYYY-MM-DD 或明确的生效说明。" />
-    <TextField label="专业复核说明" value={service.reviewNote} multiline onChange={(value) => change("reviewNote", value)} />
   </div>;
 }
 

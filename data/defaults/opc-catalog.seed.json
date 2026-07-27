@@ -45,9 +45,7 @@
         "feeNote": "首版含税服务费；政府登记、刻章、银行、地址、代理记账及其他第三方费用另计。",
         "period": "材料齐备后 7–15 个工作日；官方办理时间另计",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "infrastructure",
@@ -91,9 +89,7 @@
         "feeNote": "首版含税服务费；代理记账、审计鉴证、银行支付和第三方软件费用另计。",
         "period": "材料齐备后 7–10 个工作日",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "infrastructure",
@@ -137,9 +133,7 @@
         "feeNote": "首版含税服务费，含不超过 4 份核心模板和 2 轮集中修改；电子签及第三方费用另计。",
         "period": "材料齐备后 7–12 个工作日",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "infrastructure",
@@ -183,9 +177,7 @@
         "feeNote": "首版含税服务费；备案、认证、平台、开发、设计和第三方工具费用另计。",
         "period": "材料齐备后 10–15 个工作日；平台及主管部门时间另计",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "infrastructure",
@@ -229,9 +221,7 @@
         "feeNote": "首版含税服务费，覆盖不超过 3 类关系和 5 名人员；招聘、社保代办、薪酬系统及第三方费用另计。",
         "period": "材料齐备后 7–12 个工作日",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "infrastructure",
@@ -275,9 +265,7 @@
         "feeNote": "首版含税服务费，覆盖一个核心产品或品牌资产组；检索、申请、登记和其他第三方费用另计。",
         "period": "材料齐备后 10–15 个工作日；申请审查时间另计",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "infrastructure",
@@ -321,9 +309,7 @@
         "feeNote": "首版含税服务费，覆盖一个产品和不超过 10 个主要第三方处理方；测评、认证、整改开发和第三方费用另计。",
         "period": "材料齐备后 10–18 个工作日",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       }
     ],
     "specialties": [
@@ -367,9 +353,7 @@
         "period": "材料齐备后 2–3 个工作日",
         "group": "法律与经营风险",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -411,9 +395,7 @@
         "period": "材料齐备后 5–7 个工作日",
         "group": "法律与经营风险",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -456,9 +438,7 @@
         "period": "材料齐备后 5–7 个工作日",
         "group": "法律与经营风险",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -502,9 +482,7 @@
         "period": "按月服务，建议连续 12 个月",
         "group": "财税与现金流",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -547,9 +525,7 @@
         "period": "材料齐备后 5–7 个工作日",
         "group": "财税与现金流",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -592,9 +568,7 @@
         "period": "材料齐备后 7–10 个工作日",
         "group": "财税与现金流",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -637,9 +611,7 @@
         "period": "材料齐备后 10–15 个工作日",
         "group": "品牌与线上获客",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -684,9 +656,7 @@
         "period": "材料齐备后 15–20 个工作日",
         "group": "品牌与线上获客",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -730,9 +700,7 @@
         "period": "材料齐备后 10–15 个工作日",
         "group": "AI与企业数字化",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -776,9 +744,7 @@
         "period": "材料齐备后 15–25 个工作日",
         "group": "AI与企业数字化",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -822,9 +788,7 @@
         "period": "材料齐备后 3–5 个工作日",
         "group": "用工与协作者",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -867,9 +831,7 @@
         "period": "材料齐备后 3–5 个工作日完成提交；官方审查时间另计",
         "group": "知识产权与产品商业化",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -913,9 +875,7 @@
         "period": "材料齐备后 7–12 个工作日",
         "group": "知识产权与产品商业化",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       },
       {
         "kind": "specialty",
@@ -959,9 +919,7 @@
         "period": "材料齐备后 7–12 个工作日",
         "group": "知识产权与产品商业化",
         "revision": "SKU.01",
-        "status": "首版试行",
-        "effectiveAt": "2026-07-26",
-        "reviewNote": "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。"
+        "status": "首版试行"
       }
     ],
     "rangers": [
@@ -975,9 +933,12 @@
           "合同",
           "风险判断"
         ],
-        "credential": "职业资质或公开经历将在本人授权后展示。",
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "credential": "商业交易、合同与早期经营风险顾问。",
+        "contactLabel": "ranger.a01@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-finance-preview",
@@ -989,8 +950,11 @@
           "税务",
           "跨境"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.b02@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-ip-preview",
@@ -1002,8 +966,11 @@
           "权属",
           "开源合规"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.c03@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-founder-preview",
@@ -1015,8 +982,11 @@
           "协作",
           "增长"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.d04@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-product-preview",
@@ -1028,8 +998,11 @@
           "用户研究",
           "SaaS"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.e05@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-brand-preview",
@@ -1041,8 +1014,11 @@
           "定位",
           "表达"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.f06@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-media-preview",
@@ -1054,8 +1030,11 @@
           "直播",
           "平台"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.g07@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-design-preview",
@@ -1067,8 +1046,11 @@
           "界面",
           "内容设计"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.h08@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-engineering-preview",
@@ -1080,8 +1062,11 @@
           "工程",
           "开源"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.i09@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       },
       {
         "slug": "ranger-ai-preview",
@@ -1093,8 +1078,11 @@
           "模型应用",
           "工程路线"
         ],
-        "contactLabel": "联系方式将在本人确认后公开",
-        "contactState": "PROFILE PREVIEW"
+        "contactLabel": "ranger.j10@vault2077.com",
+        "contactState": "EMAIL / PUBLIC",
+        "verificationDate": "2026-07-26",
+        "profileUpdatedAt": "2026-07-26",
+        "authorizationStatus": "本人已授权公开"
       }
     ]
   }

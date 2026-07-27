@@ -3,13 +3,11 @@ import type { OpcService } from "./opc-catalog.ts";
 const commonFacts = {
   revision: "SKU.01",
   status: "首版试行",
-  effectiveAt: "2026-07-26",
-  reviewNote: "首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。",
 };
 
 type BaseServiceInput = Omit<
   OpcService,
-  "kind" | "domain" | "group" | "revision" | "status" | "effectiveAt" | "reviewNote"
+  "kind" | "domain" | "group" | "revision" | "status"
 >;
 
 function infrastructure(input: BaseServiceInput & { group: string }): OpcService {

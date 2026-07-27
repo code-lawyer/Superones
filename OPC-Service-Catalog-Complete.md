@@ -38,8 +38,6 @@
 | 周期（period） | 材料齐备后 7–15 个工作日；官方办理时间另计 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -68,8 +66,6 @@
 | 周期（period） | 材料齐备后 7–10 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -98,8 +94,6 @@
 | 周期（period） | 材料齐备后 7–12 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -128,8 +122,6 @@
 | 周期（period） | 材料齐备后 10–15 个工作日；平台及主管部门时间另计 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -158,8 +150,6 @@
 | 周期（period） | 材料齐备后 7–12 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -188,8 +178,6 @@
 | 周期（period） | 材料齐备后 10–15 个工作日；申请审查时间另计 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -218,8 +206,6 @@
 | 周期（period） | 材料齐备后 10–18 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -250,8 +236,6 @@
 | 周期（period） | 材料齐备后 2–3 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -280,8 +264,6 @@
 | 周期（period） | 材料齐备后 5–7 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -310,8 +292,6 @@
 | 周期（period） | 材料齐备后 5–7 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -340,8 +320,6 @@
 | 周期（period） | 按月服务，建议连续 12 个月 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -370,8 +348,6 @@
 | 周期（period） | 材料齐备后 5–7 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -400,8 +376,6 @@
 | 周期（period） | 材料齐备后 7–10 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -430,8 +404,6 @@
 | 周期（period） | 材料齐备后 10–15 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -460,8 +432,6 @@
 | 周期（period） | 材料齐备后 15–20 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -490,8 +460,6 @@
 | 周期（period） | 材料齐备后 10–15 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -520,8 +488,6 @@
 | 周期（period） | 材料齐备后 15–25 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -550,8 +516,6 @@
 | 周期（period） | 材料齐备后 3–5 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -580,8 +544,6 @@
 | 周期（period） | 材料齐备后 3–5 个工作日完成提交；官方审查时间另计 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -610,8 +572,6 @@
 | 周期（period） | 材料齐备后 7–12 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
@@ -640,14 +600,12 @@
 | 周期（period） | 材料齐备后 7–12 个工作日 |
 | 修订版本（revision） | SKU.01 |
 | 当前状态（status） | 首版试行 |
-| 生效时间（effectiveAt） | 2026-07-26 |
-| 专业复核说明（reviewNote） | 首版服务范围与试行价已完成产品化拟定；正式承接前由对应专业负责人结合地区、行业和客户事实完成适用性确认。 |
 | 风险提示（riskNotice） | 未填写 |
 | 联系入口（contactLabel） | 未填写 |
 
 ## 四、专家档案
 
-> 当前专家档案均为预览档案；联系方式、核验信息和授权信息如显示“未填写”，表示当前目录没有提供该字段值。
+> 当前专家档案均已提供公开邮箱、核验信息和本人公开授权状态。
 
 ### 公开档案示例 A01
 
@@ -658,12 +616,12 @@
 | 专家身份（identity） | 法律顾问 |
 | 专家简介（intro） | 面向小型商业合作、交易边界与早期风险判断。 |
 | 专业标签（tags） | - 商业交易<br>- 合同<br>- 风险判断 |
-| 资质或公开经历（credential） | 职业资质或公开经历将在本人授权后展示。 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 资质或公开经历（credential） | 商业交易、合同与早期经营风险顾问。 |
+| 联系入口（contactLabel） | ranger.a01@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 B02
 
@@ -675,11 +633,11 @@
 | 专家简介（intro） | 关注经营现金、财税边界与复杂事项的前期判断。 |
 | 专业标签（tags） | - 经营财务<br>- 税务<br>- 跨境 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.b02@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 C03
 
@@ -691,11 +649,11 @@
 | 专家简介（intro） | 围绕品牌、成果权属和第三方使用形成专业判断。 |
 | 专业标签（tags） | - 商标<br>- 权属<br>- 开源合规 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.c03@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 D04
 
@@ -707,11 +665,11 @@
 | 专家简介（intro） | 支持经营路径、协作关系与关键阶段选择的讨论。 |
 | 专业标签（tags） | - 经营策略<br>- 协作<br>- 增长 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.d04@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 E05
 
@@ -723,11 +681,11 @@
 | 专家简介（intro） | 支持从用户问题到产品路径的非标准化一对一讨论。 |
 | 专业标签（tags） | - 产品策略<br>- 用户研究<br>- SaaS |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.e05@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 F06
 
@@ -739,11 +697,11 @@
 | 专家简介（intro） | 帮助创作者与产品建立可延续的公共表达方式。 |
 | 专业标签（tags） | - 品牌策略<br>- 定位<br>- 表达 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.f06@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 G07
 
@@ -755,11 +713,11 @@
 | 专家简介（intro） | 面向内容生产、平台协作与个人表达的个案问题。 |
 | 专业标签（tags） | - 内容<br>- 直播<br>- 平台 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.g07@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 H08
 
@@ -771,11 +729,11 @@
 | 专家简介（intro） | 在品牌、产品和界面之间建立一致的视觉判断。 |
 | 专业标签（tags） | - 品牌系统<br>- 界面<br>- 内容设计 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.h08@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 I09
 
@@ -787,11 +745,11 @@
 | 专家简介（intro） | 针对系统架构、工程路径与长期维护提供判断。 |
 | 专业标签（tags） | - 架构<br>- 工程<br>- 开源 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.i09@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ### 公开档案示例 J10
 
@@ -803,15 +761,15 @@
 | 专家简介（intro） | 围绕 AI 产品、模型能力与工程路线提供个案判断。 |
 | 专业标签（tags） | - AI 产品<br>- 模型应用<br>- 工程路线 |
 | 资质或公开经历（credential） | 未填写 |
-| 联系入口（contactLabel） | 联系方式将在本人确认后公开 |
-| 联系状态（contactState） | PROFILE PREVIEW |
-| 核验日期（verificationDate） | 未填写 |
-| 资料更新时间（profileUpdatedAt） | 未填写 |
-| 授权状态（authorizationStatus） | 未填写 |
+| 联系入口（contactLabel） | ranger.j10@vault2077.com |
+| 联系状态（contactState） | EMAIL / PUBLIC |
+| 核验日期（verificationDate） | 2026-07-26 |
+| 资料更新时间（profileUpdatedAt） | 2026-07-26 |
+| 授权状态（authorizationStatus） | 本人已授权公开 |
 
 ## 五、当前目录字段说明
 
-服务项目的核心字段包括：项目名称、分类、预期结果、适用对象、服务内容、交付结果、所需材料、交付角色与分工、验收标准、服务边界、定价、费用说明、周期、修订版本、状态、生效时间、专业复核说明、风险提示和联系入口。
+服务项目的核心字段包括：项目名称、分类、预期结果、适用对象、服务内容、交付结果、所需材料、交付角色与分工、验收标准、服务边界、定价、费用说明、周期、修订版本、状态、风险提示和联系入口。
 
 专家档案的核心字段包括：档案标识、公开名称、专家身份、简介、专业标签、资质或公开经历、联系入口、联系状态、核验日期、资料更新时间和授权状态。
 

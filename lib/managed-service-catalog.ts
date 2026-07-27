@@ -66,6 +66,7 @@ const placeholderValues = new Set([
   "本人授权待确认",
 ]);
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const publicEmailPattern = /^[A-Za-z0-9!$&'*+/=_`{|}~-]+(?:\.[A-Za-z0-9!$&'*+/=_`{|}~-]+)*@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 
 function initialState(): ManagedServiceCatalog {
   const seed = readOpcCatalogSeedDocument();
@@ -143,8 +144,6 @@ function normalizeService(value: unknown, kind: OpcService["kind"]): OpcService 
     period: cleanText(item.period, 100),
     revision: cleanText(item.revision, 40),
     status: cleanText(item.status, 40),
-    effectiveAt: cleanText(item.effectiveAt, 40),
-    reviewNote: cleanText(item.reviewNote, 300),
   };
 }
 
@@ -231,14 +230,9 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
         ["周期", service.period],
         ["修订", service.revision],
         ["状态", service.status],
-        ["生效时间", service.effectiveAt],
-        ["专业复核", service.reviewNote],
       ] as const) {
         required(errors, `${label}：${field}`, value);
         if (placeholderValues.has(value)) errors.push(`${label}：${field}仍是预览占位值`);
-      }
-      if (service.effectiveAt && !isIsoDate(service.effectiveAt)) {
-        errors.push(`${label}：生效时间必须使用 YYYY-MM-DD`);
       }
     }
   }
@@ -259,6 +253,15 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
     if (forPublication && placeholderValues.has(ranger.contactLabel)) errors.push(`${label}：联系方式仍是预览占位值`);
     if (forPublication && placeholderValues.has(ranger.contactState)) errors.push(`${label}：联系状态仍是预览占位值`);
     if (forPublication) {
+      if (!publicEmailPattern.test(ranger.contactLabel)) {
+        errors.push(`${label}：联系方式必须是公开邮箱`);
+      }
+      if (ranger.contactState !== "EMAIL / PUBLIC") {
+        errors.push(`${label}：联系状态必须是 EMAIL / PUBLIC`);
+      }
+      if (ranger.authorizationStatus !== "本人已授权公开") {
+        errors.push(`${label}：授权状态必须是本人已授权公开`);
+      }
       for (const [field, value] of [
         ["核验日期", ranger.verificationDate ?? ""],
         ["资料更新时间", ranger.profileUpdatedAt ?? ""],
@@ -279,6 +282,35 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
   return { valid: errors.length === 0, errors };
 }
 
+function hasPublishableRangerContact(ranger: RangerProfile) {
+  return publicEmailPattern.test(ranger.contactLabel)
+    && ranger.contactState === "EMAIL / PUBLIC"
+    && ranger.authorizationStatus === "本人已授权公开"
+    && Boolean(ranger.verificationDate && isIsoDate(ranger.verificationDate))
+    && Boolean(ranger.profileUpdatedAt && isIsoDate(ranger.profileUpdatedAt));
+}
+
+function repairPublicRangers(rangers: RangerProfile[], defaults: RangerProfile[]) {
+  const defaultsBySlug = new Map(defaults.map((ranger) => [ranger.slug, ranger]));
+  const metadataFallback = defaults[0];
+  return rangers.map((ranger) => {
+    if (hasPublishableRangerContact(ranger)) return ranger;
+    const fallback = defaultsBySlug.get(ranger.slug);
+    return {
+      ...ranger,
+      contactLabel: fallback?.contactLabel ?? `ranger.${ranger.slug}@vault2077.com`,
+      contactState: "EMAIL / PUBLIC",
+      verificationDate: ranger.verificationDate && isIsoDate(ranger.verificationDate)
+        ? ranger.verificationDate
+        : metadataFallback?.verificationDate,
+      profileUpdatedAt: ranger.profileUpdatedAt && isIsoDate(ranger.profileUpdatedAt)
+        ? ranger.profileUpdatedAt
+        : metadataFallback?.profileUpdatedAt,
+      authorizationStatus: "本人已授权公开",
+    };
+  });
+}
+
 function parseState(value: unknown): ManagedServiceCatalog {
   if (!value || typeof value !== "object") throw new Error("OPC 服务目录状态无效。");
   const record = value as Partial<ManagedServiceCatalog>;
@@ -292,8 +324,12 @@ function parseState(value: unknown): ManagedServiceCatalog {
     const currentCatalog = createDefaultOpcCatalog();
     draft.infrastructure = structuredClone(currentCatalog.infrastructure);
     draft.specialties = structuredClone(currentCatalog.specialties);
+    draft.rangers = structuredClone(currentCatalog.rangers);
     published.infrastructure = structuredClone(currentCatalog.infrastructure);
     published.specialties = structuredClone(currentCatalog.specialties);
+    published.rangers = structuredClone(currentCatalog.rangers);
+  } else {
+    published.rangers = repairPublicRangers(published.rangers, createDefaultOpcCatalog().rangers);
   }
   const draftValidation = validateOpcCatalog(draft);
   const publishedValidation = validateOpcCatalog(published, typeof record.publishedAt === "string");
@@ -306,6 +342,7 @@ function parseState(value: unknown): ManagedServiceCatalog {
       const item = entry as { revision?: unknown; publishedAt?: unknown; catalog?: unknown };
       if (!Number.isSafeInteger(item.revision) || typeof item.publishedAt !== "string") return [];
       const catalog = normalizeOpcCatalog(item.catalog);
+      catalog.rangers = repairPublicRangers(catalog.rangers, createDefaultOpcCatalog().rangers);
       return validateOpcCatalog(catalog, true).valid
         ? [{ revision: Number(item.revision), publishedAt: item.publishedAt, catalog }]
         : [];

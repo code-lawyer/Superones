@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -121,6 +121,7 @@ test("OPC metadata contrast and shared touch targets stay accessible", async () 
 
 test("OPC ranger portraits use compact modern formats with a PNG fallback", async () => {
   const styles = await readOpcStyles();
+  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
   const avif = await stat(path.join(root, "public", "opc", "ranger-portraits-v1.avif"));
   const webp = await stat(path.join(root, "public", "opc", "ranger-portraits-v1.webp"));
 
@@ -128,4 +129,60 @@ test("OPC ranger portraits use compact modern formats with a PNG fallback", asyn
   assert.ok(avif.size < 100_000);
   assert.ok(webp.size < 100_000);
   assert.doesNotMatch(styles, /transition:[^;]*(?:padding-left|padding-bottom)/);
+  assert.match(workspace, /opc-ranger-portrait__copy/);
+});
+
+test("OPC ranger profiles use the public dossier composition at every breakpoint", async () => {
+  const styles = await readOpcStyles();
+  const profile = await readFile(path.join(root, "app", "opc", "rangers", "[slug]", "page.tsx"), "utf8");
+
+  assert.match(profile, /opc-ranger-dossier__spine/);
+  assert.match(profile, /opc-ranger-dossier__ledger/);
+  assert.match(profile, /opc-ranger-dossier__contact/);
+  assert.match(profile, /mailto:\$\{profile\.contactLabel\}/);
+  assert.match(profile, /<h2 className="mono">EXPERTISE \/ 专业方向<\/h2>/);
+  assert.match(profile, /<h2 className="mono">PUBLIC RECORD \/ 公开记录<\/h2>/);
+  assert.match(profile, /<h2>直接联系专家本人<\/h2>/);
+  assert.doesNotMatch(profile, /opc-ranger-profile-page|authorizationStatus|contactState/);
+  assert.match(styles, /\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-columns:\s*var\(--dossier-spine\)/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-columns:\s*var\(--dossier-spine\) minmax\(0, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.opc-ranger-dossier\s*\{[\s\S]*?--dossier-spine:\s*44px/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.opc-ranger-dossier__contact-action a i\s*\{[\s\S]*?transition:\s*none/);
+  assert.doesNotMatch(styles, /\.opc-ranger-profile-page/);
+});
+
+test("OPC uses one workspace and has no duplicate public register pages", async () => {
+  const [home, profile, styles] = await Promise.all([
+    readFile(path.join(root, "app", "page.tsx"), "utf8"),
+    readFile(path.join(root, "app", "opc", "rangers", "[slug]", "page.tsx"), "utf8"),
+    readOpcStyles(),
+  ]);
+  const removedFiles = [
+    path.join(root, "app", "opc", "infrastructure", "page.tsx"),
+    path.join(root, "app", "opc", "specialties", "page.tsx"),
+    path.join(root, "app", "opc", "rangers", "page.tsx"),
+    path.join(root, "components", "opc-service-records.tsx"),
+    path.join(root, "components", "opc-ranger-directory.tsx"),
+  ];
+
+  assert.match(home, /href: "\/opc\?view=infrastructure"/);
+  assert.match(home, /href: "\/opc\?view=specialties"/);
+  assert.match(home, /href: "\/opc\?view=rangers"/);
+  assert.doesNotMatch(home, /\/opc\/(?:infrastructure|specialties|rangers)"/);
+  assert.match(profile, /href="\/opc\?view=rangers"/);
+  assert.doesNotMatch(styles, /\.opc-(?:catalog-page|records?|domain-index|specialty-domain|ranger-directory|ranger-record|ranger-index|ranger-group)/);
+  await Promise.all(removedFiles.map((file) => assert.rejects(access(file))));
+});
+
+test("OPC service catalog contains no review or effective-date fields", async () => {
+  const [workspace, admin, catalog, managed] = await Promise.all([
+    readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8"),
+    readFile(path.join(root, "components", "admin-opc-catalog-editor.tsx"), "utf8"),
+    readFile(path.join(root, "lib", "opc-catalog.ts"), "utf8"),
+    readFile(path.join(root, "lib", "managed-service-catalog.ts"), "utf8"),
+  ]);
+  const surface = [workspace, admin, catalog, managed].join("\n");
+
+  assert.doesNotMatch(surface, /REVIEW \/ 专业复核|复核与生效|reviewNote|effectiveAt|专业复核说明|修订生效时间/);
+  assert.doesNotMatch(workspace, /service\.status/);
 });

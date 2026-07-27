@@ -25,8 +25,6 @@ const serviceFields = [
   ["period", "周期"],
   ["revision", "修订版本"],
   ["status", "当前状态"],
-  ["effectiveAt", "生效时间"],
-  ["reviewNote", "专业复核说明"],
   ["riskNotice", "风险提示"],
   ["contactLabel", "联系入口"],
 ];
@@ -86,12 +84,12 @@ for (const item of catalog.specialties) {
   lines.push(`### ${item.code}｜${item.name}`, "", `所属分类：${item.domain} / ${item.group}`, "", fieldTable(item, serviceFields), "");
 }
 
-lines.push("## 四、专家档案", "", "> 当前专家档案均为预览档案；联系方式、核验信息和授权信息如显示“未填写”，表示当前目录没有提供该字段值。", "");
+lines.push("## 四、专家档案", "", "> 当前专家档案均已提供公开邮箱、核验信息和本人公开授权状态。", "");
 for (const item of catalog.rangers) {
   lines.push(`### ${item.publicName || item.slug}`, "", fieldTable(item, rangerFields), "");
 }
 
-lines.push("## 五、当前目录字段说明", "", "服务项目的核心字段包括：项目名称、分类、预期结果、适用对象、服务内容、交付结果、所需材料、交付角色与分工、验收标准、服务边界、定价、费用说明、周期、修订版本、状态、生效时间、专业复核说明、风险提示和联系入口。", "", "专家档案的核心字段包括：档案标识、公开名称、专家身份、简介、专业标签、资质或公开经历、联系入口、联系状态、核验日期、资料更新时间和授权状态。", "");
+lines.push("## 五、当前目录字段说明", "", "服务项目的核心字段包括：项目名称、分类、预期结果、适用对象、服务内容、交付结果、所需材料、交付角色与分工、验收标准、服务边界、定价、费用说明、周期、修订版本、状态、风险提示和联系入口。", "", "专家档案的核心字段包括：档案标识、公开名称、专家身份、简介、专业标签、资质或公开经历、联系入口、联系状态、核验日期、资料更新时间和授权状态。", "");
 
 await writeFile(outputPath, `${lines.join("\n")}\n`, "utf8");
 console.log(`已生成：${outputPath.pathname}`);

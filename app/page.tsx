@@ -17,19 +17,19 @@ export default async function HomePage() {
   const frontierSeason = seasonForDate(new Date());
   const opcEntries = [
     {
-      href: "/opc/infrastructure",
+      href: "/opc?view=infrastructure",
       code: `${infrastructureServices.length} INFRASTRUCTURES`,
       name: "基础设施",
       summary: "把跨领域经营能力建设成可运行的完整交付。",
     },
     {
-      href: "/opc/specialties",
+      href: "/opc?view=specialties",
       code: `${specialtyServices.length} SPECIALTIES`,
       name: "专项服务",
       summary: "按六个专业领域解决一个边界清楚的问题。",
     },
     {
-      href: "/opc/rangers",
+      href: "/opc?view=rangers",
       code: `${rangerProfiles.length} RANGER IDENTITIES`,
       name: "游骑兵协会",
       summary: "直接联系经基本核验的外部独立顾问。",

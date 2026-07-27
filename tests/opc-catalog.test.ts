@@ -6,6 +6,7 @@ import {
   rangerIdentities,
   specialtyDomains,
   specialtyServices,
+  rangerProfiles,
 } from "../lib/opc-catalog.ts";
 
 test("OPC catalog initializes the seven first-version infrastructure SKUs", () => {
@@ -72,4 +73,14 @@ test("Every first-version OPC SKU is page-ready and uses an explicit RMB price",
 test("OPC specialty and ranger taxonomies remain separate", () => {
   assert.equal(rangerIdentities.length, 10);
   assert.ok(rangerIdentities.every((identity) => !specialtyDomains.includes(identity as never)));
+});
+
+test("Every listed ranger has an authorized public email", () => {
+  for (const ranger of rangerProfiles) {
+    assert.match(ranger.contactLabel, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+    assert.equal(ranger.contactState, "EMAIL / PUBLIC");
+    assert.equal(ranger.authorizationStatus, "本人已授权公开");
+    assert.match(ranger.verificationDate ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(ranger.profileUpdatedAt ?? "", /^\d{4}-\d{2}-\d{2}$/);
+  }
 });
