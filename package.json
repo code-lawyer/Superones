@@ -10,6 +10,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "docs:check": "node scripts/check-docs.mjs",
     "test": "node --test --conditions=react-server --experimental-strip-types tests/*.test.ts",
@@ -19,6 +20,8 @@
     "db:migrate": "node scripts/migrate-database.mjs",
     "test:postgres:integration": "node --conditions=react-server --experimental-strip-types scripts/test-postgres-integration.ts",
     "admin:hash-password": "node scripts/hash-admin-password.mjs",
+    "opc:sync-seed": "node --conditions=react-server --experimental-strip-types scripts/sync-opc-seed.ts",
+    "opc:build-default-seed": "node --experimental-strip-types scripts/build-opc-default-seed.ts",
     "deploy:check": "node --conditions=react-server --experimental-strip-types scripts/check-production-config.ts",
     "frontier:tick": "node --conditions=react-server --experimental-strip-types scripts/run-frontier-tick.ts",
     "dev:check": "node scripts/check-dev-server.mjs",
@@ -27,6 +30,7 @@
     "sources:audit": "node scripts/audit-source-registry.mjs",
     "sources:bundle": "node scripts/build-source-bundle.mjs",
     "acquisition:collect": "node --conditions=react-server --experimental-strip-types scripts/collect-unified-acquisition.ts",
+    "acquisition:work": "node --conditions=react-server --experimental-strip-types scripts/run-acquisition-worker.ts",
     "pipeline:local": "node scripts/run-local-full-pipeline.mjs"
   },
   "dependencies": {
@@ -43,6 +47,8 @@
     "@types/pg": "^8.20.0",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.11",
     "typescript": "5.9.3"
   },
   "overrides": {

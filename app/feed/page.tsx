@@ -7,7 +7,7 @@ import { PageIntro } from "@/components/page-intro";
 import { RoadsideList } from "@/components/statement-list";
 import { siteStatus } from "@/lib/data";
 import { beijingTime, compareEventsNewest, compareInformationNewest } from "@/lib/feed-format";
-import { getPublicContent } from "@/lib/public-content";
+import { getCachedPublicContent } from "@/lib/public-read-cache";
 
 export const metadata: Metadata = { title: "Vault 信息流" };
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ function feedHref(state: FeedState, override: Partial<FeedState>) {
 }
 
 export default async function FeedPage({ searchParams }: { searchParams: Promise<FeedSearchParams> }) {
-  const [content, params] = await Promise.all([getPublicContent(), searchParams]);
+  const [content, params] = await Promise.all([getCachedPublicContent(), searchParams]);
   const state: FeedState = {
     waterfallLimit: positiveLimit(valueOf(params.waterfall), WATERFALL_LIMIT),
     roadsideLimit: positiveLimit(valueOf(params.roadside ?? params.statements), STATEMENT_LIMIT),

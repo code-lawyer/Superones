@@ -21,15 +21,15 @@ export function OpcServiceRecords({ items, variant = "light", compact = false }:
         const href = `/opc?view=${view}&service=${encodeURIComponent(service.slug)}`;
 
         return (
-          <article className="opc-record" key={service.code}>
+          <Link className="opc-record" href={href} key={service.code}>
             <p className="opc-record__id mono"><span>{service.code}</span><span>{service.domain}</span></p>
             <div className="opc-record__main">
-              <h3><Link href={href}><span>{service.name}</span></Link></h3>
+              <h3><span>{service.name}</span></h3>
               <p>{service.outcome}</p>
             </div>
             <strong className="opc-record__price">{service.price}</strong>
             <p className="opc-record__meta mono"><span>{service.period}</span><span>{service.revision}</span></p>
-          </article>
+          </Link>
         );
       })}
     </div>

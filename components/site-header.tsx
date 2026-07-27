@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const navItems = [
   { href: "/feed", code: "INTEL", label: "信息流" },
@@ -13,9 +13,8 @@ const navItems = [
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => setOpen(false), [pathname]);
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const open = openPath === pathname;
 
   return (
     <header className="site-header">
@@ -28,7 +27,7 @@ export function SiteHeader() {
           type="button"
           aria-expanded={open}
           aria-controls="primary-navigation"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => setOpenPath(open ? null : pathname)}
         >
           {open ? "关闭" : "菜单"}
         </button>
@@ -36,7 +35,13 @@ export function SiteHeader() {
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
-              <Link key={item.href} className={active ? "nav-link is-active" : "nav-link"} href={item.href} aria-current={active ? "page" : undefined}>
+              <Link
+                key={item.href}
+                className={active ? "nav-link is-active" : "nav-link"}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                onClick={() => setOpenPath(null)}
+              >
                 <span className="nav-code mono">{item.code}</span><span>{item.label}</span>
               </Link>
             );

@@ -76,8 +76,9 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 ### 3.2 签名与防重放
 
-采集器对原始请求体使用共享密钥签名。境内 `POST /api/internal/acquisition` 必须验证：
+统一 Node 交付模块对原始请求体使用版本化 HMAC 密钥签名，并携带 `X-Vault2077-Key-Id`。境内 `POST /api/internal/acquisition` 必须验证：
 
+- key ID 属于当前部署密钥环；
 - 签名与常量时间比较；
 - 时间戳允许窗口；
 - `batchId` 幂等；
@@ -85,7 +86,9 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 - `sourceBundleRevision` 在部署白名单内；
 - 请求大小、记录数量、URL 与字段长度限制。
 
-验证失败不得写入正式 inbox。处理入口 `POST /api/internal/acquisition/process` 使用独立 worker 密钥或明确配置的同源密钥。
+验证失败不得写入正式 inbox。接收成功只表示批次已持久化，必须立即返回，不得在该请求内调用编辑模型。境外 workflow 对网络错误、`408/425/429` 和 `5xx` 使用同一 `batchId`、同一正文做有界指数退避；`401/409` 等确定性错误不得盲目重试。
+
+生产处理由境内 `vault2077-acquisition-worker.timer` 每五分钟调用 `npm run acquisition:work`。`POST /api/internal/acquisition/process` 只用于回环本地演练和受控紧急诊断，使用独立 worker 密钥，不得经公网 Nginx 暴露，也不得由 GitHub Actions 调用。
 
 旧 `/api/internal/content`、`/api/internal/content/process`、`/api/internal/sic/content`、`/api/internal/sic/snapshot` 已从运行时删除；不得恢复为兼容入口或第二套状态机。
 
@@ -97,7 +100,7 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 失败进入 `retryable` 或 `quarantined`；超过重试预算、schema 不支持、来源修订未知或内容违反硬约束时进入隔离。状态转换、尝试次数、错误分类和时间必须持久化并可审计。
 
-同一时刻生产环境只允许一个发布写者处理 inbox。worker 在发布完成后原子提交业务写模型与批次状态，防止页面看见半批结果。
+同一时刻生产环境只允许一个发布写者处理 inbox。systemd 不并发启动同一 oneshot；PostgreSQL `SKIP LOCKED` 仍作为租约与恢复保护。worker 在发布完成后原子提交业务写模型与批次状态，防止页面看见半批结果。
 
 ## 5. 内容与榜单处理
 
@@ -148,6 +151,7 @@ Redis 仅在需要分布式锁、缓存或队列吞吐时加入；对象存储�
 ## 7. 公开站与后台
 
 - 公开路由不得读取原始采集包、错误堆栈或密钥。
+- 公网反向代理在内部命名空间只允许精确的 `POST /api/internal/acquisition` 与只读 `GET /api/internal/frontier/tasks`；前者写入签名批次，后者使用独立密钥返回已脱敏公开任务。两者在边缘限制方法与速率，其余 `/api/internal/*` 返回 `404`。Node 端口不得暴露公网。
 - `/pipeline` 必须限制为本地或认证后台诊断，不进入 sitemap、公开导航或搜索索引。
 - 生产错误不得静默回退到演示数据；公开页面显示可理解的降级状态。
 - 生产后台只接受独立管理来源上的身份网关签名 JWT；应用必须校验发行者、受众、时效和身份白名单。本地密码适配器在生产关闭。
@@ -159,9 +163,9 @@ Redis 仅在需要分布式锁、缓存或队列吞吐时加入；对象存储�
 
 ## 8. 安全与可靠性
 
-- 设置 CSP、HSTS、`X-Content-Type-Options`、Referrer Policy 与最小权限 CORS。
+- 页面使用逐请求 nonce CSP，生产 `script-src` 不允许 `unsafe-inline`；同时设置 HSTS、`X-Content-Type-Options`、Referrer Policy 与最小权限 CORS。
 - 所有外部输入做 schema、长度、URL、字符集与数量限制。
-- 密钥只来自部署秘密，不进入日志、构建产物或客户端。
+- 密钥只来自部署秘密，不进入日志、构建产物或客户端。管线签名与敏感数据必须使用带活动 key ID 的有限密钥环；轮换期间最多保留必要的新旧密钥，不得复用到其他用途。
 - 采集器和处理端分别有超时、限流、指数退避与最大尝试次数。
 - 内容处理必须采用有界 worker 并按编辑配置分别控制并发与每周期预算；批次到达只增加队列任务，不得按记录数无界启动模型请求。
 - 监控至少覆盖：通道新鲜度、批次拒绝、每个编辑配置的处理积压/并发/预算/切换状态、隔离量、发布延迟、边境任务延迟、备份与恢复演练。
@@ -172,6 +176,7 @@ Redis 仅在需要分布式锁、缓存或队列吞吐时加入；对象存储�
 每次候选发布必须提供：
 
 - `npm run docs:check`
+- `npm run lint` 与 `ruff check collector`
 - `npm run typecheck`
 - 单元测试和采集器测试
 - 生产构建

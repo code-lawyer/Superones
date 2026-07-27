@@ -41,6 +41,7 @@ function signedHeaders(secret, batchId, rawPayload, timestamp) {
   return {
     "content-type": "application/json",
     "x-vault2077-batch-id": batchId,
+    "x-vault2077-key-id": "e2e",
     "x-vault2077-timestamp": timestamp,
     "x-vault2077-signature": `sha256=${signature}`,
   };
@@ -61,7 +62,9 @@ const site = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
     ...process.env,
       VAULT2077_DATA_DIR: dataDirectory,
       VAULT2077_ALLOW_FILE_PREVIEW: "true",
-      VAULT2077_PIPELINE_SHARED_SECRET: secret,
+      VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ e2e: secret }),
+      VAULT2077_PIPELINE_ACTIVE_KEY_ID: "e2e",
+      VAULT2077_AUDIT_HASH_SECRET: secret,
       VAULT2077_ALLOWED_SOURCE_REVISIONS: "sources:http-e2e",
   },
   stdio: ["ignore", "pipe", "pipe"],

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import {
   adminAccessErrorResponse,
   authenticateAdminRequest,
@@ -6,6 +7,7 @@ import {
   configuredAdminReauthenticationUrl,
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
+import { PUBLISHED_SERVICE_CATALOG_CACHE_TAG } from "@/lib/cache-tags";
 import {
   publishServiceCatalog,
   readManagedServiceCatalog,
@@ -87,6 +89,9 @@ export async function POST(request: NextRequest) {
     const result = action === "publish"
       ? await publishServiceCatalog(body.catalog, Number(body.expectedRevision))
       : await saveServiceCatalogDraft(body.catalog, Number(body.expectedRevision));
+    if (action === "publish") {
+      revalidateTag(PUBLISHED_SERVICE_CATALOG_CACHE_TAG, { expire: 0 });
+    }
     await recordAuditEvent({
       actorHash,
       action: `admin.opc.${action}`,

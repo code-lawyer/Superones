@@ -1,10 +1,13 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { clearFieldError, focusFirstInvalidField, isValidEmail } from "@/lib/client-form-validation";
 import { FrontierDialog } from "../frontier-dialog";
 import { RulesContent } from "../frontier-copy";
 
 type Step = "form" | "challenge" | "verified";
+type SubmitField = "repo" | "email" | "note";
+type SubmitFieldErrors = Partial<Record<SubmitField, string>>;
 
 type ChallengeResponse = {
   alreadyVerified?: boolean;
@@ -30,12 +33,35 @@ export function SubmitForm() {
   const [challenge, setChallenge] = useState<ChallengeResponse | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<SubmitFieldErrors>({});
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const nextErrors: SubmitFieldErrors = {};
+    try {
+      const repositoryUrl = new URL(repo);
+      if (repositoryUrl.protocol !== "https:" || repositoryUrl.hostname !== "github.com" || repositoryUrl.pathname.split("/").filter(Boolean).length < 2) {
+        nextErrors.repo = "请输入公开 GitHub 仓库的完整 HTTPS 地址。";
+      }
+    } catch {
+      nextErrors.repo = "请输入有效的 GitHub 仓库地址。";
+    }
+    if (!isValidEmail(email)) {
+      nextErrors.email = "请输入可接收资格确认通知的有效邮箱。";
+    }
+    if (note.trim().length < 6) {
+      nextErrors.note = "请至少用 6 个字符说明你正在创造什么。";
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      focusFirstInvalidField(["repo", "email", "note"], nextErrors);
+      return;
+    }
+
     setPending(true);
     setError("");
+    setFieldErrors({});
     try {
       const response = await fetch("/api/frontier/challenge", {
         method: "POST",
@@ -80,6 +106,7 @@ export function SubmitForm() {
     setChallenge(null);
     setRulesAccepted(false);
     setError("");
+    setFieldErrors({});
   }
 
   if (step === "verified" && challenge) {
@@ -117,16 +144,63 @@ export function SubmitForm() {
     <form className="submission-form" onSubmit={handleSubmit} noValidate>
       <div className="form-field">
         <label htmlFor="repo">公开 GitHub 仓库地址</label>
-        <input id="repo" name="repo" type="url" placeholder="https://github.com/owner/repository" value={repo} onChange={(event) => setRepo(event.target.value)} disabled={pending} required />
+        <input
+          id="repo"
+          name="repo"
+          type="url"
+          placeholder="https://github.com/owner/repository"
+          value={repo}
+          onChange={(event) => {
+            setRepo(event.target.value);
+            setFieldErrors((current) => clearFieldError(current, "repo"));
+          }}
+          disabled={pending}
+          required
+          aria-invalid={fieldErrors.repo ? true : undefined}
+          aria-describedby={fieldErrors.repo ? "repo-error" : undefined}
+        />
+        {fieldErrors.repo ? <p className="form-error" id="repo-error">{fieldErrors.repo}</p> : null}
       </div>
       <div className="form-field">
         <label htmlFor="email">联系邮箱</label>
-        <input id="email" name="email" type="email" placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} disabled={pending} required />
-        <p>仅用于资格确认、获奖通知和奖品发放，不会公开。</p>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="name@example.com"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setFieldErrors((current) => clearFieldError(current, "email"));
+          }}
+          disabled={pending}
+          required
+          aria-invalid={fieldErrors.email ? true : undefined}
+          aria-describedby={fieldErrors.email ? "email-hint email-error" : "email-hint"}
+        />
+        <p id="email-hint">仅用于资格确认、获奖通知和奖品发放，不会公开。</p>
+        {fieldErrors.email ? <p className="form-error" id="email-error">{fieldErrors.email}</p> : null}
       </div>
       <div className="form-field">
         <label htmlFor="note">项目说明</label>
-        <textarea id="note" name="note" rows={4} minLength={6} maxLength={180} placeholder="用一句话说明你正在创造什么。" value={note} onChange={(event) => setNote(event.target.value)} disabled={pending} required />
+        <textarea
+          id="note"
+          name="note"
+          rows={4}
+          minLength={6}
+          maxLength={180}
+          placeholder="用一句话说明你正在创造什么。"
+          value={note}
+          onChange={(event) => {
+            setNote(event.target.value);
+            setFieldErrors((current) => clearFieldError(current, "note"));
+          }}
+          disabled={pending}
+          required
+          aria-invalid={fieldErrors.note ? true : undefined}
+          aria-describedby={fieldErrors.note ? "note-error" : undefined}
+        />
+        {fieldErrors.note ? <p className="form-error" id="note-error">{fieldErrors.note}</p> : null}
       </div>
       <div className="rules-consent">
         <FrontierDialog trigger="查看完整参赛规则" title="边境计划参赛规则" eyebrow="FRONTIER / RULES"><RulesContent /></FrontierDialog>

@@ -1,0 +1,29 @@
+[Unit]
+Description=Vault2077 domestic acquisition inbox worker
+After=network-online.target postgresql.service vault2077-web.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vault2077
+Group=vault2077
+WorkingDirectory=/srv/vault2077/current
+EnvironmentFile=/etc/vault2077/production.env
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=512
+Nice=5
+CPUWeight=50
+ExecStart=/usr/bin/npm run acquisition:work
+TimeoutStartSec=3300
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

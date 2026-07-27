@@ -4,7 +4,8 @@ import {
   configuredAcquisitionReceiver,
 } from "@/lib/acquisition-inbox";
 import { MAX_ACQUISITION_BATCH_BYTES } from "@/lib/acquisition-contract";
-import { withinRateLimit } from "@/lib/rate-limit";
+import { withinDurableRateLimit } from "@/lib/rate-limit";
+import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
 export const runtime = "nodejs";
 
@@ -39,8 +40,8 @@ async function readBoundedBody(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (!withinRateLimit(`acquisition:inbound:${ip}`, 120, 60 * 60 * 1000)) {
+  const clientHash = anonymizeClientAddress(requestClientAddress(request));
+  if (!(await withinDurableRateLimit(`acquisition:inbound:${clientHash}`, 120, 60 * 60 * 1000))) {
     return NextResponse.json(
       { error: "统一采集请求过于频繁。", code: "RATE_LIMITED" },
       { status: 429 },
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
   try {
     const result = await configuredAcquisitionReceiver().receive({
       batchId: request.headers.get("x-vault2077-batch-id") ?? "",
+      keyId: request.headers.get("x-vault2077-key-id"),
       timestamp: request.headers.get("x-vault2077-timestamp") ?? "",
       signature: request.headers.get("x-vault2077-signature"),
       rawPayload: await readBoundedBody(request),

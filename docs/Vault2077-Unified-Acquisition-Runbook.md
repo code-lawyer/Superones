@@ -44,8 +44,10 @@ updated: 2026-07-25
 
 ```powershell
 npm.cmd run docs:check
+npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd test
+ruff check collector
 python -m unittest discover -s collector/tests -p "test_*.py"
 npm.cmd run build
 npm.cmd run test:acquisition:e2e
@@ -69,23 +71,33 @@ npm.cmd run acquisition:collect
 
 可选 lane 为 `information`、`roadside`、`sic`、`rankings`。手动运行必须使用唯一 schedule ID；生产投递还需要接收 URL 和签名密钥。
 
+境内手动消费只在回环终端执行：
+
+```powershell
+npm.cmd run acquisition:work
+```
+
+日常生产由 `vault2077-acquisition-worker.timer` 每五分钟执行该命令，不由 GitHub Actions 远程触发。
+
 ## 4. 发布配置
 
 采集侧至少配置：
 
 - `VAULT2077_DOMESTIC_ACQUISITION_URL`
-- `VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL`
-- `VAULT2077_PIPELINE_SHARED_SECRET`
-- `VAULT2077_PIPELINE_WORKER_SECRET`
+- `VAULT2077_PIPELINE_SIGNING_KEYS`
+- `VAULT2077_PIPELINE_ACTIVE_KEY_ID`
+- `VAULT2077_DELIVERY_ATTEMPTS=4`
+- `VAULT2077_DELIVERY_TIMEOUT_MS=60000`
+- `VAULT2077_DELIVERY_RETRY_BASE_MS=1000`
 - `VAULT2077_REQUIRE_DOMESTIC_DELIVERY=true`
 
-境内侧至少配置签名/worker 密钥、来源 bundle 与允许 revision、生产数据库，以及两个逻辑频道编辑配置：
+GitHub Actions 不配置 worker 或 LLM 密钥。境内侧至少配置完整验签密钥环、独立 worker 密钥、来源 bundle 与允许 revision、生产数据库，以及两个逻辑频道编辑配置：
 
 - `vault_editorial`：处理 information、roadside 及 Vault 事件编排；
 - `sic_editorial`：只处理 sic 内容；
 - `rankings`：不得使用编辑模型。
 
-每个编辑配置分别设置主处理提供方、受控备用、队列并发、每周期预算、超时与熔断阈值。批次按固定时刻错峰进入 inbox，worker 再按配置的有界并发消费；不得把一个批次内的全部记录同时发起模型请求。密钥不得进入仓库、日志或 artifact。
+每个编辑配置分别设置主处理提供方、受控备用、队列并发、每周期预算、超时与熔断阈值。批次按固定时刻错峰进入 inbox，境内 systemd worker 再按配置的有界并发消费；不得把一个批次内的全部记录同时发起模型请求。密钥不得进入仓库、日志或 artifact。
 
 当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和单轮请求预算；生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 可由并发 worker 通过 `SKIP LOCKED` 领取不同批次，两类业务写入不同聚合事务。正式开放前仍须用目标提供方完成容量、切换和长时间积压演练，并保存提供方/模型/Schema 版本审计证据。
 
@@ -95,13 +107,20 @@ Frontier 境内侧另配置只读 GitHub 服务端凭证和 tick 鉴权。交互
 
 ## 5. 成功标准
 
-一次通道运行只有同时满足以下条件才成功：
+成功分为两个独立阶段，不得混为一个长请求。
+
+境外运行成功：
 
 1. 来源解析完成并生成带 `sourceReports` 的批次；
-2. 境内接收成功且 `batchId` 可追踪；
-3. 处理完成或明确进入可重试状态；
-4. 最后成功时间只在完整发布后推进；
-5. artifact 不包含私人资料或密钥。
+2. 同一不可变正文经版本化签名投递，瞬时失败执行有界重试；
+3. 境内返回接收凭据且 `batchId` 可追踪；
+4. artifact 不包含私人资料或密钥。
+
+境内处理成功：
+
+1. timer 领取已持久化批次，处理完成或明确进入可重试/隔离状态；
+2. 最后成功时间只在完整发布后推进；
+3. inbox、worker 退出码和频道新鲜度均未触发告警。
 
 bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记录或有明确的可恢复失败；“来源可访问但日常窗口为空”不算基线完成。
 
@@ -110,10 +129,13 @@ bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记�
 ## 6. 故障处理
 
 - 签名/重放拒绝：核对密钥、原始请求体、时间戳、`batchId` 与时钟，不得放宽验证。
+- 跨境投递失败：确认四次重试使用同一 `batchId` 和正文；检查 DNS/TLS/Nginx 接收日志后用 `workflow_dispatch` 以新 schedule ID 补跑，不得人工改写 artifact 再发送。
+- GitHub 定时漏跑：以境内新鲜度告警为准，人工触发对应 lane；GitHub schedule 不是可靠业务时钟。
 - 未知来源修订：隔离批次，先审核并部署注册表，再重放。
 - 主路由冲突：若同一 endpoint 或同一原始 URL 同时出现在机构新闻与 SiC 档案来源中，阻止部署来源 bundle，先修注册表。
 - 单一来源失败：允许其他来源继续，但按新鲜度告警，不得虚构数据补齐。
 - 处理失败：保留 inbox，以同一 `batchId` 幂等重试，不重新采集制造重复批次。
+- worker 未运行：检查 `vault2077-acquisition-worker.timer`、最近 service 退出码和 journal；恢复 timer 后由 inbox 继续消费，不从境外调用 process route。
 - 单个编辑配置积压：只降低该配置的消费速度或暂停其新任务，保持另一配置继续处理；不得临时把积压任务随机撒到未登记的提供方。
 - 主处理提供方失败：达到既定阈值后切换该配置的受控备用，记录切换原因、起止时间、提供方/模型/提示版本；恢复主提供方前先以非发布探针验证。
 - 预算耗尽或限流：保留队列并延后消费，不降低事实校验、绕过 Schema 或发布未经处理的原始内容。
@@ -127,6 +149,6 @@ bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记�
 
 ## 8. 健康检查
 
-监控服务使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`。检查覆盖数据库迁移与延迟、inbox retryable/quarantined、Vault/SiC 新鲜度、平台榜 stale、Frontier 回退积压和两套编辑配置。返回 `503` 表示至少一项 degraded；告警平台必须保留开始时间、恢复时间和处置记录，不能只以进程存活代替业务健康。
+监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、Vault/SiC 新鲜度、平台榜 stale、Frontier 回退积压和两套编辑配置。返回 `503` 表示至少一项 degraded；告警平台还必须采集两个 systemd timer 的最近成功与失败退出码，不能只以 Web 进程存活代替业务健康。
 
-部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、示例密钥、任何本地后台密码变量、同主机公开/管理入口、不完整身份网关配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；警告不会阻断启动，但必须在发布记录中解释。
+部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、不完整身份网关配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；warning 必须在发布记录中解释。

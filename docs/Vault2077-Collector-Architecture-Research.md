@@ -272,7 +272,7 @@ vault-collector run --bundle sources.json --ingest <url>
 
 ## 5. 对当前 Vault2077 实现的落点
 
-> 实施状态更新（2026-07-22）：本节提出的运行时合并已经完成。`scripts/overseas-collector.mjs` 已删除，当前生产入口只有 `collector/feed_collector.py`；它一次完成采集、规范化、分包、HMAC 签名、发送和失败 artifact 报告。境内 ingest 已改为持久化后返回 `202`，由独立 process route 调用 OpenAI 兼容 LLM。尚未执行的只有把 `collector/` 从当前仓库物理提取为单独 GitHub 仓库，该步骤不影响其独立部署。
+> 实施状态更新（2026-07-25）：Python 模块只负责批准来源的抓取、规范化和原始包输出；`scripts/collect-unified-acquisition.ts` 是唯一签名、有限重试和投递模块。境内 ingest 持久化后返回 `202`，由 `vault2077-acquisition-worker.timer` 独立调用境内 worker；GitHub Actions 不再触发或等待处理。尚未执行的只有把 `collector/` 从当前仓库物理提取为单独 GitHub 仓库，该步骤不影响其独立部署。
 
 实施后的边界为：
 

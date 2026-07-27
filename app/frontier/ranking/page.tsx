@@ -3,14 +3,15 @@ import Link from "next/link";
 import { FrontierRanking } from "@/components/frontier-ranking";
 import { PageIntro } from "@/components/page-intro";
 import { beijingSeasonDate } from "@/lib/frontier-domain";
-import { currentSeason, latestRankingUpdate, listPublicRankings } from "@/lib/frontier-store";
+import { currentSeason } from "@/lib/frontier-store";
+import { getCachedFrontierRanking } from "@/lib/public-read-cache";
 
 export const metadata: Metadata = { title: "边境计划排行榜" };
 export const dynamic = "force-dynamic";
 
 export default async function RankingPage() {
   const season = currentSeason();
-  const [rankings, updatedAt] = await Promise.all([listPublicRankings(season.code), latestRankingUpdate(season.code)]);
+  const { rankings, updatedAt } = await getCachedFrontierRanking(season.code);
   return (
     <>
       <PageIntro code="FRONTIER / RANKING" title="每一颗 Star，都从验证通过后开始计算。" lead="排行榜每小时更新。赛季结算时重新检查仓库资格与挑战文件，再冻结最终结果。" meta={`${season.name} / ${beijingSeasonDate(season.endsAt)} 结算 / 最近更新 ${updatedAt ? new Date(updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "等待首次更新"}`} />

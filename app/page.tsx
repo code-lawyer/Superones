@@ -1,17 +1,16 @@
 import Link from "next/link";
-import { formatNumber, siteStatus } from "@/lib/data";
-import { getDirectRankingBoards } from "@/lib/direct-rankings";
+import { formatNumber } from "@/lib/data";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
 import { infrastructureServices, rangerProfiles, specialtyServices } from "@/lib/opc-catalog";
-import { getPublicContent } from "@/lib/public-content";
+import { getCachedDirectRankingBoards, getCachedPublicContent } from "@/lib/public-read-cache";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [content, rankingBoards] = await Promise.all([
-    getPublicContent(),
-    getDirectRankingBoards().catch(() => []),
+    getCachedPublicContent(),
+    getCachedDirectRankingBoards().catch(() => []),
   ]);
   const githubToday = rankingBoards.find((board) => board.id === "github:today");
   const latestEvents = [...content.events].sort(compareEventsNewest);
@@ -27,7 +26,7 @@ export default async function HomePage() {
       href: "/opc/specialties",
       code: `${specialtyServices.length} SPECIALTIES`,
       name: "专项服务",
-      summary: "按五个专业领域解决一个边界清楚的问题。",
+      summary: "按六个专业领域解决一个边界清楚的问题。",
     },
     {
       href: "/opc/rangers",

@@ -115,14 +115,19 @@ export function AdminConsole() {
   }, []);
 
   useEffect(() => {
-    void Promise.all([
-      fetch("/api/admin/login", { cache: "no-store" })
-        .then((response) => response.json())
-        .then((body: { mode?: AdminLoginMode }) => {
-          if (body.mode === "identity-gateway" || body.mode === "local-password") setLoginMode(body.mode);
-        }),
-      load(),
-    ]).catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。"));
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      void Promise.all([
+        fetch("/api/admin/login", { cache: "no-store" })
+          .then((response) => response.json())
+          .then((body: { mode?: AdminLoginMode }) => {
+            if (body.mode === "identity-gateway" || body.mode === "local-password") setLoginMode(body.mode);
+          }),
+        load(),
+      ]).catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。"));
+    });
+    return () => { active = false; };
   }, [load]);
 
   async function login(event: FormEvent<HTMLFormElement>) {

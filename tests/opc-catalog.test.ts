@@ -1,29 +1,75 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  allOpcServices,
   infrastructureServices,
   rangerIdentities,
   specialtyDomains,
+  specialtyServices,
 } from "../lib/opc-catalog.ts";
 
-test("OPC catalog initializes the ten approved infrastructure baseline names", () => {
+test("OPC catalog initializes the seven first-version infrastructure SKUs", () => {
   assert.deepEqual(infrastructureServices.map((service) => service.name), [
-    "主体设立与基础合规",
-    "合同与交易基础",
-    "财税核算基础",
-    "用工与协作基础",
-    "知识产权基础",
-    "数据与隐私基础",
-    "品牌与内容资产基础",
-    "产品交付基础",
-    "软件与自动化基础",
-    "AI 应用治理基础",
+    "经营主体启动与首年治理",
+    "财税与经营资金运行",
+    "合同、交易与回款运行",
+    "线上经营与平台准入",
+    "用工与外部协作运行",
+    "知识产权与数字资产运行",
+    "数据、隐私与信息安全运行",
   ]);
-  assert.equal(new Set(infrastructureServices.map((service) => service.slug)).size, 10);
+  assert.equal(new Set(infrastructureServices.map((service) => service.slug)).size, 7);
+  assert.deepEqual(
+    infrastructureServices.reduce<Record<string, number>>((groups, service) => {
+      groups[service.group] = (groups[service.group] ?? 0) + 1;
+      return groups;
+    }, {}),
+    {
+      "启动经营": 2,
+      "上线与交付": 2,
+      "持续安全运行": 3,
+    },
+  );
+});
+
+test("OPC first-version specialty catalog contains fourteen SKUs across six domains", () => {
+  assert.equal(specialtyDomains.length, 6);
+  assert.equal(specialtyServices.length, 14);
+  assert.deepEqual(
+    specialtyServices.reduce<Record<string, number>>((domains, service) => {
+      domains[service.domain] = (domains[service.domain] ?? 0) + 1;
+      return domains;
+    }, {}),
+    {
+      "法律与经营风险": 3,
+      "财税与现金流": 3,
+      "品牌与线上获客": 2,
+      "AI与企业数字化": 2,
+      "用工与协作者": 1,
+      "知识产权与产品商业化": 3,
+    },
+  );
+});
+
+test("Every first-version OPC SKU is page-ready and uses an explicit RMB price", () => {
+  assert.equal(allOpcServices.length, 21);
+  assert.equal(new Set(allOpcServices.map((service) => service.slug)).size, 21);
+  for (const service of allOpcServices) {
+    assert.match(service.price, /^人民币 [\d,]+ 元(?:\/年)?$/);
+    assert.ok(service.outcome.trim());
+    assert.ok(service.audience.trim());
+    assert.ok(service.includes.length > 0);
+    assert.ok(service.deliverables.length > 0);
+    assert.ok(service.materials.length > 0);
+    assert.ok((service.deliveryRoles?.length ?? 0) > 0);
+    assert.ok((service.acceptance?.length ?? 0) > 0);
+    assert.ok(service.boundary.trim());
+    assert.ok(service.feeNote?.trim());
+    assert.ok(service.period.trim());
+  }
 });
 
 test("OPC specialty and ranger taxonomies remain separate", () => {
-  assert.equal(specialtyDomains.length, 5);
   assert.equal(rangerIdentities.length, 10);
   assert.ok(rangerIdentities.every((identity) => !specialtyDomains.includes(identity as never)));
 });

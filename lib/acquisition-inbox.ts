@@ -16,6 +16,7 @@ import {
   type AcquisitionRecordKind,
   type AcquisitionRunMode,
 } from "./acquisition-contract.ts";
+import { pipelineSigningKeyring } from "./secret-keyring.ts";
 import { configuredPostgresPool, persistenceMode } from "./state-document-store.ts";
 
 export const ACQUISITION_INBOX_STATUSES = [
@@ -31,6 +32,7 @@ export type AcquisitionFailureDisposition = "retryable" | "quarantined";
 
 export type AcquisitionSubmission = {
   batchId: string;
+  keyId?: string | null;
   timestamp: string;
   signature: string | null;
   rawPayload: string;
@@ -99,7 +101,8 @@ export class AcquisitionReceiveError extends Error {
 
 export type AcquisitionReceiverOptions = {
   inboxDirectory: string;
-  sharedSecret: string;
+  signingKeys?: ReadonlyMap<string, string>;
+  sharedSecret?: string;
   now?: () => Date;
   maxClockSkewMs?: number;
   processingLeaseMs?: number;
@@ -142,8 +145,31 @@ function receipt(record: AcquisitionInboxRecord, duplicate: boolean): Acquisitio
   };
 }
 
-function signatureMatches(secret: string, input: string, supplied: string | null) {
+function configuredSigningKeys(options: Pick<AcquisitionReceiverOptions, "signingKeys" | "sharedSecret">) {
+  if (options.signingKeys?.size) {
+    for (const [keyId, secret] of options.signingKeys) {
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(keyId) || Buffer.byteLength(secret, "utf8") < 32) {
+        throw new Error("统一采集签名密钥环无效。");
+      }
+    }
+    return options.signingKeys;
+  }
+  if (options.sharedSecret && Buffer.byteLength(options.sharedSecret, "utf8") >= 32) {
+    return new Map([["legacy", options.sharedSecret]]);
+  }
+  throw new Error("统一采集签名密钥至少需要 32 字节。");
+}
+
+function signatureMatches(
+  signingKeys: ReadonlyMap<string, string>,
+  keyId: string | null | undefined,
+  input: string,
+  supplied: string | null,
+) {
   if (!supplied || !/^sha256=[A-Za-z0-9_-]{43}$/.test(supplied)) return false;
+  const selectedKeyId = keyId || (signingKeys.size === 1 && signingKeys.has("legacy") ? "legacy" : "");
+  const secret = signingKeys.get(selectedKeyId);
+  if (!secret) return false;
   const expected = `sha256=${createHmac("sha256", secret).update(input).digest("base64url")}`;
   const left = Buffer.from(supplied);
   const right = Buffer.from(expected);
@@ -240,9 +266,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
   if (!path.isAbsolute(options.inboxDirectory)) {
     throw new Error("acquisition inboxDirectory 必须是绝对路径。");
   }
-  if (Buffer.byteLength(options.sharedSecret, "utf8") < 32) {
-    throw new Error("统一采集共享密钥至少需要 32 字节。");
-  }
+  const signingKeys = configuredSigningKeys(options);
   const clock = options.now ?? (() => new Date());
   const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
   const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
@@ -268,7 +292,8 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
     timestampSeconds(submission.timestamp, now, maxClockSkewMs);
     const bodyHash = payloadHash(submission.rawPayload);
     if (!signatureMatches(
-      options.sharedSecret,
+      signingKeys,
+      submission.keyId,
       signingInput(submission.timestamp, submission.batchId, bodyHash),
       submission.signature,
     )) {
@@ -472,9 +497,7 @@ function postgresRecord(value: Record<string, unknown>): AcquisitionInboxRecord 
 }
 
 export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionReceiverOptions) {
-  if (Buffer.byteLength(options.sharedSecret, "utf8") < 32) {
-    throw new Error("统一采集共享密钥至少需要 32 字节。");
-  }
+  const signingKeys = configuredSigningKeys(options);
   const clock = options.now ?? (() => new Date());
   const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
   const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
@@ -493,7 +516,8 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     timestampSeconds(submission.timestamp, now, maxClockSkewMs);
     const bodyHash = payloadHash(submission.rawPayload);
     if (!signatureMatches(
-      options.sharedSecret,
+      signingKeys,
+      submission.keyId,
       signingInput(submission.timestamp, submission.batchId, bodyHash),
       submission.signature,
     )) {
@@ -688,13 +712,12 @@ function configuredRegistryRevisions(environment: Record<string, string | undefi
 
 export function configuredAcquisitionReceiver() {
   if (configuredReceiver) return configuredReceiver;
-  const sharedSecret = process.env.VAULT2077_PIPELINE_SHARED_SECRET
-    || (process.env.NODE_ENV === "production" ? "" : "vault2077-local-pipeline-secret!");
+  const signingKeys = pipelineSigningKeyring().keys;
   const dataRoot = process.env.VAULT2077_DATA_DIR
     ? path.resolve(process.env.VAULT2077_DATA_DIR)
     : path.join(process.cwd(), "data");
   const common = {
-    sharedSecret,
+    signingKeys,
     maxAttempts: Number(process.env.VAULT2077_ACQUISITION_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS),
     allowedRegistryRevisions: configuredRegistryRevisions(process.env),
   };

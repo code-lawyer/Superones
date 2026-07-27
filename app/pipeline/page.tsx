@@ -146,14 +146,14 @@ export default async function PipelinePage() {
   const report = snapshot.report;
   if (!snapshot.available || !report) {
     return (
-      <main className={styles.page}>
+      <section className={styles.page} aria-label="管线运行实况">
         <header className={styles.empty}>
           <p className={styles.kicker}>PIPELINE LIVE / 本地实况</p>
           <h1>还没有可展示的真实试运行</h1>
           <p>完成一次全量本地管线运行后，这里会显示逐源健康度、境内模型结果和最终发布内容。</p>
           <Link href="/sources">先查看来源地图</Link>
         </header>
-      </main>
+      </section>
     );
   }
 
@@ -202,7 +202,7 @@ export default async function PipelinePage() {
   ];
 
   return (
-    <main className={styles.page}>
+    <section className={styles.page} aria-label="管线运行实况">
       <header className={styles.hero}>
         <div className={styles.heroMeta}>
           <p className={styles.kicker}>PIPELINE LIVE / 境外 → 境内</p>
@@ -375,6 +375,6 @@ export default async function PipelinePage() {
           <HealthLedger key={section} section={section} items={snapshot.sections[section]} />
         ))}
       </section>
-    </main>
+    </section>
   );
 }

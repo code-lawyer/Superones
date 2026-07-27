@@ -1,0 +1,438 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-27T12:02:57.543Z",
+  "title": "Design System: Vault2077",
+  "extensions": {
+    "colorMeta": {
+      "archive-paper": {
+        "role": "neutral",
+        "displayName": "档案纸",
+        "canonical": "#f3f3ef",
+        "tonalRamp": [
+          "oklch(15% 0.01 110)",
+          "oklch(26% 0.01 110)",
+          "oklch(38% 0.01 110)",
+          "oklch(50% 0.01 110)",
+          "oklch(62% 0.01 110)",
+          "oklch(74% 0.01 110)",
+          "oklch(86% 0.01 110)",
+          "oklch(95% 0.01 110)"
+        ]
+      },
+      "issued-white": {
+        "role": "neutral",
+        "displayName": "签发白",
+        "canonical": "#fbfbf8",
+        "tonalRamp": [
+          "oklch(15% 0.008 110)",
+          "oklch(26% 0.008 110)",
+          "oklch(38% 0.008 110)",
+          "oklch(50% 0.008 110)",
+          "oklch(62% 0.008 110)",
+          "oklch(74% 0.008 110)",
+          "oklch(86% 0.008 110)",
+          "oklch(97% 0.008 110)"
+        ]
+      },
+      "registry-carbon": {
+        "role": "primary",
+        "displayName": "登记碳黑",
+        "canonical": "#11120f",
+        "tonalRamp": [
+          "oklch(15% 0.012 110)",
+          "oklch(26% 0.012 110)",
+          "oklch(38% 0.012 110)",
+          "oklch(50% 0.012 110)",
+          "oklch(62% 0.012 110)",
+          "oklch(74% 0.012 110)",
+          "oklch(86% 0.012 110)",
+          "oklch(95% 0.012 110)"
+        ]
+      },
+      "body-graphite": {
+        "role": "neutral",
+        "displayName": "正文石墨",
+        "canonical": "#3f413d",
+        "tonalRamp": [
+          "oklch(15% 0.012 120)",
+          "oklch(26% 0.012 120)",
+          "oklch(38% 0.012 120)",
+          "oklch(50% 0.012 120)",
+          "oklch(62% 0.012 120)",
+          "oklch(74% 0.012 120)",
+          "oklch(86% 0.012 120)",
+          "oklch(95% 0.012 120)"
+        ]
+      },
+      "index-ash": {
+        "role": "neutral",
+        "displayName": "索引灰",
+        "canonical": "#62645e",
+        "tonalRamp": [
+          "oklch(15% 0.015 115)",
+          "oklch(26% 0.015 115)",
+          "oklch(38% 0.015 115)",
+          "oklch(50% 0.015 115)",
+          "oklch(62% 0.015 115)",
+          "oklch(74% 0.015 115)",
+          "oklch(86% 0.015 115)",
+          "oklch(95% 0.015 115)"
+        ]
+      },
+      "dossier-rule": {
+        "role": "neutral",
+        "displayName": "卷宗线",
+        "canonical": "#c9cac4",
+        "tonalRamp": [
+          "oklch(15% 0.01 110)",
+          "oklch(26% 0.01 110)",
+          "oklch(38% 0.01 110)",
+          "oklch(50% 0.01 110)",
+          "oklch(62% 0.01 110)",
+          "oklch(74% 0.01 110)",
+          "oklch(82% 0.01 110)",
+          "oklch(95% 0.01 110)"
+        ]
+      },
+      "dark-divider": {
+        "role": "neutral",
+        "displayName": "暗页分隔",
+        "canonical": "#373a36",
+        "tonalRamp": [
+          "oklch(15% 0.014 125)",
+          "oklch(26% 0.014 125)",
+          "oklch(38% 0.014 125)",
+          "oklch(50% 0.014 125)",
+          "oklch(62% 0.014 125)",
+          "oklch(74% 0.014 125)",
+          "oklch(86% 0.014 125)",
+          "oklch(95% 0.014 125)"
+        ]
+      },
+      "instrument-black": {
+        "role": "neutral",
+        "displayName": "仪器黑",
+        "canonical": "#181c1e",
+        "tonalRamp": [
+          "oklch(15% 0.014 225)",
+          "oklch(26% 0.014 225)",
+          "oklch(38% 0.014 225)",
+          "oklch(50% 0.014 225)",
+          "oklch(62% 0.014 225)",
+          "oklch(74% 0.014 225)",
+          "oklch(86% 0.014 225)",
+          "oklch(95% 0.014 225)"
+        ]
+      },
+      "validation-vermilion": {
+        "role": "tertiary",
+        "displayName": "校验朱红",
+        "canonical": "#bb2e1e",
+        "tonalRamp": [
+          "oklch(15% 0.14 28)",
+          "oklch(26% 0.14 28)",
+          "oklch(38% 0.14 28)",
+          "oklch(50% 0.14 28)",
+          "oklch(62% 0.14 28)",
+          "oklch(74% 0.14 28)",
+          "oklch(86% 0.14 28)",
+          "oklch(95% 0.14 28)"
+        ]
+      },
+      "pipeline-warning": {
+        "role": "tertiary",
+        "displayName": "Pipeline warning",
+        "canonical": "#b93822",
+        "tonalRamp": [
+          "oklch(15% 0.14 32)",
+          "oklch(26% 0.14 32)",
+          "oklch(38% 0.14 32)",
+          "oklch(50% 0.14 32)",
+          "oklch(62% 0.14 32)",
+          "oklch(74% 0.14 32)",
+          "oklch(86% 0.14 32)",
+          "oklch(95% 0.14 32)"
+        ]
+      },
+      "pipeline-ranking": {
+        "role": "secondary",
+        "displayName": "Pipeline ranking",
+        "canonical": "#0e6f67",
+        "tonalRamp": [
+          "oklch(15% 0.08 185)",
+          "oklch(26% 0.08 185)",
+          "oklch(38% 0.08 185)",
+          "oklch(50% 0.08 185)",
+          "oklch(62% 0.08 185)",
+          "oklch(74% 0.08 185)",
+          "oklch(86% 0.08 185)",
+          "oklch(95% 0.08 185)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "公共标题",
+        "purpose": "频道首屏、详情主标题和服务名称。"
+      },
+      "headline": {
+        "displayName": "章节标题",
+        "purpose": "主页区块和主要章节。"
+      },
+      "title": {
+        "displayName": "记录标题",
+        "purpose": "列表记录、内容模块和局部标题。"
+      },
+      "body": {
+        "displayName": "持续阅读",
+        "purpose": "正文、说明和操作辅助文本。"
+      },
+      "label": {
+        "displayName": "索引标签",
+        "purpose": "频道代码、编号、时间、字段名和状态元数据。"
+      },
+      "micro": {
+        "displayName": "微型编号",
+        "purpose": "高密度目录中的序号与极短状态。"
+      },
+      "caption": {
+        "displayName": "辅助注释",
+        "purpose": "次要说明、时间和低优先级元数据。"
+      },
+      "note": {
+        "displayName": "短注",
+        "purpose": "目录摘要与控件附近的补充信息。"
+      },
+      "small": {
+        "displayName": "小号说明",
+        "purpose": "列表摘要、证据说明和短段辅助文本。"
+      },
+      "navigation": {
+        "displayName": "导航",
+        "purpose": "频道名称、页脚入口和工作台一级操作。"
+      },
+      "control": {
+        "displayName": "控件",
+        "purpose": "按钮、筛选、表单与可操作标签。"
+      },
+      "body-large": {
+        "displayName": "事实正文",
+        "purpose": "价格周期、列表与重要说明。"
+      },
+      "reading": {
+        "displayName": "阅读正文",
+        "purpose": "OPC 服务说明与持续阅读段落。"
+      },
+      "lede": {
+        "displayName": "导语",
+        "purpose": "章节引导和较高权重的说明文本。"
+      },
+      "service-title": {
+        "displayName": "服务名称",
+        "purpose": "OPC 阅读栏中的单行项目标题。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "focus-inset",
+        "value": "inset 0 0 0 2px color-mix(in srgb, var(--paper-bright) 72%, transparent)",
+        "purpose": "在反色控件内部提供可见键盘焦点。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-fast",
+        "value": "160ms ease",
+        "purpose": "按钮、筛选和反色状态切换。"
+      },
+      {
+        "name": "state-standard",
+        "value": "180ms cubic-bezier(.2,.7,.2,1)",
+        "purpose": "标题短距离位移和常规交互反馈。"
+      },
+      {
+        "name": "drawer-expand",
+        "value": "260ms cubic-bezier(.2,.75,.2,1)",
+        "purpose": "目录抽屉展开与收起。"
+      },
+      {
+        "name": "registry-reveal",
+        "value": "640ms cubic-bezier(.2,.7,.2,1)",
+        "purpose": "页面级内容首次进入。"
+      },
+      {
+        "name": "reduced-state",
+        "value": "instant semantic state",
+        "purpose": "Preserve immediate feedback while removing decorative motion under reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-tight",
+        "value": "620px"
+      },
+      {
+        "name": "mobile-navigation",
+        "value": "720px"
+      },
+      {
+        "name": "workspace-stack",
+        "value": "820px"
+      },
+      {
+        "name": "compressed-desktop",
+        "value": "1100px"
+      },
+      {
+        "name": "shell-max",
+        "value": "1480px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "用于明确提交或进入下一步的方正反色按钮。",
+      "html": "<button class=\"ds-btn-primary\">确认并继续</button>",
+      "css": ".ds-btn-primary { min-height: 46px; border: 1px solid var(--carbon, #11120f); border-radius: 0; padding: 10px 17px; background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); font: 600 13px/1.4 \"Manrope Variable\", \"Noto Sans SC\", sans-serif; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; } .ds-btn-primary:hover { background: transparent; color: var(--carbon, #11120f); } .ds-btn-primary:focus-visible { outline: 2px solid var(--carbon, #11120f); outline-offset: 4px; }"
+    },
+    {
+      "name": "Text Link",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "用于次要导航和上下文动作的线性链接。",
+      "html": "<a class=\"ds-text-link\" href=\"#\">查看全部</a>",
+      "css": ".ds-text-link { position: relative; display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; color: var(--carbon, #11120f); font: 500 13px/1.4 \"Manrope Variable\", \"Noto Sans SC\", sans-serif; text-decoration: none; } .ds-text-link::after { position: absolute; right: 0; bottom: -6px; left: 0; height: 1px; background: currentColor; content: \"\"; transform: scaleX(0); transform-origin: right; transition: transform 180ms ease; } .ds-text-link:hover::after, .ds-text-link:focus-visible::after { transform: scaleX(1); transform-origin: left; } .ds-text-link:focus-visible { outline: 2px solid var(--carbon, #11120f); outline-offset: 4px; }"
+    },
+    {
+      "name": "Filter Button",
+      "kind": "chip",
+      "refersTo": "filter-default",
+      "description": "相邻直角筛选单元；不是胶囊标签。",
+      "html": "<button class=\"ds-filter\">法律</button>",
+      "css": ".ds-filter { min-height: 44px; border: 1px solid var(--rule, #c9cac4); border-radius: 0; padding: 12px 18px; background: transparent; color: var(--carbon, #11120f); font: 500 11px/1.3 \"Manrope Variable\", \"Noto Sans SC\", sans-serif; cursor: pointer; } .ds-filter:hover, .ds-filter[aria-pressed=\"true\"] { border-color: var(--carbon, #11120f); background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); } .ds-filter:focus-visible { outline: 2px solid var(--carbon, #11120f); outline-offset: 3px; }"
+    },
+    {
+      "name": "Form Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "透明纸面上的直角输入框，使用明确黑色焦点。",
+      "html": "<label class=\"ds-field\"><span>公开仓库地址</span><input type=\"url\" placeholder=\"https://github.com/owner/repository\"></label>",
+      "css": ".ds-field { display: grid; gap: 9px; color: var(--carbon, #11120f); font: 600 15px/1.5 \"Manrope Variable\", \"Noto Sans SC\", sans-serif; } .ds-field input { width: 100%; min-height: 44px; border: 1px solid var(--carbon, #11120f); border-radius: 0; padding: 13px 14px; background: transparent; color: var(--carbon, #11120f); font: 400 15px/1.5 \"Manrope Variable\", \"Noto Sans SC\", sans-serif; } .ds-field input::placeholder { color: var(--ash, #62645e); } .ds-field input:focus-visible { outline: 2px solid var(--carbon, #11120f); outline-offset: 2px; }"
+    },
+    {
+      "name": "Navigation Cell",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "带英文代码与中文名称的频道导航单元。",
+      "html": "<a class=\"ds-nav-cell is-active\" href=\"#\"><span>OPERATE</span><strong>OPC 服务台</strong></a>",
+      "css": ".ds-nav-cell { display: grid; min-width: 126px; min-height: 76px; align-content: center; border-left: 1px solid var(--rule, #c9cac4); padding: 10px 18px; background: transparent; color: var(--carbon, #11120f); font-family: \"Manrope Variable\", \"Noto Sans SC\", sans-serif; text-decoration: none; } .ds-nav-cell span { color: var(--ash, #62645e); font-size: 8px; font-weight: 500; letter-spacing: .08em; } .ds-nav-cell strong { font-size: 13px; font-weight: 600; line-height: 1.25; } .ds-nav-cell.is-active { background: var(--paper-bright, #fbfbf8); box-shadow: inset 0 -3px 0 var(--carbon, #11120f); } .ds-nav-cell:focus-visible { outline: 2px solid var(--carbon, #11120f); outline-offset: -3px; }"
+    },
+    {
+      "name": "Registry Row",
+      "kind": "custom",
+      "refersTo": "registry-row",
+      "description": "以编号、标题和摘要构成的全宽记录行。",
+      "html": "<a class=\"ds-registry-row\" href=\"#\"><span class=\"ds-registry-code\">003</span><span><strong>公司治理专项</strong><small>一组可签署或归档的治理文件和权限说明。</small></span><i aria-hidden=\"true\">→</i></a>",
+      "css": ".ds-registry-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) 18px; gap: 18px; align-items: start; border-top: 1px solid var(--rule, #c9cac4); padding: 24px 0; background: transparent; color: var(--carbon, #11120f); font-family: \"Manrope Variable\", \"Noto Sans SC\", sans-serif; text-decoration: none; transition: background-color 170ms ease, color 170ms ease; } .ds-registry-code { padding-top: 4px; color: var(--ash, #62645e); font-size: 9px; letter-spacing: .06em; } .ds-registry-row strong { display: block; font-size: 19px; line-height: 1.45; transition: transform 180ms cubic-bezier(.2,.7,.2,1); } .ds-registry-row small { display: block; margin-top: 8px; color: var(--graphite, #3f413d); font-size: 12px; line-height: 1.6; } .ds-registry-row i { font-style: normal; opacity: 0; } .ds-registry-row:hover, .ds-registry-row:focus-visible { background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); outline: 0; } .ds-registry-row:hover .ds-registry-code, .ds-registry-row:hover small, .ds-registry-row:focus-visible .ds-registry-code, .ds-registry-row:focus-visible small { color: #d8d9d3; } .ds-registry-row:hover strong, .ds-registry-row:focus-visible strong { transform: translateX(7px); } .ds-registry-row:hover i, .ds-registry-row:focus-visible i { opacity: 1; }"
+    },
+    {
+      "name": "Home Content Entry",
+      "kind": "card",
+      "refersTo": "registry-row",
+      "description": "主页频道窗格中的紧凑内容入口。",
+      "html": "<a class=\"ds-home-entry\" href=\"#\"><span class=\"ds-home-meta\"><b>12 INFRASTRUCTURES</b><i>查看</i></span><strong>基础设施</strong><small>把跨领域经营能力建设成可运行的完整交付。</small></a>",
+      "css": ".ds-home-entry { display: block; padding: 15px 24px; background: transparent; color: var(--carbon, #11120f); font-family: \"Manrope Variable\", \"Noto Sans SC\", sans-serif; text-decoration: none; transition: background-color 170ms ease, color 170ms ease; } .ds-home-meta { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--ash, #62645e); font-size: 8px; font-style: normal; font-weight: 500; letter-spacing: .035em; } .ds-home-meta i { font-style: normal; } .ds-home-entry > strong { display: block; font-size: 18px; line-height: 1.38; transition: transform 170ms cubic-bezier(.2,.7,.2,1); } .ds-home-entry > small { display: block; margin-top: 8px; overflow: hidden; color: var(--graphite, #3f413d); font-size: 12px; line-height: 1.62; text-overflow: ellipsis; white-space: nowrap; } .ds-home-entry:hover, .ds-home-entry:focus-visible { background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); outline: 2px solid var(--carbon, #11120f); outline-offset: -3px; } .ds-home-entry:hover > strong, .ds-home-entry:focus-visible > strong { transform: translateX(4px); } .ds-home-entry:hover .ds-home-meta, .ds-home-entry:hover > small, .ds-home-entry:focus-visible .ds-home-meta, .ds-home-entry:focus-visible > small { color: #d8d9d3; }"
+    },
+    {
+      "name": "OPC Service Item",
+      "kind": "custom",
+      "refersTo": "registry-row-focus",
+      "description": "OPC 目录中的编号服务选中项。",
+      "html": "<button class=\"ds-opc-item is-selected\"><span>003</span><strong>公司治理专项</strong><i aria-hidden=\"true\">→</i></button>",
+      "css": ".ds-opc-item { display: grid; width: 100%; min-height: 68px; grid-template-columns: 38px minmax(0, 1fr) 14px; gap: 8px; align-items: start; border: 0; border-radius: 0; padding: 16px 24px; background: transparent; color: var(--carbon, #11120f); text-align: left; transition: background-color 160ms ease, color 160ms ease; } .ds-opc-item span { padding-top: 3px; color: var(--ash, #62645e); font-size: 8px; } .ds-opc-item strong { font-size: 12px; font-weight: 500; line-height: 1.5; } .ds-opc-item i { font-size: 11px; font-style: normal; opacity: 0; transform: translateX(-4px); transition: opacity 160ms ease, transform 160ms ease; } .ds-opc-item:hover, .ds-opc-item:focus-visible, .ds-opc-item.is-selected { background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); outline: 0; } .ds-opc-item:hover span, .ds-opc-item:focus-visible span, .ds-opc-item.is-selected span { color: #d8d9d3; } .ds-opc-item:hover i, .ds-opc-item:focus-visible i, .ds-opc-item.is-selected i { opacity: 1; transform: translateX(0); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "公共档案仪器",
+    "overview": "Vault2077 的界面应像一件面向公众开放的档案仪器：信息可以被阅读，也可以被定位、核验和操作。系统以档案纸、登记碳黑、细线、编号、栏位和明确反色组织复杂内容，让高密度信息保持克制、精确和制度化。\n\n未来探索感来自尺度反差、连续栏线、全栏状态变化和少量受控运动，而不是霓虹、发光或科幻装饰。中文衬线标题赋予公共记录的正式感；无衬线正文与标签维持当代工具的清晰度。所有表达都应服务于事实层级、责任边界和操作状态。",
+    "keyCharacteristics": [
+      "纸张色阶与碳黑反色构成主要视觉材料。",
+      "中文衬线大标题与无衬线正文形成明确角色分工。",
+      "非对称网格、连续细线和编号建立档案秩序。",
+      "零圆角、无环境阴影，组件保持方正和可扫描。",
+      "默认状态安静，交互状态通过反色、下划线或短距离位移明确出现。"
+    ],
+    "rules": [
+      {
+        "name": "The Evidence Before Decoration Rule",
+        "body": "颜色必须表达层级、状态、责任或频道边界；不为填满画面而增加色彩。",
+        "section": "colors"
+      },
+      {
+        "name": "The Rare Reversal Rule",
+        "body": "大面积碳黑反色只用于明确选中、聚焦或章节转换；它的稀缺性就是强调效果。",
+        "section": "colors"
+      },
+      {
+        "name": "The Chinese Carries Ceremony Rule",
+        "body": "正式感由中文衬线标题承担；正文、导航和数据标签不模仿标题的装饰性。",
+        "section": "typography"
+      },
+      {
+        "name": "The Scale Has a Job Rule",
+        "body": "超大字号只用于定义频道、页面或具体服务，不用于普通卡片和重复列表。",
+        "section": "typography"
+      },
+      {
+        "name": "The Connected Register Rule",
+        "body": "细线必须连接真实的信息结构；不要在相邻区域随意中断或重复描边。",
+        "section": "layout"
+      },
+      {
+        "name": "The Responsive Recomposition Rule",
+        "body": "窄屏通过重排与删减重复元数据保持任务完整，而不是单纯缩小字号。",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "静止表面没有投影；状态变化优先使用反色、线条和位移。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Square Instrument Rule",
+        "body": "工具与记录组件保持方正；不要用圆角弱化责任边界。",
+        "section": "shapes"
+      },
+      {
+        "name": "The Viewport-True Reversal Boundary Rule",
+        "body": "行级、目录级和频道级反色必须由真实按钮、链接或可聚焦记录行自身承载，背景、点击命中区和键盘焦点区共享同一个盒模型边界。最左栏从真实分割线延展到视口左缘，最右栏从真实分割线延展到视口右缘，中间栏只在两侧真实分割线之间延展；窄屏折叠为单栏后整行抵达两侧视口边缘。`.shell`、内容容器和 gutter 都不是页面边缘；文字通过控件自身内边距保留内容栅格。不得使用超出命中区的伪元素、100vmax 阴影、裁剪溢出或覆盖层制造反色范围。",
+        "section": "layout"
+      },
+      {
+        "name": "The Optical Center Rule",
+        "body": "具有明确最小高度的紧凑行按钮、目录项和导航项，编号、主标签、辅助标签与图标组成的内容组必须以视觉中心落在控件几何中心附近；不得用仅为基线补偿而存在的顶部内边距把整组内容推向上方。只有高度由多行内容自然增长的阅读型记录，才可以采用顶部对齐。",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do 使用纸张色阶、细线、编号和留白表达真实的信息层级。",
+      "Do 让选中、焦点与活动状态覆盖完整结构范围，并维持清楚对比度。",
+      "Do 保持中文标题、正文、数据标签各自明确的字体角色。",
+      "Do 在移动端重组网格，保留主要阅读、操作和状态。",
+      "Do 让运动服从操作反馈，并完整遵循 `prefers-reduced-motion`。",
+      "Do 让行级反色的视觉范围、点击范围与键盘焦点范围严格重合；外侧栏必须贴住视口物理边缘，内部栏必须严格停在真实分割线。"
+    ],
+    "donts": [
+      "Don't 把界面改造成圆角卡片式 SaaS 仪表盘。",
+      "Don't 使用霓虹、发光、赛博朋克色彩或装饰性未来主义。",
+      "Don't 使用柔软生活方式品牌的胶囊、柔和阴影和情绪化留白。",
+      "Don't 依靠环境阴影制造层级，或让内容块漂浮在纸面上。",
+      "Don't 为普通列表滥用超大标题、整栏反色或复杂动效。",
+      "Don't 用颜色作为唯一状态信号，或在真实长文本下制造横向溢出。",
+      "Don't 把 `.shell` 的 gutter、内容容器外沿或栅格留白误当作页面边缘；也不要用 100vmax 阴影、脱离控件的伪元素或裁剪溢出制造跨栏反色背景。"
+    ]
+  }
+}

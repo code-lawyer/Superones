@@ -1,6 +1,6 @@
 import "server-only";
 
-import { compileInformationBatch, withOneRetry, type BatchedInformationEditorial, type EditorialPort, type EventDecision, type EventEditorial, type InformationEditorial } from "./content-compiler.ts";
+import { compileInformationBatch, type BatchedInformationEditorial, type EditorialPort, type EventDecision, type EventEditorial, type InformationEditorial } from "./content-compiler.ts";
 import { validateContentBatch, type InformationEnvelope } from "./content-contract.ts";
 import { getStoredContent, replaceStoredContent } from "./content-store.ts";
 import {

@@ -6,6 +6,14 @@ const workflow = await readFile(
   new URL("../.github/workflows/collect-content.yml", import.meta.url),
   "utf8",
 );
+const nginx = await readFile(
+  new URL("../deploy/nginx/vault2077.conf.example", import.meta.url),
+  "utf8",
+);
+const workerTimer = await readFile(
+  new URL("../deploy/systemd/vault2077-acquisition-worker.timer", import.meta.url),
+  "utf8",
+);
 
 test("the repository keeps exactly one overseas acquisition workflow", async () => {
   const names = (await readdir(new URL("../.github/workflows/", import.meta.url)))
@@ -44,4 +52,25 @@ test("collection workflow has no retired ranking credentials", () => {
   ]) {
     assert.ok(!workflow.includes(retired), retired);
   }
+});
+
+test("overseas workflow only delivers signed batches and never invokes the domestic worker", () => {
+  assert.match(workflow, /VAULT2077_PIPELINE_SIGNING_KEYS/);
+  assert.match(workflow, /VAULT2077_PIPELINE_ACTIVE_KEY_ID/);
+  assert.match(workflow, /VAULT2077_FRONTIER_TASKS_SECRET/);
+  assert.match(workflow, /VAULT2077_DELIVERY_ATTEMPTS: "4"/);
+  assert.doesNotMatch(workflow, /DOMESTIC_ACQUISITION_PROCESS_URL/);
+  assert.doesNotMatch(workflow, /PIPELINE_WORKER_SECRET/);
+  assert.doesNotMatch(workflow, /TRIGGER_PROCESSING/);
+});
+
+test("the public proxy exposes only the two cross-border routes and the domestic worker is timed locally", () => {
+  assert.match(nginx, /location = \/api\/internal\/acquisition \{/);
+  assert.match(nginx, /if \(\$request_method != POST\) \{ return 405; \}/);
+  assert.match(nginx, /location = \/api\/internal\/frontier\/tasks \{/);
+  assert.match(nginx, /if \(\$request_method != GET\) \{ return 405; \}/);
+  assert.match(nginx, /location \^~ \/api\/internal\/ \{ return 404; \}/);
+  assert.match(nginx, /proxy_set_header X-Forwarded-For \$remote_addr;/);
+  assert.match(workerTimer, /OnCalendar=\*:0\/5/);
+  assert.match(workerTimer, /Persistent=true/);
 });

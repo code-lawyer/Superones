@@ -16,13 +16,13 @@ export default async function CorrectionsPage({
   const params = await searchParams;
   const initialType = first(params.type) === "event" ? "event" : "information";
   return (
-    <main className="submission-page shell">
+    <section className="submission-page shell" aria-label="公开纠错">
       <header className="submission-intro">
         <p className="eyebrow mono">CORRECTIONS / PUBLIC RECORD</p>
         <h1>错误需要被看见，也需要被修正。</h1>
         <p>只受理误合并、信息错误和来源失效。请提供可核验的原始依据；已发布事件不会由 LLM 因此自动修改。</p>
       </header>
       <CorrectionForm initialRecord={first(params.record) ?? ""} initialType={initialType} />
-    </main>
+    </section>
   );
 }

@@ -91,8 +91,10 @@ const site = spawn(process.execPath, [
     VAULT2077_DATA_DIR: dataRoot,
     VAULT2077_ALLOW_FILE_PREVIEW: "true",
     VAULT2077_PIPELINE_RUN_DIR: collectorRoot,
-    VAULT2077_PIPELINE_SHARED_SECRET: localSecret,
+    VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ local: localSecret }),
+    VAULT2077_PIPELINE_ACTIVE_KEY_ID: "local",
     VAULT2077_PIPELINE_WORKER_SECRET: localSecret,
+    VAULT2077_AUDIT_HASH_SECRET: localSecret,
     VAULT2077_CONTENT_PREVIEW_LABEL: "本地全量真实试跑",
     VAULT2077_VAULT_LLM_BASE_URL: modelValues.baseUrl,
     VAULT2077_VAULT_LLM_API_KEY: modelValues.apiKey,
@@ -195,11 +197,9 @@ function runCollector(lane, round) {
         VAULT2077_ACQUISITION_LANE: lane,
         VAULT2077_SCHEDULE_ID: `local:${stamp}:round-${round}:${lane}`,
         VAULT2077_DOMESTIC_ACQUISITION_URL: `http://127.0.0.1:${port}/api/internal/acquisition`,
-        VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL: `http://127.0.0.1:${port}/api/internal/acquisition/process`,
-        VAULT2077_PIPELINE_SHARED_SECRET: localSecret,
-        VAULT2077_PIPELINE_WORKER_SECRET: localSecret,
+        VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ local: localSecret }),
+        VAULT2077_PIPELINE_ACTIVE_KEY_ID: "local",
         VAULT2077_REQUIRE_DOMESTIC_DELIVERY: "true",
-        VAULT2077_TRIGGER_PROCESSING: "true",
         VAULT2077_COLLECTION_LOOKBACK_HOURS: process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS
           ?? (lane === "sic" ? "24" : "12"),
         VAULT2077_ACQUISITION_MAX_RECORDS: process.env.VAULT2077_ACQUISITION_MAX_RECORDS ?? "40",
@@ -207,7 +207,6 @@ function runCollector(lane, round) {
         VAULT2077_HORIZON_CONCURRENCY: process.env.VAULT2077_HORIZON_CONCURRENCY ?? "16",
         VAULT2077_PER_HOST_CONCURRENCY: process.env.VAULT2077_PER_HOST_CONCURRENCY ?? "3",
         VAULT2077_SOURCE_TIMEOUT_SECONDS: process.env.VAULT2077_SOURCE_TIMEOUT_SECONDS ?? "20",
-        VAULT2077_PROCESS_TIMEOUT_SECONDS: process.env.VAULT2077_PROCESS_TIMEOUT_SECONDS ?? "5400",
       },
       stdio: ["ignore", stdout, stderr],
     });
@@ -232,11 +231,22 @@ try {
     const report = JSON.parse(
       await readFile(path.join(collectorRoot, "acquisition-report.json"), "utf8"),
     );
+  const initialProcessingStartedAt = Date.now();
+  const initialResponse = await postLocalJson(
+    `http://127.0.0.1:${port}/api/internal/acquisition/process`,
+    localSecret,
+    { maxBatches: 50 },
+    Number(process.env.VAULT2077_PROCESS_TIMEOUT_SECONDS ?? "5400") * 1_000,
+  );
+  if ((initialResponse.status < 200 || initialResponse.status >= 300) && initialResponse.status !== 207) {
+    throw new Error(`本地 Worker 返回 HTTP ${initialResponse.status}：${initialResponse.body.slice(0, 500)}`);
+  }
+  report.processing = JSON.parse(initialResponse.body);
   const retryLimit = Math.max(
     0,
     Math.min(5, Number(process.env.VAULT2077_LOCAL_RETRY_PASSES ?? "2")),
   );
-  let retryDurationMs = 0;
+  let retryDurationMs = Date.now() - initialProcessingStartedAt;
   let retries = 0;
   while (
     retries < retryLimit
@@ -260,9 +270,7 @@ try {
     }
     report.processing = mergeProcessing(report.processing, JSON.parse(response.body));
   }
-  if (report.processor) {
-    report.processor.durationMs = (report.processor.durationMs ?? 0) + retryDurationMs;
-  }
+  report.processor = { provider: null, model: null, durationMs: retryDurationMs };
   report.localRetry = {
     passes: retries,
     durationMs: retryDurationMs,

@@ -141,7 +141,7 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
   }
 
   return (
-    <main className={styles.page}>
+    <section className={styles.page} aria-label="数据源地图">
       <header className={`${styles.hero} shell`}>
         <div className={styles.heroGrid}>
           <div>
@@ -286,6 +286,6 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
           );
         })}
       </section>
-    </main>
+    </section>
   );
 }

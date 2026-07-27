@@ -8,7 +8,8 @@ function validEnvironment() {
     NODE_ENV: "production",
     VAULT2077_DATABASE_URL: "postgresql://vault2077:secure@db.internal/vault2077",
     VAULT2077_DATABASE_SSL: "require",
-    VAULT2077_DATA_KEY: secret,
+    VAULT2077_DATA_KEYS: JSON.stringify({ current: secret }),
+    VAULT2077_DATA_ACTIVE_KEY_ID: "current",
     VAULT2077_ADMIN_SESSION_SECRET: `${secret}1`,
     VAULT2077_AUDIT_HASH_SECRET: `${secret}2`,
     VAULT2077_PUBLIC_ORIGIN: "https://vault2077.test",
@@ -19,8 +20,10 @@ function validEnvironment() {
     VAULT2077_ADMIN_IDENTITY_HEADER: "cf-access-jwt-assertion",
     VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "owner@vault2077.test",
     VAULT2077_ADMIN_REAUTH_URL: "https://admin.vault2077.test/cdn-cgi/access/logout",
-    VAULT2077_PIPELINE_SHARED_SECRET: `${secret}3`,
+    VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ current: `${secret}3` }),
+    VAULT2077_PIPELINE_ACTIVE_KEY_ID: "current",
     VAULT2077_PIPELINE_WORKER_SECRET: `${secret}4`,
+    VAULT2077_FRONTIER_TASKS_SECRET: `${secret}7`,
     VAULT2077_FRONTIER_TICK_SECRET: `${secret}5`,
     VAULT2077_HEALTH_SECRET: `${secret}6`,
     GITHUB_TOKEN: "github_pat_read_only_1234567890",
@@ -82,4 +85,26 @@ test("production configuration gate rejects an invalid identity gateway contract
   assert.ok(report.errors.some((issue) => issue.includes("JWKS_URL")));
   assert.ok(report.errors.some((issue) => issue.includes("ALLOWLIST")));
   assert.ok(report.errors.some((issue) => issue.includes("REAUTH_URL")));
+});
+
+test("production configuration gate rejects legacy single-value keys and untrusted proxy headers", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_DATA_KEY: "legacy-data-key-that-is-long-enough",
+    VAULT2077_PIPELINE_SHARED_SECRET: "legacy-pipeline-key-that-is-long-enough",
+    VAULT2077_TRUST_PROXY_HEADERS: "false",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("VAULT2077_DATA_KEY")));
+  assert.ok(report.errors.some((issue) => issue.includes("VAULT2077_PIPELINE_SHARED_SECRET")));
+  assert.ok(report.errors.some((issue) => issue.includes("Nginx")));
+});
+
+test("production configuration gate rejects secret reuse across trust boundaries", () => {
+  const environment = validEnvironment();
+  environment.VAULT2077_FRONTIER_TASKS_SECRET = environment.VAULT2077_PIPELINE_WORKER_SECRET;
+  const report = validateProductionConfiguration(environment);
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("VAULT2077_FRONTIER_TASKS_SECRET")));
+  assert.ok(report.errors.some((issue) => issue.includes("VAULT2077_PIPELINE_WORKER_SECRET")));
 });

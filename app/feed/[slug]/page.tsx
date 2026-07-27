@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { beijingTime, eventCategory, eventJudgment, informationTime } from "@/lib/feed-format";
-import { getPublicContent } from "@/lib/public-content";
 import { documentHref, informationHref, roadsideHref } from "@/lib/feed-route";
+import { getCachedPublicContent } from "@/lib/public-read-cache";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const content = await getPublicContent();
+  const content = await getCachedPublicContent();
   const event = content.events.find((item) => item.slug === slug);
   return { title: event?.title ?? "事件记录" };
 }
@@ -33,7 +33,7 @@ export default async function EventDetailPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ related?: string | string[] }>;
 }) {
-  const [{ slug }, content, query] = await Promise.all([params, getPublicContent(), searchParams]);
+  const [{ slug }, content, query] = await Promise.all([params, getCachedPublicContent(), searchParams]);
   const event = content.events.find((item) => item.slug === slug);
   if (!event) notFound();
 

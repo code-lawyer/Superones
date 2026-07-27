@@ -40,7 +40,7 @@
   display: inline-block;
   margin-top: 30px;
   border-bottom: 1px solid currentColor;
-  font-size: 13px;
+  font-size: var(--type-nav);
   font-weight: 700;
 }
 
@@ -64,7 +64,7 @@
 
 .heroAside span {
   color: var(--ash);
-  font-size: 10px;
+  font-size: var(--type-caption);
 }
 
 .heroAside strong {
@@ -122,7 +122,7 @@
   display: block;
   margin-bottom: 46px;
   color: var(--ash);
-  font-size: 10px;
+  font-size: var(--type-caption);
 }
 
 .routeMain {
@@ -150,7 +150,7 @@
   max-width: 420px;
   margin: 22px 0 0;
   color: var(--ash);
-  font-size: 13px;
+  font-size: var(--type-nav);
 }
 
 .governance {
@@ -174,7 +174,7 @@
   max-width: 650px;
   margin: 0;
   color: var(--ash);
-  font-size: 13px;
+  font-size: var(--type-nav);
   line-height: 1.75;
 }
 
@@ -198,7 +198,7 @@
 
 .governanceStats dt {
   color: var(--ash);
-  font-size: 10px;
+  font-size: var(--type-caption);
 }
 
 .governanceStats dd {
@@ -262,13 +262,13 @@
   padding: 4px;
   background: transparent;
   color: var(--ash);
-  font-size: 12px;
+  font-size: var(--type-small);
   transform: translateY(-50%);
 }
 
 .resultCount {
   color: var(--ash);
-  font-size: 10px;
+  font-size: var(--type-caption);
   white-space: nowrap;
 }
 
@@ -278,7 +278,7 @@
   border-radius: 0;
   padding: 8px 15px;
   background: transparent;
-  font-size: 12px;
+  font-size: var(--type-small);
   white-space: nowrap;
 }
 
@@ -328,7 +328,7 @@
 
 .sectionCode {
   color: var(--section-color);
-  font-size: 10px;
+  font-size: var(--type-caption);
 }
 
 .sectionToggle h2 {
@@ -340,7 +340,7 @@
 .sectionToggle p {
   margin: 0;
   color: var(--ash);
-  font-size: 13px;
+  font-size: var(--type-nav);
 }
 
 .sectionTotal {
@@ -363,7 +363,7 @@
 }
 
 .sectionBody {
-  border-left: 3px solid var(--section-color);
+  border-left: 3px solid var(--section-color); /* impeccable-disable-line side-tab: source taxonomy spine */
   padding-left: clamp(18px, 3vw, 42px);
 }
 
@@ -384,18 +384,18 @@
 }
 
 .methodToggle strong {
-  font-size: 16px;
+  font-size: var(--type-body-large);
 }
 
 .methodToggle p {
   margin: 0;
   color: var(--ash);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 .methodCount {
   color: var(--ash);
-  font-size: 11px;
+  font-size: var(--type-note);
   text-align: right;
 }
 
@@ -413,7 +413,7 @@
 
 .tableHead {
   color: var(--ash);
-  font-size: 9px;
+  font-size: var(--type-label);
   text-transform: uppercase;
 }
 
@@ -438,14 +438,14 @@
 .sourceName strong {
   display: block;
   margin-bottom: 6px;
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.35;
 }
 
 .sourceName span,
 .cellLabel {
   color: var(--ash);
-  font-size: 9px;
+  font-size: var(--type-label);
 }
 
 .channel {
@@ -459,7 +459,7 @@
 
 .destination {
   color: var(--section-color);
-  font-size: 12px;
+  font-size: var(--type-small);
   font-weight: 700;
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--section-color) 35%, transparent);
@@ -468,20 +468,20 @@
 
 .nature {
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: var(--type-small);
   font-weight: 700;
 }
 
 .evidence {
   color: var(--ash);
-  font-size: 10px;
+  font-size: var(--type-caption);
   line-height: 1.5;
 }
 
 .purpose {
   margin: 0;
   color: var(--graphite);
-  font-size: 12px;
+  font-size: var(--type-small);
   line-height: 1.65;
 }
 
@@ -493,7 +493,7 @@
   display: block;
   overflow: hidden;
   color: var(--graphite);
-  font-size: 10px;
+  font-size: var(--type-caption);
   text-decoration: underline;
   text-overflow: ellipsis;
   text-underline-offset: 3px;
@@ -507,7 +507,7 @@
 .provenance {
   margin: 10px 0 0;
   color: var(--ash);
-  font-size: 9px;
+  font-size: var(--type-label);
   line-height: 1.55;
 }
 

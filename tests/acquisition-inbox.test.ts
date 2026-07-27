@@ -59,6 +59,16 @@ function submission(value = batch()): AcquisitionSubmission {
   return { batchId: value.batchId, timestamp, signature, rawPayload };
 }
 
+function keyringSubmission(keyId: string, signingSecret: string): AcquisitionSubmission {
+  const value = batch();
+  const rawPayload = JSON.stringify(value);
+  const timestamp = String(Math.floor(now.getTime() / 1000));
+  const signature = `sha256=${createHmac("sha256", signingSecret)
+    .update(signingInput(timestamp, value.batchId, payloadHash(rawPayload)))
+    .digest("base64url")}`;
+  return { batchId: value.batchId, keyId, timestamp, signature, rawPayload };
+}
+
 async function fixture() {
   const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-"));
   return {
@@ -147,6 +157,40 @@ test("rejects invalid signatures before persisting the batch", async (context) =
   );
   const accepted = await receiver.receive(submission());
   assert.equal(accepted.duplicate, false);
+});
+
+test("accepts old and current signing keys during a controlled rotation", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-keyring-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const previousSecret = "previous-signing-secret-that-is-long-enough";
+  const currentSecret = "current-signing-secret-that-is-long-enough";
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    signingKeys: new Map([
+      ["previous", previousSecret],
+      ["current", currentSecret],
+    ]),
+    now: () => now,
+  });
+  assert.equal((await receiver.receive(keyringSubmission("previous", previousSecret))).status, "received");
+  const changed = batch();
+  changed.batchId = `${changed.batchId}:current`;
+  const rawPayload = JSON.stringify(changed);
+  const timestamp = String(Math.floor(now.getTime() / 1000));
+  const signature = `sha256=${createHmac("sha256", currentSecret)
+    .update(signingInput(timestamp, changed.batchId, payloadHash(rawPayload)))
+    .digest("base64url")}`;
+  assert.equal((await receiver.receive({
+    batchId: changed.batchId,
+    keyId: "current",
+    timestamp,
+    signature,
+    rawPayload,
+  })).status, "received");
+  await assert.rejects(
+    receiver.receive(keyringSubmission("retired", previousSecret)),
+    (error) => error instanceof AcquisitionReceiveError && error.code === "INVALID_SIGNATURE",
+  );
 });
 
 test("rejects stale timestamps", async (context) => {

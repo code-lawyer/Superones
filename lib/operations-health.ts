@@ -49,12 +49,16 @@ export async function getOperationsHealth() {
     mode = persistenceMode();
     if (mode === "postgresql") {
       const startedAt = Date.now();
-      const migration = await configuredPostgresPool().query<{ count: string }>(
-        "SELECT count(*)::text AS count FROM vault2077_schema_migrations",
+      const migration = await configuredPostgresPool().query<{ name: string }>(
+        `SELECT name
+         FROM vault2077_schema_migrations
+         ORDER BY name DESC
+         LIMIT 1`,
       );
+      const latestMigration = migration.rows[0]?.name ?? "none";
       checks.database = {
-        status: Number(migration.rows[0]?.count ?? 0) >= 4 ? "ok" : "degraded",
-        detail: `${migration.rows[0]?.count ?? 0} migrations; ${Date.now() - startedAt}ms`,
+        status: latestMigration === "0005_admin_sessions.sql" ? "ok" : "degraded",
+        detail: `latest=${latestMigration}; ${Date.now() - startedAt}ms`,
       };
     } else {
       checks.database = {
@@ -78,7 +82,12 @@ export async function getOperationsHealth() {
   ]);
   checks.inbox = queue
     ? {
-        status: queue.quarantined > 0 || queue.retryable > 20 ? "degraded" : "ok",
+        status: queue.received > 20
+          || queue.processing > 2
+          || queue.quarantined > 0
+          || queue.retryable > 20
+          ? "degraded"
+          : "ok",
         detail: `received=${queue.received}; processing=${queue.processing}; retryable=${queue.retryable}; quarantined=${queue.quarantined}`,
       }
     : { status: "degraded", detail: "inbox unavailable" };

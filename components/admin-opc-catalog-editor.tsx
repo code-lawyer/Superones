@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
+  infrastructureGroups,
   rangerIdentities,
   specialtyDomains,
   type OpcCatalogContent,
@@ -46,7 +47,6 @@ class AdminCatalogError extends Error {
   }
 }
 
-const infrastructureGroups = ["建立经营底座", "持续安全运行", "构建与交付"] as const;
 const sectionLabels: Record<CatalogSection, string> = {
   infrastructure: "基础设施",
   specialties: "专项服务",
@@ -76,7 +76,7 @@ function newService(section: "infrastructure" | "specialties", ordinal: number):
   return {
     kind: infrastructure ? "infrastructure" : "specialty",
     slug: `new-${infrastructure ? "infrastructure" : "specialty"}-${ordinal}`,
-    code: infrastructure ? `OPC/INFRA/${String(ordinal).padStart(3, "0")}` : `OPC/LEGAL/${String(ordinal).padStart(3, "0")}`,
+    code: infrastructure ? `I-${String(ordinal).padStart(2, "0")}` : `S-00-${String(ordinal).padStart(2, "0")}`,
     name: "未命名服务",
     domain: infrastructure ? "基础设施" : specialtyDomains[0],
     group: infrastructure ? infrastructureGroups[0] : specialtyDomains[0],
@@ -85,8 +85,11 @@ function newService(section: "infrastructure" | "specialties", ordinal: number):
     includes: [],
     deliverables: [],
     materials: [],
+    deliveryRoles: [],
+    acceptance: [],
     boundary: "",
     price: "",
+    feeNote: "",
     period: "",
     revision: "DRAFT.01",
     status: "草稿",
@@ -140,7 +143,12 @@ export function AdminOpcCatalogEditor() {
   }, []);
 
   useEffect(() => {
-    void load().catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取 OPC 服务目录。"));
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      void load().catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取 OPC 服务目录。"));
+    });
+    return () => { active = false; };
   }, [load]);
 
   const items = draft?.[section] ?? [];
@@ -401,8 +409,11 @@ function ServiceFields({ service, onChange }: { service: OpcService; onChange: (
     <ListField label="包含内容" value={service.includes} onChange={(value) => change("includes", value)} />
     <ListField label="交付成果" value={service.deliverables} onChange={(value) => change("deliverables", value)} />
     <ListField label="所需材料" value={service.materials} onChange={(value) => change("materials", value)} />
+    <ListField label="交付角色与分工" value={service.deliveryRoles ?? []} onChange={(value) => change("deliveryRoles", value)} />
+    <ListField label="验收标准" value={service.acceptance ?? []} onChange={(value) => change("acceptance", value)} />
     <TextField label="超出范围与转交边界" value={service.boundary} multiline onChange={(value) => change("boundary", value)} />
     <TextField label="公开价格或计价单位" value={service.price} onChange={(value) => change("price", value)} />
+    <TextField label="费用说明" value={service.feeNote ?? ""} multiline onChange={(value) => change("feeNote", value)} />
     <TextField label="标准周期" value={service.period} onChange={(value) => change("period", value)} />
     <TextField label="修订编号" value={service.revision} onChange={(value) => change("revision", value)} />
     <TextField label="公开状态" value={service.status} onChange={(value) => change("status", value)} />

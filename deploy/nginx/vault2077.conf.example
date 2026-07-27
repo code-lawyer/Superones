@@ -3,6 +3,10 @@ upstream vault2077_app {
     keepalive 32;
 }
 
+# This file is included from nginx's http context on standard Debian/Ubuntu
+# installations, so the shared ingest limit zone is declared once here.
+limit_req_zone $binary_remote_addr zone=vault2077_ingest:10m rate=10r/m;
+
 server {
     listen 80;
     server_name vault2077.com www.vault2077.com;
@@ -27,12 +31,56 @@ server {
     location ^~ /api/admin/ { return 404; }
     location = /pipeline { return 404; }
 
+    # The write-side cross-border endpoint. Authentication remains HMAC-based
+    # in the application; this edge limit protects it before Node reads the body.
+    location = /api/internal/acquisition {
+        if ($request_method != POST) { return 405; }
+        limit_req zone=vault2077_ingest burst=20 nodelay;
+        client_max_body_size 8m;
+        proxy_pass http://vault2077_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 75s;
+        proxy_send_timeout 75s;
+    }
+
+    # Frontier reads only a sanitized public-task manifest through a separate,
+    # read-only credential. It never receives worker, database, LLM, or admin
+    # credentials.
+    location = /api/internal/frontier/tasks {
+        if ($request_method != GET) { return 405; }
+        limit_req zone=vault2077_ingest burst=10 nodelay;
+        proxy_pass http://vault2077_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+    }
+
+    # All other internal routes, especially the domestic processing route, are
+    # unreachable from the public Internet.
+    location ^~ /api/internal/ { return 404; }
+
     location / {
         proxy_pass http://vault2077_app;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header Connection "";
     }
 }

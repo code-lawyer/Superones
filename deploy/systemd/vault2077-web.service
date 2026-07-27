@@ -10,6 +10,7 @@ Group=vault2077
 WorkingDirectory=/srv/vault2077/current
 EnvironmentFile=/etc/vault2077/production.env
 Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=384
 Environment=HOSTNAME=127.0.0.1
 Environment=PORT=3000
 ExecStartPre=/usr/bin/npm run deploy:check

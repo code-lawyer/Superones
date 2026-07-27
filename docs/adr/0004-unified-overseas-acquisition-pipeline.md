@@ -2,7 +2,7 @@
 type: adr
 status: amended
 updated: 2026-07-25
-amended-by: ADR-0005, ADR-0007, ADR-0008, ADR-0009
+amended-by: ADR-0005, ADR-0007, ADR-0008, ADR-0009, ADR-0013
 ---
 
 # 统一境外公开数据采集
@@ -14,3 +14,5 @@ ADR-0005 将“单一每小时批次”修订为四个职责独立的采集通�
 ADR-0008 进一步规定内容单一主去向，以及社区原生来源不递归抓取外链；本 ADR 的“统一采集”不代表同一内容可以跨通道重复采集。
 
 ADR-0009 进一步区分采集通道与频道编辑配置：information、roadside 和 Vault 事件编排共享 `vault_editorial`，SiC 使用独立 `sic_editorial`；统一采集不等于所有内容共用一个处理提供方或一条处理队列。
+
+ADR-0013 将交付进一步收敛为“境外采集并可靠投递、境内独立 worker 消费”。境外 workflow 不得触发或等待境内编辑处理。

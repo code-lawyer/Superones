@@ -3,20 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { PageIntro } from "@/components/page-intro";
-import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
+import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const catalog = await readPublishedServiceCatalog();
+  const catalog = await getCachedPublishedServiceCatalog();
   const profile = catalog.rangers.find((item) => item.slug === slug);
   return { title: profile ? `${profile.publicName}｜游骑兵协会` : "游骑兵协会" };
 }
 
 export default async function RangerProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const catalog = await readPublishedServiceCatalog();
+  const catalog = await getCachedPublishedServiceCatalog();
   const profile = catalog.rangers.find((item) => item.slug === slug);
   if (!profile) notFound();
 
@@ -31,7 +31,7 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
         meta={`${profile.identity} / ${profile.contactState}`}
       />
       <ChannelRibbon identity="SUPERONES" slogan="ALL IS ONE. ONE IS ALL." />
-      <main className="opc-ranger-profile-page">
+      <section className="opc-ranger-profile-page" aria-label="游骑兵档案">
         <figure className={`opc-ranger-profile-page__portrait opc-ranger-portrait--${portraitIndex}`}>
           <span className="opc-ranger-portrait__image" role="img" aria-label={`${profile.publicName}的专家头像`} />
         </figure>
@@ -64,7 +64,7 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
             <Link href="/opc/rangers">查看全部游骑兵 →</Link>
           </footer>
         </article>
-      </main>
+      </section>
     </>
   );
 }

@@ -30,3 +30,8 @@ config/feed-sources.json
 collector/.venv/
 __pycache__/
 *.py[cod]
+
+# Local agent and design-tool runtime state
+.agents/
+.codex/
+.impeccable/config.local.json

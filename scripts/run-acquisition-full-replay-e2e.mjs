@@ -41,7 +41,7 @@ async function waitUntilReady(url, children, output) {
   throw new Error(`等待本地服务启动超时：${output()}`);
 }
 
-function signedHeaders(secret, batchId, rawPayload) {
+function signedHeaders(secret, keyId, batchId, rawPayload) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const bodyHash = createHash("sha256").update(rawPayload).digest("hex");
   const signature = createHmac("sha256", secret)
@@ -50,6 +50,7 @@ function signedHeaders(secret, batchId, rawPayload) {
   return {
     "content-type": "application/json",
     "x-vault2077-batch-id": batchId,
+    "x-vault2077-key-id": keyId,
     "x-vault2077-timestamp": timestamp,
     "x-vault2077-signature": `sha256=${signature}`,
   };
@@ -108,6 +109,9 @@ const expected = payloads.reduce((totals, { batch }) => {
   }
   return totals;
 }, { records: 0, sources: 0, kinds: {} });
+const allowedSourceRevisions = Array.from(new Set(
+  payloads.map(({ batch }) => batch.registryRevision),
+)).join(",");
 
 const externalLlmConfigured = [
   process.env.VAULT2077_VAULT_LLM_BASE_URL ?? process.env.VAULT2077_LLM_BASE_URL,
@@ -133,7 +137,11 @@ const site = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
     ...process.env,
     VAULT2077_DATA_DIR: dataDirectory,
     VAULT2077_ALLOW_FILE_PREVIEW: "true",
-    VAULT2077_PIPELINE_SHARED_SECRET: secret,
+    VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ replay: secret }),
+    VAULT2077_PIPELINE_ACTIVE_KEY_ID: "replay",
+    VAULT2077_PIPELINE_WORKER_SECRET: secret,
+    VAULT2077_AUDIT_HASH_SECRET: secret,
+    VAULT2077_ALLOWED_SOURCE_REVISIONS: allowedSourceRevisions,
     VAULT2077_VAULT_LLM_BASE_URL: externalLlmConfigured
       ? process.env.VAULT2077_VAULT_LLM_BASE_URL ?? process.env.VAULT2077_LLM_BASE_URL
       : `http://127.0.0.1:${modelPort}/v1`,
@@ -176,7 +184,7 @@ try {
   for (const { rawPayload, batch } of payloads) {
     const response = await postLocalJson(
       `${origin}/api/internal/acquisition`,
-      signedHeaders(secret, batch.batchId, rawPayload),
+      signedHeaders(secret, "replay", batch.batchId, rawPayload),
       rawPayload,
       60_000,
     );

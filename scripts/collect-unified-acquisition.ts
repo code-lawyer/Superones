@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process";
-import { createHash, createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
 import path from "node:path";
 import {
   buildRankingAcquisitionBatches,
@@ -12,7 +10,7 @@ import {
   type AcquisitionBuildContext,
   type AcquisitionSourceGroup,
 } from "../lib/acquisition-batch-builder.ts";
-import { validateContentBatch, type InboundContentBatch } from "../lib/content-contract.ts";
+import { validateContentBatch } from "../lib/content-contract.ts";
 import {
   ACQUISITION_LANES,
   ACQUISITION_RUN_MODES,
@@ -22,6 +20,8 @@ import {
   type AcquisitionRunMode,
 } from "../lib/acquisition-contract.ts";
 import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
+import { deliverAcquisitionBatch } from "../lib/acquisition-delivery.ts";
+import { pipelineSigningKeyring } from "../lib/secret-keyring.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
 
 const outputRoot = path.resolve(process.env.VAULT2077_COLLECTOR_OUTPUT_DIR || ".collector-output");
@@ -66,18 +66,18 @@ async function readJson<T>(target: string) {
   return JSON.parse(await readFile(target, "utf8")) as T;
 }
 
-function withoutLegacyDeliveryEnvironment(sourceIds: string[]) {
+function collectorEnvironment(sourceIds: string[]) {
   const {
-    VAULT2077_DOMESTIC_INGEST_URL: _ingest,
-    VAULT2077_DOMESTIC_PROCESS_URL: _process,
     VAULT2077_PIPELINE_SHARED_SECRET: _secret,
+    VAULT2077_PIPELINE_SIGNING_KEYS: _signingKeys,
+    VAULT2077_PIPELINE_ACTIVE_KEY_ID: _activeKeyId,
+    VAULT2077_FRONTIER_TASKS_SECRET: _tasksSecret,
     ...environment
   } = process.env;
   return {
     ...environment,
     VAULT2077_SOURCE_BUNDLE_FILE: sourceBundlePath,
     VAULT2077_COLLECTOR_OUTPUT_DIR: vaultOutput,
-    VAULT2077_TRIGGER_PROCESSING: "false",
     VAULT2077_SOURCE_IDS: sourceIds.join(","),
   };
 }
@@ -88,7 +88,7 @@ function compactTimestamp(value: string) {
 
 async function collectVault(sourceIds: string[]) {
   await mkdir(vaultOutput, { recursive: true });
-  await run(python, [...pythonPrefix, "-m", "collector.horizon_raw_export"], withoutLegacyDeliveryEnvironment(sourceIds));
+  await run(python, [...pythonPrefix, "-m", "collector.horizon_raw_export"], collectorEnvironment(sourceIds));
   const files = (await readdir(vaultOutput))
     .filter((name) => name.endsWith(".json") && !["report.json", "discovery-candidates.json"].includes(name))
     .sort();
@@ -151,8 +151,7 @@ type FrontierFallbackTask = {
 async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promise<AcquisitionSourceGroup[]> {
   const tasksUrl = process.env.VAULT2077_FRONTIER_PUBLIC_TASKS_URL;
   if (!tasksUrl) return [];
-  const secret = process.env.VAULT2077_PIPELINE_WORKER_SECRET
-    || process.env.VAULT2077_PIPELINE_SHARED_SECRET;
+  const secret = process.env.VAULT2077_FRONTIER_TASKS_SECRET;
   if (!secret) throw new Error("已配置 Frontier 公开任务 URL，但缺少读取密钥。");
   const response = await fetch(tasksUrl, {
     headers: { Authorization: `Bearer ${secret}`, Accept: "application/json" },
@@ -242,62 +241,6 @@ async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promi
       };
     }
   }));
-}
-
-async function sendBatch(url: string, secret: string, batch: AcquisitionBatch, rawPayload: string) {
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const bodyHash = createHash("sha256").update(rawPayload).digest("hex");
-  const signature = createHmac("sha256", secret)
-    .update(`${timestamp}.${batch.batchId}.${bodyHash}`)
-    .digest("base64url");
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-vault2077-batch-id": batch.batchId,
-      "x-vault2077-timestamp": timestamp,
-      "x-vault2077-signature": `sha256=${signature}`,
-    },
-    body: rawPayload,
-    signal: AbortSignal.timeout(60_000),
-  });
-  const body = await response.text();
-  if (!response.ok) throw new Error(`统一接收返回 HTTP ${response.status}：${body.slice(0, 500)}`);
-  return JSON.parse(body) as unknown;
-}
-
-function postLongRunningJson(
-  url: string,
-  headers: Record<string, string>,
-  body: string,
-  timeoutMs: number,
-) {
-  return new Promise<{ status: number; body: string }>((resolve, reject) => {
-    const target = new URL(url);
-    const request = (target.protocol === "https:" ? httpsRequest : httpRequest)({
-      protocol: target.protocol,
-      hostname: target.hostname,
-      port: target.port,
-      path: `${target.pathname}${target.search}`,
-      method: "POST",
-      headers: {
-        ...headers,
-        "content-length": Buffer.byteLength(body),
-      },
-    }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on("data", (chunk) => chunks.push(chunk));
-      response.on("end", () => resolve({
-        status: response.statusCode ?? 0,
-        body: Buffer.concat(chunks).toString("utf8"),
-      }));
-    });
-    request.setTimeout(timeoutMs, () => {
-      request.destroy(new Error(`境内 Worker 在 ${timeoutMs} ms 内没有完成。`));
-    });
-    request.on("error", reject);
-    request.end(body);
-  });
 }
 
 await mkdir(outputRoot, { recursive: true });
@@ -408,16 +351,9 @@ if (lane === "information" || lane === "roadside") {
 }
 
 const ingestUrl = process.env.VAULT2077_DOMESTIC_ACQUISITION_URL;
-const processUrl = process.env.VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL
-  || (ingestUrl ? `${ingestUrl.replace(/\/$/, "")}/process` : undefined);
-const secret = process.env.VAULT2077_PIPELINE_SHARED_SECRET;
 const requireDelivery = process.env.VAULT2077_REQUIRE_DOMESTIC_DELIVERY === "true";
-if (requireDelivery && (!ingestUrl || !secret)) {
-  throw new Error("本次运行要求境内投递，但统一接收 URL 或共享密钥未配置。");
-}
-if ((ingestUrl && !secret) || (!ingestUrl && secret)) {
-  throw new Error("统一接收 URL 与 VAULT2077_PIPELINE_SHARED_SECRET 必须同时配置。");
-}
+if (requireDelivery && !ingestUrl) throw new Error("本次运行要求境内投递，但统一接收 URL 未配置。");
+const signing = ingestUrl ? pipelineSigningKeyring() : null;
 
 const files = [];
 const receipts = [];
@@ -427,27 +363,20 @@ for (const batch of batches) {
   const target = path.join(batchOutput, filename);
   await writeFile(target, rawPayload, "utf8");
   files.push({ batchId: batch.batchId, file: target, bytes: Buffer.byteLength(rawPayload) });
-  if (ingestUrl && secret) receipts.push(await sendBatch(ingestUrl, secret, batch, rawPayload));
-}
-
-let processing: unknown = null;
-let processingDurationMs: number | null = null;
-if (ingestUrl && secret && processUrl && process.env.VAULT2077_TRIGGER_PROCESSING !== "false") {
-  const processingStartedAt = Date.now();
-  const response = await postLongRunningJson(
-    processUrl,
-    {
-      authorization: `Bearer ${process.env.VAULT2077_PIPELINE_WORKER_SECRET || secret}`,
-      "content-type": "application/json",
-    },
-    JSON.stringify({ maxBatches: 50 }),
-    Number(process.env.VAULT2077_PROCESS_TIMEOUT_SECONDS ?? "5400") * 1_000,
-  );
-  if ((response.status < 200 || response.status >= 300) && response.status !== 207) {
-    throw new Error(`统一 Worker 返回 HTTP ${response.status}：${response.body.slice(0, 500)}`);
+  if (ingestUrl && signing) {
+    const activeSecret = signing.keys.get(signing.activeKeyId);
+    if (!activeSecret) throw new Error("活动采集签名密钥不存在。");
+    receipts.push(await deliverAcquisitionBatch({
+      url: ingestUrl,
+      keyId: signing.activeKeyId,
+      secret: activeSecret,
+      batch,
+      rawPayload,
+      attempts: Number(process.env.VAULT2077_DELIVERY_ATTEMPTS ?? "4"),
+      timeoutMs: Number(process.env.VAULT2077_DELIVERY_TIMEOUT_MS ?? "60000"),
+      baseDelayMs: Number(process.env.VAULT2077_DELIVERY_RETRY_BASE_MS ?? "1000"),
+    }));
   }
-  processing = JSON.parse(response.body) as unknown;
-  processingDurationMs = Date.now() - processingStartedAt;
 }
 
 const sourceReports = batches.flatMap((batch) => batch.sourceReports);
@@ -557,24 +486,18 @@ const report = {
     lookbackHours,
     maxItemsPerSource: runMode === "bootstrap" && lane === "sic" ? 1 : null,
   },
-  processor: {
-    provider: process.env.VAULT2077_LLM_BASE_URL
-      ? new URL(process.env.VAULT2077_LLM_BASE_URL).hostname
-      : null,
-    model: process.env.VAULT2077_LLM_MODEL ?? null,
-    durationMs: processingDurationMs,
+  delivery: {
+    required: requireDelivery,
+    endpoint: ingestUrl ? new URL(ingestUrl).origin : null,
+    keyId: signing?.activeKeyId ?? null,
+    attempts: receipts.map((receipt) => receipt.attempt),
   },
   files,
   receipts,
-  processing,
 };
 await writeFile(path.join(outputRoot, "acquisition-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report));
 if (sourceReports.some((item) => item.status === "failed")) {
   console.error("一个或多个已批准来源抓取失败；请检查 acquisition-report.json。");
-  process.exitCode = 1;
-}
-if (processing && typeof processing === "object" && "ok" in processing && processing.ok !== true) {
-  console.error("境内 Worker 未完成全部批次；请检查 acquisition-report.json 的 processing 字段。");
   process.exitCode = 1;
 }

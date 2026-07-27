@@ -7,7 +7,6 @@ import {
   beginSeasonSettlement,
   failSeasonSettlement,
   getSeasonResult,
-  getSubmission,
   listPublicPrizePool,
   listUnsettledSeasonCodes,
   listVerifiedSubmissions,

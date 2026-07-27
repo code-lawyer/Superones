@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "app/sources/pipeline/pipeline-sources.module.css"
+        ],
+        "createdAt": "2026-07-26T15:06:52.778Z",
+        "reason": "The pipeline manifest is an intentional measurement and blueprint surface."
+      }
+    ]
+  }
+}

@@ -1,9 +1,12 @@
+/* impeccable-disable side-tab */
+/* The 4px inset rules encode pipeline stream identity; they are not card decoration. */
 .page {
   --paper: #f3f1e9;
   --ink: #161915;
   --muted: #6d7169;
   --line: #b9bcb2;
   --green: #087c61;
+  --blue: #315eb2;
   --red: #9b3152;
   --amber: #aa6810;
   min-height: 100vh;
@@ -61,7 +64,7 @@
 .healthCode {
   margin: 0;
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 11px;
+  font-size: var(--type-note);
   line-height: 1.3;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -100,14 +103,14 @@
 
 .heroCopy dt {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 .heroCopy dd {
   margin: 0;
   overflow-wrap: anywhere;
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 .trace {
@@ -145,14 +148,14 @@
 
 .trace h2 {
   margin: 38px 0 7px;
-  font-size: 18px;
+  font-size: var(--type-lede);
   font-weight: 600;
 }
 
 .trace strong {
   display: block;
   overflow-wrap: anywhere;
-  font-size: 13px;
+  font-size: var(--type-nav);
   font-weight: 500;
   color: var(--muted);
 }
@@ -186,7 +189,7 @@
 .metrics p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--type-small);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -217,7 +220,7 @@
 
 .sectionHeader > span {
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--type-control);
   line-height: 1.7;
 }
 
@@ -230,7 +233,7 @@
 .resultColumn {
   padding: 28px 26px 0;
   border-right: 1px solid var(--line);
-  box-shadow: inset 0 4px 0 #315eb2;
+  box-shadow: inset 0 4px 0 var(--blue);
 }
 
 .resultColumn:first-child {
@@ -295,7 +298,7 @@
   margin: 8px 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--type-small);
   line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -304,7 +307,7 @@
 .resultColumn article span {
   display: block;
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 10px;
+  font-size: var(--type-caption);
   line-height: 1.4;
 }
 
@@ -326,7 +329,7 @@
   margin: 0 0 28px;
   color: var(--red);
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 10px;
+  font-size: var(--type-caption);
 }
 
 .eventGrid a {
@@ -341,7 +344,7 @@
 
 .eventGrid span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--type-small);
   line-height: 1.5;
 }
 
@@ -354,7 +357,7 @@
 .healthLegend span,
 .status {
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 10px;
+  font-size: var(--type-caption);
 }
 
 .healthLegend span::before {
@@ -438,7 +441,7 @@
 
 .healthGroup summary > span:nth-of-type(2) {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 .healthSummary {
@@ -460,7 +463,7 @@
   width: 100%;
   min-width: 900px;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 .healthTable th,
@@ -468,13 +471,13 @@
   padding: 13px 14px;
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid rgba(120, 123, 114, .32);
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 32%, transparent);
 }
 
 .healthTable th {
   color: var(--muted);
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 9px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: .1em;
 }
@@ -495,7 +498,7 @@
   margin-top: 3px;
   color: var(--muted);
   font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 9px;
+  font-size: var(--type-label);
 }
 
 .healthTable small {
@@ -576,7 +579,7 @@
 
   .heroMeta nav {
     gap: 14px;
-    font-size: 12px;
+    font-size: var(--type-small);
   }
 
   .hero h1 {

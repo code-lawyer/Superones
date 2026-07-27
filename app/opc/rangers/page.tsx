@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { OpcRangerDirectory } from "@/components/opc-ranger-directory";
 import { PageIntro } from "@/components/page-intro";
-import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
 import { rangerIdentities } from "@/lib/opc-catalog";
+import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 
 export const metadata: Metadata = { title: "游骑兵协会" };
 export const dynamic = "force-dynamic";
 
 export default async function RangersPage() {
-  const { rangers } = await readPublishedServiceCatalog();
+  const { rangers } = await getCachedPublishedServiceCatalog();
   return (
     <>
       <PageIntro code="OPC / RANGER ASSOCIATION" title="直接联系独立专家" lead="这里展示经本人确认的公开职业档案和联系方式。Vault2077 不参与后续咨询、定价、付款、交付或争议处理。" meta="WORKING PROTOTYPE / 仅展示档案结构，不公开真实顾问信息" />

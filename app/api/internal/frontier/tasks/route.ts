@@ -1,12 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchFrontierObservationTasks } from "@/lib/frontier-public-tasks";
+import { withinDurableRateLimit } from "@/lib/rate-limit";
+import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
 export const runtime = "nodejs";
 
 function secret() {
-  const value = process.env.VAULT2077_PIPELINE_WORKER_SECRET
-    || process.env.VAULT2077_PIPELINE_SHARED_SECRET;
+  const value = process.env.VAULT2077_FRONTIER_TASKS_SECRET;
   if (value) return value;
   if (process.env.NODE_ENV === "production") throw new Error("Frontier 公开任务接口缺少服务端密钥。");
   return "vault2077-local-pipeline-secret!";
@@ -21,6 +22,10 @@ function authorized(value: string | null) {
 
 export async function GET(request: NextRequest) {
   try {
+    const clientHash = anonymizeClientAddress(requestClientAddress(request));
+    if (!(await withinDurableRateLimit(`frontier:tasks:${clientHash}`, 60, 60 * 60 * 1000))) {
+      return NextResponse.json({ error: "Frontier 公开任务读取过于频繁。" }, { status: 429 });
+    }
     if (!authorized(request.headers.get("authorization"))) {
       return NextResponse.json({ error: "Frontier 公开任务认证失败。" }, { status: 401 });
     }

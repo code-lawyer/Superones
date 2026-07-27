@@ -37,11 +37,15 @@ updated: 2026-07-25
 
 采集合同、workflow 和采集器已经支持独立 `runMode=bootstrap`：SiC 每个 approved 来源取最近一条合格内容，Vault 只用最近 30 天真实新闻，按统一有界批次和幂等合同处理。尚未完成的是在目标生产修订执行作业、保存逐来源证据并补跑失败来源。
 
+### 1.4 续审更新：跨境投递与境内处理已解耦
+
+根据 ADR-0013，GitHub Actions 现在只采集并以带 key ID 的 HMAC 密钥环可靠投递，同一批次对瞬时故障执行最多四次有界重试，不再持有 worker/LLM 密钥或等待境内处理。境内新增每五分钟 systemd worker；公网 Nginx 只开放精确 ingest，其他内部路径拒绝。敏感数据密文也已携带 key ID，支持新旧密钥重叠读取。剩余门禁是目标阿里云环境安装、告警、轮换和故障演练。
+
 ## 2. 上线阻断项
 
 ### P0-1 统一批次不是完整合同
 
-四 lane、规范字段、来源修订白名单、`received/processing/processed/retryable/quarantined`、最大重试、租约恢复和 HTTP E2E 已实现；旧 content 接口、worker 和第二套 inbox 已删除。
+四 lane、规范字段、来源修订白名单、`received/processing/processed/retryable/quarantined`、最大重试、租约恢复和 HTTP E2E 已实现；旧 content 接口、境外处理调用和第二套 inbox 已删除。境内只保留一个 acquisition worker 深模块，由 CLI/systemd、回环演练入口共同调用，不构成第二套状态机。
 
 lane-kind 合同会在写入前拒绝不支持记录；生产 inbox 使用专用 PostgreSQL 事务，业务聚合使用独立行锁事务。跨 inbox 完成标记和业务聚合仍是幂等重放而非一个分布式事务，需要真实 PostgreSQL 故障注入验证。
 
@@ -57,7 +61,7 @@ lane-kind 合同会在写入前拒绝不支持记录；生产 inbox 使用专用
 
 依据 ADR-0012，生产共享密码入口已移除，改为独立管理来源、身份网关签名 JWT、owner 白名单与 Passkey/MFA。应用会话使用 PostgreSQL 中可撤销的不透明令牌摘要，空闲 30 分钟、绝对 4 小时过期；OPC 发布和奖品状态变更要求最近 5 分钟再认证。后台写请求同时校验 JSON、自定义请求头、Origin/Referer 与 Fetch Metadata，并继续写入 append-only 审计表。
 
-CSP、HSTS、MIME、frame、referrer、COOP/CORP 和 `/pipeline` 认证/noindex 已实现；仓库已提供公开/管理双主机 Nginx 与 systemd 模板。剩余门禁是目标预发布环境中的真实 DNS、TLS、身份网关策略、转发头覆盖、源站防火墙和绕过失败证据，不再是应用代码缺口。
+逐请求 nonce CSP、HSTS、MIME、frame、referrer、COOP/CORP 和 `/pipeline` 认证/noindex 已实现；仓库已提供精确 ingest/公开/管理 Nginx 与 Web/采集 worker/Frontier systemd 模板。剩余门禁是目标预发布环境中的真实 DNS、TLS、身份网关策略、转发头覆盖、源站防火墙、性能和绕过失败证据，不再是应用代码缺口。
 
 ## 3. 产品与领域模型差距
 
@@ -100,6 +104,8 @@ CSP、HSTS、MIME、frame、referrer、COOP/CORP 和 `/pipeline` 认证/noindex 
 - 无调用的旧 SiC content/snapshot 接口和采集脚本。
 - 无站内入口的 SiC GitHub 仓库详情路由及唯一 helper。
 - 生产 `/pipeline` 公开暴露和生产 demo fallback。
+- Python 侧重复的签名、投递和远程触发处理实现；Node 统一交付模块成为唯一签名与重试实现。
+- GitHub Actions 中的境内 process URL、worker 密钥和长时间处理请求。
 
 ### 暂不删除
 
@@ -144,15 +150,15 @@ CSP、HSTS、MIME、frame、referrer、COOP/CORP 和 `/pipeline` 认证/noindex 
 - 补齐 SiC stale/last-success。
 - 把 Frontier 赛季和结算改为可恢复状态机。
 
-Gate A-C 的代码主体已完成；只有生产数据库/恢复、目标提供方/网络、scheduler 与监控证据全部通过后，项目才适合进入真实运营数据和小流量生产试运行。Gate D 可与真实内容录入并行，但不得再扩展新的频道。
+Gate A-C 的代码主体已完成，并补齐版本化密钥环、可靠投递、境内独立 worker、精确公网入口、nonce CSP 与 ESLint/Ruff。只有阿里云 RDS 恢复、目标提供方/网络、两个 timer、密钥轮换与监控证据全部通过后，项目才适合进入真实运营数据和小流量生产试运行。Gate D 可与真实内容录入并行，但不得再扩展新的频道。
 
 ## 6. 本轮验证
 
-- `npm run docs:check`：44 份 Markdown 通过元数据、索引和本地链接校验。
-- `npm run typecheck`：通过。
-- `npm test`：108 项通过。
+- `npm run docs:check`、`npm run lint`、`ruff check collector` 与 `npm run typecheck`：以 2026-07-25 最终追踪矩阵为准。
+- `npm test`：138 项通过，覆盖可靠投递、签名轮换、敏感数据轮换、有界限流和代理部署策略。
 - PostgreSQL 17 迁移、幂等重跑、并发聚合、`SKIP LOCKED`、隔离、限速和不可变审计集成测试：通过。
 - `npm run build`：通过。
 - `npm run test:pipeline:e2e`：通过。
 - `npm run test:acquisition:e2e`：通过。
-- Python 采集器测试：17 项通过（`collector/tests`）。
+- Python 采集器测试：16 项通过（`collector/tests`）。
+- 历史真实批次全量回放：50 批、1150 条记录、899 个来源报告全部处理，最终队列无 retryable/quarantine。

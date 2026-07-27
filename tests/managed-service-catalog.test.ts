@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,7 +8,11 @@ import type { OpcService, RangerProfile } from "../lib/opc-catalog.ts";
 test("OPC service catalog keeps drafts private until an atomic validated publish", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-catalog-"));
   const previous = process.env.VAULT2077_DATA_DIR;
+  const previousSeedPath = process.env.VAULT2077_OPC_SEED_PATH;
+  const previousSeedSync = process.env.VAULT2077_SYNC_LOCAL_SEED_ON_PUBLISH;
   process.env.VAULT2077_DATA_DIR = root;
+  process.env.VAULT2077_OPC_SEED_PATH = path.join(root, "defaults", "opc-catalog.seed.json");
+  process.env.VAULT2077_SYNC_LOCAL_SEED_ON_PUBLISH = "true";
   try {
     const {
       publishServiceCatalog,
@@ -24,7 +28,7 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
     draft.infrastructure[0].name = "已修改但未发布的服务";
     const saved = await saveServiceCatalogDraft(draft, initial.revision);
 
-    assert.equal((await readPublishedServiceCatalog()).infrastructure[0].name, "主体设立与基础合规");
+    assert.equal((await readPublishedServiceCatalog()).infrastructure[0].name, "经营主体启动与首年治理");
     assert.equal((await readManagedServiceCatalog()).draft.infrastructure[0].name, "已修改但未发布的服务");
     await assert.rejects(
       publishServiceCatalog(draft, saved.revision),
@@ -59,6 +63,11 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
 
     const published = await publishServiceCatalog(publishable, saved.revision);
     assert.equal((await readPublishedServiceCatalog()).infrastructure[0].name, "已修改但未发布的服务");
+    const seed = JSON.parse(await readFile(process.env.VAULT2077_OPC_SEED_PATH, "utf8"));
+    assert.equal(seed.schemaVersion, 1);
+    assert.equal(seed.sourceRevision, published.revision);
+    assert.equal(seed.publishedAt, published.publishedAt);
+    assert.equal(seed.catalog.infrastructure[0].name, "已修改但未发布的服务");
     await assert.rejects(
       saveServiceCatalogDraft(publishable, saved.revision),
       ServiceCatalogConflictError,
@@ -67,6 +76,10 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
   } finally {
     if (previous === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previous;
+    if (previousSeedPath === undefined) delete process.env.VAULT2077_OPC_SEED_PATH;
+    else process.env.VAULT2077_OPC_SEED_PATH = previousSeedPath;
+    if (previousSeedSync === undefined) delete process.env.VAULT2077_SYNC_LOCAL_SEED_ON_PUBLISH;
+    else process.env.VAULT2077_SYNC_LOCAL_SEED_ON_PUBLISH = previousSeedSync;
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -79,6 +92,85 @@ test("OPC service catalog rejects new uncontrolled taxonomies", async () => {
   const result = validateOpcCatalog(normalizeOpcCatalog(catalog));
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.includes("专项服务领域无效")));
+});
+
+test("OPC service catalog initializes an empty local store from the tracked seed", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-seed-bootstrap-"));
+  const previousDataDir = process.env.VAULT2077_DATA_DIR;
+  const previousSeedPath = process.env.VAULT2077_OPC_SEED_PATH;
+  process.env.VAULT2077_DATA_DIR = path.join(root, "runtime");
+  process.env.VAULT2077_OPC_SEED_PATH = path.join(root, "defaults", "opc-catalog.seed.json");
+  try {
+    const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+    const catalog = createDefaultOpcCatalog();
+    catalog.infrastructure[0].name = "来自受跟踪 seed 的默认服务";
+    await mkdir(path.dirname(process.env.VAULT2077_OPC_SEED_PATH), { recursive: true });
+    await writeFile(
+      process.env.VAULT2077_OPC_SEED_PATH,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        sourceRevision: 7,
+        publishedAt: null,
+        catalog,
+      }, null, 2)}\n`,
+    );
+
+    const { readManagedServiceCatalog } = await import(
+      `../lib/managed-service-catalog.ts?seed-bootstrap=${Date.now()}`
+    );
+    const initialized = await readManagedServiceCatalog();
+    assert.equal(initialized.revision, 7);
+    assert.equal(initialized.published.infrastructure[0].name, "来自受跟踪 seed 的默认服务");
+  } finally {
+    if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDir;
+    if (previousSeedPath === undefined) delete process.env.VAULT2077_OPC_SEED_PATH;
+    else process.env.VAULT2077_OPC_SEED_PATH = previousSeedPath;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("OPC service catalog refreshes infrastructure in an untouched local preview", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-preview-refresh-"));
+  const previousDataDir = process.env.VAULT2077_DATA_DIR;
+  const previousSeedPath = process.env.VAULT2077_OPC_SEED_PATH;
+  process.env.VAULT2077_DATA_DIR = root;
+  process.env.VAULT2077_OPC_SEED_PATH = path.join(root, "missing-seed.json");
+  try {
+    const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+    const stale = createDefaultOpcCatalog();
+    stale.infrastructure = stale.infrastructure.slice(0, 5);
+    stale.infrastructure[0].name = "旧基础设施预览";
+    await writeFile(
+      path.join(root, "opc-service-catalog.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        revision: 1,
+        draftUpdatedAt: null,
+        publishedAt: null,
+        draft: stale,
+        published: stale,
+        publications: [],
+      }, null, 2)}\n`,
+    );
+
+    const { readManagedServiceCatalog, readPublishedServiceCatalog } = await import(
+      `../lib/managed-service-catalog.ts?preview-refresh=${Date.now()}`
+    );
+    const managed = await readManagedServiceCatalog();
+    const published = await readPublishedServiceCatalog();
+    assert.equal(managed.draft.infrastructure.length, 7);
+    assert.equal(managed.draft.specialties.length, 14);
+    assert.equal(published.infrastructure.length, 7);
+    assert.equal(published.specialties.length, 14);
+    assert.equal(published.infrastructure[0].name, "经营主体启动与首年治理");
+  } finally {
+    if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDir;
+    if (previousSeedPath === undefined) delete process.env.VAULT2077_OPC_SEED_PATH;
+    else process.env.VAULT2077_OPC_SEED_PATH = previousSeedPath;
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("OPC publication requires valid public dates and ranger contact state", async () => {

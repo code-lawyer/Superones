@@ -1,17 +1,15 @@
 """Vault2077 overseas collector.
 
-This is the complete overseas runtime: load the frozen source bundle, collect
-machine-readable feeds/APIs, normalize public records, split bounded immutable
-batches, HMAC-sign them, and send them to the domestic ingest gateway. It does
-not use a browser, a database, or an LLM.
+This module is the Python collection adapter: load the frozen source bundle,
+collect machine-readable feeds/APIs, normalize public records, and emit bounded
+immutable packets. The Node unified acquisition module alone owns signing,
+retrying, and delivery. This module does not use a browser, database, or LLM.
 """
 
 from __future__ import annotations
 
-import base64
 import calendar
 import hashlib
-import hmac
 import ipaddress
 import json
 import os
@@ -26,7 +24,7 @@ from pathlib import Path
 from threading import BoundedSemaphore, Lock
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 USER_AGENT = "Vault2077-Overseas-Collector/2.0 (+https://vault2077.com)"
 WORKERS = int(os.environ.get("VAULT2077_COLLECTOR_CONCURRENCY", "24"))
@@ -37,7 +35,6 @@ MAX_BATCH_ITEMS = 200
 MAX_PACKET_BYTES = int(os.environ.get("VAULT2077_MAX_PACKET_BYTES", "1750000"))
 PACKET_METADATA_RESERVE = 256
 MAX_UPSTREAM_BYTES = int(os.environ.get("VAULT2077_MAX_UPSTREAM_BYTES", "8000000"))
-PROCESS_TIMEOUT_SECONDS = int(os.environ.get("VAULT2077_PROCESS_TIMEOUT_SECONDS", "300"))
 
 _host_lock = Lock()
 _host_semaphores: dict[str, BoundedSemaphore] = {}
@@ -586,54 +583,6 @@ def build_packets(bundle_revision: str, collected_from: str, collected_until: st
     return packets
 
 
-def signed_headers(payload: bytes, batch_id: str, secret: str, timestamp: str | None = None) -> dict[str, str]:
-    sent_at = timestamp or str(int(time.time()))
-    body_hash = hashlib.sha256(payload).hexdigest()
-    signature_input = f"{sent_at}.{batch_id}.{body_hash}".encode()
-    signature = base64.urlsafe_b64encode(hmac.new(secret.encode(), signature_input, hashlib.sha256).digest()).decode().rstrip("=")
-    return {
-        "Content-Type": "application/json",
-        "User-Agent": USER_AGENT,
-        "X-Vault2077-Batch-Id": batch_id,
-        "X-Vault2077-Timestamp": sent_at,
-        "X-Vault2077-Signature": f"sha256={signature}",
-    }
-
-
-def send_packet(url: str, secret: str, packet: dict, payload: bytes | None = None, attempts: int = 3) -> dict:
-    payload = payload or packet_payload(packet)
-    last_error = None
-    for attempt in range(1, attempts + 1):
-        try:
-            request = Request(url, data=payload, method="POST", headers=signed_headers(payload, packet["batchId"], secret))
-            with urlopen(request, timeout=30) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")[:500]
-            if error.code < 500 or attempt == attempts:
-                raise RuntimeError(f"Domestic ingest returned HTTP {error.code}: {detail}") from error
-            last_error = error
-        except (URLError, TimeoutError) as error:
-            last_error = error
-            if attempt == attempts:
-                break
-        time.sleep(attempt * 2)
-    raise RuntimeError(f"Domestic ingest failed after {attempts} attempts: {last_error}")
-
-
-def trigger_processing(url: str, secret: str, max_batches: int) -> dict:
-    payload = json.dumps({"maxBatches": max(1, min(20, max_batches))}).encode("utf-8")
-    request = Request(url, data=payload, method="POST", headers={"Content-Type": "application/json", "Authorization": f"Bearer {secret}", "User-Agent": USER_AGENT})
-    try:
-        with urlopen(request, timeout=PROCESS_TIMEOUT_SECONDS) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")[:500]
-        if error.code == 503:
-            return {"deferred": True, "status": error.code, "detail": detail}
-        raise RuntimeError(f"Domestic processor returned HTTP {error.code}: {detail}") from error
-
-
 def main() -> None:
     bundle_path = Path(os.environ.get("VAULT2077_SOURCE_BUNDLE_FILE", "config/source-bundle.json"))
     output_dir = Path(os.environ.get("VAULT2077_COLLECTOR_OUTPUT_DIR", ".collector-output"))
@@ -657,26 +606,11 @@ def main() -> None:
     generated_at = now_iso()
     packets = build_packets(bundle["revision"], now_iso(start), now_iso(end), generated_at, information, [])
     packet_files = []
-    packet_payloads: dict[str, bytes] = {}
     for packet in packets:
         target = output_dir / f"{packet['batchId']}.json"
         payload = packet_payload(packet)
         target.write_bytes(payload)
-        packet_payloads[packet["batchId"]] = payload
         packet_files.append(str(target))
-
-    ingest_url = os.environ.get("VAULT2077_DOMESTIC_INGEST_URL")
-    shared_secret = os.environ.get("VAULT2077_PIPELINE_SHARED_SECRET")
-    receipts = []
-    processing = None
-    if ingest_url or shared_secret:
-        if not ingest_url or not shared_secret:
-            raise RuntimeError("VAULT2077_DOMESTIC_INGEST_URL and VAULT2077_PIPELINE_SHARED_SECRET must be configured together.")
-        for packet in packets:
-            receipts.append(send_packet(ingest_url, shared_secret, packet, packet_payloads[packet["batchId"]]))
-        if os.environ.get("VAULT2077_TRIGGER_PROCESSING", "true").lower() == "true":
-            process_url = os.environ.get("VAULT2077_DOMESTIC_PROCESS_URL") or f"{ingest_url.rstrip('/')}/process"
-            processing = trigger_processing(process_url, shared_secret, 20)
 
     report = {
         "bundleRevision": bundle.get("revision"),
@@ -690,13 +624,11 @@ def main() -> None:
         "repositories": 0,
         "packets": len(packets),
         "packetFiles": packet_files,
-        "receipts": receipts,
-        "processing": processing,
         "failures": failures,
     }
     report_path = output_dir / "report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({key: report[key] for key in ("sourcesAttempted", "sourcesSucceeded", "information", "repositories", "packets", "processing")}, ensure_ascii=False))
+    print(json.dumps({key: report[key] for key in ("sourcesAttempted", "sourcesSucceeded", "information", "repositories", "packets")}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

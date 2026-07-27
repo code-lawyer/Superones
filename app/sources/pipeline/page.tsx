@@ -390,7 +390,7 @@ function SourceGrid({ sources }: { sources: readonly DisplaySource[] }) {
 
 export default function PipelineSourcesPage() {
   return (
-    <main className={styles.page}>
+    <section className={styles.page} aria-label="境外信息管线清单">
       <header className={styles.hero}>
         <div className={styles.heroTopline}>
           <p>INBOUND MANIFEST / 当前运行边界</p>
@@ -609,6 +609,6 @@ export default function PipelineSourcesPage() {
           </li>
         </ol>
       </section>
-    </main>
+    </section>
   );
 }

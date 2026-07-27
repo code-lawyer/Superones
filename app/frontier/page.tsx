@@ -7,11 +7,8 @@ import { beijingSeasonDate, seasonFromCode } from "@/lib/frontier-domain";
 import {
   OFFICIAL_CHAMPION_REWARD,
   currentSeason,
-  latestRankingUpdate,
-  listPublicPrizePool,
-  listPublicRankings,
-  listSeasonHistory,
 } from "@/lib/frontier-store";
+import { getCachedFrontierSnapshot } from "@/lib/public-read-cache";
 import { persistenceMode } from "@/lib/state-document-store";
 import { ManifestoContent, RulesContent } from "./frontier-copy";
 import { FrontierDialog } from "./frontier-dialog";
@@ -29,12 +26,7 @@ export default async function FrontierPage() {
   const productionData = persistenceMode() === "postgresql";
   const season = currentSeason();
   const [seasonYear, seasonLabel] = season.name.split(" ");
-  const [rankings, updatedAt, prizes, history] = await Promise.all([
-    listPublicRankings(season.code),
-    latestRankingUpdate(season.code),
-    listPublicPrizePool(season.code),
-    listSeasonHistory(),
-  ]);
+  const { rankings, updatedAt, prizes, history } = await getCachedFrontierSnapshot(season.code);
 
   return (
     <div className="frontier-landing">

@@ -11,7 +11,7 @@ updated: 2026-07-25
 ## P0：产品与内容
 
 - [ ] 四个频道的真实内容/业务输入已确认，页面没有把演示数据冒充实时数据。
-- [ ] OPC 已确认十项首发基础设施基线、专项服务清单与价格/范围、游骑兵授权资料、责任声明和统一工作人员联系方式；后续项目只经 OPC 菜单草稿/校验/发布修订。
+- [ ] OPC 已确认七项基础设施与十四项专项服务的首版清单、建议价格、范围、角色和验收标准，并补齐游骑兵授权资料、责任声明和统一工作人员联系方式；后续项目只经 OPC 菜单草稿/校验/发布修订。
 - [ ] SiC 只展示 GitHub Trending、Hugging Face Trending、OpenRouter `top-weekly`、skills.sh 原生视图，无 MCP 或自算增量。
 - [ ] 边境计划真实赛季、永久奖金、奖品条款、隐私告知和联系流程已确认。
 - [ ] 法律文本、版权处理、隐私与数据保留规则通过业务/法律确认。
@@ -27,6 +27,8 @@ updated: 2026-07-25
 - [ ] 私人邮箱和运营资料不会进入采集器、公开任务或构建产物。
 - [ ] `sourceBundleRevision` 只接受部署白名单版本。
 - [ ] 批次签名、时间窗、重放、幂等、大小限制、重试与隔离已验证。
+- [ ] GitHub Actions 只采集并投递，不持有 worker/LLM 密钥、不调用境内处理；四次有界重试保持同一 `batchId` 与正文。
+- [ ] 境内 `vault2077-acquisition-worker.timer` 每五分钟独立消费 inbox；停止、积压、恢复和 quarantine 告警已演练。
 - [ ] 首次开放前已完成真实上线基线：SiC 每个 approved 来源至少有最近一条合格内容，Vault 使用最近 30 天真实新闻且未用陈旧来源或演示数据强行填满。
 - [ ] bootstrap 与 incremental 可区分；初始化按小批次处理、可幂等补跑，并保留逐来源覆盖、真实原始发布时间和失败证据。
 - [ ] `vault_editorial` 稳定处理 information、roadside 与 Vault 事件编排；`sic_editorial` 独立处理 sic，二者共享事实、来源、术语与追溯合同。
@@ -40,22 +42,30 @@ updated: 2026-07-25
 - [ ] 生产写模型已迁移到 PostgreSQL；文件适配器仅用于开发/预览。
 - [ ] schema 迁移、唯一约束、事务、自动备份与实际恢复演练通过。
 - [ ] 私人邮箱加密、最小权限访问与保留/删除策略已验证。
+- [ ] 管线签名和敏感数据均使用带活动 key ID 的密钥环；新旧重叠、切换、验证和撤旧顺序已演练，旧密文在撤钥前已过保留期或完成重加密。
 - [ ] 独立管理来源只经身份网关开放；白名单 `owner` 通过 Passkey 或其他抗钓鱼 MFA，公共站域名和服务器 IP 无法绕过网关进入后台。
 - [ ] 应用校验身份断言的签名、发行者、受众、时效和白名单；本地密码适配器在生产关闭。
 - [ ] 后台会话使用 PostgreSQL 可撤销令牌摘要和 `__Host-` 安全 Cookie，空闲/绝对过期与单会话撤销已验证。
 - [ ] 后台浏览器写请求通过同源与 CSRF 防护；写操作二次确认并留下不可变审计记录，OPC 发布和奖品状态操作要求最近 5 分钟再认证。
 - [ ] OPC 草稿增删改、排序、字段校验、并发冲突和发布快照已在目标数据库验证；未登录用户和自动内容管线不能访问该写接口。
 - [ ] CSP、HSTS、MIME、防引用泄漏及最小 CORS 等安全头已验证。
+- [ ] 生产页面 CSP 使用逐请求 nonce，`script-src` 不含 `unsafe-inline`；动态渲染后的 TTFB、CPU 和并发容量已验证。
 - [ ] `/pipeline` 仅本地或认证后台可访问，不在公开导航、sitemap 或索引中。
+- [ ] 公网 Nginx 在内部命名空间只放行精确的 `POST /api/internal/acquisition` 与只读 `GET /api/internal/frontier/tasks`；其余 `/api/internal/*`、Node 端口和服务器 IP 均无法从公网访问。
+- [ ] Nginx 覆盖客户端转发头，伪造 `X-Forwarded-For` 不能绕过限流或污染审计；边缘和应用限流均已压测。
 
 ## P0：质量与运维
 
 - [ ] 最终生产变量通过 `npm run deploy:check`，输出不含 error，所有 warning 已记录解释。
-- [ ] `npm run docs:check`、`npm run typecheck`、全部单元测试和生产构建通过。
+- [ ] `npm run docs:check`、`npm run lint`、`ruff check collector`、`npm run typecheck`、全部单元测试和生产构建通过。
 - [ ] 统一采集 inbox E2E 与内容发布 E2E 通过。
 - [ ] 首页、四频道、表单与后台在 `360 / 768 / 1280 / 1440` 下完成键盘、焦点、错误和溢出检查。
 - [ ] 通道新鲜度、批次拒绝、各频道编辑配置的积压/并发/预算/切换、隔离、任务延迟和发布延迟有监控与告警。
 - [ ] 境内 scheduler 已安装 `vault2077-frontier-tick.timer`，任务失败会告警，错过执行可补跑且不会重复结算。
+- [ ] GitHub schedule 漏跑的新鲜度告警与 `workflow_dispatch` 补跑完成演练；没有把 GitHub schedule 当作唯一可靠业务时钟。
+- [ ] 阿里云安全组只开放必要端口；Node 仅回环监听，RDS 位于同 VPC 且仅允许应用安全组访问。
+- [ ] RDS TLS、自动/日志备份、时间点恢复、删除保护和监控已启用，并已从真实备份恢复到隔离实例。
+- [ ] Nginx、Web、采集 worker、Frontier timer 的配置已通过语法/单元验证并接入 journal/进程退出告警。
 - [ ] 部署、回滚、密钥轮换、备份恢复和事故联系人已演练并留下日期/负责人/结果。
 
 ## P1：容量出现后启用

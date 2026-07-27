@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { OpcServiceRecords } from "@/components/opc-service-records";
 import { PageIntro } from "@/components/page-intro";
-import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
+import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 
 export const metadata: Metadata = { title: "基础设施" };
 export const dynamic = "force-dynamic";
 
 export default async function InfrastructurePage() {
-  const { infrastructure } = await readPublishedServiceCatalog();
+  const { infrastructure } = await getCachedPublishedServiceCatalog();
   return (
     <>
       <PageIntro code="OPC / INFRASTRUCTURE" title="搭起一整套能力" lead="基础设施不是专项服务的折扣组合。它把多个相互依赖的专业模块编排为一个可运行的经营状态。" meta="WORKING PROTOTYPE / 公开菜单前仍需专业确认" />

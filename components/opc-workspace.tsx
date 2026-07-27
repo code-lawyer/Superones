@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
+  infrastructureGroups,
   rangerIdentities,
   specialtyDomains,
   type OpcService,
@@ -40,8 +41,6 @@ const viewCopy: Record<WorkspaceView, { code: string; title: string; note: strin
   rangers: { code: "03", title: "游骑兵协会", note: "外部独立专家" },
 };
 
-const infrastructureGroupNames = ["建立经营底座", "持续安全运行", "构建与交付"] as const;
-
 export function OpcWorkspace({
   infrastructure,
   specialties,
@@ -50,7 +49,7 @@ export function OpcWorkspace({
   initialServiceSlug,
 }: OpcWorkspaceProps) {
   const router = useRouter();
-  const infrastructureGroups = useMemo<ServiceGroup[]>(() => infrastructureGroupNames.map((group) => {
+  const groupedInfrastructure = useMemo<ServiceGroup[]>(() => infrastructureGroups.map((group) => {
     const items = infrastructure.filter((service) => service.group === group);
     return {
       id: group,
@@ -79,7 +78,7 @@ export function OpcWorkspace({
   const initialService = initialView === "rangers"
     ? null
     : initialServices.find((service) => service.slug === initialServiceSlug) ?? initialServices[0] ?? null;
-  const initialGroups = initialView === "specialties" ? specialtyGroups : infrastructureGroups;
+  const initialGroups = initialView === "specialties" ? specialtyGroups : groupedInfrastructure;
   const initialOpenGroup = initialService
     ? initialGroups.find((group) => group.items.some((service) => service.slug === initialService.slug))?.id
     : initialGroups[0]?.id;
@@ -87,7 +86,7 @@ export function OpcWorkspace({
   const [view, setView] = useState<WorkspaceView>(initialView);
   const [openGroup, setOpenGroup] = useState(initialView === "rangers" ? rangerGroups[0]?.id ?? "" : initialOpenGroup ?? "");
   const [selectedService, setSelectedService] = useState<OpcService | null>(initialService);
-  const serviceGroups = view === "infrastructure" ? infrastructureGroups : specialtyGroups;
+  const serviceGroups = view === "infrastructure" ? groupedInfrastructure : specialtyGroups;
 
   function replaceWorkspaceLocation(nextView: WorkspaceView, service?: OpcService | null) {
     const parameters = new URLSearchParams({ view: nextView });
@@ -98,7 +97,7 @@ export function OpcWorkspace({
   function changeView(nextView: WorkspaceView) {
     setView(nextView);
     if (nextView === "infrastructure") {
-      setOpenGroup(infrastructureGroups[0]?.id ?? "");
+      setOpenGroup(groupedInfrastructure[0]?.id ?? "");
       const service = infrastructure[0] ?? null;
       setSelectedService(service);
       replaceWorkspaceLocation(nextView, service);
@@ -152,13 +151,17 @@ export function OpcWorkspace({
         )}
       </aside>
 
-      <main className="opc-service-browser__content" aria-live="polite">
+      <section
+        className="opc-service-browser__content"
+        aria-live="polite"
+        aria-label={`${viewCopy[view].title}详情`}
+      >
         {view === "rangers"
           ? <RangerWall profiles={rangers} />
           : selectedService
             ? <ServiceReadingPane service={selectedService} />
             : <ServiceEmptyPane title={viewCopy[view].title} />}
-      </main>
+      </section>
     </section>
   );
 }
@@ -231,6 +234,9 @@ function ServiceReadingPane({ service }: { service: OpcService }) {
       <section><p className="mono">WHAT IS INCLUDED / 包含内容</p><h3>{service.kind === "infrastructure" ? "建立这套能力" : "完成这个结果"}</h3><ol>{service.includes.map((item) => <li key={item}>{item}</li>)}</ol></section>
       <section><p className="mono">MATERIALS / 开始条件</p><h3>需要准备</h3><ol>{service.materials.map((item) => <li key={item}>{item}</li>)}</ol></section>
       <section><p className="mono">DELIVERABLES / 交付成果</p><h3>最终获得</h3><ol>{service.deliverables.map((item) => <li key={item}>{item}</li>)}</ol></section>
+      {service.deliveryRoles?.length ? <section><p className="mono">DELIVERY TEAM / 交付协作</p><h3>由谁完成</h3><ol>{service.deliveryRoles.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
+      {service.acceptance?.length ? <section><p className="mono">ACCEPTANCE / 验收标准</p><h3>怎样算完成</h3><ol>{service.acceptance.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
+      {service.feeNote ? <section><p className="mono">FEE NOTE / 费用说明</p><h3>价格口径</h3><p>{service.feeNote}</p></section> : null}
       <section><p className="mono">REVIEW / 专业复核</p><h3>复核与生效</h3><p>{service.reviewNote}</p><p className="mono muted">{service.effectiveAt}</p></section>
       <section className="opc-reading-pane__boundary">
         <div className="opc-reading-pane__boundary-title">

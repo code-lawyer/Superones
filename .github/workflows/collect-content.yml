@@ -54,6 +54,10 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - name: Verify TypeScript and repository policy
+        run: |
+          npm run lint
+          npm run typecheck
       - id: lane
         name: Resolve scheduled lane
         shell: bash
@@ -87,9 +91,10 @@ jobs:
       - name: Install and test overseas feed collectors
         if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         run: |
-          pip install -r collector/requirements.txt
+          pip install -r collector/requirements-dev.txt
+          ruff check collector
           python -m unittest discover -s collector/tests -p "test_*.py"
-      - name: Collect, deliver, and process one lane
+      - name: Collect and reliably deliver one lane
         run: npm run acquisition:collect
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -98,12 +103,14 @@ jobs:
           VAULT2077_SCHEDULE_ID: ${{ steps.lane.outputs.schedule_id }}
           VAULT2077_COLLECTOR_OUTPUT_DIR: .collector-output
           VAULT2077_DOMESTIC_ACQUISITION_URL: ${{ secrets.VAULT2077_DOMESTIC_ACQUISITION_URL }}
-          VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL: ${{ secrets.VAULT2077_DOMESTIC_ACQUISITION_PROCESS_URL }}
           VAULT2077_FRONTIER_PUBLIC_TASKS_URL: ${{ secrets.VAULT2077_FRONTIER_PUBLIC_TASKS_URL }}
-          VAULT2077_PIPELINE_SHARED_SECRET: ${{ secrets.VAULT2077_PIPELINE_SHARED_SECRET }}
-          VAULT2077_PIPELINE_WORKER_SECRET: ${{ secrets.VAULT2077_PIPELINE_WORKER_SECRET }}
+          VAULT2077_FRONTIER_TASKS_SECRET: ${{ secrets.VAULT2077_FRONTIER_TASKS_SECRET }}
+          VAULT2077_PIPELINE_SIGNING_KEYS: ${{ secrets.VAULT2077_PIPELINE_SIGNING_KEYS }}
+          VAULT2077_PIPELINE_ACTIVE_KEY_ID: ${{ secrets.VAULT2077_PIPELINE_ACTIVE_KEY_ID }}
           VAULT2077_REQUIRE_DOMESTIC_DELIVERY: ${{ github.event_name == 'schedule' || inputs.require_delivery }}
-          VAULT2077_PROCESS_TIMEOUT_SECONDS: "1800"
+          VAULT2077_DELIVERY_ATTEMPTS: "4"
+          VAULT2077_DELIVERY_TIMEOUT_MS: "60000"
+          VAULT2077_DELIVERY_RETRY_BASE_MS: "1000"
       - name: Preserve packets and lane report
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,7 +1,8 @@
 """Vault2077 raw export built on Horizon's collection adapters.
 
 The public interface of this module is deliberately small: read an approved
-source bundle, collect original records, and emit Vault-signed batches.  The
+source bundle, collect original records, and emit raw packets. The Node unified
+acquisition module alone owns signing and reliable delivery. The
 Horizon submodule stays behind that seam; its AI, article extraction, daily
 briefing, and delivery features are intentionally never imported or run.
 """
@@ -17,22 +18,21 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
 from collector.feed_collector import (
-    PROCESS_TIMEOUT_SECONDS,
     WORKERS,
     build_packets,
-    collection_window,
     collect_hackernews,
     collect_lobsters,
     collect_source,
+    collection_window,
     document,
     now_iso,
     packet_payload,
-    send_packet,
-    trigger_processing,
+    validate_public_https_url,
 )
 
 HORIZON_ROOT = Path(__file__).resolve().parent / "vendor" / "horizon"
@@ -67,16 +67,44 @@ class CollectionResult:
 class RecordingHttpClient:
     """Internal seam that preserves Horizon's adapter interface and records transport facts."""
 
-    def __init__(self, client: httpx.AsyncClient):
+    def __init__(self, client: httpx.AsyncClient, allowed_origins: set[str]):
         self._client = client
+        self._allowed_origins = allowed_origins
         self.statuses: list[int] = []
         self.error: str | None = None
 
+    async def _get_once(self, url: str, *args, **kwargs):
+        current_url = url
+        request_options = dict(kwargs)
+        request_options.pop("follow_redirects", None)
+        for _redirect in range(6):
+            validate_public_https_url(current_url)
+            parsed = urlparse(current_url)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            if origin not in self._allowed_origins:
+                raise ValueError(f"Redirect origin is not approved for this source: {origin}")
+            response = await self._client.get(current_url, *args, follow_redirects=False, **request_options)
+            if response.status_code not in {301, 302, 303, 307, 308}:
+                return response
+            location = response.headers.get("location")
+            await response.aread()
+            await response.aclose()
+            if not location:
+                raise ValueError("Upstream redirect omitted Location.")
+            current_url = urljoin(current_url, location)
+        raise ValueError("Upstream exceeded five approved redirects.")
+
     async def get(self, *args, **kwargs):
+        if not args:
+            raise ValueError("Horizon transport requires an explicit URL.")
+        url = str(args[0])
         retryable_statuses = {403, 408, 425, 429, 500, 502, 503, 504}
         for attempt in range(3):
             try:
-                response = await self._client.get(*args, **kwargs)
+                response = await self._get_once(url, *args[1:], **kwargs)
+            except ValueError as error:
+                self.error = f"{type(error).__name__}: {error}"
+                raise
             except httpx.HTTPError as error:
                 if attempt < 2:
                     await asyncio.sleep(0.25 * (2 ** attempt))
@@ -116,6 +144,18 @@ def selected_sources(sources: list[dict]) -> list[dict]:
     """Optionally narrow a run without changing the approved bundle."""
     requested = {value.strip() for value in os.environ.get("VAULT2077_SOURCE_IDS", "").split(",") if value.strip()}
     return [source for source in sources if not requested or source.get("id") in requested]
+
+
+def approved_transport_origins(source: dict) -> set[str]:
+    origins = set(source.get("allowedRedirectOrigins") or [])
+    endpoint = source.get("endpoint")
+    if endpoint:
+        parsed = urlparse(str(endpoint))
+        if parsed.scheme and parsed.netloc:
+            origins.add(f"{parsed.scheme}://{parsed.netloc}")
+    if source.get("connector") == "github-releases":
+        origins.add("https://api.github.com")
+    return origins
 
 
 def horizon_scraper_for(source: dict, client: httpx.AsyncClient):
@@ -173,7 +213,7 @@ async def collect_one(source: dict, since: datetime, until: datetime, client: ht
                 raise RuntimeError("Approved source adapters must not emit discovery candidates.")
             outcome = SourceOutcome(source["id"], source["name"], f"vault-{source['connector']}", "success" if records else "empty", len(records), len(records), 0, round((time.perf_counter() - started) * 1000))
             return records, outcome
-        recording_client = RecordingHttpClient(client)
+        recording_client = RecordingHttpClient(client, approved_transport_origins(source))
         adapter = horizon_scraper_for(source, recording_client)
         if adapter is None:
             raise ValueError(f"No approved Horizon adapter for {source.get('connector')} / {source.get('channelType')}")
@@ -224,27 +264,12 @@ def main() -> None:
 
     generated_at = now_iso()
     packets = build_packets(bundle["revision"], now_iso(start), now_iso(end), generated_at, result.information, [])
-    payloads: dict[str, bytes] = {}
     packet_files = []
     for packet in packets:
         payload = packet_payload(packet)
         target = output_dir / f"{packet['batchId']}.json"
         target.write_bytes(payload)
-        payloads[packet["batchId"]] = payload
         packet_files.append(str(target))
-
-    receipts = []
-    processing = None
-    ingest_url = os.environ.get("VAULT2077_DOMESTIC_INGEST_URL")
-    shared_secret = os.environ.get("VAULT2077_PIPELINE_SHARED_SECRET")
-    if ingest_url or shared_secret:
-        if not ingest_url or not shared_secret:
-            raise RuntimeError("VAULT2077_DOMESTIC_INGEST_URL and VAULT2077_PIPELINE_SHARED_SECRET must be configured together.")
-        for packet in packets:
-            receipts.append(send_packet(ingest_url, shared_secret, packet, payloads[packet["batchId"]]))
-        if os.environ.get("VAULT2077_TRIGGER_PROCESSING", "true").lower() == "true":
-            process_url = os.environ.get("VAULT2077_DOMESTIC_PROCESS_URL") or f"{ingest_url.rstrip('/')}/process"
-            processing = trigger_processing(process_url, shared_secret, 20)
 
     failures = [asdict(outcome) for outcome in result.outcomes if outcome.status == "failure"]
     report = {
@@ -263,8 +288,6 @@ def main() -> None:
         "repositories": 0,
         "packets": len(packets),
         "packetFiles": packet_files,
-        "receipts": receipts,
-        "processing": processing,
         "outcomes": [asdict(outcome) for outcome in result.outcomes],
         "failures": failures,
     }

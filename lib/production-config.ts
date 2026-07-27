@@ -2,6 +2,7 @@ import "server-only";
 
 import { isIP } from "node:net";
 import { loadEditorialProfileConfig, type EditorialProfileId } from "./openai-compatible-client.ts";
+import { parseSecretKeyring } from "./secret-keyring.ts";
 
 export type ProductionConfigurationReport = {
   ok: boolean;
@@ -18,14 +19,42 @@ export type ProductionConfigurationReport = {
 };
 
 const REQUIRED_SECRETS = [
-  "VAULT2077_DATA_KEY",
   "VAULT2077_ADMIN_SESSION_SECRET",
   "VAULT2077_AUDIT_HASH_SECRET",
-  "VAULT2077_PIPELINE_SHARED_SECRET",
   "VAULT2077_PIPELINE_WORKER_SECRET",
+  "VAULT2077_FRONTIER_TASKS_SECRET",
   "VAULT2077_FRONTIER_TICK_SECRET",
   "VAULT2077_HEALTH_SECRET",
 ] as const;
+
+function validateKeyring(
+  environment: Record<string, string | undefined>,
+  serializedName: string,
+  activeKeyIdName: string,
+  legacyName: string,
+  label: string,
+  errors: string[],
+): Array<{ name: string; value: string }> {
+  const serialized = environment[serializedName]?.trim() ?? "";
+  const activeKeyId = environment[activeKeyIdName]?.trim() ?? "";
+  if (environment[legacyName]) {
+    errors.push(`生产环境不得再使用单值密钥变量 ${legacyName}。`);
+  }
+  try {
+    const keyring = parseSecretKeyring(serialized, activeKeyId, label);
+    const entries = Array.from(keyring.keys, ([keyId, secret]) => ({
+      name: `${serializedName}:${keyId}`,
+      value: secret,
+    }));
+    for (const { value: secret } of entries) {
+      if (placeholder(secret)) errors.push(`${serializedName} 含示例或开发占位值。`);
+    }
+    return entries;
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : `${label} 配置无效。`);
+    return [];
+  }
+}
 
 function placeholder(value: string) {
   return /change-me|replace-with|example|local-development|local-admin/i.test(value);
@@ -144,10 +173,37 @@ export function validateProductionConfiguration(
     errors.push("生产环境不得启用 VAULT2077_ALLOW_FILE_PREVIEW。");
   }
 
+  const configuredSecrets: Array<{ name: string; value: string }> = [];
   for (const name of REQUIRED_SECRETS) {
     const value = environment[name]?.trim() ?? "";
     if (Buffer.byteLength(value, "utf8") < 32) errors.push(`${name} 必须至少 32 字节。`);
     else if (placeholder(value)) errors.push(`${name} 仍含示例或开发占位值。`);
+    if (value) configuredSecrets.push({ name, value });
+  }
+  configuredSecrets.push(...validateKeyring(
+    environment,
+    "VAULT2077_DATA_KEYS",
+    "VAULT2077_DATA_ACTIVE_KEY_ID",
+    "VAULT2077_DATA_KEY",
+    "敏感数据密钥环",
+    errors,
+  ));
+  configuredSecrets.push(...validateKeyring(
+    environment,
+    "VAULT2077_PIPELINE_SIGNING_KEYS",
+    "VAULT2077_PIPELINE_ACTIVE_KEY_ID",
+    "VAULT2077_PIPELINE_SHARED_SECRET",
+    "统一采集签名密钥环",
+    errors,
+  ));
+  const secretOwners = new Map<string, string>();
+  for (const secret of configuredSecrets) {
+    const existingOwner = secretOwners.get(secret.value);
+    if (existingOwner) {
+      errors.push(`${secret.name} 不得与 ${existingOwner} 复用同一密钥。`);
+    } else {
+      secretOwners.set(secret.value, secret.name);
+    }
   }
 
   for (const localCredential of [
@@ -224,6 +280,10 @@ export function validateProductionConfiguration(
     "VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN",
     "VAULT2077_ACQUISITION_MAX_RECORDS",
     "VAULT2077_ACQUISITION_MAX_ATTEMPTS",
+    "VAULT2077_ACQUISITION_WORKER_MAX_BATCHES",
+    "VAULT2077_DELIVERY_ATTEMPTS",
+    "VAULT2077_DELIVERY_TIMEOUT_MS",
+    "VAULT2077_DELIVERY_RETRY_BASE_MS",
   ]) {
     positiveInteger(environment, name, errors, 10_000);
   }
@@ -243,7 +303,7 @@ export function validateProductionConfiguration(
     errors.push("VAULT2077_TRUST_PROXY_HEADERS 只能是 true 或 false。");
   }
   if (environment.VAULT2077_TRUST_PROXY_HEADERS !== "true") {
-    warnings.push("未信任代理转发头；所有未知公网客户端将共享保守限额，部署代理后应按手册确认。");
+    errors.push("生产入口必须信任由标准 Nginx 模板覆盖写入的代理转发头。");
   }
 
   return {

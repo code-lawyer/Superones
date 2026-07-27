@@ -9,9 +9,21 @@ User=vault2077
 Group=vault2077
 WorkingDirectory=/srv/vault2077/current
 EnvironmentFile=/etc/vault2077/production.env
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=384
+Nice=5
+CPUWeight=50
 ExecStart=/usr/bin/npm run frontier:tick
+TimeoutStartSec=3300
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/vault2077/current
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

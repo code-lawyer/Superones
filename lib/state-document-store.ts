@@ -34,7 +34,7 @@ export function configuredPostgresPool() {
   const sslMode = process.env.VAULT2077_DATABASE_SSL ?? "require";
   pool = new Pool({
     connectionString,
-    max: Number(process.env.VAULT2077_DATABASE_POOL_SIZE ?? 10),
+    max: Number(process.env.VAULT2077_DATABASE_POOL_SIZE ?? 4),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
     ssl: sslMode === "disable" ? false : { rejectUnauthorized: sslMode !== "allow-self-signed" },

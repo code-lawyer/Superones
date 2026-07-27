@@ -25,7 +25,7 @@ updated: 2026-07-25
 
 - 全站：[总设计规格](Vault2077-Design-Spec.md)
 - Vault：[信息流设计规格](Vault2077-Feed-Design-Spec.md)
-- OPC：[OPC 设计规格](Vault2077-OPC-Design-Spec.md)
+- OPC：[OPC 设计规格](Vault2077-OPC-Design-Spec.md)、[OPC 服务清单](Vault2077-OPC-Service-Catalog.md)
 - SiC：[SiC 设计规格](Vault2077-SiC-Design-Spec.md)、[SiC 来源目录](Vault2077-SiC-Source-Catalog.md)
 - 边境计划：[边境计划设计规格](Vault2077-Frontier-Design-Spec.md)
 - 运营：[后台运营规格](Vault2077-Admin-Operations-Spec.md)
@@ -44,6 +44,7 @@ updated: 2026-07-25
 - [ADR-0010：生产持久化与安全状态统一进入 PostgreSQL](adr/0010-production-persistence-and-security-seam.md)
 - [ADR-0011：人工编辑只进入结构化服务目录](adr/0011-managed-service-catalog.md)
 - [ADR-0012：生产后台采用身份网关与可撤销应用会话](adr/0012-production-admin-access.md)
+- [ADR-0013：境外可靠投递与境内独立消费](adr/0013-reliable-delivery-and-domestic-worker.md)
 
 ## 当前运行文档
 
@@ -63,6 +64,7 @@ updated: 2026-07-25
 以下文档均不产生当前需求：
 
 - 项目审计：[2026-07-24 深层次项目审计](Vault2077-Deep-Audit-2026-07-24.md)
+- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)
 - 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)
 - 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)
 - SiC 调研：[Source Candidates Batch 1](Vault2077-SiC-Source-Candidates-Batch-1.md)、[Official Sources Research](Vault2077-SiC-Official-Sources-Research.md)、[Papers and Official Archives Research](Vault2077-SiC-Papers-and-Official-Archives-Research.md)、[Frontier AI Resource Audit](Vault2077-SiC-Frontier-AI-Resource-Audit.md)、[GitHub Trending API Research](Vault2077-SiC-GitHub-Trending-API-Research.md)、[Hugging Face Ranking Research](Vault2077-SiC-Hugging-Face-Weekly-Model-Ranking-Research.md)、[OpenRouter Ranking Research](Vault2077-SiC-OpenRouter-Model-Ranking-Research.md)、[Skill Market Research](Vault2077-Skill-Market-Integration-Research.md)

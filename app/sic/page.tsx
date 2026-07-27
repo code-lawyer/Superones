@@ -3,10 +3,13 @@ import { ChannelRibbon } from "@/components/channel-ribbon";
 import { PageIntro } from "@/components/page-intro";
 import { SicContentGroups } from "@/components/sic-content-groups";
 import { SicRankings } from "@/components/sic-rankings";
-import { getDirectRankingBoards } from "@/lib/direct-rankings";
+import {
+  getCachedDirectRankingBoards,
+  getCachedPublicContent,
+  getCachedSicContent,
+} from "@/lib/public-read-cache";
 import { sicContentGroups, type SicBoard } from "@/lib/sic";
-import { addPublishedDocuments, getSicContent } from "@/lib/sic-content";
-import { getPublicContent } from "@/lib/public-content";
+import { addPublishedDocuments } from "@/lib/sic-content";
 
 export const metadata: Metadata = { title: "SiC 学院" };
 
@@ -14,12 +17,12 @@ export const dynamic = "force-dynamic";
 
 export default async function SicPage() {
   const [directBoards, storedSicContent, publicContent] = await Promise.all([
-    getDirectRankingBoards().catch(() => []),
-    getSicContent().catch(() => ({
+    getCachedDirectRankingBoards().catch(() => []),
+    getCachedSicContent().catch(() => ({
       groups: { papers: [], documents: [], courses: [], podcasts: [] },
       state: { updatedAt: null, itemCount: 0, sourceCount: 0 },
     })),
-    getPublicContent(),
+    getCachedPublicContent(),
   ]);
   const sicContent = addPublishedDocuments(storedSicContent, publicContent.information);
   const boards: SicBoard[] = directBoards.map((board) => ({

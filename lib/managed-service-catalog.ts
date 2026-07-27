@@ -2,13 +2,24 @@ import "server-only";
 
 import {
   createDefaultOpcCatalog,
+  infrastructureGroups,
   rangerIdentities,
   specialtyDomains,
   type OpcCatalogContent,
   type OpcService,
   type RangerProfile,
 } from "./opc-catalog.ts";
-import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
+import {
+  opcCatalogSeedPath,
+  readOpcCatalogSeedDocument,
+  writeOpcCatalogSeedDocument,
+} from "./opc-catalog-seed.ts";
+import {
+  mutateStateDocument,
+  persistenceMode,
+  readStateDocument,
+  type StateDocumentDefinition,
+} from "./state-document-store.ts";
 
 export type ManagedServiceCatalog = {
   schemaVersion: 1;
@@ -46,7 +57,6 @@ export class ServiceCatalogValidationError extends Error {
   }
 }
 
-const infrastructureGroups = ["建立经营底座", "持续安全运行", "构建与交付"] as const;
 const placeholderValues = new Set([
   "待专业确认",
   "内容建模中",
@@ -58,16 +68,47 @@ const placeholderValues = new Set([
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function initialState(): ManagedServiceCatalog {
-  const defaults = createDefaultOpcCatalog();
+  const seed = readOpcCatalogSeedDocument();
+  const defaults = seed ? normalizeOpcCatalog(seed.catalog) : createDefaultOpcCatalog();
+  const validation = validateOpcCatalog(defaults, Boolean(seed?.publishedAt));
+  if (!validation.valid) {
+    throw new Error(`OPC 默认 seed 校验失败：${validation.errors.slice(0, 3).join("；")}`);
+  }
   return {
     schemaVersion: 1,
-    revision: 1,
+    revision: seed?.sourceRevision ?? 1,
     draftUpdatedAt: null,
-    publishedAt: null,
+    publishedAt: seed?.publishedAt ?? null,
     draft: structuredClone(defaults),
     published: structuredClone(defaults),
-    publications: [],
+    publications: seed?.publishedAt
+      ? [{
+        revision: seed.sourceRevision,
+        publishedAt: seed.publishedAt,
+        catalog: structuredClone(defaults),
+      }]
+      : [],
   };
+}
+
+function shouldSyncLocalSeedOnPublish() {
+  if (process.env.NODE_ENV === "production" || persistenceMode() !== "file-preview") return false;
+  const configured = process.env.VAULT2077_SYNC_LOCAL_SEED_ON_PUBLISH?.trim().toLowerCase();
+  if (configured === "true") return true;
+  if (configured === "false") return false;
+  if (configured) {
+    throw new Error("VAULT2077_SYNC_LOCAL_SEED_ON_PUBLISH 只能设置为 true 或 false。");
+  }
+  return !process.env.VAULT2077_DATA_DIR;
+}
+
+async function writePublishedSeed(catalog: OpcCatalogContent, sourceRevision: number, publishedAt: string | null) {
+  return writeOpcCatalogSeedDocument({
+    schemaVersion: 1,
+    sourceRevision,
+    publishedAt,
+    catalog: structuredClone(catalog),
+  });
 }
 
 function cleanText(value: unknown, max: number) {
@@ -94,8 +135,11 @@ function normalizeService(value: unknown, kind: OpcService["kind"]): OpcService 
     includes: cleanList(item.includes, 20, 300),
     deliverables: cleanList(item.deliverables, 20, 300),
     materials: cleanList(item.materials, 20, 300),
+    deliveryRoles: cleanList(item.deliveryRoles, 12, 300),
+    acceptance: cleanList(item.acceptance, 20, 300),
     boundary: cleanText(item.boundary, 500),
     price: cleanText(item.price, 100),
+    feeNote: cleanText(item.feeNote, 300),
     period: cleanText(item.period, 100),
     revision: cleanText(item.revision, 40),
     status: cleanText(item.status, 40),
@@ -178,9 +222,12 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
     if (!service.includes.length) errors.push(`${label}：至少填写一项包含内容`);
     if (!service.deliverables.length) errors.push(`${label}：至少填写一项交付成果`);
     if (!service.materials.length) errors.push(`${label}：至少填写一项所需材料`);
+    if (!service.deliveryRoles?.length) errors.push(`${label}：至少填写一项交付角色`);
+    if (!service.acceptance?.length) errors.push(`${label}：至少填写一项验收标准`);
     if (forPublication) {
       for (const [field, value] of [
         ["价格", service.price],
+        ["费用说明", service.feeNote ?? ""],
         ["周期", service.period],
         ["修订", service.revision],
         ["状态", service.status],
@@ -237,6 +284,17 @@ function parseState(value: unknown): ManagedServiceCatalog {
   const record = value as Partial<ManagedServiceCatalog>;
   const draft = normalizeOpcCatalog(record.draft);
   const published = normalizeOpcCatalog(record.published);
+  const untouchedPreview = record.revision === 1
+    && record.draftUpdatedAt == null
+    && record.publishedAt == null
+    && (!Array.isArray(record.publications) || record.publications.length === 0);
+  if (untouchedPreview) {
+    const currentCatalog = createDefaultOpcCatalog();
+    draft.infrastructure = structuredClone(currentCatalog.infrastructure);
+    draft.specialties = structuredClone(currentCatalog.specialties);
+    published.infrastructure = structuredClone(currentCatalog.infrastructure);
+    published.specialties = structuredClone(currentCatalog.specialties);
+  }
   const draftValidation = validateOpcCatalog(draft);
   const publishedValidation = validateOpcCatalog(published, typeof record.publishedAt === "string");
   if (!draftValidation.valid || !publishedValidation.valid) {
@@ -313,7 +371,7 @@ export async function publishServiceCatalog(catalog: unknown, expectedRevision: 
   const normalized = normalizeOpcCatalog(catalog);
   const validation = validateOpcCatalog(normalized, true);
   if (!validation.valid) throw new ServiceCatalogValidationError(validation.errors);
-  return mutateStateDocument(definition, (state) => {
+  return mutateStateDocument(definition, async (state) => {
     if (state.revision !== expectedRevision) throw new ServiceCatalogConflictError();
     const now = new Date().toISOString();
     state.draft = structuredClone(normalized);
@@ -326,6 +384,9 @@ export async function publishServiceCatalog(catalog: unknown, expectedRevision: 
       publishedAt: now,
       catalog: structuredClone(normalized),
     });
+    if (shouldSyncLocalSeedOnPublish()) {
+      await writePublishedSeed(normalized, state.revision, now);
+    }
     return {
       revision: state.revision,
       draftUpdatedAt: now,
@@ -333,4 +394,18 @@ export async function publishServiceCatalog(catalog: unknown, expectedRevision: 
       validation: { valid: true, errors: [] },
     };
   });
+}
+
+export async function syncPublishedServiceCatalogSeed() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("生产进程不允许把 PostgreSQL 运行数据写回部署包中的 OPC seed。");
+  }
+  const state = await readStateDocument(definition);
+  const target = await writePublishedSeed(state.published, state.revision, state.publishedAt);
+  return {
+    target,
+    revision: state.revision,
+    publishedAt: state.publishedAt,
+    matchesDefaultPath: target === opcCatalogSeedPath(),
+  };
 }

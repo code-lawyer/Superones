@@ -98,6 +98,7 @@ const signature = createHmac("sha256", secret)
 const baseHeaders = {
   "Content-Type": "application/json",
   "X-Vault2077-Batch-Id": batchId,
+  "X-Vault2077-Key-Id": "e2e",
   "X-Vault2077-Timestamp": timestamp,
 };
 

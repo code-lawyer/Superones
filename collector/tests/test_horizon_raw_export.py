@@ -13,6 +13,13 @@ from collector.horizon_raw_export import (
 
 
 class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.public_url_guard = patch("collector.horizon_raw_export.validate_public_https_url")
+        self.public_url_guard.start()
+
+    def tearDown(self):
+        self.public_url_guard.stop()
+
     async def test_horizon_rss_adapter_preserves_original_english_record(self):
         source = {
             "id": "source-rss-test",
@@ -131,6 +138,31 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, 2)
         self.assertEqual(outcome.status, "success")
         self.assertEqual(len(information), 1)
+
+    async def test_horizon_transport_rejects_an_unapproved_redirect_origin(self):
+        source = {
+            "id": "source-rss-redirect",
+            "name": "Redirecting feed",
+            "connector": "rss",
+            "endpoint": "https://feeds.example.test/feed.xml",
+            "contentCapability": "feed-content",
+            "evidenceNature": "primary",
+            "publisherKind": "organization",
+        }
+
+        async def handler(request):
+            if request.url.host == "feeds.example.test":
+                return httpx.Response(302, headers={"location": "https://private.example.test/feed.xml"})
+            self.fail("The client followed an unapproved redirect.")
+
+        start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+
+        self.assertEqual(information, [])
+        self.assertEqual(outcome.status, "failure")
+        self.assertIn("not approved", outcome.error)
 
     async def test_hacker_news_external_story_is_a_canonical_community_topic_without_recursive_fetch(self):
         source = {

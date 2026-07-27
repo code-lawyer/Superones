@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   description: "为超级个体提供持续情报、标准化经营服务、技术趋势与开放实验场。",
 };
 
+// The proxy issues a fresh CSP nonce for every document request. Dynamic
+// rendering is required so Next can attach that same nonce to framework scripts.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN" data-scroll-behavior="smooth">
