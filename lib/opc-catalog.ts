@@ -19,7 +19,6 @@ export type OpcService = {
   includes: string[];
   deliverables: string[];
   materials: string[];
-  deliveryRoles?: string[];
   acceptance?: string[];
   boundary: string;
   price: string;
@@ -184,7 +183,7 @@ export const researchInfrastructureServices: OpcService[] = [
     name: "用工与外部协作运行",
     group: "持续安全运行",
     outcome: "让员工、外包人员和长期协作者能够按清楚的关系、权限、成果和退出规则进入经营系统。",
-    audience: "准备首次雇人、稳定使用自由职业者或外包团队，或需要整顿现有少量协作者关系的 OPC。",
+    audience: "准备首次雇人、稳定使用外部个人协作者或外包团队，或需要整顿现有少量协作者关系的 OPC。",
     includes: [
       "劳动、劳务、外包和供应商关系的事实判断",
       "招聘、录用、入职和实名档案的基础流程",
@@ -372,18 +371,7 @@ export const researchSpecialtyServices: OpcService[] = [
 
 export const rangerIdentities = ["法律顾问", "财税顾问", "知识产权顾问", "创业顾问", "产品顾问", "品牌顾问", "自媒体专家", "设计师", "软件工程顾问", "AI 开发专家"] as const;
 
-export const rangerProfiles: RangerProfile[] = [
-  { slug: "ranger-legal-preview", publicName: "公开档案示例 A01", identity: "法律顾问", intro: "面向小型商业合作、交易边界与早期风险判断。", tags: ["商业交易", "合同", "风险判断"], credential: "商业交易、合同与早期经营风险顾问。", contactLabel: "ranger.a01@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-finance-preview", publicName: "公开档案示例 B02", identity: "财税顾问", intro: "关注经营现金、财税边界与复杂事项的前期判断。", tags: ["经营财务", "税务", "跨境"], contactLabel: "ranger.b02@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-ip-preview", publicName: "公开档案示例 C03", identity: "知识产权顾问", intro: "围绕品牌、成果权属和第三方使用形成专业判断。", tags: ["商标", "权属", "开源合规"], contactLabel: "ranger.c03@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-founder-preview", publicName: "公开档案示例 D04", identity: "创业顾问", intro: "支持经营路径、协作关系与关键阶段选择的讨论。", tags: ["经营策略", "协作", "增长"], contactLabel: "ranger.d04@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-product-preview", publicName: "公开档案示例 E05", identity: "产品顾问", intro: "支持从用户问题到产品路径的非标准化一对一讨论。", tags: ["产品策略", "用户研究", "SaaS"], contactLabel: "ranger.e05@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-brand-preview", publicName: "公开档案示例 F06", identity: "品牌顾问", intro: "帮助创作者与产品建立可延续的公共表达方式。", tags: ["品牌策略", "定位", "表达"], contactLabel: "ranger.f06@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-media-preview", publicName: "公开档案示例 G07", identity: "自媒体专家", intro: "面向内容生产、平台协作与个人表达的个案问题。", tags: ["内容", "直播", "平台"], contactLabel: "ranger.g07@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-design-preview", publicName: "公开档案示例 H08", identity: "设计师", intro: "在品牌、产品和界面之间建立一致的视觉判断。", tags: ["品牌系统", "界面", "内容设计"], contactLabel: "ranger.h08@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-engineering-preview", publicName: "公开档案示例 I09", identity: "软件工程顾问", intro: "针对系统架构、工程路径与长期维护提供判断。", tags: ["架构", "工程", "开源"], contactLabel: "ranger.i09@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-  { slug: "ranger-ai-preview", publicName: "公开档案示例 J10", identity: "AI 开发专家", intro: "围绕 AI 产品、模型能力与工程路线提供个案判断。", tags: ["AI 产品", "模型应用", "工程路线"], contactLabel: "ranger.j10@vault2077.com", contactState: "EMAIL / PUBLIC", verificationDate: "2026-07-26", profileUpdatedAt: "2026-07-26", authorizationStatus: "本人已授权公开" },
-];
+export const rangerProfiles: RangerProfile[] = [];
 
 export const infrastructureGroups = selectedInfrastructureGroups;
 export const infrastructureServices = selectedInfrastructureServices;

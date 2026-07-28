@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { OpcOrderEntry } from "@/components/opc-order-entry";
 import {
   infrastructureGroups,
   rangerIdentities,
@@ -19,6 +20,7 @@ type OpcWorkspaceProps = {
   rangers: RangerProfile[];
   initialView?: WorkspaceView;
   initialServiceSlug?: string;
+  orderingAvailable?: boolean;
 };
 
 type ServiceGroup = {
@@ -54,6 +56,7 @@ export function OpcWorkspace({
   rangers,
   initialView = "infrastructure",
   initialServiceSlug,
+  orderingAvailable = false,
 }: OpcWorkspaceProps) {
   const router = useRouter();
   const groupedInfrastructure = useMemo<ServiceGroup[]>(() => infrastructureGroups.map((group) => {
@@ -139,6 +142,8 @@ export function OpcWorkspace({
 
   function selectService(service: OpcService, revealDetail = false) {
     focusDetailOnChangeRef.current = revealDetail;
+    const owningGroup = serviceGroups.find((group) => group.items.some((item) => item.slug === service.slug));
+    if (owningGroup) setOpenGroup(owningGroup.id);
     setSelectedService(service);
     setAnnouncement(`已选择${service.name}。`);
     pushWorkspaceLocation(view, service);
@@ -177,7 +182,9 @@ export function OpcWorkspace({
             <p className="opc-service-browser__secondary-lede">{viewCopy[view].note}</p>
           </header>
           {view === "rangers" ? (
-            <RangerNavigation groups={rangerGroups} openGroup={openGroup} onToggle={setOpenGroup} />
+            rangers.length > 0
+              ? <RangerNavigation groups={rangerGroups} openGroup={openGroup} onToggle={setOpenGroup} />
+              : <p className="opc-service-browser__directory-empty">真实授权档案录入后开放；不会展示样例身份或未经核验的联系方式。</p>
           ) : (
             <ServiceNavigation
               groups={serviceGroups}
@@ -204,6 +211,7 @@ export function OpcWorkspace({
               nextService={nextService}
               headingRef={detailHeadingRef}
               onSelect={(service) => selectService(service, true)}
+              orderingAvailable={orderingAvailable}
             />
             : <ServiceEmptyPane title={viewCopy[view].title} />}
       </section>
@@ -288,18 +296,19 @@ function ServiceEmptyPane({ title }: { title: string }) {
   </section>;
 }
 
-function ServiceReadingPane({ service, previousService, nextService, headingRef, onSelect }: {
+function ServiceReadingPane({ service, previousService, nextService, headingRef, onSelect, orderingAvailable }: {
   service: OpcService;
   previousService: OpcService | null;
   nextService: OpcService | null;
   headingRef: RefObject<HTMLHeadingElement | null>;
   onSelect: (service: OpcService) => void;
+  orderingAvailable: boolean;
 }) {
   return <article className="opc-reading-pane">
     <header>
       <div className="opc-reading-pane__meta mono">
         <span><b>服务编号</b>{service.code}</span>
-        <span><b>服务领域</b>{service.domain}</span>
+        <span><b>目录分类</b>{service.group}</span>
         <span><b>目录版本</b>{service.revision}</span>
       </div>
       <h2 ref={headingRef} tabIndex={-1}>{service.name}</h2>
@@ -310,40 +319,26 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
         <span><b className="mono">价格</b><strong>{service.price}</strong></span>
         <span><b className="mono">周期</b><strong>{service.period}</strong></span>
       </div>
-      <p className="opc-reading-pane__fact-note">责任主体：Vault2077 直接交付。价格与周期以适用性确认和最终服务范围为准；本页不提供在线下单或即时支付。</p>
+      <p className="opc-reading-pane__fact-note">责任主体：Vault2077 直接交付。公开价格对应当前服务修订；第三方费用按费用说明另计。订单提交后显示支付宝收款码，到账结果由 OPC 服务团队人工核验。</p>
     </div>
+    <OpcOrderEntry key={service.slug} service={service} enabled={orderingAvailable} />
     <div className="opc-reading-pane__body">
-      <section><p className="mono">WHO IT IS FOR / 适合谁</p><h3>适用对象</h3><p>{service.audience}</p></section>
-      <section><p className="mono">WHAT IS INCLUDED / 包含内容</p><h3>{service.kind === "infrastructure" ? "建立这套能力" : "完成这个结果"}</h3><ol>{service.includes.map((item) => <li key={item}>{item}</li>)}</ol></section>
-      <section><p className="mono">MATERIALS / 开始条件</p><h3>需要准备</h3><ol>{service.materials.map((item) => <li key={item}>{item}</li>)}</ol></section>
-      <section><p className="mono">DELIVERABLES / 交付成果</p><h3>最终获得</h3><ol>{service.deliverables.map((item) => <li key={item}>{item}</li>)}</ol></section>
-      {service.deliveryRoles?.length ? <section><p className="mono">DELIVERY TEAM / 交付协作</p><h3>由谁完成</h3><ol>{service.deliveryRoles.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
-      {service.acceptance?.length ? <section><p className="mono">ACCEPTANCE / 验收标准</p><h3>怎样算完成</h3><ol>{service.acceptance.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
-      {service.feeNote ? <section><p className="mono">FEE NOTE / 费用说明</p><h3>价格口径</h3><p>{service.feeNote}</p></section> : null}
+      <section><p className="mono">WHO IT IS FOR / 适用对象</p><h3>适用对象</h3><p>{service.audience}</p></section>
+      <section><p className="mono">SERVICE SCOPE / 服务范围</p><h3>标准服务包含</h3><ol>{service.includes.map((item) => <li key={item}>{item}</li>)}</ol></section>
+      <section><p className="mono">REQUIRED MATERIALS / 所需材料</p><h3>用户需提交的材料</h3><ol>{service.materials.map((item) => <li key={item}>{item}</li>)}</ol></section>
+      <section><p className="mono">DELIVERABLES / 交付成果</p><h3>Vault2077 交付成果</h3><ol>{service.deliverables.map((item) => <li key={item}>{item}</li>)}</ol></section>
+      {service.acceptance?.length ? <section><p className="mono">ACCEPTANCE / 验收标准</p><h3>服务验收标准</h3><ol>{service.acceptance.map((item) => <li key={item}>{item}</li>)}</ol></section> : null}
+      {service.feeNote ? <section><p className="mono">FEE NOTE / 费用说明</p><h3>公开价格包含与不包含</h3><p>{service.feeNote}</p></section> : null}
       <section className="opc-reading-pane__boundary">
         <div className="opc-reading-pane__boundary-title">
           <p className="mono">OUT OF SCOPE / 转交边界</p>
-          <h3>超出标准范围时</h3>
+          <h3>不包含与转交范围</h3>
         </div>
         <div className="opc-reading-pane__boundary-copy">
           <p>{service.boundary}</p>
           <Link href="/opc?view=rangers">转至游骑兵协会 <span aria-hidden="true">↗</span></Link>
         </div>
         <span className="opc-reading-pane__boundary-mark" aria-hidden="true">↗</span>
-      </section>
-      <section className="opc-reading-pane__next-step">
-        <div>
-          <p className="mono">NEXT STEP / 下一步</p>
-          <h3>先确认适用，<br />再安排服务。</h3>
-        </div>
-        <div className="opc-reading-pane__next-step-copy">
-          <ol>
-            <li>核对适用对象与标准服务边界</li>
-            <li>按材料清单准备真实业务信息</li>
-            <li>由工作人员确认适用性后安排付款与交付</li>
-          </ol>
-          <p>当前页面为工作原型。正式咨询入口将在专业负责人确认后开放，不在本页建立订单、购物车或支付流程。</p>
-        </div>
       </section>
       {(previousService || nextService) ? <nav className="opc-reading-pane__pagination" aria-label="切换服务">
         {previousService
@@ -361,8 +356,10 @@ function RangerWall({ profiles }: { profiles: RangerProfile[] }) {
   return <section className="opc-ranger-wall">
     <header>
       <p className="mono">RANGER ASSOCIATION / PORTRAIT WALL</p>
-      <h2>找到具体的人。</h2>
-      <p>按身份浏览外部独立专家。公开档案只展示顾问本人已授权的资料与联系信息。</p>
+      <h2>{profiles.length > 0 ? "找到具体的人。" : "宁缺毋滥，等待真实档案。"}</h2>
+      <p>{profiles.length > 0
+        ? "按身份浏览外部独立专家。公开档案只展示顾问本人已授权的资料与联系信息。"
+        : "当前没有完成本人授权、职业资料核验和公开联系方式确认的顾问。真实档案通过后台发布后会在这里出现；Vault2077 不使用虚构姓名或样例联系方式填充名录。"}</p>
     </header>
     <div className="opc-ranger-wall__portraits">
       {profiles.map((profile, index) => <Link className={`opc-ranger-portrait opc-ranger-portrait--${index}`} href={`/opc/rangers/${profile.slug}`} aria-label={`查看 ${profile.publicName} 的专家档案`} key={profile.slug}>

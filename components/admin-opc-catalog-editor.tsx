@@ -85,7 +85,6 @@ function newService(section: "infrastructure" | "specialties", ordinal: number):
     includes: [],
     deliverables: [],
     materials: [],
-    deliveryRoles: [],
     acceptance: [],
     boundary: "",
     price: "",
@@ -407,7 +406,6 @@ function ServiceFields({ service, onChange }: { service: OpcService; onChange: (
     <ListField label="包含内容" value={service.includes} onChange={(value) => change("includes", value)} />
     <ListField label="交付成果" value={service.deliverables} onChange={(value) => change("deliverables", value)} />
     <ListField label="所需材料" value={service.materials} onChange={(value) => change("materials", value)} />
-    <ListField label="交付角色与分工" value={service.deliveryRoles ?? []} onChange={(value) => change("deliveryRoles", value)} />
     <ListField label="验收标准" value={service.acceptance ?? []} onChange={(value) => change("acceptance", value)} />
     <TextField label="超出范围与转交边界" value={service.boundary} multiline onChange={(value) => change("boundary", value)} />
     <TextField label="公开价格或计价单位" value={service.price} onChange={(value) => change("price", value)} />

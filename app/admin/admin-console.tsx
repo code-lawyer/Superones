@@ -49,7 +49,41 @@ type Correction = {
   resolution: string | null;
 };
 
+type OpcOrderStatus = "awaiting_payment" | "paid" | "completed" | "cancelled" | "refunded";
+
+type OpcOrder = {
+  id: string;
+  reference: string;
+  serviceCode: string;
+  serviceName: string;
+  serviceRevision: string;
+  quotedPrice: string;
+  contact: {
+    name: string;
+    phone: string;
+    email: string;
+    wechat: string;
+    note: string;
+  } | null;
+  status: OpcOrderStatus;
+  createdAt: string;
+  updatedAt: string;
+  paidAt: string | null;
+  cancelledAt: string | null;
+  refundedAt: string | null;
+  completedAt: string | null;
+  contactDeletedAt: string | null;
+};
+
 type AdminLoginMode = "identity-gateway" | "local-password";
+
+const opcOrderStatusLabels: Record<OpcOrderStatus, string> = {
+  awaiting_payment: "待付款",
+  paid: "已到账",
+  completed: "已完成",
+  cancelled: "已取消",
+  refunded: "已退款",
+};
 
 const adminMutationHeaders = {
   "Content-Type": "application/json",
@@ -69,7 +103,7 @@ class AdminApiError extends Error {
 }
 
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; corrections?: Correction[]; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; corrections?: Correction[]; orders?: OpcOrder[]; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) {
     throw new AdminApiError(
       typeof body?.error === "string" ? body.error : "请求暂时无法完成。",
@@ -85,6 +119,7 @@ export function AdminConsole() {
   const [donations, setDonations] = useState<Donation[]>([]);
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [orders, setOrders] = useState<OpcOrder[]>([]);
   const [password, setPassword] = useState("");
   const [loginMode, setLoginMode] = useState<AdminLoginMode>("local-password");
   const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
@@ -104,6 +139,7 @@ export function AdminConsole() {
       setDonations([]);
       setContentState(null);
       setCorrections([]);
+      setOrders([]);
       return;
     }
     const body = await jsonMessage(response);
@@ -112,6 +148,7 @@ export function AdminConsole() {
     setDonations(Array.isArray(body?.donations) ? body.donations : []);
     setContentState(content?.state ?? null);
     setCorrections(Array.isArray(content?.corrections) ? content.corrections : []);
+    setOrders(Array.isArray(content?.orders) ? content.orders : []);
   }, []);
 
   useEffect(() => {
@@ -221,6 +258,7 @@ export function AdminConsole() {
     setDonations([]);
     setContentState(null);
     setCorrections([]);
+    setOrders([]);
     setNotice("");
   }
 
@@ -252,6 +290,36 @@ export function AdminConsole() {
     }
   }
 
+  async function updateOpcOrder(order: OpcOrder, status: OpcOrderStatus) {
+    if (!window.confirm(`确认将订单 ${order.reference} 更新为“${opcOrderStatusLabels[status]}”？该操作会写入不可变审计记录。`)) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/content", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({
+          action: "update-opc-order",
+          orderId: order.id,
+          orderStatus: status,
+          confirm: true,
+        }),
+      });
+      const body = await jsonMessage(response);
+      setOrders(Array.isArray(body?.orders) ? body.orders : []);
+      setNotice(`订单 ${order.reference} 已更新为“${opcOrderStatusLabels[status]}”。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "暂时无法更新 OPC 订单。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   if (submissions === null) {
     return (
       <form className="admin-login" onSubmit={login}>
@@ -276,6 +344,7 @@ export function AdminConsole() {
         <a href="#admin-corrections"><span className="mono">EXCEPTION</span><strong>内容异常</strong><small>只处理用户纠错报告</small></a>
         <a href="/sources"><span className="mono">GOVERNANCE</span><strong>来源组合</strong><small>查看受控来源目录</small></a>
         <a href="#admin-opc"><span className="mono">EDITABLE</span><strong>OPC 菜单</strong><small>人工服务目录</small></a>
+        <a href="#admin-opc-orders"><span className="mono">PAYMENT</span><strong>OPC 订单</strong><small>联系与到账核验</small></a>
         <a href="#admin-frontier"><span className="mono">BUSINESS</span><strong>边境计划</strong><small>报名与奖品异常</small></a>
         <a href="/pipeline"><span className="mono">DIAGNOSTIC</span><strong>系统记录</strong><small>受保护管线诊断</small></a>
       </nav>
@@ -349,6 +418,48 @@ export function AdminConsole() {
         ) : <p className="ranking-empty">暂时无法读取信息管道状态。</p>}
       </section>
       <AdminOpcCatalogEditor />
+      <section className="admin-donations admin-opc-orders" id="admin-opc-orders" aria-labelledby="admin-opc-orders-title">
+        <div className="admin-section-heading">
+          <p className="eyebrow mono">OPC / ORDER OPERATIONS</p>
+          <h2 id="admin-opc-orders-title">订单与到账核验</h2>
+          <p className="form-note">订单保存下单时的服务修订与公开价格快照。只有核对支付宝到账和订单号备注后，才能标记为已到账。</p>
+        </div>
+        <div className="admin-donation-list">
+          {orders.length === 0 ? <p className="ranking-empty">当前没有 OPC 订单。</p> : orders.map((order) => (
+            <article key={order.id}>
+              <div>
+                <p className="mono muted">{order.reference} / {opcOrderStatusLabels[order.status]}</p>
+                <h3>{order.serviceName}</h3>
+                <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
+                {order.contact?.note ? <p>{order.contact.note}</p> : null}
+              </div>
+              <div className="admin-donation-meta">
+                <strong>{order.contact?.name ?? "联系方式已按保留期清除"}</strong>
+                <span className="mono">{order.contact?.phone || "未填手机号"}</span>
+                <span className="mono">{order.contact?.email || "未填邮箱"}</span>
+                <span className="mono">{order.contact?.wechat || "未填微信号"}</span>
+                <time className="mono">创建 {new Date(order.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
+                <time className="mono">更新 {new Date(order.updatedAt).toLocaleString("zh-CN", { hour12: false })}</time>
+              </div>
+              <div className="admin-actions">
+                {order.status === "awaiting_payment" ? (
+                  <>
+                    <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "paid")}>确认到账</button>
+                    <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
+                  </>
+                ) : null}
+                {order.status === "paid" ? (
+                  <>
+                    <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "completed")}>标记交付完成</button>
+                    <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>记录退款</button>
+                  </>
+                ) : null}
+                {order.status === "completed" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>记录退款</button> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
       <section className="admin-donations" id="admin-corrections" aria-labelledby="admin-corrections-title">
         <div className="admin-section-heading">
           <p className="eyebrow mono">CONTENT / CORRECTIONS</p>

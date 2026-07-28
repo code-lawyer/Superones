@@ -5,6 +5,23 @@ import path from "node:path";
 import test from "node:test";
 import type { OpcService, RangerProfile } from "../lib/opc-catalog.ts";
 
+function rangerFixture(overrides: Partial<RangerProfile> = {}): RangerProfile {
+  return {
+    slug: "verified-legal-advisor",
+    publicName: "经授权的法律顾问",
+    identity: "法律顾问",
+    intro: "处理商业交易与经营风险问题。",
+    tags: ["商业交易"],
+    credential: "公开职业记录。",
+    contactLabel: "legal-advisor@example.com",
+    contactState: "EMAIL / PUBLIC",
+    verificationDate: "2099-01-01",
+    profileUpdatedAt: "2099-01-01",
+    authorizationStatus: "本人已授权公开",
+    ...overrides,
+  };
+}
+
 test("OPC service catalog keeps drafts private until an atomic validated publish", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-catalog-"));
   const previous = process.env.VAULT2077_DATA_DIR;
@@ -26,7 +43,7 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
     const initial = await readManagedServiceCatalog();
     const draft = structuredClone(initial.draft);
     draft.infrastructure[0].name = "已修改但未发布的服务";
-    draft.rangers[0].contactState = "PROFILE PREVIEW";
+    draft.rangers.push(rangerFixture({ contactState: "PROFILE PREVIEW" }));
     const saved = await saveServiceCatalogDraft(draft, initial.revision);
 
     assert.equal((await readPublishedServiceCatalog()).infrastructure[0].name, "经营主体启动与首年治理");
@@ -161,8 +178,7 @@ test("OPC service catalog refreshes infrastructure in an untouched local preview
     assert.equal(published.infrastructure.length, 7);
     assert.equal(published.specialties.length, 14);
     assert.equal(published.infrastructure[0].name, "经营主体启动与首年治理");
-    assert.equal(published.rangers[0].contactLabel, "ranger.a01@vault2077.com");
-    assert.equal(published.rangers[0].authorizationStatus, "本人已授权公开");
+    assert.equal(published.rangers.length, 0);
   } finally {
     if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previousDataDir;
@@ -172,7 +188,7 @@ test("OPC service catalog refreshes infrastructure in an untouched local preview
   }
 });
 
-test("OPC service catalog repairs stale public ranger previews without overwriting the draft", async () => {
+test("OPC service catalog removes legacy ranger previews instead of fabricating authorization", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-ranger-preview-repair-"));
   const previousDataDir = process.env.VAULT2077_DATA_DIR;
   const previousSeedPath = process.env.VAULT2077_OPC_SEED_PATH;
@@ -181,11 +197,15 @@ test("OPC service catalog repairs stale public ranger previews without overwriti
   try {
     const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
     const staleDraft = createDefaultOpcCatalog();
-    staleDraft.rangers[0].contactLabel = "联系方式将在本人确认后公开";
-    staleDraft.rangers[0].contactState = "PROFILE PREVIEW";
-    staleDraft.rangers[0].verificationDate = undefined;
-    staleDraft.rangers[0].profileUpdatedAt = undefined;
-    staleDraft.rangers[0].authorizationStatus = "本人授权待确认";
+    staleDraft.rangers.push(rangerFixture({
+      slug: "ranger-legal-preview",
+      publicName: "公开档案示例 A01",
+      contactLabel: "联系方式将在本人确认后公开",
+      contactState: "PROFILE PREVIEW",
+      verificationDate: undefined,
+      profileUpdatedAt: undefined,
+      authorizationStatus: "本人授权待确认",
+    }));
     const stalePublished = structuredClone(staleDraft);
     await writeFile(
       path.join(root, "opc-service-catalog.json"),
@@ -205,10 +225,8 @@ test("OPC service catalog repairs stale public ranger previews without overwriti
     );
     const managed = await readManagedServiceCatalog();
     const published = await readPublishedServiceCatalog();
-    assert.equal(managed.draft.rangers[0].contactState, "PROFILE PREVIEW");
-    assert.equal(published.rangers[0].contactLabel, "ranger.a01@vault2077.com");
-    assert.equal(published.rangers[0].contactState, "EMAIL / PUBLIC");
-    assert.equal(published.rangers[0].authorizationStatus, "本人已授权公开");
+    assert.equal(managed.draft.rangers.length, 0);
+    assert.equal(published.rangers.length, 0);
   } finally {
     if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previousDataDir;
@@ -218,7 +236,7 @@ test("OPC service catalog repairs stale public ranger previews without overwriti
   }
 });
 
-test("OPC service catalog migrates legacy published ranger contacts and history", async () => {
+test("OPC service catalog preserves verified rangers and removes legacy previews from history", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-ranger-published-migration-"));
   const previousDataDir = process.env.VAULT2077_DATA_DIR;
   const previousSeedPath = process.env.VAULT2077_OPC_SEED_PATH;
@@ -227,19 +245,20 @@ test("OPC service catalog migrates legacy published ranger contacts and history"
   try {
     const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
     const legacy = createDefaultOpcCatalog();
-    legacy.rangers[0].publicName = "运营改名后的专家";
-    legacy.rangers[0].intro = "运营人员补充的公开简介。";
-    legacy.rangers[0].credential = "运营人员补充的公开职业记录。";
-    legacy.rangers[0].contactLabel = "公开联系入口 1";
-    legacy.rangers[0].contactState = "本人已授权";
-    legacy.rangers.push({
-      ...structuredClone(legacy.rangers[1]),
+    legacy.rangers = [
+      rangerFixture({
+        slug: "ranger-legal-preview",
+        publicName: "公开档案示例 A01",
+        contactLabel: "公开联系入口 1",
+        contactState: "本人已授权",
+      }),
+      rangerFixture({
       slug: "custom-advisor",
-      publicName: "自定义专家",
-      intro: "自定义专家公开简介。",
-      contactLabel: "公开联系入口 11",
-      contactState: "本人已授权",
-    });
+      publicName: "真实授权专家",
+      intro: "真实授权专家公开简介。",
+      contactLabel: "custom-advisor@example.com",
+      }),
+    ];
     await writeFile(
       path.join(root, "opc-service-catalog.json"),
       `${JSON.stringify({
@@ -262,17 +281,14 @@ test("OPC service catalog migrates legacy published ranger contacts and history"
     );
     const managed = await readManagedServiceCatalog();
     const published = await readPublishedServiceCatalog();
-    assert.equal(managed.draft.rangers[0].contactLabel, "公开联系入口 1");
-    assert.equal(published.rangers[0].contactLabel, "ranger.a01@vault2077.com");
-    assert.equal(published.rangers[0].contactState, "EMAIL / PUBLIC");
-    assert.equal(published.rangers[0].publicName, "运营改名后的专家");
-    assert.equal(published.rangers[0].intro, "运营人员补充的公开简介。");
-    assert.equal(published.rangers[0].credential, "运营人员补充的公开职业记录。");
-    assert.equal(published.rangers[10].slug, "custom-advisor");
-    assert.equal(published.rangers[10].contactLabel, "ranger.custom-advisor@vault2077.com");
+    assert.equal(managed.draft.rangers.length, 1);
+    assert.equal(published.rangers.length, 1);
+    assert.equal(published.rangers[0].slug, "custom-advisor");
+    assert.equal(published.rangers[0].contactLabel, "custom-advisor@example.com");
+    assert.equal(published.rangers[0].publicName, "真实授权专家");
     assert.equal(managed.publicationHistory.length, 1);
     assert.equal(managed.publicationHistory[0].revision, 3);
-    assert.equal(managed.publicationHistory[0].rangers, 11);
+    assert.equal(managed.publicationHistory[0].rangers, 1);
   } finally {
     if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previousDataDir;
@@ -286,6 +302,7 @@ test("OPC publication requires authorized public ranger emails", async () => {
   const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
   const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
   const catalog = createDefaultOpcCatalog();
+  catalog.rangers.push(rangerFixture());
   catalog.rangers[0].contactLabel = "公开联系入口";
   catalog.rangers[0].contactState = "PROFILE PREVIEW";
   catalog.rangers[0].authorizationStatus = "待确认";
@@ -307,6 +324,7 @@ test("OPC publication requires authorized public ranger emails", async () => {
     "a..b@example.com",
   ]) {
     const unsafeCatalog = createDefaultOpcCatalog();
+    unsafeCatalog.rangers.push(rangerFixture());
     unsafeCatalog.rangers[0].contactLabel = contactLabel;
     const unsafeResult = validateOpcCatalog(normalizeOpcCatalog(unsafeCatalog), true);
     assert.equal(unsafeResult.valid, false);

@@ -62,7 +62,6 @@ test("Every first-version OPC SKU is page-ready and uses an explicit RMB price",
     assert.ok(service.includes.length > 0);
     assert.ok(service.deliverables.length > 0);
     assert.ok(service.materials.length > 0);
-    assert.ok((service.deliveryRoles?.length ?? 0) > 0);
     assert.ok((service.acceptance?.length ?? 0) > 0);
     assert.ok(service.boundary.trim());
     assert.ok(service.feeNote?.trim());
@@ -75,7 +74,8 @@ test("OPC specialty and ranger taxonomies remain separate", () => {
   assert.ok(rangerIdentities.every((identity) => !specialtyDomains.includes(identity as never)));
 });
 
-test("Every listed ranger has an authorized public email", () => {
+test("default public catalog does not ship fabricated ranger profiles", () => {
+  assert.equal(rangerProfiles.length, 0);
   for (const ranger of rangerProfiles) {
     assert.match(ranger.contactLabel, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
     assert.equal(ranger.contactState, "EMAIL / PUBLIC");

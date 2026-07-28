@@ -3,10 +3,18 @@ import {
   adminAccessErrorResponse,
   authenticateAdminRequest,
   authenticatedAdminJson,
+  configuredAdminReauthenticationUrl,
 } from "@/lib/admin-access";
 import { configuredAcquisitionReceiver } from "@/lib/acquisition-inbox";
+import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import { getStoredContent } from "@/lib/content-store";
 import { closeCorrectionReport, listAdminCorrectionReports } from "@/lib/correction-store";
+import {
+  listAdminOpcOrders,
+  OPC_ORDER_STATUSES,
+  updateOpcOrderStatus,
+  type OpcOrderStatus,
+} from "@/lib/opc-order-store";
 import { recordAuditEvent } from "@/lib/security-audit";
 
 export const runtime = "nodejs";
@@ -18,12 +26,13 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return adminAccessErrorResponse(error);
   }
-  const [content, queue, corrections] = await Promise.all([
+  const [content, queue, corrections, orders] = await Promise.all([
     getStoredContent(),
     configuredAcquisitionReceiver().stats(),
     listAdminCorrectionReports(),
+    listAdminOpcOrders(),
   ]);
-  return authenticatedAdminJson(access, { state: content.state, queue, corrections });
+  return authenticatedAdminJson(access, { state: content.state, queue, corrections, orders });
 }
 
 export async function POST(request: NextRequest) {
@@ -34,13 +43,55 @@ export async function POST(request: NextRequest) {
     return adminAccessErrorResponse(error);
   }
   const actorHash = access.session.actorHash;
+  let attemptedAction: "admin.opc-order.update" | "admin.correction.close" = "admin.correction.close";
+  let attemptedTargetType: "opc-order" | "correction" = "correction";
+  let attemptedTargetId = "unknown";
   try {
     const body = await request.json() as {
       action?: unknown;
       correctionId?: unknown;
       resolution?: unknown;
+      orderId?: unknown;
+      orderStatus?: unknown;
       confirm?: unknown;
     };
+    if (body.action === "update-opc-order") {
+      attemptedAction = "admin.opc-order.update";
+      attemptedTargetType = "opc-order";
+      if (!hasRecentAdminReauthentication(access.session)) {
+        return authenticatedAdminJson(access, {
+          error: "更新 OPC 订单付款状态前需要重新验证管理员身份。",
+          code: "ADMIN_REAUTH_REQUIRED",
+          reauthenticationUrl: configuredAdminReauthenticationUrl(),
+        }, { status: 403 });
+      }
+      const orderId = typeof body.orderId === "string" ? body.orderId : "";
+      attemptedTargetId = orderId || "unknown";
+      const orderStatus = body.orderStatus as OpcOrderStatus;
+      if (!orderId || !OPC_ORDER_STATUSES.includes(orderStatus) || body.confirm !== true) {
+        await recordAuditEvent({
+          actorHash,
+          action: "admin.opc-order.update",
+          targetType: "opc-order",
+          targetId: orderId || "unknown",
+          result: "rejected",
+          reason: "invalid-or-unconfirmed-request",
+        });
+        return authenticatedAdminJson(access, { error: "更新 OPC 订单需要有效订单、目标状态和明确确认。" }, { status: 400 });
+      }
+      const updated = await updateOpcOrderStatus(orderId, orderStatus);
+      await recordAuditEvent({
+        actorHash,
+        action: "admin.opc-order.update",
+        targetType: "opc-order",
+        targetId: orderId,
+        result: "success",
+        diff: { reference: updated.reference, status: updated.status },
+      });
+      return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
+    }
+
+    attemptedTargetId = typeof body.correctionId === "string" ? body.correctionId : "unknown";
     if (
       body.action !== "close-correction"
       || typeof body.correctionId !== "string"
@@ -70,12 +121,12 @@ export async function POST(request: NextRequest) {
     });
     return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "暂时无法关闭纠错。";
+    const reason = error instanceof Error ? error.message : "暂时无法完成后台操作。";
     await recordAuditEvent({
       actorHash,
-      action: "admin.correction.close",
-      targetType: "correction",
-      targetId: "unknown",
+      action: attemptedAction,
+      targetType: attemptedTargetType,
+      targetId: attemptedTargetId,
       result: "failed",
       reason: reason.slice(0, 200),
     }).catch(() => undefined);

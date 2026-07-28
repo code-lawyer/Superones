@@ -1,5 +1,5 @@
 ---
-title: Vault2077 OPC 首版服务清单
+title: Vault2077 OPC 公开服务清单
 type: business-catalog
 status: active
 updated: 2026-07-26
@@ -7,11 +7,11 @@ scope: infrastructure-and-specialties
 implementation: lib/opc-selected-skus.ts
 ---
 
-# Vault2077 OPC 首版服务清单
+# Vault2077 OPC 公开服务清单
 
 ## 1. 文件用途
 
-本文件冻结 OPC 服务台首版 SKU 的选择、分类与建议价。页面使用的完整字段以 [`lib/opc-selected-skus.ts`](../lib/opc-selected-skus.ts) 和默认目录 seed 为事实源；可读的逐字段导出见 [`OPC-Service-Catalog-Complete.md`](../OPC-Service-Catalog-Complete.md)。
+本文件记录 OPC 服务台当前公开 SKU 的选择、分类与价格。页面使用的完整字段以 [`lib/opc-selected-skus.ts`](../lib/opc-selected-skus.ts) 和默认目录 seed 为事实源；可读的逐字段导出见 [`OPC-Service-Catalog-Complete.md`](../OPC-Service-Catalog-Complete.md)。
 
 完整研究池仍保留在代码和 [中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md) 中，用于后续扩充。研究池不是首版公开菜单。
 
@@ -29,13 +29,13 @@ implementation: lib/opc-selected-skus.ts
 
 ## 3. 定价口径
 
-建议价参考同等专业服务的常见市场区间，并按 OPC 客户的典型规模、标准材料量和首版交付深度取中位或中低位。所有价格均为人民币含税服务费建议值；政府、平台、申请、云服务、认证和其他第三方费用按各条目的费用说明另计。
+公开价格参考同等专业服务的常见市场区间，并按 OPC 经营者的典型规模、标准材料量和约定交付深度确定。所有价格均为人民币含税服务费；政府、平台、申请、云服务、认证和其他第三方费用按各条目的费用说明另计。
 
-价格是运营可调整字段，不是永久写死的产品常量。调价时必须同步检查范围、材料量、交付角色、验收标准和超范围计价口径。
+价格是运营可调整字段，不是永久写死的产品常量。调价时必须同步检查范围、材料量、验收标准和超范围计价口径。
 
 ## 4. 七项基础设施
 
-| 编号 | 分组 | SKU | 首版建议价 | 典型周期 |
+| 编号 | 分组 | SKU | 公开价格 | 典型周期 |
 | --- | --- | --- | ---: | --- |
 | I-01 | 启动经营 | 经营主体启动与首年治理 | ¥8,800 | 7–15 个工作日 |
 | I-02 | 启动经营 | 财税与经营资金运行 | ¥6,800 | 7–10 个工作日 |
@@ -49,7 +49,7 @@ implementation: lib/opc-selected-skus.ts
 
 ## 5. 十四项专项服务
 
-| 编号 | 专业领域 | SKU | 首版建议价 | 典型周期 |
+| 编号 | 专业领域 | SKU | 公开价格 | 典型周期 |
 | --- | --- | --- | ---: | --- |
 | S-01-01 | 法律与经营风险 | 单份商业合同审查 | ¥1,980 | 3 个工作日 |
 | S-01-02 | 法律与经营风险 | 合同模板与交易文件 | ¥5,800 | 5–7 个工作日 |
@@ -74,8 +74,8 @@ implementation: lib/opc-selected-skus.ts
 
 - 项目编号、稳定 slug、名称、类型、分组或专业领域；
 - 预期结果、适用对象、服务内容、交付结果和所需材料；
-- 交付角色与分工、验收标准、服务边界；
-- 人民币建议价、费用说明、预计周期；
+- 验收标准、服务边界；
+- 人民币公开价格、费用说明、预计周期；
 - 修订版本和公开状态。
 
 运营后台可以修改这些字段，但正式发布必须通过完整性校验。游骑兵资料仍需本人授权、真实联系状态和核验信息，因此服务 SKU 已就绪不等于整份 OPC 目录已经具备正式发布条件。

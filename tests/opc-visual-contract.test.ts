@@ -108,8 +108,14 @@ test("OPC keeps three distinct workspace roles without silently choosing a servi
 
 test("OPC selection feedback is concise and mobile users get an explicit detail transition", async () => {
   const styles = await readOpcStyles();
-  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+  const [workspace, page] = await Promise.all([
+    readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8"),
+    readFile(path.join(root, "app", "opc", "page.tsx"), "utf8"),
+  ]);
 
+  assert.match(page, /key=\{`\$\{initialView\}:\$\{query\.service \?\? ""\}`\}/);
+  assert.match(workspace, /const owningGroup = serviceGroups\.find/);
+  assert.match(workspace, /if \(owningGroup\) setOpenGroup\(owningGroup\.id\)/);
   assert.match(workspace, /className="opc-service-browser__announcement" aria-live="polite"/);
   assert.doesNotMatch(workspace, /className="opc-service-browser__content"\s*\n\s*aria-live=/);
   assert.match(workspace, /查看服务详情/);
@@ -118,17 +124,26 @@ test("OPC selection feedback is concise and mobile users get an explicit detail 
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-accordion__item\s*\{[\s\S]*?width:\s*calc\(100% \+ \(var\(--opc-left-viewport-bleed\) \* 2\)\)/);
 });
 
-test("OPC service brief joins price context, responsibility, next step and adjacent navigation", async () => {
+test("OPC service brief joins price context, order entry, payment guidance and adjacent navigation", async () => {
   const styles = await readOpcStyles();
-  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+  const [workspace, orderEntry] = await Promise.all([
+    readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8"),
+    readFile(path.join(root, "components", "opc-order-entry.tsx"), "utf8"),
+  ]);
 
   assert.match(workspace, /className="opc-reading-pane__fact-register" aria-label="当前服务关键事实"/);
   assert.match(workspace, /责任主体：Vault2077 直接交付/);
-  assert.match(workspace, /价格与周期以适用性确认和最终服务范围为准/);
-  assert.match(workspace, /NEXT STEP \/ 下一步/);
-  assert.match(workspace, /当前页面为工作原型/);
+  assert.match(workspace, /订单提交后显示支付宝收款码/);
+  assert.match(workspace, /<OpcOrderEntry key=\{service\.slug\} service=\{service\} enabled=\{orderingAvailable\} \/>/);
   assert.match(workspace, /aria-label="切换服务"/);
-  assert.doesNotMatch(workspace, /立即下单|购买此服务|购物车按钮/);
+  assert.doesNotMatch(workspace, /当前页面为工作原型|由谁完成/);
+  assert.match(orderEntry, /提交联系方式后获取支付宝付款码/);
+  assert.match(orderEntry, /X-Vault2077-Public-Request/);
+  assert.match(orderEntry, /付款备注中填写订单号/);
+  assert.match(orderEntry, /href="\/terms"/);
+  assert.match(orderEntry, /href="\/privacy"/);
+  assert.match(orderEntry, /prefers-reduced-motion: reduce/);
+  assert.match(styles, /\.opc-order-entry\s*\{[\s\S]*?border-top:\s*1px solid var\(--carbon\)/);
   assert.match(styles, /\.opc-reading-pane__fact-register\s*\{[\s\S]*?position:\s*sticky[\s\S]*?top:\s*76px/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-reading-pane__fact-register\s*\{[\s\S]*?position:\s*static/);
 });
@@ -221,7 +236,7 @@ test("OPC uses one workspace and has no duplicate public register pages", async 
   await Promise.all(removedFiles.map((file) => assert.rejects(access(file))));
 });
 
-test("OPC service catalog contains no review or effective-date fields", async () => {
+test("OPC service catalog contains no review, delivery-role or effective-date fields", async () => {
   const [workspace, admin, catalog, managed] = await Promise.all([
     readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8"),
     readFile(path.join(root, "components", "admin-opc-catalog-editor.tsx"), "utf8"),
@@ -230,6 +245,6 @@ test("OPC service catalog contains no review or effective-date fields", async ()
   ]);
   const surface = [workspace, admin, catalog, managed].join("\n");
 
-  assert.doesNotMatch(surface, /REVIEW \/ 专业复核|复核与生效|reviewNote|effectiveAt|专业复核说明|修订生效时间/);
+  assert.doesNotMatch(surface, /REVIEW \/ 专业复核|复核与生效|reviewNote|effectiveAt|专业复核说明|修订生效时间|deliveryRoles|由谁完成/);
   assert.doesNotMatch(workspace, /service\.status/);
 });

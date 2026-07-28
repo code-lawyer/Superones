@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-07-25
+updated: 2026-07-28
 ---
 
 # Vault2077 部署配置手册
@@ -91,6 +91,15 @@ updated: 2026-07-25
 
 ## 5. 数据
 
+### OPC 支付宝收款
+
+| 变量 | 说明 |
+| --- | --- |
+| `VAULT2077_OPC_ALIPAY_QR_PATH` | `public/` 下真实支付宝收款码的站内绝对路径，例如 `/opc/alipay-payment-qr.png`；只接受 PNG、WebP 或 JPEG，不接受外部 URL 或 SVG |
+| `VAULT2077_OPC_ALIPAY_PAYEE` | 用户扫码后应在支付宝中看到的真实收款方名称，2–80 字 |
+
+生产环境两项都必须配置，`npm run deploy:check` 会拒绝缺失、占位或外部二维码路径。二维码文件不得提交为测试码；部署后必须使用目标支付宝账户扫码，核对支付宝显示的收款方名称与配置完全一致。更换收款码时应在受控发布中同时更新静态资源和收款方配置，并完成一笔小额端到端到账/退款演练。
+
 `VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。Next 生产进程只有在显式设置 `VAULT2077_ALLOW_FILE_PREVIEW=true` 时才允许文件模式，该开关只用于 E2E/本地预览，生产部署必须保持关闭。
 
 生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0005_admin_sessions.sql`，迁移文件应用后不得修改。
@@ -137,7 +146,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer` 与 `vault2077-frontier-tick.timer`；执行 `nginx -t`、`systemd-analyze verify` 并接入失败告警。
 8. 部署应用但暂不开放内容频道；执行一次性 bootstrap，把 SiC 每个 approved 来源的最近一条合格内容与 Vault 最近 30 天真实内容写入生产事实源。
 9. 验证 bootstrap 的逐来源覆盖、原始日期、稳定 ID、分批处理和幂等补跑，再启用统一增量计划和境内两个 timer。
-10. 在生产等价预发布环境验证投递重试、GitHub 漏跑补跑、worker 积压恢复、四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台会话与再认证、反向代理伪造头拒绝和 `/pipeline` 边界。
+10. 在生产等价预发布环境验证投递重试、GitHub 漏跑补跑、worker 积压恢复、四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台会话与再认证、OPC 下单/到账/完成/退款状态流转、反向代理伪造头拒绝和 `/pipeline` 边界。
 11. 完成容量基准、告警演练、回滚演练和发布签字；失败按上一应用版本和向前兼容数据库迁移策略回滚。
 
 bootstrap 是一次性受审计作业，不是应用启动钩子。多副本启动不得各自触发回填；新增 approved 来源时只对该来源执行同一基线规则。

@@ -136,7 +136,6 @@ function normalizeService(value: unknown, kind: OpcService["kind"]): OpcService 
     includes: cleanList(item.includes, 20, 300),
     deliverables: cleanList(item.deliverables, 20, 300),
     materials: cleanList(item.materials, 20, 300),
-    deliveryRoles: cleanList(item.deliveryRoles, 12, 300),
     acceptance: cleanList(item.acceptance, 20, 300),
     boundary: cleanText(item.boundary, 500),
     price: cleanText(item.price, 100),
@@ -221,7 +220,6 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
     if (!service.includes.length) errors.push(`${label}：至少填写一项包含内容`);
     if (!service.deliverables.length) errors.push(`${label}：至少填写一项交付成果`);
     if (!service.materials.length) errors.push(`${label}：至少填写一项所需材料`);
-    if (!service.deliveryRoles?.length) errors.push(`${label}：至少填写一项交付角色`);
     if (!service.acceptance?.length) errors.push(`${label}：至少填写一项验收标准`);
     if (forPublication) {
       for (const [field, value] of [
@@ -290,25 +288,13 @@ function hasPublishableRangerContact(ranger: RangerProfile) {
     && Boolean(ranger.profileUpdatedAt && isIsoDate(ranger.profileUpdatedAt));
 }
 
-function repairPublicRangers(rangers: RangerProfile[], defaults: RangerProfile[]) {
-  const defaultsBySlug = new Map(defaults.map((ranger) => [ranger.slug, ranger]));
-  const metadataFallback = defaults[0];
-  return rangers.map((ranger) => {
-    if (hasPublishableRangerContact(ranger)) return ranger;
-    const fallback = defaultsBySlug.get(ranger.slug);
-    return {
-      ...ranger,
-      contactLabel: fallback?.contactLabel ?? `ranger.${ranger.slug}@vault2077.com`,
-      contactState: "EMAIL / PUBLIC",
-      verificationDate: ranger.verificationDate && isIsoDate(ranger.verificationDate)
-        ? ranger.verificationDate
-        : metadataFallback?.verificationDate,
-      profileUpdatedAt: ranger.profileUpdatedAt && isIsoDate(ranger.profileUpdatedAt)
-        ? ranger.profileUpdatedAt
-        : metadataFallback?.profileUpdatedAt,
-      authorizationStatus: "本人已授权公开",
-    };
-  });
+function isLegacyPreviewRanger(ranger: RangerProfile) {
+  return ranger.slug.endsWith("-preview")
+    || ranger.publicName.includes("公开档案示例");
+}
+
+function retainVerifiedPublicRangers(rangers: RangerProfile[]) {
+  return rangers.filter((ranger) => !isLegacyPreviewRanger(ranger) && hasPublishableRangerContact(ranger));
 }
 
 function parseState(value: unknown): ManagedServiceCatalog {
@@ -329,7 +315,8 @@ function parseState(value: unknown): ManagedServiceCatalog {
     published.specialties = structuredClone(currentCatalog.specialties);
     published.rangers = structuredClone(currentCatalog.rangers);
   } else {
-    published.rangers = repairPublicRangers(published.rangers, createDefaultOpcCatalog().rangers);
+    draft.rangers = draft.rangers.filter((ranger) => !isLegacyPreviewRanger(ranger));
+    published.rangers = retainVerifiedPublicRangers(published.rangers);
   }
   const draftValidation = validateOpcCatalog(draft);
   const publishedValidation = validateOpcCatalog(published, typeof record.publishedAt === "string");
@@ -342,7 +329,7 @@ function parseState(value: unknown): ManagedServiceCatalog {
       const item = entry as { revision?: unknown; publishedAt?: unknown; catalog?: unknown };
       if (!Number.isSafeInteger(item.revision) || typeof item.publishedAt !== "string") return [];
       const catalog = normalizeOpcCatalog(item.catalog);
-      catalog.rangers = repairPublicRangers(catalog.rangers, createDefaultOpcCatalog().rangers);
+      catalog.rangers = retainVerifiedPublicRangers(catalog.rangers);
       return validateOpcCatalog(catalog, true).valid
         ? [{ revision: Number(item.revision), publishedAt: item.publishedAt, catalog }]
         : [];
