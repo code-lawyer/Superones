@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   infrastructureGroups,
   rangerIdentities,
@@ -36,10 +36,17 @@ type RangerGroup = {
 };
 
 const viewCopy: Record<WorkspaceView, { code: string; title: string; note: string }> = {
-  infrastructure: { code: "01", title: "基础设施", note: "完整经营能力" },
-  specialties: { code: "02", title: "专项服务", note: "单一专业结果" },
-  rangers: { code: "03", title: "游骑兵协会", note: "外部独立专家" },
+  infrastructure: { code: "01", title: "基础设施", note: "建立持续经营的完整底座" },
+  specialties: { code: "02", title: "专项服务", note: "解决一个边界明确的专业事项" },
+  rangers: { code: "03", title: "游骑兵协会", note: "直接联系外部独立顾问" },
 };
+
+function revealHeading(heading: HTMLHeadingElement | null) {
+  if (!heading) return;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  heading.focus({ preventScroll: true });
+  heading.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
 
 export function OpcWorkspace({
   infrastructure,
@@ -75,9 +82,9 @@ export function OpcWorkspace({
   }), [rangers]);
 
   const initialServices = initialView === "specialties" ? specialties : infrastructure;
-  const initialService = initialView === "rangers"
+  const initialService = initialView === "rangers" || !initialServiceSlug
     ? null
-    : initialServices.find((service) => service.slug === initialServiceSlug) ?? initialServices[0] ?? null;
+    : initialServices.find((service) => service.slug === initialServiceSlug) ?? null;
   const initialGroups = initialView === "specialties" ? specialtyGroups : groupedInfrastructure;
   const initialOpenGroup = initialService
     ? initialGroups.find((group) => group.items.some((service) => service.slug === initialService.slug))?.id
@@ -86,92 +93,132 @@ export function OpcWorkspace({
   const [view, setView] = useState<WorkspaceView>(initialView);
   const [openGroup, setOpenGroup] = useState(initialView === "rangers" ? rangerGroups[0]?.id ?? "" : initialOpenGroup ?? "");
   const [selectedService, setSelectedService] = useState<OpcService | null>(initialService);
+  const [announcement, setAnnouncement] = useState("");
+  const focusDetailOnChangeRef = useRef(false);
+  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const serviceGroups = view === "infrastructure" ? groupedInfrastructure : specialtyGroups;
+  const visibleServices = view === "specialties" ? specialties : infrastructure;
+  const selectedServiceIndex = selectedService
+    ? visibleServices.findIndex((service) => service.code === selectedService.code)
+    : -1;
+  const previousService = selectedServiceIndex > 0 ? visibleServices[selectedServiceIndex - 1] : null;
+  const nextService = selectedServiceIndex >= 0 && selectedServiceIndex < visibleServices.length - 1
+    ? visibleServices[selectedServiceIndex + 1]
+    : null;
 
-  function replaceWorkspaceLocation(nextView: WorkspaceView, service?: OpcService | null) {
+  useEffect(() => {
+    if (!focusDetailOnChangeRef.current || !selectedService) return;
+    focusDetailOnChangeRef.current = false;
+    revealHeading(detailHeadingRef.current);
+  }, [selectedService]);
+
+  function pushWorkspaceLocation(nextView: WorkspaceView, service?: OpcService | null) {
     const parameters = new URLSearchParams({ view: nextView });
     if (service) parameters.set("service", service.slug);
-    router.replace(`/opc?${parameters.toString()}`, { scroll: false });
+    router.push(`/opc?${parameters.toString()}`, { scroll: false });
   }
 
   function changeView(nextView: WorkspaceView) {
+    if (nextView === view) return;
     setView(nextView);
+    setSelectedService(null);
+    setAnnouncement(`已切换至${viewCopy[nextView].title}，请从服务目录选择具体项目。`);
     if (nextView === "infrastructure") {
       setOpenGroup(groupedInfrastructure[0]?.id ?? "");
-      const service = infrastructure[0] ?? null;
-      setSelectedService(service);
-      replaceWorkspaceLocation(nextView, service);
+      pushWorkspaceLocation(nextView);
     }
     if (nextView === "specialties") {
       setOpenGroup(specialtyGroups[0]?.id ?? "");
-      const service = specialties[0] ?? null;
-      setSelectedService(service);
-      replaceWorkspaceLocation(nextView, service);
+      pushWorkspaceLocation(nextView);
     }
     if (nextView === "rangers") {
       setOpenGroup(rangerGroups[0]?.id ?? "");
-      setSelectedService(null);
-      replaceWorkspaceLocation(nextView);
+      pushWorkspaceLocation(nextView);
     }
   }
 
-  function selectService(service: OpcService) {
+  function selectService(service: OpcService, revealDetail = false) {
+    focusDetailOnChangeRef.current = revealDetail;
     setSelectedService(service);
-    replaceWorkspaceLocation(view, service);
+    setAnnouncement(`已选择${service.name}。`);
+    pushWorkspaceLocation(view, service);
+  }
+
+  function revealSelectedService() {
+    if (!selectedService) return;
+    revealHeading(detailHeadingRef.current);
   }
 
   return (
     <section className="opc-service-browser" aria-label="OPC 服务目录">
       <aside className="opc-service-browser__primary">
-        <p className="mono">OPC / INDEX</p>
-        <nav aria-label="OPC 一级入口">
-          {(Object.keys(viewCopy) as WorkspaceView[]).map((item) => (
-            <button className={view === item ? "is-active" : ""} type="button" onClick={() => changeView(item)} key={item}>
-              <span className="mono">{viewCopy[item].code}</span>
-              <strong>{viewCopy[item].title}</strong>
-              <small>{viewCopy[item].note}</small>
-            </button>
-          ))}
-        </nav>
-        <div className="opc-service-browser__boundary">
-          <p className="mono">{view === "rangers" ? "EXTERNAL / DIRECT CONTACT" : "VAULT2077 / DIRECT DELIVERY"}</p>
-          <span>{view === "rangers" ? "用户与专家自行建立联系" : "先确认范围，再开始服务"}</span>
+        <div className="opc-service-browser__sticky">
+          <nav aria-label="OPC 一级入口">
+            {(Object.keys(viewCopy) as WorkspaceView[]).map((item) => (
+              <button className={view === item ? "is-active" : ""} type="button" onClick={() => changeView(item)} key={item}>
+                <strong>{viewCopy[item].title}</strong>
+                <small>{viewCopy[item].note}</small>
+              </button>
+            ))}
+          </nav>
+          <div className="opc-service-browser__boundary">
+            <span>{view === "rangers"
+              ? "外部独立顾问；用户与专家自行建立联系"
+              : "Vault2077 直接交付；先确认范围，再开始服务"}</span>
+          </div>
         </div>
       </aside>
 
       <aside className="opc-service-browser__secondary">
-        <header>
-          <p className="mono">{viewCopy[view].code} / DIRECTORY</p>
-          <h2>{viewCopy[view].title}</h2>
-        </header>
-        {view === "rangers" ? (
-          <RangerNavigation groups={rangerGroups} openGroup={openGroup} onToggle={setOpenGroup} />
-        ) : (
-          <ServiceNavigation groups={serviceGroups} openGroup={openGroup} selected={selectedService} onToggle={setOpenGroup} onSelect={selectService} />
-        )}
+        <div className="opc-service-browser__sticky">
+          <header>
+            <p className="mono">{viewCopy[view].code} / DIRECTORY</p>
+            <h2>{viewCopy[view].title}</h2>
+            <p className="opc-service-browser__secondary-lede">{viewCopy[view].note}</p>
+          </header>
+          {view === "rangers" ? (
+            <RangerNavigation groups={rangerGroups} openGroup={openGroup} onToggle={setOpenGroup} />
+          ) : (
+            <ServiceNavigation
+              groups={serviceGroups}
+              openGroup={openGroup}
+              selected={selectedService}
+              onToggle={setOpenGroup}
+              onSelect={selectService}
+              onRevealSelected={revealSelectedService}
+            />
+          )}
+        </div>
       </aside>
 
       <section
         className="opc-service-browser__content"
-        aria-live="polite"
         aria-label={`${viewCopy[view].title}详情`}
       >
         {view === "rangers"
           ? <RangerWall profiles={rangers} />
           : selectedService
-            ? <ServiceReadingPane service={selectedService} />
+            ? <ServiceReadingPane
+              service={selectedService}
+              previousService={previousService}
+              nextService={nextService}
+              headingRef={detailHeadingRef}
+              onSelect={(service) => selectService(service, true)}
+            />
             : <ServiceEmptyPane title={viewCopy[view].title} />}
       </section>
+      <p className="opc-service-browser__announcement" aria-live="polite">{announcement}</p>
     </section>
   );
 }
 
-function ServiceNavigation({ groups, openGroup, selected, onToggle, onSelect }: {
+function ServiceNavigation({ groups, openGroup, selected, onToggle, onSelect, onRevealSelected }: {
   groups: ServiceGroup[];
   openGroup: string;
   selected: OpcService | null;
   onToggle: (id: string) => void;
   onSelect: (service: OpcService) => void;
+  onRevealSelected: () => void;
 }) {
   return <div className="opc-accordion">{groups.map((group) => {
     const open = openGroup === group.id;
@@ -181,12 +228,32 @@ function ServiceNavigation({ groups, openGroup, selected, onToggle, onSelect }: 
         <i className="mono">{String(group.items.length).padStart(2, "0")} {open ? "−" : "+"}</i>
       </button>
       <div className="opc-accordion__drawer" aria-hidden={!open}><div>
-        {group.items.map((service) => <button className={selected?.code === service.code ? "opc-accordion__item is-selected" : "opc-accordion__item"} type="button" onClick={() => onSelect(service)} key={service.code}>
-          <span className="mono">{service.code.split("/").at(-1)}</span><strong>{service.name}</strong><i aria-hidden="true">→</i>
-        </button>)}
+        {group.items.map((service) => {
+          const selectedItem = selected?.code === service.code;
+          return <button
+            className={selectedItem ? "opc-accordion__item is-selected" : "opc-accordion__item"}
+            type="button"
+            aria-current={selectedItem ? "true" : undefined}
+            onClick={() => onSelect(service)}
+            key={service.code}
+          >
+            <span className="mono">{service.code.split("/").at(-1)}</span>
+            <span className="opc-accordion__item-copy">
+              <strong>{service.name}</strong>
+              {selectedItem ? <small>{service.outcome}</small> : null}
+            </span>
+            <i aria-hidden="true">→</i>
+          </button>;
+        })}
       </div></div>
     </section>;
-  })}</div>;
+  })}
+    {selected ? <div className="opc-service-browser__selected">
+      <p className="mono">SELECTED / 已选择</p>
+      <strong>{selected.name}</strong>
+      <button type="button" onClick={onRevealSelected}>查看服务详情 <span aria-hidden="true">↓</span></button>
+    </div> : null}
+  </div>;
 }
 
 function RangerNavigation({ groups, openGroup, onToggle }: {
@@ -212,23 +279,39 @@ function RangerNavigation({ groups, openGroup, onToggle }: {
 
 function ServiceEmptyPane({ title }: { title: string }) {
   return <section className="opc-reading-empty">
-    <p className="mono">SELECT A SERVICE / 选择具体项目</p>
+    <p className="mono">SERVICE BRIEF / 服务说明</p>
     <div>
       <span aria-hidden="true">↘</span>
-      <h2>从中栏展开「{title}」分类，<br />选择一个具体项目。</h2>
-      <p>项目范围、适用对象、所需材料、交付成果与转交边界将在这里完整展开。</p>
+      <h2>选择一项服务，<br />再查看正式说明。</h2>
+      <p>请从中栏浏览「{title}」下的具体项目。系统不会替你默认选择；范围、价格、材料和交付边界将在选择后完整展开。</p>
     </div>
   </section>;
 }
 
-function ServiceReadingPane({ service }: { service: OpcService }) {
+function ServiceReadingPane({ service, previousService, nextService, headingRef, onSelect }: {
+  service: OpcService;
+  previousService: OpcService | null;
+  nextService: OpcService | null;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  onSelect: (service: OpcService) => void;
+}) {
   return <article className="opc-reading-pane">
     <header>
-      <div className="opc-reading-pane__meta mono"><span>{service.code}</span><span>{service.domain}</span><span>{service.revision}</span></div>
-      <h2>{service.name}</h2>
+      <div className="opc-reading-pane__meta mono">
+        <span><b>服务编号</b>{service.code}</span>
+        <span><b>服务领域</b>{service.domain}</span>
+        <span><b>目录版本</b>{service.revision}</span>
+      </div>
+      <h2 ref={headingRef} tabIndex={-1}>{service.name}</h2>
       <p>{service.outcome}</p>
-      <div className="opc-reading-pane__facts"><span><b className="mono">价格</b>{service.price}</span><span><b className="mono">周期</b>{service.period}</span></div>
     </header>
+    <div className="opc-reading-pane__fact-register" aria-label="当前服务关键事实">
+      <div className="opc-reading-pane__facts">
+        <span><b className="mono">价格</b><strong>{service.price}</strong></span>
+        <span><b className="mono">周期</b><strong>{service.period}</strong></span>
+      </div>
+      <p className="opc-reading-pane__fact-note">责任主体：Vault2077 直接交付。价格与周期以适用性确认和最终服务范围为准；本页不提供在线下单或即时支付。</p>
+    </div>
     <div className="opc-reading-pane__body">
       <section><p className="mono">WHO IT IS FOR / 适合谁</p><h3>适用对象</h3><p>{service.audience}</p></section>
       <section><p className="mono">WHAT IS INCLUDED / 包含内容</p><h3>{service.kind === "infrastructure" ? "建立这套能力" : "完成这个结果"}</h3><ol>{service.includes.map((item) => <li key={item}>{item}</li>)}</ol></section>
@@ -248,6 +331,28 @@ function ServiceReadingPane({ service }: { service: OpcService }) {
         </div>
         <span className="opc-reading-pane__boundary-mark" aria-hidden="true">↗</span>
       </section>
+      <section className="opc-reading-pane__next-step">
+        <div>
+          <p className="mono">NEXT STEP / 下一步</p>
+          <h3>先确认适用，<br />再安排服务。</h3>
+        </div>
+        <div className="opc-reading-pane__next-step-copy">
+          <ol>
+            <li>核对适用对象与标准服务边界</li>
+            <li>按材料清单准备真实业务信息</li>
+            <li>由工作人员确认适用性后安排付款与交付</li>
+          </ol>
+          <p>当前页面为工作原型。正式咨询入口将在专业负责人确认后开放，不在本页建立订单、购物车或支付流程。</p>
+        </div>
+      </section>
+      {(previousService || nextService) ? <nav className="opc-reading-pane__pagination" aria-label="切换服务">
+        {previousService
+          ? <button type="button" onClick={() => onSelect(previousService)}><span className="mono">← PREVIOUS</span><strong>{previousService.name}</strong></button>
+          : <span />}
+        {nextService
+          ? <button type="button" onClick={() => onSelect(nextService)}><span className="mono">NEXT →</span><strong>{nextService.name}</strong></button>
+          : <span />}
+      </nav> : null}
     </div>
   </article>;
 }

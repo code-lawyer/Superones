@@ -86,12 +86,59 @@ test("outer reversal controls use the physical viewport instead of the shell edg
 test("compact OPC directory items center their complete label group", async () => {
   const styles = await readOpcStyles();
   const itemRules = styles.match(/\.opc-accordion__item\s*\{[\s\S]*?\n\}/g) ?? [];
-  const refinedItemRule = itemRules.find((rule) => rule.includes("min-height: 68px")) ?? "";
+  const refinedItemRule = itemRules.find((rule) => rule.includes("min-height: 70px")) ?? "";
   const codeRules = styles.match(/\.opc-accordion__item > span\s*\{[\s\S]*?\n\}/g) ?? [];
   const refinedCodeRule = codeRules.at(-1) ?? "";
 
   assert.ok(refinedItemRule.includes("align-items: center"));
   assert.ok(refinedCodeRule.includes("padding-top: 0"));
+});
+
+test("OPC keeps three distinct workspace roles without silently choosing a service", async () => {
+  const styles = await readOpcStyles();
+  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+
+  assert.match(styles, /grid-template-columns:\s*minmax\(220px,\s*\.74fr\)\s*minmax\(320px,\s*1\.08fr\)\s*minmax\(0,\s*3\.18fr\)/);
+  assert.match(workspace, /initialView === "rangers" \|\| !initialServiceSlug[\s\S]*?\? null/);
+  assert.doesNotMatch(workspace, /setSelectedService\(infrastructure\[0\]|setSelectedService\(specialties\[0\]/);
+  assert.match(workspace, /router\.push\(`/);
+  assert.doesNotMatch(workspace, /router\.replace\(`/);
+  assert.doesNotMatch(workspace, /OPC \/ INDEX|EXTERNAL \/ DIRECT CONTACT|VAULT2077 \/ DIRECT DELIVERY/);
+});
+
+test("OPC selection feedback is concise and mobile users get an explicit detail transition", async () => {
+  const styles = await readOpcStyles();
+  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+
+  assert.match(workspace, /className="opc-service-browser__announcement" aria-live="polite"/);
+  assert.doesNotMatch(workspace, /className="opc-service-browser__content"\s*\n\s*aria-live=/);
+  assert.match(workspace, /查看服务详情/);
+  assert.match(workspace, /scrollIntoView\(\{ behavior: reduceMotion \? "auto" : "smooth"/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-service-browser__selected\s*\{[\s\S]*?display:\s*grid/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-accordion__item\s*\{[\s\S]*?width:\s*calc\(100% \+ \(var\(--opc-left-viewport-bleed\) \* 2\)\)/);
+});
+
+test("OPC service brief joins price context, responsibility, next step and adjacent navigation", async () => {
+  const styles = await readOpcStyles();
+  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+
+  assert.match(workspace, /className="opc-reading-pane__fact-register" aria-label="当前服务关键事实"/);
+  assert.match(workspace, /责任主体：Vault2077 直接交付/);
+  assert.match(workspace, /价格与周期以适用性确认和最终服务范围为准/);
+  assert.match(workspace, /NEXT STEP \/ 下一步/);
+  assert.match(workspace, /当前页面为工作原型/);
+  assert.match(workspace, /aria-label="切换服务"/);
+  assert.doesNotMatch(workspace, /立即下单|购买此服务|购物车按钮/);
+  assert.match(styles, /\.opc-reading-pane__fact-register\s*\{[\s\S]*?position:\s*sticky[\s\S]*?top:\s*76px/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-reading-pane__fact-register\s*\{[\s\S]*?position:\s*static/);
+});
+
+test("OPC detail reveal uses one shared focus and motion path", async () => {
+  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+
+  assert.equal(workspace.match(/scrollIntoView\(/g)?.length, 1);
+  assert.equal(workspace.match(/matchMedia\("\(prefers-reduced-motion: reduce\)"\)/g)?.length, 1);
+  assert.match(workspace, /function revealHeading\(heading: HTMLHeadingElement \| null\)/);
 });
 
 test("every OPC service title uses the shared single-line fluid type rule", async () => {
