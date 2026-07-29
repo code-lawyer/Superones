@@ -133,13 +133,14 @@ test("OPC service brief joins price context, order entry, payment guidance and a
 
   assert.match(workspace, /className="opc-reading-pane__fact-register" aria-label="当前服务关键事实"/);
   assert.match(workspace, /责任主体：Vault2077 直接交付/);
-  assert.match(workspace, /订单提交后显示支付宝收款码/);
+  assert.match(workspace, /订单提交后跳转支付宝官方收银台/);
   assert.match(workspace, /<OpcOrderEntry key=\{service\.slug\} service=\{service\} enabled=\{orderingAvailable\} \/>/);
   assert.match(workspace, /aria-label="切换服务"/);
   assert.doesNotMatch(workspace, /当前页面为工作原型|由谁完成/);
-  assert.match(orderEntry, /提交联系方式后获取支付宝付款码/);
+  assert.match(orderEntry, /提交联系方式后前往支付宝官方收银台/);
   assert.match(orderEntry, /X-Vault2077-Public-Request/);
-  assert.match(orderEntry, /付款备注中填写订单号/);
+  assert.match(orderEntry, /window\.location\.assign\(body\.paymentUrl\)/);
+  assert.match(orderEntry, /支付宝会把验签结果通知 Vault2077/);
   assert.match(orderEntry, /href="\/terms"/);
   assert.match(orderEntry, /href="\/privacy"/);
   assert.match(orderEntry, /prefers-reduced-motion: reduce/);

@@ -2,7 +2,7 @@ import "server-only";
 
 import { isIP } from "node:net";
 import { loadEditorialProfileConfig, type EditorialProfileId } from "./openai-compatible-client.ts";
-import { isValidOpcPaymentAssetPath } from "./opc-payment-config.ts";
+import { opcAlipayConfigurationErrors } from "./opc-payment-config.ts";
 import { parseSecretKeyring } from "./secret-keyring.ts";
 
 export type ProductionConfigurationReport = {
@@ -174,14 +174,7 @@ export function validateProductionConfiguration(
     errors.push("生产环境不得启用 VAULT2077_ALLOW_FILE_PREVIEW。");
   }
 
-  const opcAlipayQrPath = environment.VAULT2077_OPC_ALIPAY_QR_PATH?.trim() ?? "";
-  const opcAlipayPayee = environment.VAULT2077_OPC_ALIPAY_PAYEE?.trim() ?? "";
-  if (!isValidOpcPaymentAssetPath(opcAlipayQrPath)) {
-    errors.push("VAULT2077_OPC_ALIPAY_QR_PATH 必须指向 public 下的 PNG、WebP 或 JPEG 收款码资源。");
-  }
-  if (opcAlipayPayee.length < 2 || opcAlipayPayee.length > 80 || placeholder(opcAlipayPayee)) {
-    errors.push("VAULT2077_OPC_ALIPAY_PAYEE 必须填写 2–80 字的真实支付宝收款方名称。");
-  }
+  errors.push(...opcAlipayConfigurationErrors(environment).map((error) => `支付宝开放平台：${error}`));
 
   const configuredSecrets: Array<{ name: string; value: string }> = [];
   for (const name of REQUIRED_SECRETS) {

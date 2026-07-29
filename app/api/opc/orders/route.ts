@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
-import { createOpcOrder } from "@/lib/opc-order-store";
-import { requireOpcPaymentConfiguration } from "@/lib/opc-payment-config";
+import {
+  createOpcOrder,
+  getOpcOrderPaymentOrder,
+  recordOpcPaymentRequest,
+} from "@/lib/opc-order-store";
+import {
+  createOpcAlipayPaymentUrl,
+  requireOpcAlipayConfiguration,
+  selectOpcAlipayChannel,
+} from "@/lib/opc-payment-config";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
@@ -63,7 +71,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const payment = await requireOpcPaymentConfiguration();
+    const paymentConfiguration = requireOpcAlipayConfiguration();
     const body = await readBoundedJson(request);
     const idempotencyKey = cleanText(body.idempotencyKey, 80);
     const serviceSlug = cleanText(body.serviceSlug, 80).toLowerCase();
@@ -75,6 +83,7 @@ export async function POST(request: NextRequest) {
     const note = cleanText(body.note, 800);
     const website = cleanText(body.website, 200);
     const consent = body.consent === true;
+    const paymentChannel = selectOpcAlipayChannel(body.paymentChannel, paymentConfiguration);
 
     if (
       !/^[0-9a-f-]{36}$/i.test(idempotencyKey)
@@ -110,7 +119,15 @@ export async function POST(request: NextRequest) {
       quotedPrice: service.price,
       contact: { name, phone, email, wechat, note },
     });
-    return NextResponse.json({ order, payment }, { status: 201 });
+    const paymentOrder = await getOpcOrderPaymentOrder(order.reference);
+    const paymentUrl = createOpcAlipayPaymentUrl(paymentOrder, paymentChannel, paymentConfiguration);
+    await recordOpcPaymentRequest(order.reference, paymentChannel);
+    return NextResponse.json({
+      order,
+      paymentUrl,
+      paymentChannel,
+      expiresInMinutes: 30,
+    }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "暂时无法创建订单。";
     if (error instanceof RangeError) {

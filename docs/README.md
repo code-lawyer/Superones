@@ -45,7 +45,7 @@ updated: 2026-07-28
 - [ADR-0011：人工编辑只进入结构化服务目录](adr/0011-managed-service-catalog.md)
 - [ADR-0012：生产后台采用身份网关与可撤销应用会话](adr/0012-production-admin-access.md)
 - [ADR-0013：境外可靠投递与境内独立消费](adr/0013-reliable-delivery-and-domestic-worker.md)
-- [ADR-0014：OPC 无账号订单与支付宝人工到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
+- [ADR-0014：OPC 无账号订单与支付宝服务器到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
 
 ## 当前运行文档
 

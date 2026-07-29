@@ -58,6 +58,13 @@ type OpcOrder = {
   serviceName: string;
   serviceRevision: string;
   quotedPrice: string;
+  alipayAmount: string;
+  alipayTradeNo: string | null;
+  alipayTradeStatus: string | null;
+  paymentChannel: "page" | "wap" | null;
+  paymentRequestCreatedAt: string | null;
+  paymentNotifiedAt: string | null;
+  paymentCheckedAt: string | null;
   contact: {
     name: string;
     phone: string;
@@ -320,6 +327,35 @@ export function AdminConsole() {
     }
   }
 
+  async function reconcileOpcOrder(order: OpcOrder) {
+    if (!window.confirm(`确认向支付宝查询订单 ${order.reference} 的实时交易状态？查询结果会写入审计记录。`)) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/content", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({
+          action: "reconcile-opc-order",
+          orderId: order.id,
+          confirm: true,
+        }),
+      });
+      const body = await jsonMessage(response);
+      setOrders(Array.isArray(body?.orders) ? body.orders : []);
+      setNotice(`订单 ${order.reference} 已完成支付宝状态查询。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "暂时无法查询支付宝订单。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   if (submissions === null) {
     return (
       <form className="admin-login" onSubmit={login}>
@@ -422,7 +458,7 @@ export function AdminConsole() {
         <div className="admin-section-heading">
           <p className="eyebrow mono">OPC / ORDER OPERATIONS</p>
           <h2 id="admin-opc-orders-title">订单与到账核验</h2>
-          <p className="form-note">订单保存下单时的服务修订与公开价格快照。只有核对支付宝到账和订单号备注后，才能标记为已到账。</p>
+          <p className="form-note">用户提交联系方式时即形成待付款订单；支付宝服务器验签通知会自动更新到账状态。后台查询用于通知延迟或异常对账，不能依据浏览器返回页面判定到账。</p>
         </div>
         <div className="admin-donation-list">
           {orders.length === 0 ? <p className="ranking-empty">当前没有 OPC 订单。</p> : orders.map((order) => (
@@ -431,6 +467,7 @@ export function AdminConsole() {
                 <p className="mono muted">{order.reference} / {opcOrderStatusLabels[order.status]}</p>
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
+                <p>支付宝金额 ¥{order.alipayAmount} · {order.paymentChannel === "wap" ? "手机网站支付" : order.paymentChannel === "page" ? "电脑网站支付" : "尚未发起收银台"}</p>
                 {order.contact?.note ? <p>{order.contact.note}</p> : null}
               </div>
               <div className="admin-donation-meta">
@@ -440,21 +477,26 @@ export function AdminConsole() {
                 <span className="mono">{order.contact?.wechat || "未填微信号"}</span>
                 <time className="mono">创建 {new Date(order.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <time className="mono">更新 {new Date(order.updatedAt).toLocaleString("zh-CN", { hour12: false })}</time>
+                <span className="mono">支付宝状态 {order.alipayTradeStatus ?? "尚未回传"}</span>
+                <span className="mono">支付宝交易号 {order.alipayTradeNo ?? "—"}</span>
+                {order.paymentNotifiedAt ? <time className="mono">通知 {new Date(order.paymentNotifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.paymentCheckedAt ? <time className="mono">查询 {new Date(order.paymentCheckedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
               </div>
               <div className="admin-actions">
                 {order.status === "awaiting_payment" ? (
                   <>
-                    <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "paid")}>确认到账</button>
+                    <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>查询支付宝状态</button>
                     <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
                   </>
                 ) : null}
                 {order.status === "paid" ? (
                   <>
+                    <button className="text-link" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>复查支付宝</button>
                     <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "completed")}>标记交付完成</button>
-                    <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>记录退款</button>
+                    <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button>
                   </>
                 ) : null}
-                {order.status === "completed" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>记录退款</button> : null}
+                {order.status === "completed" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button> : null}
               </div>
             </article>
           ))}

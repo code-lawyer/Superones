@@ -91,14 +91,30 @@ updated: 2026-07-28
 
 ## 5. 数据
 
-### OPC 支付宝收款
+### OPC 支付宝开放平台支付
 
 | 变量 | 说明 |
 | --- | --- |
-| `VAULT2077_OPC_ALIPAY_QR_PATH` | `public/` 下真实支付宝收款码的站内绝对路径，例如 `/opc/alipay-payment-qr.png`；只接受 PNG、WebP 或 JPEG，不接受外部 URL 或 SVG |
-| `VAULT2077_OPC_ALIPAY_PAYEE` | 用户扫码后应在支付宝中看到的真实收款方名称，2–80 字 |
+| `VAULT2077_ALIPAY_APP_ID` | 支付宝开放平台中已上线网页/移动应用的 APPID |
+| `VAULT2077_ALIPAY_SELLER_ID` | 收款商户 PID，用于异步通知中的商户身份二次核对 |
+| `VAULT2077_ALIPAY_PRIVATE_KEY` | 应用 RSA2 私钥；只进入服务器密钥管理，不得提交 Git、写日志或传到浏览器；环境变量可使用 PEM 原文或把换行写成 `\n` |
+| `VAULT2077_ALIPAY_PUBLIC_KEY` | 支付宝公钥，不是应用公钥；用于异步通知和查询响应验签 |
+| `VAULT2077_ALIPAY_KEY_TYPE` | `PKCS8` 或 `PKCS1`，必须与应用私钥实际格式一致；支付宝密钥工具默认产物通常按 `PKCS8` 配置 |
+| `VAULT2077_ALIPAY_GATEWAY` | 生产固定为 `https://openapi.alipay.com/gateway.do`；沙箱使用支付宝开放平台当前提供的官方沙箱网关 |
+| `VAULT2077_ALIPAY_WEB_PAYMENT_MODE` | `page`（电脑网站支付）、`wap`（手机网站支付）或 `both`；必须与应用已签约产品一致 |
+| `VAULT2077_PUBLIC_ORIGIN` | 公开站 HTTPS origin；系统据此生成 `${VAULT2077_PUBLIC_ORIGIN}/api/opc/alipay/notify` 和支付宝返回地址 |
 
-生产环境两项都必须配置，`npm run deploy:check` 会拒绝缺失、占位或外部二维码路径。二维码文件不得提交为测试码；部署后必须使用目标支付宝账户扫码，核对支付宝显示的收款方名称与配置完全一致。更换收款码时应在受控发布中同时更新静态资源和收款方配置，并完成一笔小额端到端到账/退款演练。
+接入步骤：
+
+1. 使用完成实名认证的支付宝商家账号进入[支付宝开放平台](https://open.alipay.com/)，创建“网页/移动应用”并完成主体、域名等资料。
+2. 在应用中添加“电脑网站支付”和/或“手机网站支付”，按业务需要完成签约与应用上线。开发中应用不能调用生产能力。
+3. 在“开发设置 → 接口加签方式”选择 RSA2。推荐使用支付宝密钥工具生成应用密钥对：应用私钥只保存在服务器密钥管理；应用公钥上传开放平台；从开放平台复制对应的“支付宝公钥”用于验签。不要把应用公钥误填成支付宝公钥。
+4. 先用沙箱 APPID、沙箱网关和沙箱密钥完成联调。沙箱通知地址也必须从公网通过 HTTPS 访问，本地开发应使用受控测试域名或临时 HTTPS 隧道。
+5. 生产密钥通过部署平台 Secret、systemd `EnvironmentFile` 或等价密钥管理注入。运行 `npm run deploy:check`，缺失 APPID、PID、密钥、官方网关、HTTPS origin 或支付模式时部署必须失败。
+6. 上线前完成一笔最小金额端到端交易：提交联系方式后后台先出现“待付款”订单；跳转支付宝官方收银台；支付后异步通知自动更新为“已到账”；后台展示支付宝交易号和通知时间。
+7. 模拟通知丢失并使用“查询支付宝状态”补查；验证重复通知幂等、错误签名拒绝、APPID/PID 不匹配拒绝、金额不一致拒绝。浏览器 `return_url` 只展示“核验中”，不得直接改订单状态。
+
+项目使用支付宝官方 [`alipay-sdk`](https://github.com/alipay/alipay-sdk-nodejs-all)：`pageExecute()` 生成网站支付链接，`checkNotifySignV2()` 验证异步通知，`alipay.trade.query` 用于异常补查。支付应用上线、签约、费率、结算账户与商家资质由支付宝开放平台审核决定，不由代码代替。
 
 `VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。Next 生产进程只有在显式设置 `VAULT2077_ALLOW_FILE_PREVIEW=true` 时才允许文件模式，该开关只用于 E2E/本地预览，生产部署必须保持关闭。
 

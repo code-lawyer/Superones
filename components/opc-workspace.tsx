@@ -319,7 +319,7 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
         <span><b className="mono">价格</b><strong>{service.price}</strong></span>
         <span><b className="mono">周期</b><strong>{service.period}</strong></span>
       </div>
-      <p className="opc-reading-pane__fact-note">责任主体：Vault2077 直接交付。公开价格对应当前服务修订；第三方费用按费用说明另计。订单提交后显示支付宝收款码，到账结果由 OPC 服务团队人工核验。</p>
+      <p className="opc-reading-pane__fact-note">责任主体：Vault2077 直接交付。公开价格对应当前服务修订；第三方费用按费用说明另计。订单提交后跳转支付宝官方收银台，到账状态通过支付宝服务器通知自动核验。</p>
     </div>
     <OpcOrderEntry key={service.slug} service={service} enabled={orderingAvailable} />
     <div className="opc-reading-pane__body">

@@ -1,9 +1,16 @@
 import "server-only";
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  catalogPriceToAlipayAmount,
+  type OpcAlipayChannel,
+  type OpcAlipayPaymentOrder,
+  type OpcAlipayQueryResult,
+} from "./opc-payment-config.ts";
 import { decryptSensitiveText, encryptSensitiveText } from "./sensitive-data.ts";
 import {
   mutateStateDocument,
+  readStateDocument,
   type StateDocumentDefinition,
 } from "./state-document-store.ts";
 
@@ -28,6 +35,13 @@ type StoredOpcOrder = {
   serviceName: string;
   serviceRevision: string;
   quotedPrice: string;
+  alipayAmount: string;
+  alipayTradeNo: string | null;
+  alipayTradeStatus: string | null;
+  paymentChannel: OpcAlipayChannel | null;
+  paymentRequestCreatedAt: string | null;
+  paymentNotifiedAt: string | null;
+  paymentCheckedAt: string | null;
   contactEncrypted: string | null;
   status: OpcOrderStatus;
   createdAt: string;
@@ -40,20 +54,47 @@ type StoredOpcOrder = {
 };
 
 type OpcOrderStore = {
-  version: 1;
+  version: 2;
   orders: StoredOpcOrder[];
 };
 
 const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
   namespace: "opc-orders",
   fileName: "opc-orders.json",
-  create: () => ({ version: 1, orders: [] }),
+  create: () => ({ version: 2, orders: [] }),
   parse: (value) => {
-    const parsed = value as OpcOrderStore;
-    if (parsed.version !== 1 || !Array.isArray(parsed.orders)) {
+    const parsed = value as { version?: unknown; orders?: unknown[] };
+    if ((parsed.version !== 1 && parsed.version !== 2) || !Array.isArray(parsed.orders)) {
       throw new Error("OPC 订单存储格式无效。");
     }
-    return parsed;
+    return {
+      version: 2,
+      orders: parsed.orders.map((value) => {
+        const order = value as Partial<StoredOpcOrder>;
+        const alipayAmount = typeof order.alipayAmount === "string"
+          ? order.alipayAmount
+          : catalogPriceToAlipayAmount(order.quotedPrice ?? "");
+        if (
+          !order.id
+          || !order.reference
+          || !order.serviceName
+          || !order.quotedPrice
+          || !alipayAmount
+        ) {
+          throw new Error("OPC 订单记录缺少必要字段。");
+        }
+        return {
+          ...order,
+          alipayAmount,
+          alipayTradeNo: order.alipayTradeNo ?? null,
+          alipayTradeStatus: order.alipayTradeStatus ?? null,
+          paymentChannel: order.paymentChannel ?? null,
+          paymentRequestCreatedAt: order.paymentRequestCreatedAt ?? null,
+          paymentNotifiedAt: order.paymentNotifiedAt ?? null,
+          paymentCheckedAt: order.paymentCheckedAt ?? null,
+        } as StoredOpcOrder;
+      }),
+    };
   },
 };
 
@@ -110,6 +151,8 @@ export async function createOpcOrder(input: {
   quotedPrice: string;
   contact: OpcOrderContact;
 }) {
+  const alipayAmount = catalogPriceToAlipayAmount(input.quotedPrice);
+  if (!alipayAmount) throw new Error("服务公开价格无法转换为支付宝订单金额。");
   const requestHash = idempotencyHash(input.idempotencyKey);
   return mutateStateDocument(orderDocument, (store) => {
     scrubExpiredContacts(store, new Date());
@@ -127,6 +170,13 @@ export async function createOpcOrder(input: {
       serviceName: input.serviceName,
       serviceRevision: input.serviceRevision,
       quotedPrice: input.quotedPrice,
+      alipayAmount,
+      alipayTradeNo: null,
+      alipayTradeStatus: null,
+      paymentChannel: null,
+      paymentRequestCreatedAt: null,
+      paymentNotifiedAt: null,
+      paymentCheckedAt: null,
       contactEncrypted: encryptSensitiveText(JSON.stringify(input.contact)),
       status: "awaiting_payment",
       createdAt: timestamp,
@@ -139,6 +189,88 @@ export async function createOpcOrder(input: {
     };
     store.orders.push(order);
     return publicOrder(order);
+  });
+}
+
+export async function getOpcOrderPaymentOrder(reference: string): Promise<OpcAlipayPaymentOrder> {
+  const store = await readStateDocument(orderDocument);
+  const order = store.orders.find((value) => value.reference === reference);
+  if (!order) throw new Error("OPC 订单不存在。");
+  if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
+  return {
+    reference: order.reference,
+    serviceCode: order.serviceCode,
+    serviceName: order.serviceName,
+    serviceRevision: order.serviceRevision,
+    alipayAmount: order.alipayAmount,
+  };
+}
+
+export async function recordOpcPaymentRequest(reference: string, channel: OpcAlipayChannel) {
+  return mutateStateDocument(orderDocument, (store) => {
+    const order = store.orders.find((value) => value.reference === reference);
+    if (!order) throw new Error("OPC 订单不存在。");
+    if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
+    const timestamp = new Date().toISOString();
+    order.paymentChannel = channel;
+    order.paymentRequestCreatedAt = timestamp;
+    order.updatedAt = timestamp;
+    return publicOrder(order);
+  });
+}
+
+export async function applyOpcAlipayTradeResult(input: {
+  reference: string;
+  tradeNo: string | null;
+  tradeStatus: string;
+  totalAmount: string | null;
+  source: "notify" | "query";
+}) {
+  return mutateStateDocument(orderDocument, (store) => {
+    const order = store.orders.find((value) => value.reference === input.reference);
+    if (!order) throw new Error("OPC 订单不存在。");
+    if (input.totalAmount && input.totalAmount !== order.alipayAmount) {
+      throw new Error("支付宝交易金额与 OPC 订单金额不一致。");
+    }
+    if (
+      input.tradeNo
+      && store.orders.some((value) => value.id !== order.id && value.alipayTradeNo === input.tradeNo)
+    ) {
+      throw new Error("支付宝交易号已关联到其他 OPC 订单。");
+    }
+
+    const timestamp = new Date().toISOString();
+    order.alipayTradeNo = input.tradeNo ?? order.alipayTradeNo;
+    order.alipayTradeStatus = input.tradeStatus;
+    order.updatedAt = timestamp;
+    if (input.source === "notify") order.paymentNotifiedAt = timestamp;
+    else order.paymentCheckedAt = timestamp;
+
+    if (input.tradeStatus === "TRADE_SUCCESS" || input.tradeStatus === "TRADE_FINISHED") {
+      if (order.status !== "completed" && order.status !== "refunded") order.status = "paid";
+      order.paidAt ??= timestamp;
+      order.cancelledAt = null;
+    }
+    return publicOrder(order);
+  });
+}
+
+export async function recordOpcAlipayQuery(reference: string, result: OpcAlipayQueryResult) {
+  if (!result.found) {
+    return applyOpcAlipayTradeResult({
+      reference,
+      tradeNo: null,
+      tradeStatus: "TRADE_NOT_EXIST",
+      totalAmount: null,
+      source: "query",
+    });
+  }
+  return applyOpcAlipayTradeResult({
+    reference,
+    tradeNo: result.tradeNo,
+    tradeStatus: result.tradeStatus ?? "UNKNOWN",
+    totalAmount: result.totalAmount,
+    source: "query",
   });
 }
 
@@ -166,7 +298,7 @@ export async function updateOpcOrderStatus(id: string, status: OpcOrderStatus) {
     if (order.status === status) return publicOrder(order);
 
     const allowed: Record<OpcOrderStatus, OpcOrderStatus[]> = {
-      awaiting_payment: ["paid", "cancelled"],
+      awaiting_payment: ["cancelled"],
       paid: ["completed", "refunded"],
       completed: ["refunded"],
       cancelled: [],

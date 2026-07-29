@@ -12,9 +12,11 @@ import { closeCorrectionReport, listAdminCorrectionReports } from "@/lib/correct
 import {
   listAdminOpcOrders,
   OPC_ORDER_STATUSES,
+  recordOpcAlipayQuery,
   updateOpcOrderStatus,
   type OpcOrderStatus,
 } from "@/lib/opc-order-store";
+import { queryOpcAlipayTrade } from "@/lib/opc-payment-config";
 import { recordAuditEvent } from "@/lib/security-audit";
 
 export const runtime = "nodejs";
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
     return adminAccessErrorResponse(error);
   }
   const actorHash = access.session.actorHash;
-  let attemptedAction: "admin.opc-order.update" | "admin.correction.close" = "admin.correction.close";
+  let attemptedAction: "admin.opc-order.update" | "admin.opc-order.reconcile" | "admin.correction.close" = "admin.correction.close";
   let attemptedTargetType: "opc-order" | "correction" = "correction";
   let attemptedTargetId = "unknown";
   try {
@@ -55,6 +57,40 @@ export async function POST(request: NextRequest) {
       orderStatus?: unknown;
       confirm?: unknown;
     };
+    if (body.action === "reconcile-opc-order") {
+      attemptedAction = "admin.opc-order.reconcile";
+      attemptedTargetType = "opc-order";
+      if (!hasRecentAdminReauthentication(access.session)) {
+        return authenticatedAdminJson(access, {
+          error: "向支付宝查询 OPC 订单前需要重新验证管理员身份。",
+          code: "ADMIN_REAUTH_REQUIRED",
+          reauthenticationUrl: configuredAdminReauthenticationUrl(),
+        }, { status: 403 });
+      }
+      const orderId = typeof body.orderId === "string" ? body.orderId : "";
+      attemptedTargetId = orderId || "unknown";
+      if (!orderId || body.confirm !== true) {
+        return authenticatedAdminJson(access, { error: "支付宝订单查询需要有效订单和明确确认。" }, { status: 400 });
+      }
+      const order = (await listAdminOpcOrders()).find((value) => value.id === orderId);
+      if (!order) return authenticatedAdminJson(access, { error: "OPC 订单不存在。" }, { status: 404 });
+      const result = await queryOpcAlipayTrade(order.reference);
+      const updated = await recordOpcAlipayQuery(order.reference, result);
+      await recordAuditEvent({
+        actorHash,
+        action: "admin.opc-order.reconcile",
+        targetType: "opc-order",
+        targetId: orderId,
+        result: "success",
+        diff: {
+          reference: order.reference,
+          status: updated.status,
+          alipayTradeStatus: result.tradeStatus ?? "TRADE_NOT_EXIST",
+        },
+      });
+      return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
+    }
+
     if (body.action === "update-opc-order") {
       attemptedAction = "admin.opc-order.update";
       attemptedTargetType = "opc-order";

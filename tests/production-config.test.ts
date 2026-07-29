@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { validateProductionConfiguration } from "../lib/production-config.ts";
+import { validTestAlipayEnvironment } from "./alipay-test-environment.ts";
 
 function validEnvironment() {
   const secret = "s".repeat(40);
@@ -12,9 +13,7 @@ function validEnvironment() {
     VAULT2077_DATA_ACTIVE_KEY_ID: "current",
     VAULT2077_ADMIN_SESSION_SECRET: `${secret}1`,
     VAULT2077_AUDIT_HASH_SECRET: `${secret}2`,
-    VAULT2077_PUBLIC_ORIGIN: "https://vault2077.test",
-    VAULT2077_OPC_ALIPAY_QR_PATH: "/opc/alipay-payment-qr.png",
-    VAULT2077_OPC_ALIPAY_PAYEE: "Vault2077 运营主体",
+    ...validTestAlipayEnvironment(),
     VAULT2077_ADMIN_ORIGIN: "https://admin.vault2077.test",
     VAULT2077_ADMIN_IDENTITY_ISSUER: "https://identity.vault2077.test",
     VAULT2077_ADMIN_IDENTITY_AUDIENCE: "vault2077-production-admin",
@@ -57,15 +56,13 @@ test("production configuration gate rejects preview persistence and shared legac
   assert.ok(report.errors.some((issue) => issue.includes("VAULT2077_LLM_MODEL")));
 });
 
-test("production configuration gate rejects incomplete OPC Alipay collection details", () => {
+test("production configuration gate rejects invalid OPC Alipay Open Platform credentials", () => {
   const report = validateProductionConfiguration({
     ...validEnvironment(),
-    VAULT2077_OPC_ALIPAY_QR_PATH: "https://third-party.test/qr.svg",
-    VAULT2077_OPC_ALIPAY_PAYEE: "example payee",
+    VAULT2077_ALIPAY_GATEWAY: "https://third-party.test/gateway.do",
   });
   assert.equal(report.ok, false);
-  assert.ok(report.errors.some((issue) => issue.includes("OPC_ALIPAY_QR_PATH")));
-  assert.ok(report.errors.some((issue) => issue.includes("OPC_ALIPAY_PAYEE")));
+  assert.ok(report.errors.some((issue) => issue.includes("支付宝网关")));
 });
 
 test("production configuration gate warns when both editorial channels share a provider", () => {

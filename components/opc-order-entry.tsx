@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 import {
@@ -22,16 +21,20 @@ type CreatedOrder = {
   createdAt: string;
 };
 
-type PaymentDetails = {
-  provider: "支付宝";
-  qrImagePath: string;
-  payee: string;
-};
-
 const fieldOrder: readonly OrderField[] = ["name", "phone", "email", "wechat", "consent"];
+const alipayGatewayHosts = new Set(["openapi.alipay.com", "openapi-sandbox.dl.alipaydev.com"]);
 
 function validPhone(value: string) {
   return /^(?:\+?86)?1[3-9]\d{9}$/.test(value.replace(/[\s-]/g, ""));
+}
+
+function validAlipayPaymentUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && alipayGatewayHosts.has(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export function OpcOrderEntry({ service, enabled }: {
@@ -51,7 +54,7 @@ export function OpcOrderEntry({ service, enabled }: {
   const [requestError, setRequestError] = useState("");
   const [pending, setPending] = useState(false);
   const [order, setOrder] = useState<CreatedOrder | null>(null);
-  const [payment, setPayment] = useState<PaymentDetails | null>(null);
+  const [paymentUrl, setPaymentUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
 
@@ -121,18 +124,25 @@ export function OpcOrderEntry({ service, enabled }: {
           note,
           website,
           consent,
+          paymentChannel: window.matchMedia("(max-width: 820px)").matches ? "wap" : "page",
         }),
       });
       const body = await response.json().catch(() => null) as {
         error?: unknown;
         order?: CreatedOrder;
-        payment?: PaymentDetails;
+        paymentUrl?: unknown;
       } | null;
-      if (!response.ok || !body?.order || !body.payment) {
+      if (
+        !response.ok
+        || !body?.order
+        || typeof body.paymentUrl !== "string"
+        || !validAlipayPaymentUrl(body.paymentUrl)
+      ) {
         throw new Error(typeof body?.error === "string" ? body.error : "订单暂时无法创建，请稍后重试。");
       }
       setOrder(body.order);
-      setPayment(body.payment);
+      setPaymentUrl(body.paymentUrl);
+      window.location.assign(body.paymentUrl);
     } catch (cause) {
       setRequestError(cause instanceof Error ? cause.message : "订单暂时无法创建，请稍后重试。");
     } finally {
@@ -156,38 +166,34 @@ export function OpcOrderEntry({ service, enabled }: {
         <div className="opc-order-entry__closed">
           <div>
             <p className="mono">ORDER / 下单</p>
-            <strong id={`opc-order-${service.slug}`}>提交联系方式后获取支付宝付款码</strong>
+            <strong id={`opc-order-${service.slug}`}>提交联系方式后前往支付宝官方收银台</strong>
           </div>
           <button type="button" onClick={open} disabled={!enabled}>
-            {enabled ? "下单此服务" : "收款入口尚未启用"} <span aria-hidden="true">↘</span>
+            {enabled ? "下单并前往支付宝" : "支付宝接口尚未启用"} <span aria-hidden="true">↘</span>
           </button>
-          {!enabled ? <p>支付宝收款码与收款方名称完成生产配置后开放。</p> : null}
+          {!enabled ? <p>支付宝开放平台应用、商户身份和 RSA2 密钥完成服务器配置后开放。</p> : null}
         </div>
-      ) : order && payment ? (
+      ) : order && paymentUrl ? (
         <div className="opc-order-entry__payment" role="status">
           <div className="opc-order-entry__payment-copy">
-            <p className="mono">PAYMENT / 支付宝付款</p>
-            <h3 ref={formHeadingRef} tabIndex={-1}>订单已登记，请扫码付款。</h3>
+            <p className="mono">PAYMENT / 支付宝收银台</p>
+            <h3 ref={formHeadingRef} tabIndex={-1}>订单已登记，正在前往支付宝。</h3>
             <dl>
               <div><dt>订单号</dt><dd>{order.reference}</dd></div>
               <div><dt>服务</dt><dd>{order.serviceName}</dd></div>
               <div><dt>应付金额</dt><dd>{order.quotedPrice}</dd></div>
-              <div><dt>收款方</dt><dd>{payment.payee}</dd></div>
             </dl>
-            <p>付款前请核对支付宝显示的收款方名称，并在付款备注中填写订单号。到账由 Vault2077 OPC 服务团队人工核验；二维码页面本身不会自动显示支付成功。</p>
+            <p>后台已经形成待付款订单。完成付款后，支付宝会把验签结果通知 Vault2077，订单将自动更新为已支付；返回页面本身不作为到账依据。</p>
+            <a href={paymentUrl}>如果没有自动跳转，点击进入支付宝收银台 <span aria-hidden="true">↗</span></a>
             <button type="button" onClick={() => void copyReference()}>{copied ? "订单号已复制" : "复制订单号"}</button>
           </div>
-          <figure>
-            <Image src={payment.qrImagePath} alt={`${payment.payee} 的支付宝收款二维码`} width={320} height={320} unoptimized priority />
-            <figcaption>支付宝扫码支付 · {order.quotedPrice}</figcaption>
-          </figure>
         </div>
       ) : (
         <form className="opc-order-entry__form" onSubmit={submit} noValidate>
           <header>
             <p className="mono">ORDER REGISTER / 订单登记</p>
             <h3 id={`opc-order-${service.slug}`} ref={formHeadingRef} tabIndex={-1}>留下联系方式，生成付款订单。</h3>
-            <p>本次登记对应「{service.name}」{service.revision}，应付金额为 {service.price}。提交后才会显示支付宝收款码。</p>
+            <p>本次登记对应「{service.name}」{service.revision}，应付金额为 {service.price}。提交后会创建待付款订单并跳转至支付宝官方收银台。</p>
           </header>
           <div className="opc-order-entry__fields">
             <div className="form-field">
@@ -228,7 +234,7 @@ export function OpcOrderEntry({ service, enabled }: {
           {requestError ? <p className="form-error opc-order-entry__request-error" role="alert">{requestError}</p> : null}
           <footer>
             <button type="button" onClick={() => setExpanded(false)} disabled={pending}>暂不下单</button>
-            <button type="submit" disabled={pending}>{pending ? "正在生成订单" : "生成订单并获取付款码"}</button>
+            <button type="submit" disabled={pending}>{pending ? "正在生成订单" : "生成订单并前往支付宝"}</button>
           </footer>
         </form>
       )}

@@ -1,23 +1,75 @@
 import assert from "node:assert/strict";
+import { createSign } from "node:crypto";
 import test from "node:test";
 import {
+  catalogPriceToAlipayAmount,
+  createOpcAlipayPaymentUrl,
   opcOrderingAvailable,
-  readOpcPaymentConfiguration,
+  readOpcAlipayConfiguration,
+  verifyOpcAlipayNotification,
 } from "../lib/opc-payment-config.ts";
+import {
+  testAlipayNotificationPrivateKey,
+  validTestAlipayEnvironment,
+} from "./alipay-test-environment.ts";
 
-test("OPC payment configuration accepts only a real bounded public image asset", async () => {
-  assert.equal(readOpcPaymentConfiguration({
-    VAULT2077_OPC_ALIPAY_QR_PATH: "https://example.com/qr.svg",
-    VAULT2077_OPC_ALIPAY_PAYEE: "真实收款方",
+test("OPC Alipay configuration accepts only official gateways and valid RSA keys", () => {
+  assert.equal(readOpcAlipayConfiguration({
+    ...validTestAlipayEnvironment(),
+    VAULT2077_ALIPAY_GATEWAY: "https://example.com/gateway.do",
   }), null);
+  assert.equal(opcOrderingAvailable(validTestAlipayEnvironment()), true);
+});
 
-  assert.equal(await opcOrderingAvailable({
-    VAULT2077_OPC_ALIPAY_QR_PATH: "/opc/missing-payment-code.png",
-    VAULT2077_OPC_ALIPAY_PAYEE: "真实收款方",
-  }), false);
+test("OPC Alipay checkout uses the official page-pay link and server-owned amount", () => {
+  const configuration = readOpcAlipayConfiguration(validTestAlipayEnvironment());
+  assert.ok(configuration);
+  const paymentUrl = createOpcAlipayPaymentUrl({
+    reference: "OPC-20260728-ABCDEF123456",
+    serviceCode: "OPC/LEGAL/001",
+    serviceName: "单份商业合同审查包",
+    serviceRevision: "SKU.01",
+    alipayAmount: "1980.00",
+  }, "page", configuration);
+  const parsed = new URL(paymentUrl);
+  const bizContent = JSON.parse(parsed.searchParams.get("biz_content") ?? "{}") as Record<string, string>;
 
-  assert.equal(await opcOrderingAvailable({
-    VAULT2077_OPC_ALIPAY_QR_PATH: "/opc/ranger-portraits-v1.webp",
-    VAULT2077_OPC_ALIPAY_PAYEE: "本地测试收款方",
-  }), true);
+  assert.equal(parsed.hostname, "openapi.alipay.com");
+  assert.equal(parsed.searchParams.get("method"), "alipay.trade.page.pay");
+  assert.equal(bizContent.out_trade_no, "OPC-20260728-ABCDEF123456");
+  assert.equal(bizContent.total_amount, "1980.00");
+  assert.equal(parsed.searchParams.get("notify_url"), "https://vault2077.test/api/opc/alipay/notify");
+  assert.equal(catalogPriceToAlipayAmount("人民币 12,800 元"), "12800.00");
+});
+
+test("OPC accepts a correctly signed Alipay success notification", () => {
+  const configuration = readOpcAlipayConfiguration(validTestAlipayEnvironment());
+  assert.ok(configuration);
+  const notification: Record<string, string> = {
+    app_id: configuration.appId,
+    seller_id: configuration.sellerId,
+    out_trade_no: "OPC-20260728-ABCDEF123456",
+    trade_no: "2026072822001000000000000001",
+    trade_status: "TRADE_SUCCESS",
+    total_amount: "1980.00",
+    sign_type: "RSA2",
+  };
+  const signContent = Object.keys(notification)
+    .sort()
+    .map((key) => `${key}=${notification[key]}`)
+    .join("&");
+  notification.sign = createSign("RSA-SHA256")
+    .update(signContent, "utf8")
+    .sign(testAlipayNotificationPrivateKey, "base64");
+
+  assert.deepEqual(verifyOpcAlipayNotification(notification, configuration), {
+    reference: notification.out_trade_no,
+    tradeNo: notification.trade_no,
+    tradeStatus: "TRADE_SUCCESS",
+    totalAmount: "1980.00",
+  });
+  assert.throws(
+    () => verifyOpcAlipayNotification({ ...notification, total_amount: "1.00" }, configuration),
+    /验签失败/,
+  );
 });
