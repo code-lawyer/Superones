@@ -174,7 +174,9 @@ export function validateProductionConfiguration(
     errors.push("生产环境不得启用 VAULT2077_ALLOW_FILE_PREVIEW。");
   }
 
-  errors.push(...opcAlipayConfigurationErrors(environment).map((error) => `支付宝开放平台：${error}`));
+  errors.push(...opcAlipayConfigurationErrors(environment, {
+    productionGatewayOnly: true,
+  }).map((error) => `支付宝开放平台：${error}`));
 
   const configuredSecrets: Array<{ name: string; value: string }> = [];
   for (const name of REQUIRED_SECRETS) {

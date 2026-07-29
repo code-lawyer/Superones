@@ -2,7 +2,9 @@ import "server-only";
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
+  alipayDecimalToAmount,
   catalogPriceToAlipayAmount,
+  type OpcAlipayAmount,
   type OpcAlipayChannel,
   type OpcAlipayPaymentOrder,
   type OpcAlipayQueryResult,
@@ -25,6 +27,18 @@ type OpcOrderContact = {
   note: string;
 };
 
+type StoredOpcPayment = {
+  provider: "alipay";
+  amount: OpcAlipayAmount;
+  sellerId: string | null;
+  tradeNo: string | null;
+  tradeStatus: string | null;
+  channel: OpcAlipayChannel | null;
+  requestCreatedAt: string | null;
+  notifiedAt: string | null;
+  checkedAt: string | null;
+};
+
 type StoredOpcOrder = {
   id: string;
   reference: string;
@@ -35,13 +49,7 @@ type StoredOpcOrder = {
   serviceName: string;
   serviceRevision: string;
   quotedPrice: string;
-  alipayAmount: string;
-  alipayTradeNo: string | null;
-  alipayTradeStatus: string | null;
-  paymentChannel: OpcAlipayChannel | null;
-  paymentRequestCreatedAt: string | null;
-  paymentNotifiedAt: string | null;
-  paymentCheckedAt: string | null;
+  payment: StoredOpcPayment;
   contactEncrypted: string | null;
   status: OpcOrderStatus;
   createdAt: string;
@@ -54,44 +62,81 @@ type StoredOpcOrder = {
 };
 
 type OpcOrderStore = {
-  version: 2;
+  version: 3;
   orders: StoredOpcOrder[];
 };
+
+type LegacyStoredOpcOrder = Partial<StoredOpcOrder> & {
+  alipayAmount?: string;
+  alipaySellerId?: string | null;
+  alipayTradeNo?: string | null;
+  alipayTradeStatus?: string | null;
+  paymentChannel?: OpcAlipayChannel | null;
+  paymentRequestCreatedAt?: string | null;
+  paymentNotifiedAt?: string | null;
+  paymentCheckedAt?: string | null;
+};
+
+function parseStoredPayment(order: LegacyStoredOpcOrder): StoredOpcPayment {
+  const storedAmount = order.payment?.amount;
+  const amount = (
+    storedAmount?.currency === "CNY"
+    && Number.isSafeInteger(storedAmount.minorUnits)
+    && alipayDecimalToAmount(storedAmount.decimal)?.minorUnits === storedAmount.minorUnits
+  )
+    ? storedAmount
+    : typeof order.alipayAmount === "string"
+      ? alipayDecimalToAmount(order.alipayAmount)
+      : catalogPriceToAlipayAmount(order.quotedPrice ?? "");
+  if (!amount) throw new Error("OPC 订单记录缺少有效的人民币支付金额。");
+  return {
+    provider: "alipay",
+    amount,
+    sellerId: order.payment?.sellerId ?? order.alipaySellerId ?? null,
+    tradeNo: order.payment?.tradeNo ?? order.alipayTradeNo ?? null,
+    tradeStatus: order.payment?.tradeStatus ?? order.alipayTradeStatus ?? null,
+    channel: order.payment?.channel ?? order.paymentChannel ?? null,
+    requestCreatedAt: order.payment?.requestCreatedAt ?? order.paymentRequestCreatedAt ?? null,
+    notifiedAt: order.payment?.notifiedAt ?? order.paymentNotifiedAt ?? null,
+    checkedAt: order.payment?.checkedAt ?? order.paymentCheckedAt ?? null,
+  };
+}
 
 const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
   namespace: "opc-orders",
   fileName: "opc-orders.json",
-  create: () => ({ version: 2, orders: [] }),
+  create: () => ({ version: 3, orders: [] }),
   parse: (value) => {
     const parsed = value as { version?: unknown; orders?: unknown[] };
-    if ((parsed.version !== 1 && parsed.version !== 2) || !Array.isArray(parsed.orders)) {
+    if (![1, 2, 3].includes(parsed.version as number) || !Array.isArray(parsed.orders)) {
       throw new Error("OPC 订单存储格式无效。");
     }
     return {
-      version: 2,
+      version: 3,
       orders: parsed.orders.map((value) => {
-        const order = value as Partial<StoredOpcOrder>;
-        const alipayAmount = typeof order.alipayAmount === "string"
-          ? order.alipayAmount
-          : catalogPriceToAlipayAmount(order.quotedPrice ?? "");
+        const order = value as LegacyStoredOpcOrder;
         if (
           !order.id
           || !order.reference
           || !order.serviceName
           || !order.quotedPrice
-          || !alipayAmount
         ) {
           throw new Error("OPC 订单记录缺少必要字段。");
         }
+        const {
+          alipayAmount: _alipayAmount,
+          alipaySellerId: _alipaySellerId,
+          alipayTradeNo: _alipayTradeNo,
+          alipayTradeStatus: _alipayTradeStatus,
+          paymentChannel: _paymentChannel,
+          paymentRequestCreatedAt: _paymentRequestCreatedAt,
+          paymentNotifiedAt: _paymentNotifiedAt,
+          paymentCheckedAt: _paymentCheckedAt,
+          ...record
+        } = order;
         return {
-          ...order,
-          alipayAmount,
-          alipayTradeNo: order.alipayTradeNo ?? null,
-          alipayTradeStatus: order.alipayTradeStatus ?? null,
-          paymentChannel: order.paymentChannel ?? null,
-          paymentRequestCreatedAt: order.paymentRequestCreatedAt ?? null,
-          paymentNotifiedAt: order.paymentNotifiedAt ?? null,
-          paymentCheckedAt: order.paymentCheckedAt ?? null,
+          ...record,
+          payment: parseStoredPayment(order),
         } as StoredOpcOrder;
       }),
     };
@@ -151,8 +196,8 @@ export async function createOpcOrder(input: {
   quotedPrice: string;
   contact: OpcOrderContact;
 }) {
-  const alipayAmount = catalogPriceToAlipayAmount(input.quotedPrice);
-  if (!alipayAmount) throw new Error("服务公开价格无法转换为支付宝订单金额。");
+  const paymentAmount = catalogPriceToAlipayAmount(input.quotedPrice);
+  if (!paymentAmount) throw new Error("服务公开价格无法转换为支付宝订单金额。");
   const requestHash = idempotencyHash(input.idempotencyKey);
   return mutateStateDocument(orderDocument, (store) => {
     scrubExpiredContacts(store, new Date());
@@ -170,13 +215,17 @@ export async function createOpcOrder(input: {
       serviceName: input.serviceName,
       serviceRevision: input.serviceRevision,
       quotedPrice: input.quotedPrice,
-      alipayAmount,
-      alipayTradeNo: null,
-      alipayTradeStatus: null,
-      paymentChannel: null,
-      paymentRequestCreatedAt: null,
-      paymentNotifiedAt: null,
-      paymentCheckedAt: null,
+      payment: {
+        provider: "alipay",
+        amount: paymentAmount,
+        sellerId: null,
+        tradeNo: null,
+        tradeStatus: null,
+        channel: null,
+        requestCreatedAt: null,
+        notifiedAt: null,
+        checkedAt: null,
+      },
       contactEncrypted: encryptSensitiveText(JSON.stringify(input.contact)),
       status: "awaiting_payment",
       createdAt: timestamp,
@@ -202,18 +251,27 @@ export async function getOpcOrderPaymentOrder(reference: string): Promise<OpcAli
     serviceCode: order.serviceCode,
     serviceName: order.serviceName,
     serviceRevision: order.serviceRevision,
-    alipayAmount: order.alipayAmount,
+    paymentAmount: order.payment.amount,
   };
 }
 
-export async function recordOpcPaymentRequest(reference: string, channel: OpcAlipayChannel) {
+export async function recordOpcPaymentRequest(
+  reference: string,
+  channel: OpcAlipayChannel,
+  sellerId: string,
+) {
   return mutateStateDocument(orderDocument, (store) => {
     const order = store.orders.find((value) => value.reference === reference);
     if (!order) throw new Error("OPC 订单不存在。");
     if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
+    if (!/^\d{16,32}$/.test(sellerId)) throw new Error("支付宝商户 PID 格式无效。");
+    if (order.payment.sellerId && order.payment.sellerId !== sellerId) {
+      throw new Error("OPC 订单绑定的支付宝商户 PID 与当前配置不一致。");
+    }
     const timestamp = new Date().toISOString();
-    order.paymentChannel = channel;
-    order.paymentRequestCreatedAt = timestamp;
+    order.payment.sellerId = sellerId;
+    order.payment.channel = channel;
+    order.payment.requestCreatedAt = timestamp;
     order.updatedAt = timestamp;
     return publicOrder(order);
   });
@@ -221,30 +279,44 @@ export async function recordOpcPaymentRequest(reference: string, channel: OpcAli
 
 export async function applyOpcAlipayTradeResult(input: {
   reference: string;
+  sellerId: string;
   tradeNo: string | null;
   tradeStatus: string;
-  totalAmount: string | null;
+  amount: OpcAlipayAmount | null;
   source: "notify" | "query";
 }) {
   return mutateStateDocument(orderDocument, (store) => {
     const order = store.orders.find((value) => value.reference === input.reference);
     if (!order) throw new Error("OPC 订单不存在。");
-    if (input.totalAmount && input.totalAmount !== order.alipayAmount) {
+    if (!/^\d{16,32}$/.test(input.sellerId)) {
+      throw new Error("支付宝交易商户 PID 格式无效。");
+    }
+    if (order.payment.sellerId && input.sellerId !== order.payment.sellerId) {
+      throw new Error("支付宝交易商户 PID 与 OPC 订单绑定商户不一致。");
+    }
+    if (input.amount && input.amount.minorUnits !== order.payment.amount.minorUnits) {
       throw new Error("支付宝交易金额与 OPC 订单金额不一致。");
     }
     if (
       input.tradeNo
-      && store.orders.some((value) => value.id !== order.id && value.alipayTradeNo === input.tradeNo)
+      && store.orders.some((value) => value.id !== order.id && value.payment.tradeNo === input.tradeNo)
     ) {
       throw new Error("支付宝交易号已关联到其他 OPC 订单。");
     }
+    if (
+      (input.tradeStatus === "TRADE_SUCCESS" || input.tradeStatus === "TRADE_FINISHED")
+      && (!input.tradeNo || !input.amount)
+    ) {
+      throw new Error("支付宝已支付交易缺少交易号或金额。");
+    }
 
     const timestamp = new Date().toISOString();
-    order.alipayTradeNo = input.tradeNo ?? order.alipayTradeNo;
-    order.alipayTradeStatus = input.tradeStatus;
+    order.payment.sellerId = input.sellerId;
+    order.payment.tradeNo = input.tradeNo ?? order.payment.tradeNo;
+    order.payment.tradeStatus = input.tradeStatus;
     order.updatedAt = timestamp;
-    if (input.source === "notify") order.paymentNotifiedAt = timestamp;
-    else order.paymentCheckedAt = timestamp;
+    if (input.source === "notify") order.payment.notifiedAt = timestamp;
+    else order.payment.checkedAt = timestamp;
 
     if (input.tradeStatus === "TRADE_SUCCESS" || input.tradeStatus === "TRADE_FINISHED") {
       if (order.status !== "completed" && order.status !== "refunded") order.status = "paid";
@@ -259,17 +331,19 @@ export async function recordOpcAlipayQuery(reference: string, result: OpcAlipayQ
   if (!result.found) {
     return applyOpcAlipayTradeResult({
       reference,
+      sellerId: result.sellerId,
       tradeNo: null,
       tradeStatus: "TRADE_NOT_EXIST",
-      totalAmount: null,
+      amount: null,
       source: "query",
     });
   }
   return applyOpcAlipayTradeResult({
     reference,
+    sellerId: result.sellerId,
     tradeNo: result.tradeNo,
     tradeStatus: result.tradeStatus ?? "UNKNOWN",
-    totalAmount: result.totalAmount,
+    amount: result.amount,
     source: "query",
   });
 }

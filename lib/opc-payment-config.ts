@@ -6,6 +6,12 @@ import { AlipaySdk } from "alipay-sdk";
 export type OpcAlipayChannel = "page" | "wap";
 export type OpcAlipayMode = OpcAlipayChannel | "both";
 
+export type OpcAlipayAmount = {
+  currency: "CNY";
+  minorUnits: number;
+  decimal: string;
+};
+
 export type OpcAlipayConfiguration = {
   appId: string;
   sellerId: string;
@@ -23,23 +29,34 @@ export type OpcAlipayPaymentOrder = {
   serviceCode: string;
   serviceName: string;
   serviceRevision: string;
-  alipayAmount: string;
+  paymentAmount: OpcAlipayAmount;
 };
 
 export type OpcAlipayNotification = {
   reference: string;
+  sellerId: string;
   tradeNo: string;
   tradeStatus: "TRADE_SUCCESS" | "TRADE_FINISHED";
-  totalAmount: string;
+  amount: OpcAlipayAmount;
 };
 
 export type OpcAlipayQueryResult = {
   found: boolean;
   reference: string;
+  sellerId: string;
   tradeNo: string | null;
   tradeStatus: string | null;
-  totalAmount: string | null;
+  amount: OpcAlipayAmount | null;
 };
+
+export class OpcAlipayProviderError extends Error {
+  readonly code = "OPC_ALIPAY_QUERY_FAILED";
+
+  constructor() {
+    super("暂时无法从支付宝获取交易状态，请稍后安全重试。");
+    this.name = "OpcAlipayProviderError";
+  }
+}
 
 const productionGateway = "https://openapi.alipay.com/gateway.do";
 const sandboxGateway = "https://openapi-sandbox.dl.alipaydev.com/gateway.do";
@@ -51,6 +68,7 @@ function cleanSecret(value: string | undefined) {
 
 function alipayEnvironment(
   environment: Record<string, string | undefined>,
+  options: { productionGatewayOnly?: boolean } = {},
 ): OpcAlipayConfiguration {
   const gateway = environment.VAULT2077_ALIPAY_GATEWAY?.trim() ?? "";
   const gatewayUrl = new URL(gateway);
@@ -72,6 +90,9 @@ function alipayEnvironment(
   if (!/^\d{16,32}$/.test(configuration.appId)) throw new Error("支付宝应用 ID 格式无效。");
   if (!/^\d{16,32}$/.test(configuration.sellerId)) throw new Error("支付宝商户 PID 格式无效。");
   if (!allowedGateways.has(configuration.gateway)) throw new Error("支付宝网关必须使用官方生产或沙箱地址。");
+  if (options.productionGatewayOnly && configuration.gateway !== productionGateway) {
+    throw new Error("生产环境必须使用支付宝正式网关，不能使用沙箱网关。");
+  }
   if (publicOriginUrl.protocol !== "https:" || publicOriginUrl.origin !== publicOriginUrl.toString().replace(/\/$/, "")) {
     throw new Error("支付宝通知所用公开地址必须是不带路径的 HTTPS origin。");
   }
@@ -93,9 +114,12 @@ function alipayEnvironment(
 
 export function opcAlipayConfigurationErrors(
   environment: Record<string, string | undefined> = process.env,
+  options: { productionGatewayOnly?: boolean } = {},
 ) {
   try {
-    alipayEnvironment(environment);
+    alipayEnvironment(environment, {
+      productionGatewayOnly: options.productionGatewayOnly ?? environment.NODE_ENV === "production",
+    });
     return [];
   } catch (error) {
     return [error instanceof Error ? error.message : "支付宝开放平台配置无效。"];
@@ -106,7 +130,9 @@ export function readOpcAlipayConfiguration(
   environment: Record<string, string | undefined> = process.env,
 ) {
   try {
-    return alipayEnvironment(environment);
+    return alipayEnvironment(environment, {
+      productionGatewayOnly: environment.NODE_ENV === "production",
+    });
   } catch {
     return null;
   }
@@ -140,12 +166,23 @@ export function requireOpcAlipayConfiguration() {
   return configuration;
 }
 
-export function catalogPriceToAlipayAmount(value: string) {
-  const match = /^人民币\s*([\d,]+(?:\.\d{1,2})?)\s*元$/.exec(value.trim());
+export function alipayDecimalToAmount(value: string): OpcAlipayAmount | null {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
   if (!match) return null;
-  const amount = Number(match[1].replaceAll(",", ""));
-  if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return null;
-  return amount.toFixed(2);
+  const wholeUnits = Number(match[1]);
+  const fractionalUnits = Number((match[2] ?? "").padEnd(2, "0"));
+  const minorUnits = wholeUnits * 100 + fractionalUnits;
+  if (!Number.isSafeInteger(minorUnits) || minorUnits <= 0 || minorUnits > 100_000_000) return null;
+  return {
+    currency: "CNY",
+    minorUnits,
+    decimal: `${wholeUnits}.${String(fractionalUnits).padStart(2, "0")}`,
+  };
+}
+
+export function catalogPriceToAlipayAmount(value: string) {
+  const match = /^人民币\s*([\d,]+(?:\.\d{1,2})?)\s*元(?:\/(?:年|月))?$/.exec(value.trim());
+  return match ? alipayDecimalToAmount(match[1].replaceAll(",", "")) : null;
 }
 
 export function selectOpcAlipayChannel(
@@ -173,9 +210,10 @@ export function createOpcAlipayPaymentUrl(
     bizContent: {
       out_trade_no: order.reference,
       product_code: productCode,
+      seller_id: configuration.sellerId,
       subject: `Vault2077 OPC｜${order.serviceName}`.slice(0, 256),
       body: `${order.serviceCode} · ${order.serviceRevision}`.slice(0, 128),
-      total_amount: order.alipayAmount,
+      total_amount: order.paymentAmount.decimal,
       timeout_express: "30m",
     },
   });
@@ -200,7 +238,8 @@ export function verifyOpcAlipayNotification(
   if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(notification.out_trade_no ?? "")) {
     throw new Error("支付宝异步通知订单号无效。");
   }
-  if (!/^\d+(?:\.\d{1,2})?$/.test(notification.total_amount ?? "")) {
+  const amount = alipayDecimalToAmount(notification.total_amount ?? "");
+  if (!amount) {
     throw new Error("支付宝异步通知金额无效。");
   }
   if (!/^\d{16,64}$/.test(notification.trade_no ?? "")) {
@@ -208,9 +247,10 @@ export function verifyOpcAlipayNotification(
   }
   return {
     reference: notification.out_trade_no,
+    sellerId: notification.seller_id,
     tradeNo: notification.trade_no,
     tradeStatus: notification.trade_status,
-    totalAmount: Number(notification.total_amount).toFixed(2),
+    amount,
   };
 }
 
@@ -221,34 +261,51 @@ export async function queryOpcAlipayTrade(
   const sdk = createAlipaySdk(configuration);
   const result = await sdk.exec("alipay.trade.query", {
     bizContent: { out_trade_no: reference },
-  }, { validateSign: true });
+  }, { validateSign: true }).catch((error: unknown) => {
+    console.error("OPC Alipay trade query request failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new OpcAlipayProviderError();
+  });
   if (result.code !== "10000") {
     if (result.subCode === "ACQ.TRADE_NOT_EXIST" || result.sub_code === "ACQ.TRADE_NOT_EXIST") {
-      return { found: false, reference, tradeNo: null, tradeStatus: null, totalAmount: null };
+      return {
+        found: false,
+        reference,
+        sellerId: configuration.sellerId,
+        tradeNo: null,
+        tradeStatus: null,
+        amount: null,
+      };
     }
-    throw new Error(`支付宝交易查询失败：${result.subMsg ?? result.sub_msg ?? result.msg ?? "未知错误"}`);
+    console.error("OPC Alipay trade query failed", {
+      code: result.code ?? "UNKNOWN",
+      subCode: result.subCode ?? result.sub_code ?? "UNKNOWN",
+    });
+    throw new OpcAlipayProviderError();
   }
   const resultReference = String(result.outTradeNo ?? result.out_trade_no ?? "");
   const tradeNo = String(result.tradeNo ?? result.trade_no ?? "") || null;
   const tradeStatus = String(result.tradeStatus ?? result.trade_status ?? "") || null;
   const rawTotalAmount = result.totalAmount ?? result.total_amount;
-  const totalAmount = rawTotalAmount === undefined || rawTotalAmount === null
+  const amount = rawTotalAmount === undefined || rawTotalAmount === null
     ? null
-    : Number(rawTotalAmount).toFixed(2);
+    : alipayDecimalToAmount(String(rawTotalAmount));
   if (resultReference !== reference) {
     throw new Error("支付宝交易查询返回的商户订单号不匹配。");
   }
   if (
     (tradeStatus === "TRADE_SUCCESS" || tradeStatus === "TRADE_FINISHED")
-    && (!tradeNo || !totalAmount)
+    && (!tradeNo || !amount)
   ) {
     throw new Error("支付宝已支付交易查询结果缺少交易号或金额。");
   }
   return {
     found: true,
     reference: resultReference,
+    sellerId: configuration.sellerId,
     tradeNo,
     tradeStatus,
-    totalAmount,
+    amount,
   };
 }

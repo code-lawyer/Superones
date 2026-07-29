@@ -19,6 +19,11 @@ test("OPC Alipay configuration accepts only official gateways and valid RSA keys
     VAULT2077_ALIPAY_GATEWAY: "https://example.com/gateway.do",
   }), null);
   assert.equal(opcOrderingAvailable(validTestAlipayEnvironment()), true);
+  assert.equal(readOpcAlipayConfiguration({
+    ...validTestAlipayEnvironment(),
+    NODE_ENV: "production",
+    VAULT2077_ALIPAY_GATEWAY: "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
+  }), null);
 });
 
 test("OPC Alipay checkout uses the official page-pay link and server-owned amount", () => {
@@ -29,7 +34,11 @@ test("OPC Alipay checkout uses the official page-pay link and server-owned amoun
     serviceCode: "OPC/LEGAL/001",
     serviceName: "单份商业合同审查包",
     serviceRevision: "SKU.01",
-    alipayAmount: "1980.00",
+    paymentAmount: {
+      currency: "CNY",
+      minorUnits: 198_000,
+      decimal: "1980.00",
+    },
   }, "page", configuration);
   const parsed = new URL(paymentUrl);
   const bizContent = JSON.parse(parsed.searchParams.get("biz_content") ?? "{}") as Record<string, string>;
@@ -38,8 +47,18 @@ test("OPC Alipay checkout uses the official page-pay link and server-owned amoun
   assert.equal(parsed.searchParams.get("method"), "alipay.trade.page.pay");
   assert.equal(bizContent.out_trade_no, "OPC-20260728-ABCDEF123456");
   assert.equal(bizContent.total_amount, "1980.00");
+  assert.equal(bizContent.seller_id, configuration.sellerId);
   assert.equal(parsed.searchParams.get("notify_url"), "https://vault2077.test/api/opc/alipay/notify");
-  assert.equal(catalogPriceToAlipayAmount("人民币 12,800 元"), "12800.00");
+  assert.deepEqual(catalogPriceToAlipayAmount("人民币 12,800 元"), {
+    currency: "CNY",
+    minorUnits: 1_280_000,
+    decimal: "12800.00",
+  });
+  assert.deepEqual(catalogPriceToAlipayAmount("人民币 6,800 元/年"), {
+    currency: "CNY",
+    minorUnits: 680_000,
+    decimal: "6800.00",
+  });
 });
 
 test("OPC accepts a correctly signed Alipay success notification", () => {
@@ -64,9 +83,14 @@ test("OPC accepts a correctly signed Alipay success notification", () => {
 
   assert.deepEqual(verifyOpcAlipayNotification(notification, configuration), {
     reference: notification.out_trade_no,
+    sellerId: notification.seller_id,
     tradeNo: notification.trade_no,
     tradeStatus: "TRADE_SUCCESS",
-    totalAmount: "1980.00",
+    amount: {
+      currency: "CNY",
+      minorUnits: 198_000,
+      decimal: "1980.00",
+    },
   });
   assert.throws(
     () => verifyOpcAlipayNotification({ ...notification, total_amount: "1.00" }, configuration),

@@ -27,7 +27,7 @@ test("OPC order endpoint trusts the published service snapshot, not client prici
   assert.match(route, /serviceRevision: service\.revision/);
   assert.match(route, /quotedPrice: service\.price/);
   assert.match(route, /createOpcAlipayPaymentUrl\(paymentOrder, paymentChannel, paymentConfiguration\)/);
-  assert.match(route, /recordOpcPaymentRequest\(order\.reference, paymentChannel\)/);
+  assert.match(route, /recordOpcPaymentRequest\([\s\S]*paymentConfiguration\.sellerId/);
   assert.doesNotMatch(route, /body\.(?:price|quotedPrice|serviceRevision)/);
   assert.match(route, /console\.error\("OPC order creation failed", error\)/);
   assert.match(route, /error: "订单暂时无法创建，请稍后重试。"/);
@@ -46,7 +46,10 @@ test("OPC Alipay notification verifies provider identity before marking an order
   assert.match(payment, /checkNotifySignV2\(notification\)/);
   assert.match(payment, /notification\.app_id !== configuration\.appId/);
   assert.match(payment, /notification\.seller_id !== configuration\.sellerId/);
-  assert.match(store, /input\.totalAmount !== order\.alipayAmount/);
+  assert.match(payment, /OpcAlipayProviderError/);
+  assert.doesNotMatch(payment, /subMsg|sub_msg|result\.msg/);
+  assert.match(store, /input\.amount\.minorUnits !== order\.payment\.amount\.minorUnits/);
+  assert.match(store, /input\.sellerId !== order\.payment\.sellerId/);
   assert.match(store, /order\.status = "paid"/);
 });
 

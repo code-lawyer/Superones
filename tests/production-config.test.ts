@@ -65,6 +65,15 @@ test("production configuration gate rejects invalid OPC Alipay Open Platform cre
   assert.ok(report.errors.some((issue) => issue.includes("支付宝网关")));
 });
 
+test("production configuration gate rejects the official Alipay sandbox gateway", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_ALIPAY_GATEWAY: "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("正式网关")));
+});
+
 test("production configuration gate warns when both editorial channels share a provider", () => {
   const environment = validEnvironment();
   environment.VAULT2077_SIC_LLM_BASE_URL = environment.VAULT2077_VAULT_LLM_BASE_URL;

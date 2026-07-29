@@ -41,9 +41,10 @@ export async function POST(request: NextRequest) {
     const notification = verifyOpcAlipayNotification(parseNotification(raw));
     await applyOpcAlipayTradeResult({
       reference: notification.reference,
+      sellerId: notification.sellerId,
       tradeNo: notification.tradeNo,
       tradeStatus: notification.tradeStatus,
-      totalAmount: notification.totalAmount,
+      amount: notification.amount,
       source: "notify",
     });
     return textResponse("success");

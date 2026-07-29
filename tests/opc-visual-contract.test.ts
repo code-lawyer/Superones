@@ -114,6 +114,8 @@ test("OPC selection feedback is concise and mobile users get an explicit detail 
   ]);
 
   assert.match(page, /key=\{`\$\{initialView\}:\$\{query\.service \?\? ""\}`\}/);
+  assert.match(page, /服务器到账核验/);
+  assert.doesNotMatch(page, /人工到账核验/);
   assert.match(workspace, /const owningGroup = serviceGroups\.find/);
   assert.match(workspace, /if \(owningGroup\) setOpenGroup\(owningGroup\.id\)/);
   assert.match(workspace, /className="opc-service-browser__announcement" aria-live="polite"/);

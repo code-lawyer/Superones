@@ -121,7 +121,11 @@ export async function POST(request: NextRequest) {
     });
     const paymentOrder = await getOpcOrderPaymentOrder(order.reference);
     const paymentUrl = createOpcAlipayPaymentUrl(paymentOrder, paymentChannel, paymentConfiguration);
-    await recordOpcPaymentRequest(order.reference, paymentChannel);
+    await recordOpcPaymentRequest(
+      order.reference,
+      paymentChannel,
+      paymentConfiguration.sellerId,
+    );
     return NextResponse.json({
       order,
       paymentUrl,

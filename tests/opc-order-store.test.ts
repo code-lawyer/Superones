@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -41,37 +41,52 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     assert.equal(orders.length, 1);
     assert.equal(orders[0].contact?.phone, "13800138000");
     assert.equal(orders[0].status, "awaiting_payment");
-    assert.equal(orders[0].alipayAmount, "1980.00");
+    assert.equal(orders[0].payment.amount.decimal, "1980.00");
 
-    await store.recordOpcPaymentRequest(created.reference, "page");
+    await store.recordOpcPaymentRequest(created.reference, "page", "2088000000000001");
     await store.applyOpcAlipayTradeResult({
       reference: created.reference,
+      sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000001",
       tradeStatus: "TRADE_SUCCESS",
-      totalAmount: "1980.00",
+      amount: { currency: "CNY", minorUnits: 198_000, decimal: "1980.00" },
       source: "notify",
     });
     const paid = (await store.listAdminOpcOrders())[0];
     assert.equal(paid.status, "paid");
-    assert.equal(paid.alipayTradeNo, "2026072822001000000000000001");
-    assert.ok(paid.paymentNotifiedAt);
+    assert.equal(paid.payment.tradeNo, "2026072822001000000000000001");
+    assert.equal(paid.payment.sellerId, "2088000000000001");
+    assert.ok(paid.payment.notifiedAt);
     await store.applyOpcAlipayTradeResult({
       reference: created.reference,
+      sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000001",
       tradeStatus: "TRADE_SUCCESS",
-      totalAmount: "1980.00",
+      amount: { currency: "CNY", minorUnits: 198_000, decimal: "1980.00" },
       source: "notify",
     });
     assert.equal((await store.listAdminOpcOrders()).length, 1);
     await assert.rejects(
       store.applyOpcAlipayTradeResult({
         reference: created.reference,
+        sellerId: "2088000000000001",
         tradeNo: "2026072822001000000000000001",
         tradeStatus: "TRADE_SUCCESS",
-        totalAmount: "1980.01",
+        amount: { currency: "CNY", minorUnits: 198_001, decimal: "1980.01" },
         source: "notify",
       }),
       /金额.*不一致/,
+    );
+    await assert.rejects(
+      store.applyOpcAlipayTradeResult({
+        reference: created.reference,
+        sellerId: "2088000000000002",
+        tradeNo: "2026072822001000000000000001",
+        tradeStatus: "TRADE_SUCCESS",
+        amount: { currency: "CNY", minorUnits: 198_000, decimal: "1980.00" },
+        source: "query",
+      }),
+      /商户 PID.*不一致/,
     );
     assert.equal((await store.listAdminOpcOrders())[0].status, "paid");
     await assert.rejects(store.updateOpcOrderStatus(created.id, "cancelled"), /不能从 paid/);
@@ -86,16 +101,20 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     const latePayment = await store.createOpcOrder({
       ...input,
       idempotencyKey: "9894c180-e710-43ff-a5b3-63eb45b29125",
+      quotedPrice: "人民币 6,800 元/年",
     });
     await store.updateOpcOrderStatus(latePayment.id, "cancelled");
     await store.applyOpcAlipayTradeResult({
       reference: latePayment.reference,
+      sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000002",
       tradeStatus: "TRADE_SUCCESS",
-      totalAmount: "1980.00",
+      amount: { currency: "CNY", minorUnits: 680_000, decimal: "6800.00" },
       source: "notify",
     });
-    const recovered = (await store.listAdminOpcOrders()).find((value) => value.id === latePayment.id);
+    const recovered = (await store.listAdminOpcOrders()).find(
+      (value: { id: string; status: string; cancelledAt: string | null }) => value.id === latePayment.id,
+    );
     assert.equal(recovered?.status, "paid");
     assert.equal(recovered?.cancelledAt, null);
   } finally {
@@ -105,6 +124,49 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     else process.env.VAULT2077_DATA_KEYS = previousKeys;
     if (previousActiveKey === undefined) delete process.env.VAULT2077_DATA_ACTIVE_KEY_ID;
     else process.env.VAULT2077_DATA_ACTIVE_KEY_ID = previousActiveKey;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("OPC order migration preserves legacy annual-price orders", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-legacy-orders-"));
+  const previousDataDir = process.env.VAULT2077_DATA_DIR;
+  process.env.VAULT2077_DATA_DIR = root;
+  try {
+    await writeFile(path.join(root, "opc-orders.json"), JSON.stringify({
+      version: 1,
+      orders: [{
+        id: "2ac61029-716d-4405-84a3-1e9ee9ee7efb",
+        reference: "OPC-20260728-A1B2C3D4E5F6",
+        idempotencyHash: "a".repeat(64),
+        serviceKind: "specialty",
+        serviceSlug: "annual-tax-service",
+        serviceCode: "S-02-01",
+        serviceName: "年度财税服务",
+        serviceRevision: "SKU.01",
+        quotedPrice: "人民币 6,800 元/年",
+        contactEncrypted: null,
+        status: "awaiting_payment",
+        createdAt: "2026-07-28T00:00:00.000Z",
+        updatedAt: "2026-07-28T00:00:00.000Z",
+        paidAt: null,
+        cancelledAt: null,
+        refundedAt: null,
+        completedAt: null,
+        contactDeletedAt: null,
+      }],
+    }), "utf8");
+    const store = await import(`../lib/opc-order-store.ts?legacy=${Date.now()}`);
+    const orders = await store.listAdminOpcOrders();
+    assert.equal(orders.length, 1);
+    assert.deepEqual(orders[0].payment.amount, {
+      currency: "CNY",
+      minorUnits: 680_000,
+      decimal: "6800.00",
+    });
+  } finally {
+    if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDir;
     await rm(root, { recursive: true, force: true });
   }
 });

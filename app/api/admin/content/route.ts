@@ -16,7 +16,10 @@ import {
   updateOpcOrderStatus,
   type OpcOrderStatus,
 } from "@/lib/opc-order-store";
-import { queryOpcAlipayTrade } from "@/lib/opc-payment-config";
+import {
+  OpcAlipayProviderError,
+  queryOpcAlipayTrade,
+} from "@/lib/opc-payment-config";
 import { recordAuditEvent } from "@/lib/security-audit";
 
 export const runtime = "nodejs";
@@ -158,14 +161,20 @@ export async function POST(request: NextRequest) {
     return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "暂时无法完成后台操作。";
+    const publicCode = error instanceof OpcAlipayProviderError
+      ? error.code
+      : "ADMIN_OPERATION_FAILED";
     await recordAuditEvent({
       actorHash,
       action: attemptedAction,
       targetType: attemptedTargetType,
       targetId: attemptedTargetId,
       result: "failed",
-      reason: reason.slice(0, 200),
+      reason: publicCode,
     }).catch(() => undefined);
-    return authenticatedAdminJson(access, { error: reason }, { status: 500 });
+    return authenticatedAdminJson(access, {
+      error: reason,
+      code: publicCode,
+    }, { status: error instanceof OpcAlipayProviderError ? 502 : 500 });
   }
 }

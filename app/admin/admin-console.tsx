@@ -58,13 +58,21 @@ type OpcOrder = {
   serviceName: string;
   serviceRevision: string;
   quotedPrice: string;
-  alipayAmount: string;
-  alipayTradeNo: string | null;
-  alipayTradeStatus: string | null;
-  paymentChannel: "page" | "wap" | null;
-  paymentRequestCreatedAt: string | null;
-  paymentNotifiedAt: string | null;
-  paymentCheckedAt: string | null;
+  payment: {
+    provider: "alipay";
+    amount: {
+      currency: "CNY";
+      minorUnits: number;
+      decimal: string;
+    };
+    sellerId: string | null;
+    tradeNo: string | null;
+    tradeStatus: string | null;
+    channel: "page" | "wap" | null;
+    requestCreatedAt: string | null;
+    notifiedAt: string | null;
+    checkedAt: string | null;
+  };
   contact: {
     name: string;
     phone: string;
@@ -467,7 +475,7 @@ export function AdminConsole() {
                 <p className="mono muted">{order.reference} / {opcOrderStatusLabels[order.status]}</p>
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
-                <p>支付宝金额 ¥{order.alipayAmount} · {order.paymentChannel === "wap" ? "手机网站支付" : order.paymentChannel === "page" ? "电脑网站支付" : "尚未发起收银台"}</p>
+                <p>支付宝金额 ¥{order.payment.amount.decimal} · {order.payment.channel === "wap" ? "手机网站支付" : order.payment.channel === "page" ? "电脑网站支付" : "尚未发起收银台"}</p>
                 {order.contact?.note ? <p>{order.contact.note}</p> : null}
               </div>
               <div className="admin-donation-meta">
@@ -477,10 +485,11 @@ export function AdminConsole() {
                 <span className="mono">{order.contact?.wechat || "未填微信号"}</span>
                 <time className="mono">创建 {new Date(order.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <time className="mono">更新 {new Date(order.updatedAt).toLocaleString("zh-CN", { hour12: false })}</time>
-                <span className="mono">支付宝状态 {order.alipayTradeStatus ?? "尚未回传"}</span>
-                <span className="mono">支付宝交易号 {order.alipayTradeNo ?? "—"}</span>
-                {order.paymentNotifiedAt ? <time className="mono">通知 {new Date(order.paymentNotifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
-                {order.paymentCheckedAt ? <time className="mono">查询 {new Date(order.paymentCheckedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                <span className="mono">支付宝状态 {order.payment.tradeStatus ?? "尚未回传"}</span>
+                <span className="mono">支付宝交易号 {order.payment.tradeNo ?? "—"}</span>
+                <span className="mono">收款商户 PID {order.payment.sellerId ?? "尚未绑定"}</span>
+                {order.payment.notifiedAt ? <time className="mono">通知 {new Date(order.payment.notifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.payment.checkedAt ? <time className="mono">查询 {new Date(order.payment.checkedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
               </div>
               <div className="admin-actions">
                 {order.status === "awaiting_payment" ? (
