@@ -1,20 +1,80 @@
 import Link from "next/link";
+import {
+  HomePrototype,
+  type HomePrototypeData,
+} from "@/components/home-prototype-variants";
+import type { HomePrototypeVariant } from "@/components/home-prototype-switcher";
 import { formatNumber } from "@/lib/data";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
 import { infrastructureServices, rangerProfiles, specialtyServices } from "@/lib/opc-catalog";
-import { getCachedDirectRankingBoards, getCachedPublicContent } from "@/lib/public-read-cache";
+import {
+  getCachedDirectRankingBoards,
+  getCachedFrontierRanking,
+  getCachedPublicContent,
+  getCachedSicContent,
+} from "@/lib/public-read-cache";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+type HomePageProps = {
+  searchParams: Promise<{
+    variant?: string;
+    channel?: string;
+  }>;
+};
+
+function prototypeVariant(value: string | undefined): HomePrototypeVariant | null {
+  if (value === "axis" || value === "sequence" || value === "instrument" || value === "refined") return value;
+  return null;
+}
+
+function instrumentChannel(value: string | undefined) {
+  if (value === "opc" || value === "sic" || value === "frontier") return value;
+  return "vault";
+}
+
+function compactDate(value: string | null | undefined) {
+  if (!value) return "时间未注明";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Shanghai",
+  }).format(new Date(value));
+}
+
+function compactDateTime(value: string | null | undefined) {
+  if (!value) return "等待首次更新";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Shanghai",
+  }).format(new Date(value));
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const parameters = await searchParams;
+  const selectedVariant = process.env.NODE_ENV === "production"
+    ? "refined"
+    : parameters.variant === "original"
+      ? null
+      : prototypeVariant(parameters.variant) ?? "refined";
+  const frontierSeason = seasonForDate(new Date());
   const [content, rankingBoards] = await Promise.all([
     getCachedPublicContent(),
     getCachedDirectRankingBoards().catch(() => []),
   ]);
+  const [sicContent, frontierRanking] = selectedVariant
+    ? await Promise.all([
+        getCachedSicContent().catch(() => null),
+        getCachedFrontierRanking(frontierSeason.code).catch(() => ({ rankings: [], updatedAt: null })),
+      ])
+    : [null, null];
   const githubToday = rankingBoards.find((board) => board.id === "github:today");
   const latestEvents = [...content.events].sort(compareEventsNewest);
-  const frontierSeason = seasonForDate(new Date());
   const opcEntries = [
     {
       href: "/opc?view=infrastructure",
@@ -39,6 +99,79 @@ export default async function HomePage() {
     ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Shanghai" }).format(new Date(content.state.updatedAt))
     : content.state.mode === "degraded" ? "服务降级" : "更新中";
 
+  if (selectedVariant) {
+    const sicItems = sicContent
+      ? Object.values(sicContent.groups).flat().sort((left, right) => {
+          const leftTime = left.publishedAt ?? left.collectedAt;
+          const rightTime = right.publishedAt ?? right.collectedAt;
+          return rightTime.localeCompare(leftTime);
+        })
+      : [];
+    const latestSicItem = sicItems[0] ?? null;
+    const kindLabel = {
+      papers: "论文",
+      documents: "档案",
+      courses: "课程",
+      podcasts: "播客",
+    } as const;
+    const prototypeData: HomePrototypeData = {
+      stateLabel: content.state.mode === "live"
+        ? "最近一次成功发布"
+        : content.state.mode === "degraded" ? "服务降级" : "本地预览",
+      updatedAt: content.state.updatedAt ? `${compactDateTime(content.state.updatedAt)} CST` : updatedAt,
+      sourceCount: content.state.sourceCount,
+      events: latestEvents.slice(0, 3).map((event) => ({
+        slug: event.slug,
+        category: eventCategory(event),
+        time: beijingTime(event.updated),
+        title: event.title,
+        judgment: eventJudgment(event),
+        evidenceCount: event.sources?.length ?? 0,
+      })),
+      opcEntries: opcEntries.map((entry, index) => ({
+        ...entry,
+        responsibility: index < 2
+          ? "Vault2077 直接交付 · 先确认适用性"
+          : "外部独立顾问 · 用户直接联系",
+      })),
+      sicLatest: latestSicItem ? {
+        title: latestSicItem.translatedTitle || latestSicItem.title,
+        kind: kindLabel[latestSicItem.group],
+        source: latestSicItem.publisher || latestSicItem.sourceName,
+        date: compactDate(latestSicItem.publishedAt ?? latestSicItem.collectedAt),
+        href: latestSicItem.url,
+      } : null,
+      projects: (githubToday?.items ?? []).slice(0, 3).map((project) => ({
+        id: project.id,
+        rank: project.providerRank,
+        value: project.value === null ? "—" : `+${formatNumber(project.value)}`,
+        name: project.name,
+        description: project.description || "GitHub 官方 Trending 项目。",
+        href: project.itemUrl,
+      })),
+      frontier: {
+        seasonName: frontierSeason.name,
+        settlementDate: new Intl.DateTimeFormat("zh-CN", {
+          dateStyle: "medium",
+          timeZone: "Asia/Shanghai",
+        }).format(new Date(frontierSeason.endsAt)),
+        updatedAt: compactDateTime(frontierRanking?.updatedAt),
+        rankings: (frontierRanking?.rankings ?? []).slice(0, 3).map((entry) => ({
+          rank: entry.rank,
+          repo: entry.repo,
+          delta: `净增 ${entry.delta >= 0 ? "+" : ""}${formatNumber(entry.delta)} Star`,
+        })),
+      },
+    };
+    return (
+      <HomePrototype
+        data={prototypeData}
+        variant={selectedVariant}
+        channel={instrumentChannel(parameters.channel)}
+      />
+    );
+  }
+
   return (
     <div className="home-stage shell">
       <header className="home-masthead">
@@ -53,7 +186,9 @@ export default async function HomePage() {
         <section className="home-pane home-feed" aria-labelledby="home-feed-title">
           <header className="home-pane__header">
             <div>
-              <p className="home-pane__meta mono">更新 {updatedAt} CST · {content.state.sourceCount} 个来源</p>
+              <p className="home-pane__meta mono">
+                {content.state.updatedAt ? `更新 ${updatedAt} CST` : updatedAt} · {content.state.sourceCount} 个来源
+              </p>
               <h2 id="home-feed-title">Vault 信息流</h2>
             </div>
             <Link className="home-pane__all mono" href="/feed">查看全部</Link>
