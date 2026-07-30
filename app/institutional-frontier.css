@@ -474,7 +474,66 @@
 }
 
 .frontier-manifesto-column {
+  perspective: 1800px;
   padding-right: var(--frontier-doctrine-gutter);
+}
+
+.frontier-doctrine-card {
+  position: relative;
+  display: grid;
+  min-height: 100%;
+  transform: rotateY(0deg);
+  transform-origin: center center;
+  transform-style: preserve-3d;
+}
+
+.frontier-doctrine-card.is-detail {
+  transform: rotateY(180deg);
+}
+
+.frontier-doctrine-card.is-turning-to-detail {
+  animation: frontier-doctrine-turn-to-detail 560ms cubic-bezier(.16, 1, .3, 1) both;
+  will-change: transform;
+}
+
+.frontier-doctrine-card.is-returning-to-manifesto {
+  animation: frontier-doctrine-return-to-manifesto 440ms cubic-bezier(.16, 1, .3, 1) both;
+  will-change: transform;
+}
+
+.frontier-doctrine-face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.frontier-doctrine-face--manifesto {
+  transform: rotateY(0deg);
+}
+
+.frontier-doctrine-face--principle {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(34px, 4vw, 54px) 0 clamp(68px, 8vw, 112px);
+  transform: rotateY(180deg);
+}
+
+.frontier-doctrine-card:not(.is-detail) .frontier-doctrine-face--principle,
+.frontier-doctrine-card.is-detail .frontier-doctrine-face--manifesto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+@keyframes frontier-doctrine-turn-to-detail {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
+
+@keyframes frontier-doctrine-return-to-manifesto {
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(0deg); }
 }
 
 .frontier-manifesto-column__label {
@@ -523,7 +582,7 @@
   font-size: var(--type-nav);
 }
 
-.frontier-manifesto-column > .manifesto-copy {
+.frontier-doctrine-face--manifesto > .manifesto-copy {
   max-width: 720px;
   padding: 42px 0 clamp(68px, 8vw, 112px);
   font-family: var(--font-editorial);
@@ -531,11 +590,11 @@
   line-height: 1.9;
 }
 
-.frontier-manifesto-column > .manifesto-copy p {
+.frontier-doctrine-face--manifesto > .manifesto-copy p {
   margin: 0 0 1em;
 }
 
-.frontier-manifesto-column > .manifesto-copy .manifesto-copy__signal {
+.frontier-doctrine-face--manifesto > .manifesto-copy .manifesto-copy__signal {
   margin: 32px 0;
   border: 0;
   padding: 0;
@@ -551,10 +610,12 @@
 }
 
 .frontier-principle {
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
   width: calc(100% + var(--frontier-doctrine-viewport-bleed));
   min-height: 138px;
-  perspective: 900px;
   border: 0;
   border-bottom: 1px solid var(--rule);
   padding: 0 calc(var(--frontier-doctrine-gutter) + var(--frontier-doctrine-viewport-bleed)) 0 var(--frontier-doctrine-gutter);
@@ -565,37 +626,6 @@
   transition: background-color 170ms ease, color 170ms ease;
 }
 
-.frontier-principle__face {
-  grid-area: 1 / 1;
-  display: grid;
-  width: 100%;
-  min-height: 100%;
-  padding: 24px 0;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
-  transition:
-    opacity 150ms ease,
-    transform 240ms cubic-bezier(.2, .7, .2, 1);
-}
-
-.frontier-principle__face--front {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 24px;
-  opacity: 1;
-  transform: rotateX(0deg);
-  transform-origin: center bottom;
-}
-
-.frontier-principle__face--back {
-  grid-template-rows: auto 1fr;
-  align-content: center;
-  gap: 14px;
-  opacity: 0;
-  transform: rotateX(-88deg);
-  transform-origin: center top;
-}
-
 .frontier-principle__title {
   font-family: var(--font-editorial);
   font-size: clamp(27px, 2.5vw, 38px);
@@ -604,45 +634,98 @@
   line-height: 1.15;
 }
 
-.frontier-principle__detail {
-  max-width: 380px;
-  align-self: center;
-  color: var(--graphite);
-  font-size: clamp(12px, 1vw, 14px);
-  line-height: 1.7;
-}
-
 .frontier-principle__label {
-  align-self: center;
+  flex: 0 0 auto;
   color: var(--ash);
   font-size: var(--type-micro);
   letter-spacing: 0.06em;
+}
+
+.frontier-principle__arrow {
+  display: inline-block;
+  transition: transform 170ms cubic-bezier(.16, 1, .3, 1);
 }
 
 .frontier-principle:focus-visible,
 .frontier-principle.is-active {
   background: var(--carbon);
   color: var(--paper-bright);
-  outline: 0;
 }
 
-.frontier-principle:focus-visible .frontier-principle__face--front,
-.frontier-principle.is-active .frontier-principle__face--front {
-  opacity: 0;
-  transform: rotateX(88deg);
+.frontier-principle:focus-visible {
+  outline: 2px solid var(--paper-bright);
+  outline-offset: -5px;
 }
 
-.frontier-principle:focus-visible .frontier-principle__face--back,
-.frontier-principle.is-active .frontier-principle__face--back {
-  opacity: 1;
-  transform: rotateX(0deg);
-}
-
-.frontier-principle:focus-visible .frontier-principle__detail,
 .frontier-principle:focus-visible .frontier-principle__label,
-.frontier-principle.is-active .frontier-principle__detail,
 .frontier-principle.is-active .frontier-principle__label {
   color: var(--text-on-dark);
+}
+
+.frontier-principle.is-active .frontier-principle__arrow {
+  transform: rotate(90deg);
+}
+
+.frontier-principle-copy__header .eyebrow {
+  margin-bottom: 28px;
+}
+
+.frontier-principle-copy__header h2 {
+  scroll-margin-top: 96px;
+  margin: 0;
+  font-family: var(--font-editorial);
+  font-size: clamp(52px, 6vw, 88px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: .95;
+}
+
+.frontier-principle-copy__header > p:last-child {
+  max-width: 600px;
+  margin: 24px 0 0;
+  color: var(--graphite);
+  font-size: var(--type-nav);
+}
+
+.frontier-principle-copy__header h2:focus {
+  outline: 2px solid var(--carbon);
+  outline-offset: 6px;
+}
+
+.frontier-principle-copy {
+  max-width: 720px;
+  margin-top: clamp(40px, 5vw, 68px);
+  font-family: var(--font-editorial);
+  font-size: clamp(14px, 1.25vw, 17px);
+  line-height: 1.9;
+}
+
+.frontier-principle-copy p {
+  margin: 0 0 1em;
+}
+
+.frontier-principle-copy__signal {
+  margin: 30px 0 !important;
+  font-size: clamp(21px, 2.2vw, 30px);
+  line-height: 1.38;
+}
+
+.frontier-manifesto-return {
+  align-self: flex-start;
+  margin-top: auto;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 30px 0 3px;
+  background: transparent;
+  color: var(--carbon);
+  cursor: pointer;
+  font-size: var(--type-label);
+  letter-spacing: .08em;
+}
+
+.frontier-manifesto-return:focus-visible {
+  outline: 2px solid var(--carbon);
+  outline-offset: 5px;
 }
 
 @media (hover: hover) {
@@ -651,19 +734,20 @@
     color: var(--paper-bright);
   }
 
-  .frontier-principle:hover .frontier-principle__face--front {
-    opacity: 0;
-    transform: rotateX(88deg);
-  }
-
-  .frontier-principle:hover .frontier-principle__face--back {
-    opacity: 1;
-    transform: rotateX(0deg);
-  }
-
-  .frontier-principle:hover .frontier-principle__detail,
   .frontier-principle:hover .frontier-principle__label {
     color: var(--text-on-dark);
+  }
+
+  .frontier-principle:hover .frontier-principle__arrow {
+    transform: translate(3px, -3px);
+  }
+
+  .frontier-principle.is-active:hover .frontier-principle__arrow {
+    transform: rotate(90deg) translate(3px, -3px);
+  }
+
+  .frontier-manifesto-return:hover {
+    border-bottom-color: transparent;
   }
 }
 
@@ -1174,7 +1258,7 @@
     padding-bottom: 24px;
   }
 
-  .frontier-manifesto-column > .manifesto-copy {
+  .frontier-doctrine-face--manifesto > .manifesto-copy {
     padding-bottom: 56px;
     font-size: var(--type-control);
   }
@@ -1184,20 +1268,16 @@
     padding: 0 var(--frontier-doctrine-viewport-bleed);
   }
 
-  .frontier-principle__face {
-    padding: 20px 0;
-  }
-
-  .frontier-principle__face--front {
-    gap: 18px;
-  }
-
   .frontier-principle__title {
     font-size: 22px;
   }
 
-  .frontier-principle__detail {
-    font-size: var(--type-note);
+  .frontier-principle-copy__header h2 {
+    font-size: clamp(48px, 17vw, 72px);
+  }
+
+  .frontier-principle-copy {
+    font-size: var(--type-control);
   }
 
   .frontier-live,
@@ -1290,7 +1370,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .frontier-principle__face {
+  .frontier-doctrine-card.is-turning-to-detail,
+  .frontier-doctrine-card.is-returning-to-manifesto {
+    animation: none;
+    will-change: auto;
+  }
+
+  .frontier-principle,
+  .frontier-principle__arrow {
     transition: none;
   }
 }
