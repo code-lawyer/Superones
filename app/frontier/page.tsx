@@ -10,7 +10,7 @@ import {
 } from "@/lib/frontier-store";
 import { getCachedFrontierSnapshot } from "@/lib/public-read-cache";
 import { persistenceMode } from "@/lib/state-document-store";
-import { ManifestoContent, RulesContent } from "./frontier-copy";
+import { RulesContent } from "./frontier-copy";
 import { FrontierDialog } from "./frontier-dialog";
 import { FrontierPrinciples } from "./frontier-principles";
 
@@ -39,13 +39,7 @@ export default async function FrontierPage() {
       <ChannelRibbon identity="THE FRONTIER" slogan="HERE, YOU MAY PASS." />
 
       <section className="frontier-doctrine" aria-label="边境计划宣言与四无原则">
-        <div className="shell frontier-doctrine__columns">
-          <article className="frontier-manifesto-column" aria-label="边境计划宣言">
-            <p className="eyebrow mono frontier-manifesto-column__label">FRONTIER MANIFESTO / 宣言</p>
-            <ManifestoContent />
-          </article>
-          <FrontierPrinciples />
-        </div>
+        <FrontierPrinciples />
       </section>
 
       <section className="shell frontier-live" aria-labelledby="frontier-live-title">

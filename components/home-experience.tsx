@@ -156,7 +156,7 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
           <div>
             <p className="mono">边境计划 · {data.frontier.seasonName}</p>
             <h2 id="home-frontier-title"><Link href="/frontier">跨越边境，荒野无垠。</Link></h2>
-            <p>无期限 · 无评审 · 无组织 · 无目标</p>
+            <p>无组织 · 无纪律 · 无目标 · 无期限</p>
           </div>
           <div className="home-refined-frontier__status">
             <p className="mono">CURRENT SEASON / {data.frontier.updatedAt}</p>
