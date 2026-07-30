@@ -115,7 +115,7 @@ function SicPreview({ data }: { data: HomePrototypeData }) {
         ) : <p className="home-prototype__empty">正式内容正在编排。</p>}
       </section>
       <section>
-        <p className="mono">GITHUB / PLATFORM NATIVE</p>
+        <p className="mono">CODE REPOSITORY / PLATFORM NATIVE</p>
         {data.projects.length ? data.projects.map((project) => (
           <a href={project.href} target="_blank" rel="noreferrer" key={project.id}>
             <span className="mono">#{String(project.rank).padStart(2, "0")}</span>
@@ -400,7 +400,7 @@ function VariantRefined({ data }: { data: HomePrototypeData }) {
                   ) : <p className="home-prototype__empty">正式内容正在编排。</p>}
                 </section>
                 <section>
-                  <p className="mono">GITHUB / OFFICIAL TODAY</p>
+                  <p className="mono">CODE REPOSITORY / TODAY</p>
                   {leadingProject ? (
                     <a className="home-refined-sic__lead-project" href={leadingProject.href} target="_blank" rel="noreferrer">
                       <span className="mono">#{String(leadingProject.rank).padStart(2, "0")} · {leadingProject.value}</span>

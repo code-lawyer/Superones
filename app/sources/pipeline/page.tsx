@@ -67,8 +67,8 @@ const methodLabels: Record<string, string> = {
   rss: "RSS / Atom",
   sitemap: "官方 Sitemap",
   "dated-index": "日期索引",
-  "github-releases": "GitHub Releases API",
-  hackernews: "Hacker News API",
+  "github-releases": "代码仓库版本接口",
+  hackernews: "技术社区资讯接口",
   json: "公开 JSON",
   official_api: "官方 API",
   official_rss: "官方 RSS",
@@ -114,31 +114,31 @@ function sicDisplay(source: SicSource): DisplaySource {
 const rankingSources: DisplaySource[] = [
   {
     id: "ranking:github:today",
-    name: "GitHub Trending · Today",
+    name: "代码仓库趋势 · 今日",
     href: "https://github.com/trending?since=daily",
     method: "公开趋势页",
   },
   {
     id: "ranking:github:week",
-    name: "GitHub Trending · This week",
+    name: "代码仓库趋势 · 本周",
     href: "https://github.com/trending?since=weekly",
     method: "公开趋势页",
   },
   {
     id: "ranking:github:month",
-    name: "GitHub Trending · This month",
+    name: "代码仓库趋势 · 本月",
     href: "https://github.com/trending?since=monthly",
     method: "公开趋势页",
   },
   {
     id: "ranking:hugging-face",
-    name: "Hugging Face Trending",
+    name: "模型社区趋势",
     href: "https://huggingface.co/models?sort=trending",
     method: "官方模型 API",
   },
   {
     id: "ranking:openrouter",
-    name: "OpenRouter Top Weekly",
+    name: "模型聚合平台周榜",
     href: "https://openrouter.ai/models?order=top-weekly",
     method: "官方模型 API",
   },
@@ -212,7 +212,7 @@ const lanes = [
     cadence: "目标每小时；当前每日两次",
     processing: "保留平台原序，不经过 LLM",
     destinations: [
-      `GitHub 3`,
+      `代码仓库趋势 3`,
       `模型平台 2`,
       `Skill 市场 3`,
       "→ SiC 榜单",
@@ -243,7 +243,7 @@ const sourceGroups = [
       },
       {
         title: "开源项目重大版本",
-        description: "从获准仓库的 GitHub Releases API 读取正式版本；普通 commit 与例行活动不进入资讯瀑布。",
+        description: "从获准代码仓库的版本接口读取正式版本；普通提交与例行活动不进入资讯瀑布。",
         sources: releaseSources.map(bundleDisplay),
       },
     ],
@@ -303,7 +303,7 @@ const sourceGroups = [
     title: "论文",
     count: sicPapers.length,
     lane: "sic",
-    description: "Hugging Face 负责发现每日论文，标题、作者、日期和摘要最终回到 arXiv 核验。",
+    description: "模型社区负责发现每日论文，标题、作者、日期和摘要最终回到论文原始页面核验。",
     subsets: [
       {
         title: "论文发现入口",
@@ -319,7 +319,7 @@ const sourceGroups = [
     title: "课程",
     count: sicCourses.length,
     lane: "sic",
-    description: "系统课程、公开讲座、研究演讲和工程演示。YouTube 只读取获准官方频道的 Feed 元数据与原始链接，不下载或转录视频。",
+    description: "系统课程、公开讲座、研究演讲和工程演示。视频平台只读取获准官方频道的 Feed 元数据与原始链接，不下载或转录视频。",
     subsets: [
       {
         title: "官方课程与频道",
@@ -543,7 +543,7 @@ export default function PipelineSourcesPage() {
           <article>
             <span>DIRECT READ</span>
             <h3>Frontier</h3>
-            <p>只按当前参赛名单读取已知 GitHub 仓库；交互核验走境内服务端短时直读，失败进入异步回退。</p>
+            <p>只按当前参赛名单读取已知代码仓库；交互核验走境内服务端短时直读，失败进入异步回退。</p>
           </article>
           <article>
             <span>BUSINESS DATA</span>
@@ -553,7 +553,7 @@ export default function PipelineSourcesPage() {
           <article>
             <span>EXCLUDED</span>
             <h3>大陆来源平台</h3>
-            <p>微信公众号、知乎、微博、B 站等不进入生产来源组合；代理转发也不会改变原始平台身份。</p>
+            <p>内容发布、问答、社交与视频社区等平台不进入生产来源组合；代理转发也不会改变原始平台身份。</p>
           </article>
         </div>
       </section>
@@ -595,7 +595,7 @@ export default function PipelineSourcesPage() {
             <span>04</span>
             <div>
               <h3>榜单调度提高到每小时唤醒</h3>
-              <p>规格要求每小时检查到期榜单，当前 GitHub Actions 仍是每日两次。建议上线闭环完成后立即调整。</p>
+              <p>规格要求每小时检查到期榜单，当前自动化任务仍是每日两次。建议上线闭环完成后立即调整。</p>
             </div>
             <strong>实现欠账</strong>
           </li>

@@ -42,10 +42,10 @@ export function SubmitForm() {
     try {
       const repositoryUrl = new URL(repo);
       if (repositoryUrl.protocol !== "https:" || repositoryUrl.hostname !== "github.com" || repositoryUrl.pathname.split("/").filter(Boolean).length < 2) {
-        nextErrors.repo = "请输入公开 GitHub 仓库的完整 HTTPS 地址。";
+        nextErrors.repo = "请输入当前支持的公开代码仓库完整 HTTPS 地址。";
       }
     } catch {
-      nextErrors.repo = "请输入有效的 GitHub 仓库地址。";
+      nextErrors.repo = "请输入有效的公开代码仓库地址。";
     }
     if (!isValidEmail(email)) {
       nextErrors.email = "请输入可接收资格确认通知的有效邮箱。";
@@ -143,12 +143,12 @@ export function SubmitForm() {
   return (
     <form className="submission-form" onSubmit={handleSubmit} noValidate>
       <div className="form-field">
-        <label htmlFor="repo">公开 GitHub 仓库地址</label>
+        <label htmlFor="repo">公开代码仓库地址</label>
         <input
           id="repo"
           name="repo"
           type="url"
-          placeholder="https://github.com/owner/repository"
+          placeholder="完整 HTTPS 仓库地址"
           value={repo}
           onChange={(event) => {
             setRepo(event.target.value);

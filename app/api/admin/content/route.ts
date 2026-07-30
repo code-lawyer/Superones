@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       attemptedTargetType = "opc-order";
       if (!hasRecentAdminReauthentication(access.session)) {
         return authenticatedAdminJson(access, {
-          error: "向支付宝查询 OPC 订单前需要重新验证管理员身份。",
+          error: "查询 OPC 订单付款状态前需要重新验证管理员身份。",
           code: "ADMIN_REAUTH_REQUIRED",
           reauthenticationUrl: configuredAdminReauthenticationUrl(),
         }, { status: 403 });
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       const orderId = typeof body.orderId === "string" ? body.orderId : "";
       attemptedTargetId = orderId || "unknown";
       if (!orderId || body.confirm !== true) {
-        return authenticatedAdminJson(access, { error: "支付宝订单查询需要有效订单和明确确认。" }, { status: 400 });
+        return authenticatedAdminJson(access, { error: "付款状态查询需要有效订单和明确确认。" }, { status: 400 });
       }
       const order = (await listAdminOpcOrders()).find((value) => value.id === orderId);
       if (!order) return authenticatedAdminJson(access, { error: "OPC 订单不存在。" }, { status: 404 });
@@ -160,10 +160,14 @@ export async function POST(request: NextRequest) {
     });
     return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "暂时无法完成后台操作。";
     const publicCode = error instanceof OpcAlipayProviderError
       ? error.code
       : "ADMIN_OPERATION_FAILED";
+    const publicReason = error instanceof Error
+      ? error.message
+        .replaceAll("\u652f\u4ed8\u5b9d", "付款服务")
+        .replaceAll("Alipay", "付款服务")
+      : "暂时无法完成后台操作。";
     await recordAuditEvent({
       actorHash,
       action: attemptedAction,
@@ -173,7 +177,7 @@ export async function POST(request: NextRequest) {
       reason: publicCode,
     }).catch(() => undefined);
     return authenticatedAdminJson(access, {
-      error: reason,
+      error: publicReason,
       code: publicCode,
     }, { status: error instanceof OpcAlipayProviderError ? 502 : 500 });
   }

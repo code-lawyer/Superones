@@ -19,6 +19,7 @@ export default async function OpcPage({ searchParams }: { searchParams: Promise<
     ? query.view
     : "infrastructure";
   const catalog = await getCachedPublishedServiceCatalog();
+  const orderingAvailable = opcOrderingAvailable();
   return <>
     <PageIntro code="OPC / SERVICE DESK" title="超级个体，全栈运行" lead="查看固定范围、公开价格、材料清单和交付周期。标准服务由 Vault2077 直接交付；非标准事项由用户直接联系独立专家。" meta="STANDARD SERVICES / 订单登记与服务器到账核验" />
     <ChannelRibbon identity="SUPERONES" slogan="ALL IS ONE. ONE IS ALL." />
@@ -28,9 +29,9 @@ export default async function OpcPage({ searchParams }: { searchParams: Promise<
         infrastructure={catalog.infrastructure}
         specialties={catalog.specialties}
         rangers={catalog.rangers}
+        orderingAvailable={orderingAvailable}
         initialView={initialView}
         initialServiceSlug={query.service}
-        orderingAvailable={await opcOrderingAvailable()}
       />
     </div>
   </>;

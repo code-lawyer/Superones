@@ -146,7 +146,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         rank: project.providerRank,
         value: project.value === null ? "—" : `+${formatNumber(project.value)}`,
         name: project.name,
-        description: project.description || "GitHub 官方 Trending 项目。",
+        description: project.description || "代码托管平台当日趋势项目。",
         href: project.itemUrl,
       })),
       frontier: {
@@ -216,7 +216,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           <section className="home-pane home-sic" aria-labelledby="home-sic-title">
             <header className="home-pane__header">
               <div>
-                <p className="home-pane__meta mono">GITHUB / OFFICIAL TODAY</p>
+                <p className="home-pane__meta mono">CODE REPOSITORY / TODAY</p>
                 <h2 id="home-sic-title">SiC 学院</h2>
               </div>
               <Link className="home-pane__all mono" href="/sic">查看全部</Link>
@@ -229,7 +229,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                     <strong>{project.value === null ? "—" : `+${formatNumber(project.value)}`}</strong>
                   </p>
                   <h3>{project.name}</h3>
-                  <p className="home-item__summary">{project.description || "GitHub 官方 Trending 项目。"}</p>
+                  <p className="home-item__summary">{project.description || "代码托管平台当日趋势项目。"}</p>
                 </a>
               ))}
               {!githubToday?.items.length ? <p className="home-pane__empty">趋势数据更新中。</p> : null}

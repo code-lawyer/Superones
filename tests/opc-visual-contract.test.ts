@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile, stat } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -27,6 +27,43 @@ function contrastRatio(foreground: string, background: string) {
   const backgroundLuminance = relativeLuminance(background);
   return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
     / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+}
+
+async function readSourceTree(directory: string): Promise<string> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const contents = await Promise.all(entries.map(async (entry) => {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) return readSourceTree(target);
+    if (!entry.isFile() || !/\.(?:ts|tsx)$/.test(entry.name)) return "";
+    return readFile(target, "utf8");
+  }));
+  return contents.join("\n");
+}
+
+function mediaBlocks(styles: string, query: string) {
+  const marker = `@media (${query})`;
+  const blocks: string[] = [];
+  let cursor = 0;
+
+  while (cursor < styles.length) {
+    const start = styles.indexOf(marker, cursor);
+    if (start === -1) break;
+    const openingBrace = styles.indexOf("{", start);
+    let depth = 0;
+    let end = openingBrace;
+    for (; end < styles.length; end += 1) {
+      if (styles[end] === "{") depth += 1;
+      if (styles[end] === "}") depth -= 1;
+      if (depth === 0) {
+        end += 1;
+        break;
+      }
+    }
+    blocks.push(styles.slice(start, end));
+    cursor = end;
+  }
+
+  return blocks.join("\n");
 }
 
 test("OPC primary navigation owns its viewport-edge reversal boundary", async () => {
@@ -58,11 +95,15 @@ test("structural reversals never rely on detached viewport-fill effects", async 
 
 test("OPC primary navigation recomposes into viewport-wide rows on narrow screens", async () => {
   const styles = await readOpcStyles();
-  const mobileStart = styles.lastIndexOf("@media (max-width: 820px)");
-  const mobileEnd = styles.indexOf("@media (max-width: 620px)", mobileStart);
-  const mobileNavigation = styles.slice(mobileStart, mobileEnd === -1 ? undefined : mobileEnd);
+  const mobileStyles = mediaBlocks(styles, "max-width: 820px");
+  const latestRule = (pattern: RegExp) => (mobileStyles.match(pattern) ?? []).at(-1) ?? "";
+  const mobileNavigation = [
+    latestRule(/\.opc-service-browser\s*\{[\s\S]*?\n\s*\}/g),
+    latestRule(/\.opc-service-browser__primary nav\s*\{[\s\S]*?\n\s*\}/g),
+    latestRule(/\.opc-service-browser__primary nav button\s*\{[\s\S]*?\n\s*\}/g),
+  ].join("\n");
 
-  assert.notEqual(mobileStart, -1);
+  assert.notEqual(mobileStyles, "");
   assert.match(mobileNavigation, /grid-template-columns:\s*1fr/);
   assert.match(mobileNavigation, /margin-left:\s*calc\(-1 \* \(var\(--opc-primary-pad\) \+ var\(--opc-left-viewport-bleed\)\)\)/);
   assert.match(mobileNavigation, /width:\s*100%/);
@@ -126,29 +167,104 @@ test("OPC selection feedback is concise and mobile users get an explicit detail 
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-accordion__item\s*\{[\s\S]*?width:\s*calc\(100% \+ \(var\(--opc-left-viewport-bleed\) \* 2\)\)/);
 });
 
-test("OPC service brief joins price context, order entry, payment guidance and adjacent navigation", async () => {
+test("OPC service brief keeps internal metadata private and links to one gated universal order page", async () => {
   const styles = await readOpcStyles();
-  const [workspace, orderEntry] = await Promise.all([
+  const [workspace, orderEntry, orderPage, feeNote, opcPage] = await Promise.all([
     readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8"),
     readFile(path.join(root, "components", "opc-order-entry.tsx"), "utf8"),
+    readFile(path.join(root, "app", "opc", "order", "page.tsx"), "utf8"),
+    readFile(path.join(root, "components", "opc-fee-note-popover.tsx"), "utf8"),
+    readFile(path.join(root, "app", "opc", "page.tsx"), "utf8"),
   ]);
 
-  assert.match(workspace, /className="opc-reading-pane__fact-register" aria-label="当前服务关键事实"/);
-  assert.match(workspace, /责任主体：Vault2077 直接交付/);
-  assert.match(workspace, /订单提交后跳转支付宝官方收银台/);
-  assert.match(workspace, /<OpcOrderEntry key=\{service\.slug\} service=\{service\} enabled=\{orderingAvailable\} \/>/);
+  assert.match(workspace, /className="opc-reading-pane__fact-register" aria-label="当前服务价格和周期"/);
+  assert.doesNotMatch(workspace, /<b>目录版本<\/b>/);
+  assert.match(workspace, /<OpcFeeNotePopover/);
+  assert.match(feeNote, /aria-label=\{open \? "关闭费用说明" : "查看费用说明"\}/);
+  assert.match(feeNote, /document\.addEventListener\("pointerdown", closeOnOutsidePointer\)/);
+  assert.match(feeNote, /document\.addEventListener\("keydown", closeOnEscape\)/);
+  assert.match(feeNote, /rootRef\.current\?\.contains\(event\.target as Node\)/);
+  assert.doesNotMatch(workspace, /<section><h3>费用说明<\/h3>/);
+  assert.doesNotMatch(workspace, /function ServiceChapter|opc-service-chapter/);
+  assert.match(workspace, /className="opc-reading-pane__body"/);
+  assert.match(workspace, /className="opc-reading-pane__delivery-sections"/);
+  assert.match(workspace, /<p className="mono">完成定义<\/p>\s*<h3>交付成果和验收标准<\/h3>/);
+  assert.doesNotMatch(workspace, /<section><h3>服务验收标准<\/h3>/);
+  assert.match(workspace, /<h3>范围限定说明<\/h3>/);
+  assert.match(workspace, /<span>Vault2077 直接交付<\/span>/);
+  assert.match(workspace, /\{orderingAvailable \? "独立付款页面" : "付款服务配置完成后可提交订单"\}/);
+  assert.match(workspace, /className="opc-reading-pane__purchase"/);
+  assert.match(workspace, /<span>立即下单<\/span>/);
+  assert.match(workspace, /href=\{`\/opc\/order\?service=\$\{encodeURIComponent\(service\.slug\)\}`\}/);
+  assert.match(workspace, /\{orderingAvailable \? \(/);
+  assert.match(workspace, /<button[\s\S]*?className="opc-reading-pane__purchase"[\s\S]*?disabled/);
+  assert.doesNotMatch(workspace, /opc-universal-order|orderRequest|openRequest|<OpcOrderEntry/);
   assert.match(workspace, /aria-label="切换服务"/);
   assert.doesNotMatch(workspace, /当前页面为工作原型|由谁完成/);
-  assert.match(orderEntry, /提交联系方式后前往支付宝官方收银台/);
+  assert.match(orderPage, /const services = \[\.\.\.catalog\.infrastructure, \.\.\.catalog\.specialties\]/);
+  assert.match(orderPage, /const service = services\.find\(\(item\) => item\.slug === query\.service\)/);
+  assert.match(orderPage, /if \(!query\.service \|\| !publicServiceSlug\.test\(query\.service\)\) notFound\(\)/);
+  assert.match(orderPage, /const view = service\.kind === "infrastructure" \? "infrastructure" : "specialties"/);
+  assert.match(orderPage, /const orderingAvailable = opcOrderingAvailable\(\)/);
+  assert.match(orderPage, /<OpcOrderEntry service=\{service\} returnHref=\{returnHref\} \/>/);
+  assert.match(orderPage, /\{orderingAvailable \? \(/);
+  assert.match(orderPage, /当前暂时无法生成付款订单。/);
+  assert.match(orderPage, /<OpcFeeNotePopover/);
+  assert.doesNotMatch(orderPage, /<details|opc-order-page__fee-note/);
+  assert.match(orderPage, /className="opc-order-page__workspace"/);
+  assert.match(orderPage, /<h1>确认服务，<br \/>生成付款订单。<\/h1>/);
+  assert.doesNotMatch(orderPage, /service\.revision|目录版本/);
+  assert.match(orderEntry, /填写订单联系人/);
   assert.match(orderEntry, /X-Vault2077-Public-Request/);
   assert.match(orderEntry, /window\.location\.assign\(body\.paymentUrl\)/);
-  assert.match(orderEntry, /支付宝会把验签结果通知 Vault2077/);
+  assert.match(orderEntry, /付款服务会把经过验证的结果通知 Vault2077/);
   assert.match(orderEntry, /href="\/terms"/);
   assert.match(orderEntry, /href="\/privacy"/);
-  assert.match(orderEntry, /prefers-reduced-motion: reduce/);
-  assert.match(styles, /\.opc-order-entry\s*\{[\s\S]*?border-top:\s*1px solid var\(--carbon\)/);
-  assert.match(styles, /\.opc-reading-pane__fact-register\s*\{[\s\S]*?position:\s*sticky[\s\S]*?top:\s*76px/);
-  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-reading-pane__fact-register\s*\{[\s\S]*?position:\s*static/);
+  assert.doesNotMatch(orderEntry, /service\.revision|openRequest|setExpanded|scrollIntoView/);
+  assert.match(orderEntry, /document\.getElementById\(`opc-order-\$\{firstField\}`\)\?\.focus\(\)/);
+  assert.match(orderEntry, /if \(submittingRef\.current\) return/);
+  assert.match(orderEntry, /const controller = new AbortController\(\)/);
+  assert.match(orderEntry, /signal: controller\.signal/);
+  assert.match(orderEntry, /window\.setTimeout\(\(\) => controller\.abort\(\), orderRequestTimeoutMs\)/);
+  assert.match(orderEntry, /requestAbortRef\.current\?\.abort\(\)/);
+  assert.match(orderEntry, /useEffect\(\(\) => \{\s*mountedRef\.current = true/);
+  assert.match(orderEntry, /aria-busy=\{pending\}/);
+  assert.match(orderEntry, /id="opc-order-request-error" role="alert"/);
+  assert.match(orderEntry, /订单请求超时。请检查网络连接后重试；重复提交不会重复创建订单。/);
+  assert.doesNotMatch(orderEntry, /下单暂未开放|支付通道完成上线配置后开放下单|disabled=\{!enabled\}/);
+  const orderRules = styles.match(/\.opc-order-entry\s*\{[^}]+\}/g) ?? [];
+  const finalOrderRule = orderRules.find((rule) => rule.includes("background: var(--paper-bright)")) ?? "";
+  assert.match(finalOrderRule, /border:\s*0/);
+  assert.match(finalOrderRule, /background:\s*var\(--paper-bright\)/);
+  const factRules = styles.match(/\.opc-reading-pane__fact-register\s*\{[^}]+\}/g) ?? [];
+  const finalFactRule = factRules[0] ?? "";
+  assert.match(finalFactRule, /position:\s*static/);
+  assert.match(styles, /\.opc-fee-note__popover\s*\{[\s\S]*?position:\s*absolute/);
+  assert.match(styles, /\.opc-reading-pane__body > section::before\s*\{[\s\S]*?height:\s*3px[\s\S]*?background:\s*var\(--carbon\)/);
+  assert.match(styles, /\.opc-order-page__workspace\s*\{[\s\S]*?grid-template-columns:/);
+  assert.doesNotMatch(styles, /OPC \/ Service register working prototype|OPC \/ Three-column service desk|OPC service blueprint|opc-service-chapter|opc-service-field|opc-universal-order|opc-order-entry__closed/);
+  assert.match(opcPage, /const orderingAvailable = opcOrderingAvailable\(\)/);
+  assert.match(opcPage, /orderingAvailable=\{orderingAvailable\}/);
+});
+
+test("public interaction copy does not expose third-party payment or messaging brands", async () => {
+  const source = await Promise.all([
+    readSourceTree(path.join(root, "app")),
+    readSourceTree(path.join(root, "components")),
+  ]);
+  const publicSurfaceCopy = await Promise.all([
+    readFile(path.join(root, "app", "page.tsx"), "utf8"),
+    readFile(path.join(root, "components", "home-prototype-variants.tsx"), "utf8"),
+    readFile(path.join(root, "app", "sources", "pipeline", "page.tsx"), "utf8"),
+    readFile(path.join(root, "app", "frontier", "frontier-copy.tsx"), "utf8"),
+    readFile(path.join(root, "app", "frontier", "submit", "submit-form.tsx"), "utf8"),
+  ]);
+
+  assert.doesNotMatch(source.join("\n"), /支付宝|微信号/);
+  assert.doesNotMatch(
+    publicSurfaceCopy.join("\n"),
+    /GITHUB\s*\/|GitHub 官方|GitHub Trending|Hugging Face Trending|OpenRouter Top|YouTube 只|微信公众号|知乎|微博|B\s*站|公开 GitHub|GitHub 可识别/,
+  );
 });
 
 test("OPC detail reveal uses one shared focus and motion path", async () => {
@@ -195,6 +311,10 @@ test("OPC ranger portraits use compact modern formats with a PNG fallback", asyn
   assert.ok(webp.size < 100_000);
   assert.doesNotMatch(styles, /transition:[^;]*(?:padding-left|padding-bottom)/);
   assert.match(workspace, /opc-ranger-portrait__copy/);
+  assert.match(workspace, /templateIdentities\.map/);
+  assert.match(workspace, /<strong>档案待补充<\/strong><small>\{identity\}<\/small>/);
+  assert.match(workspace, /模板不代表真实顾问，不包含姓名或联系方式/);
+  assert.match(styles, /\.opc-ranger-portrait--placeholder \.opc-ranger-portrait__image::after/);
 });
 
 test("OPC ranger profiles use the public dossier composition at every breakpoint", async () => {

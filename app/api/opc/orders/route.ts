@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
     if (message.includes("尚未完成生产配置")) {
-      return NextResponse.json({ error: message }, { status: 503 });
+      return NextResponse.json({ error: "付款服务暂未完成配置，当前不能创建订单。" }, { status: 503 });
     }
     console.error("OPC order creation failed", error);
     return NextResponse.json({ error: "订单暂时无法创建，请稍后重试。" }, { status: 500 });

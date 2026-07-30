@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   clearFieldError,
-  focusFirstInvalidField,
   isValidEmail,
 } from "@/lib/client-form-validation";
 import type { OpcService } from "@/lib/opc-catalog";
@@ -23,6 +22,13 @@ type CreatedOrder = {
 
 const fieldOrder: readonly OrderField[] = ["name", "phone", "email", "wechat", "consent"];
 const alipayGatewayHosts = new Set(["openapi.alipay.com", "openapi-sandbox.dl.alipaydev.com"]);
+const orderRequestTimeoutMs = 20_000;
+
+function focusFirstOrderError(errors: OrderErrors) {
+  const firstField = fieldOrder.find((field) => Boolean(errors[field]));
+  if (!firstField) return;
+  requestAnimationFrame(() => document.getElementById(`opc-order-${firstField}`)?.focus());
+}
 
 function validPhone(value: string) {
   return /^(?:\+?86)?1[3-9]\d{9}$/.test(value.replace(/[\s-]/g, ""));
@@ -37,12 +43,11 @@ function validAlipayPaymentUrl(value: string) {
   }
 }
 
-export function OpcOrderEntry({ service, enabled }: {
+export function OpcOrderEntry({ service, returnHref }: {
   service: OpcService;
-  enabled: boolean;
+  returnHref: string;
 }) {
   const formHeadingRef = useRef<HTMLHeadingElement>(null);
-  const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -57,32 +62,30 @@ export function OpcOrderEntry({ service, enabled }: {
   const [paymentUrl, setPaymentUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const submittingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  function open() {
-    if (!enabled) return;
-    setExpanded(true);
-    requestAnimationFrame(() => {
-      formHeadingRef.current?.focus({ preventScroll: true });
-      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      formHeadingRef.current?.scrollIntoView({
-        behavior: reducedMotion ? "auto" : "smooth",
-        block: "start",
-      });
-    });
-  }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestAbortRef.current?.abort();
+    };
+  }, []);
 
   function validate() {
     const next: OrderErrors = {};
     if (name.trim().length < 2) next.name = "请填写至少 2 个字的联系人姓名。";
     if (phone.trim() && !validPhone(phone)) next.phone = "请填写有效的中国大陆手机号。";
     if (email.trim() && !isValidEmail(email.trim())) next.email = "请填写有效的联系邮箱。";
-    if (wechat.trim() && wechat.trim().length < 2) next.wechat = "微信号至少需要 2 个字符。";
+    if (wechat.trim() && wechat.trim().length < 2) next.wechat = "即时通讯账号至少需要 2 个字符。";
     if (!phone.trim() && !email.trim() && !wechat.trim()) {
-      next.phone = "手机号、邮箱或微信号至少填写一项。";
+      next.phone = "手机号、邮箱或即时通讯账号至少填写一项。";
     }
     if (!consent) next.consent = "请确认订单登记与隐私说明。";
     setErrors(next);
-    focusFirstInvalidField(fieldOrder, next);
+    focusFirstOrderError(next);
     return Object.keys(next).length === 0;
   }
 
@@ -102,13 +105,19 @@ export function OpcOrderEntry({ service, enabled }: {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
     if (!validate()) return;
+    submittingRef.current = true;
     setPending(true);
     setRequestError("");
     if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), orderRequestTimeoutMs);
     try {
       const response = await fetch("/api/opc/orders", {
         method: "POST",
+        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           "X-Vault2077-Public-Request": "1",
@@ -144,9 +153,18 @@ export function OpcOrderEntry({ service, enabled }: {
       setPaymentUrl(body.paymentUrl);
       window.location.assign(body.paymentUrl);
     } catch (cause) {
-      setRequestError(cause instanceof Error ? cause.message : "订单暂时无法创建，请稍后重试。");
+      if (mountedRef.current) {
+        setRequestError(controller.signal.aborted
+          ? "订单请求超时。请检查网络连接后重试；重复提交不会重复创建订单。"
+          : cause instanceof Error
+            ? cause.message
+            : "订单暂时无法创建，请稍后重试。");
+      }
     } finally {
-      setPending(false);
+      window.clearTimeout(timeout);
+      if (requestAbortRef.current === controller) requestAbortRef.current = null;
+      submittingRef.current = false;
+      if (mountedRef.current) setPending(false);
     }
   }
 
@@ -161,39 +179,34 @@ export function OpcOrderEntry({ service, enabled }: {
   }
 
   return (
-    <section className={expanded ? "opc-order-entry is-expanded" : "opc-order-entry"} aria-labelledby={`opc-order-${service.slug}`}>
-      {!expanded ? (
-        <div className="opc-order-entry__closed">
-          <div>
-            <p className="mono">ORDER / 下单</p>
-            <strong id={`opc-order-${service.slug}`}>提交联系方式后前往支付宝官方收银台</strong>
-          </div>
-          <button type="button" onClick={open} disabled={!enabled}>
-            {enabled ? "下单并前往支付宝" : "支付宝接口尚未启用"} <span aria-hidden="true">↘</span>
-          </button>
-          {!enabled ? <p>支付宝开放平台应用、商户身份和 RSA2 密钥完成服务器配置后开放。</p> : null}
-        </div>
-      ) : order && paymentUrl ? (
+    <section className="opc-order-entry" aria-labelledby={`opc-order-${service.slug}`}>
+      {order && paymentUrl ? (
         <div className="opc-order-entry__payment" role="status">
           <div className="opc-order-entry__payment-copy">
-            <p className="mono">PAYMENT / 支付宝收银台</p>
-            <h3 ref={formHeadingRef} tabIndex={-1}>订单已登记，正在前往支付宝。</h3>
+            <p className="mono">PAYMENT / 付款页面</p>
+            <h3 ref={formHeadingRef} tabIndex={-1}>订单已登记，正在前往付款页面。</h3>
             <dl>
               <div><dt>订单号</dt><dd>{order.reference}</dd></div>
               <div><dt>服务</dt><dd>{order.serviceName}</dd></div>
               <div><dt>应付金额</dt><dd>{order.quotedPrice}</dd></div>
             </dl>
-            <p>后台已经形成待付款订单。完成付款后，支付宝会把验签结果通知 Vault2077，订单将自动更新为已支付；返回页面本身不作为到账依据。</p>
-            <a href={paymentUrl}>如果没有自动跳转，点击进入支付宝收银台 <span aria-hidden="true">↗</span></a>
+            <p>后台已经形成待付款订单。完成付款后，付款服务会把经过验证的结果通知 Vault2077，订单将自动更新为已支付；返回页面本身不作为到账依据。</p>
+            <a href={paymentUrl}>如果没有自动跳转，点击进入付款页面 <span aria-hidden="true">↗</span></a>
             <button type="button" onClick={() => void copyReference()}>{copied ? "订单号已复制" : "复制订单号"}</button>
           </div>
         </div>
       ) : (
-        <form className="opc-order-entry__form" onSubmit={submit} noValidate>
+        <form
+          className="opc-order-entry__form"
+          onSubmit={submit}
+          aria-busy={pending}
+          aria-describedby={requestError ? "opc-order-request-error" : undefined}
+          noValidate
+        >
           <header>
-            <p className="mono">ORDER REGISTER / 订单登记</p>
-            <h3 id={`opc-order-${service.slug}`} ref={formHeadingRef} tabIndex={-1}>留下联系方式，生成付款订单。</h3>
-            <p>本次登记对应「{service.name}」{service.revision}，应付金额为 {service.price}。提交后会创建待付款订单并跳转至支付宝官方收银台。</p>
+            <p className="mono">CONTACT / 联系信息</p>
+            <h3 id={`opc-order-${service.slug}`} ref={formHeadingRef} tabIndex={-1}>填写订单联系人。</h3>
+            <p>手机号、邮箱或即时通讯账号至少填写一项。提交后会生成待付款订单，并前往独立付款页面。</p>
           </header>
           <div className="opc-order-entry__fields">
             <div className="form-field">
@@ -212,7 +225,7 @@ export function OpcOrderEntry({ service, enabled }: {
               {errors.email ? <p id="opc-order-email-error" className="form-error">{errors.email}</p> : null}
             </div>
             <div className="form-field">
-              <label htmlFor="opc-order-wechat">微信号（可选）</label>
+              <label htmlFor="opc-order-wechat">即时通讯账号（可选）</label>
               <input id="opc-order-wechat" name="wechat" autoComplete="off" maxLength={80} value={wechat} onChange={(event) => updateField("wechat", () => setWechat(event.target.value))} aria-invalid={Boolean(errors.wechat)} aria-describedby={errors.wechat ? "opc-order-wechat-error" : undefined} disabled={pending} />
               {errors.wechat ? <p id="opc-order-wechat-error" className="form-error">{errors.wechat}</p> : null}
             </div>
@@ -231,10 +244,12 @@ export function OpcOrderEntry({ service, enabled }: {
               {errors.consent ? <p id="opc-order-consent-error" className="form-error">{errors.consent}</p> : null}
             </div>
           </div>
-          {requestError ? <p className="form-error opc-order-entry__request-error" role="alert">{requestError}</p> : null}
+          {requestError ? <p className="form-error opc-order-entry__request-error" id="opc-order-request-error" role="alert">{requestError}</p> : null}
           <footer>
-            <button type="button" onClick={() => setExpanded(false)} disabled={pending}>暂不下单</button>
-            <button type="submit" disabled={pending}>{pending ? "正在生成订单" : "生成订单并前往支付宝"}</button>
+            <Link href={returnHref}>返回服务详情</Link>
+            <button type="submit" disabled={pending}>
+              <span aria-live="polite">{pending ? "正在生成订单…" : "生成订单并前往付款页面"}</span>
+            </button>
           </footer>
         </form>
       )}

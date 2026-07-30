@@ -18,7 +18,7 @@ function textResponse(body: "success" | "failure", status = 200) {
 function parseNotification(raw: string) {
   const notification: Record<string, string> = {};
   for (const [key, value] of new URLSearchParams(raw)) {
-    if (Object.hasOwn(notification, key)) throw new Error("支付宝异步通知含重复字段。");
+    if (Object.hasOwn(notification, key)) throw new Error("付款状态通知含重复字段。");
     notification[key] = value;
   }
   return notification;

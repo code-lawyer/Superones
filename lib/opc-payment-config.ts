@@ -53,7 +53,7 @@ export class OpcAlipayProviderError extends Error {
   readonly code = "OPC_ALIPAY_QUERY_FAILED";
 
   constructor() {
-    super("暂时无法从支付宝获取交易状态，请稍后安全重试。");
+    super("暂时无法获取付款状态，请稍后安全重试。");
     this.name = "OpcAlipayProviderError";
   }
 }

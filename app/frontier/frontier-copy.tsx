@@ -23,7 +23,7 @@ export function RulesContent() {
   return (
     <ol className="frontier-rules-list">
       <li><strong>四无</strong><span>边境计划无期限、无评审、无组织、无目标。</span></li>
-      <li><strong>仓库资格</strong><span>仓库必须公开、非纯 Fork、未归档，并具有 GitHub 可识别的开源许可证。</span></li>
+      <li><strong>仓库资格</strong><span>仓库必须公开、非纯 Fork、未归档，并具有代码托管平台可识别的开源许可证。</span></li>
       <li><strong>挑战文件</strong><span>验证文件必须保留在默认分支直到赛季结算；网站在报名和结算时各检查一次。</span></li>
       <li><strong>排名</strong><span>验证成功时记录 Star 基线，之后按净新增 Star 排名，每小时更新。</span></li>
       <li><strong>季度结算</strong><span>一次报名只参加最近一次季度结算；结算时重新检查全部机器资格。</span></li>
