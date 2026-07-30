@@ -75,19 +75,20 @@ export function FrontierPrinciples() {
   const [lastActive, setLastActive] = useState(0);
   const [turnSequence, setTurnSequence] = useState(0);
   const principleButtons = useRef<Array<HTMLButtonElement | null>>([]);
+  const principleDetail = useRef<HTMLElement | null>(null);
   const principleHeading = useRef<HTMLHeadingElement | null>(null);
   const activatedByKeyboard = useRef(false);
   const selectedPrinciple = principles[active ?? lastActive];
   const hasInteracted = turnSequence > 0;
 
   useEffect(() => {
-    if (active === null || !window.matchMedia("(max-width: 820px)").matches) return;
+    if (active === null) return;
 
     const frame = window.requestAnimationFrame(() => {
       if (activatedByKeyboard.current) {
         principleHeading.current?.focus({ preventScroll: true });
       }
-      principleHeading.current?.scrollIntoView({
+      principleDetail.current?.scrollIntoView({
         behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
         block: "start",
       });
@@ -112,12 +113,22 @@ export function FrontierPrinciples() {
 
   return (
     <div className="shell frontier-doctrine__columns">
+      {hasInteracted ? (
+        <p className="frontier-principle-status" aria-live="polite" aria-atomic="true">
+          {active === null ? "已返回边境计划宣言" : `已打开${selectedPrinciple.title}原则详解`}
+        </p>
+      ) : null}
+
       <div className="frontier-manifesto-column">
         <div
           className={`frontier-doctrine-card${active !== null ? " is-detail" : ""}${hasInteracted ? active !== null ? " is-turning-to-detail" : " is-returning-to-manifesto" : ""}`}
           key={`${active === null ? "manifesto" : active}-${turnSequence}`}
         >
-          <article className="frontier-doctrine-face frontier-doctrine-face--manifesto" aria-hidden={active !== null}>
+          <article
+            className="frontier-doctrine-face frontier-doctrine-face--manifesto"
+            aria-hidden={active !== null}
+            inert={active !== null}
+          >
             <p className="eyebrow mono frontier-manifesto-column__label">FRONTIER MANIFESTO / 宣言</p>
             <ManifestoContent />
           </article>
@@ -125,8 +136,9 @@ export function FrontierPrinciples() {
           <article
             className="frontier-doctrine-face frontier-doctrine-face--principle"
             id="frontier-principle-detail"
+            ref={principleDetail}
             aria-hidden={active === null}
-            aria-live="polite"
+            inert={active === null}
           >
             <header className="frontier-principle-copy__header">
               <p className="eyebrow mono">{selectedPrinciple.label} / 原则详解</p>

@@ -26,15 +26,26 @@ test("Frontier public surfaces and product contracts use one four-principles can
   }
 });
 
-test("Frontier principle detail preserves ranking truth and keyboard focus", async () => {
-  const [principles, styles] = await Promise.all([
+test("Frontier principle detail preserves ranking truth and hardened interaction contracts", async () => {
+  const [principles, dialog, styles] = await Promise.all([
     readFile(path.join(root, "app", "frontier", "frontier-principles.tsx"), "utf8"),
+    readFile(path.join(root, "app", "frontier", "frontier-dialog.tsx"), "utf8"),
     readFile(path.join(root, "app", "institutional-frontier.css"), "utf8"),
   ]);
 
   assert.match(principles, /报名后净新增 Star 最大者/);
   assert.match(principles, /无纪律不等于取消报名资格/);
   assert.match(principles, /本站现已开放自主捐赠和随机奖励抽取/);
+  assert.match(principles, /inert=\{active !== null\}/);
+  assert.match(principles, /inert=\{active === null\}/);
+  assert.doesNotMatch(principles, /max-width:\s*820px/);
+  assert.match(principles, /principleDetail\.current\?\.scrollIntoView/);
+  assert.doesNotMatch(principles, /className="frontier-doctrine-face frontier-doctrine-face--principle"[\s\S]*?aria-live=/);
+  assert.match(dialog, /onCancel=\{cancel\}/);
+  assert.match(dialog, /event\.target === event\.currentTarget/);
+  assert.match(styles, /\.frontier-doctrine-face\[aria-hidden="true"\]\s*\{[\s\S]*?pointer-events:\s*none/);
+  assert.match(styles, /\.frontier-doctrine-face--principle\s*\{[\s\S]*?scroll-margin-top:\s*78px/);
+  assert.match(styles, /\.frontier-dialog__close\s*\{[\s\S]*?min-width:\s*44px[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.frontier-principle-copy__header h2:focus\s*\{[\s\S]*?outline:\s*2px solid var\(--carbon\)/);
   assert.doesNotMatch(styles, /\.frontier-principle-copy__header h2:focus\s*\{[\s\S]*?outline:\s*0/);
 });
