@@ -3,6 +3,7 @@ import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
 import {
   createOpcOrder,
   getOpcOrderPaymentOrder,
+  OpcOrderIdempotencyConflictError,
   recordOpcPaymentRequest,
 } from "@/lib/opc-order-store";
 import {
@@ -139,6 +140,9 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof SyntaxError) {
       return NextResponse.json({ error: message }, { status: 400 });
+    }
+    if (error instanceof OpcOrderIdempotencyConflictError) {
+      return NextResponse.json({ error: message }, { status: 409 });
     }
     if (message.includes("尚未完成生产配置")) {
       return NextResponse.json({ error: "付款服务暂未完成配置，当前不能创建订单。" }, { status: 503 });

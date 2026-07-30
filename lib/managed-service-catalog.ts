@@ -206,9 +206,8 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
     required(errors, `${label}：适用对象`, service.audience);
     required(errors, `${label}：转交边界`, service.boundary);
     if (service.slug && !slugPattern.test(service.slug)) errors.push(`${label}：slug 只能使用小写字母、数字和连字符`);
-    const routeKey = `${service.kind}:${service.slug}`;
-    if (slugs.has(routeKey)) errors.push(`${label}：slug 重复`);
-    slugs.add(routeKey);
+    if (slugs.has(service.slug)) errors.push(`${label}：slug 必须在全部 OPC 服务中保持唯一`);
+    slugs.add(service.slug);
     if (codes.has(service.code)) errors.push(`${label}：编号重复`);
     codes.add(service.code);
     if (service.kind === "infrastructure" && !infrastructureGroups.includes(service.group as never)) {

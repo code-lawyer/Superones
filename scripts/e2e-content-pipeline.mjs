@@ -126,10 +126,24 @@ assert.equal(processed.status, 200, `worker must process the queue: ${processBod
 const result = JSON.parse(processBody);
 assert.ok(result.processed.some((item) => item.batchId === batchId && item.result.information >= 3));
 
-const feed = await fetch(`${origin}/feed`);
-const html = await feed.text();
-assert.equal(feed.status, 200);
-assert.match(html, /测试事件/);
-assert.match(html, /中译：\[event\] Source/);
+async function waitForPublishedFeed() {
+  const deadline = Date.now() + 35_000;
+  let lastStatus = 0;
+  let lastHtml = "";
+  while (Date.now() < deadline) {
+    const feed = await fetch(`${origin}/feed`, { cache: "no-store" });
+    lastStatus = feed.status;
+    lastHtml = await feed.text();
+    if (
+      feed.ok
+      && /测试事件/.test(lastHtml)
+      && /中译：\[event\] Source/.test(lastHtml)
+    ) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  assert.fail(`published feed did not become visible (status ${lastStatus}): ${lastHtml.slice(0, 500)}`);
+}
+
+await waitForPublishedFeed();
 
 console.log(JSON.stringify({ ok: true, batchId, accepted: 202, processed: result.processed.length, eventPublished: true }));

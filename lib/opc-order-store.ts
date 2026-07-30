@@ -43,6 +43,7 @@ type StoredOpcOrder = {
   id: string;
   reference: string;
   idempotencyHash: string;
+  requestFingerprint: string | null;
   serviceKind: "infrastructure" | "specialty";
   serviceSlug: string;
   serviceCode: string;
@@ -62,9 +63,16 @@ type StoredOpcOrder = {
 };
 
 type OpcOrderStore = {
-  version: 3;
+  version: 4;
   orders: StoredOpcOrder[];
 };
+
+export class OpcOrderIdempotencyConflictError extends Error {
+  constructor() {
+    super("该幂等请求已用于不同的订单内容，请刷新页面后重新提交。");
+    this.name = "OpcOrderIdempotencyConflictError";
+  }
+}
 
 type LegacyStoredOpcOrder = Partial<StoredOpcOrder> & {
   alipayAmount?: string;
@@ -105,14 +113,14 @@ function parseStoredPayment(order: LegacyStoredOpcOrder): StoredOpcPayment {
 const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
   namespace: "opc-orders",
   fileName: "opc-orders.json",
-  create: () => ({ version: 3, orders: [] }),
+  create: () => ({ version: 4, orders: [] }),
   parse: (value) => {
     const parsed = value as { version?: unknown; orders?: unknown[] };
-    if (![1, 2, 3].includes(parsed.version as number) || !Array.isArray(parsed.orders)) {
+    if (![1, 2, 3, 4].includes(parsed.version as number) || !Array.isArray(parsed.orders)) {
       throw new Error("OPC 订单存储格式无效。");
     }
     return {
-      version: 3,
+      version: 4,
       orders: parsed.orders.map((value) => {
         const order = value as LegacyStoredOpcOrder;
         if (
@@ -136,6 +144,9 @@ const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
         } = order;
         return {
           ...record,
+          requestFingerprint: /^[a-f0-9]{64}$/.test(order.requestFingerprint ?? "")
+            ? order.requestFingerprint!
+            : null,
           payment: parseStoredPayment(order),
         } as StoredOpcOrder;
       }),
@@ -145,6 +156,26 @@ const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
 
 function idempotencyHash(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function orderRequestFingerprint(input: {
+  serviceKind: "infrastructure" | "specialty";
+  serviceSlug: string;
+  serviceCode: string;
+  serviceName: string;
+  serviceRevision: string;
+  quotedPrice: string;
+  contact: OpcOrderContact;
+}) {
+  return createHash("sha256").update(JSON.stringify({
+    serviceKind: input.serviceKind,
+    serviceSlug: input.serviceSlug,
+    serviceCode: input.serviceCode,
+    serviceName: input.serviceName,
+    serviceRevision: input.serviceRevision,
+    quotedPrice: input.quotedPrice,
+    contact: input.contact,
+  })).digest("hex");
 }
 
 function orderReference(now = new Date()) {
@@ -199,16 +230,34 @@ export async function createOpcOrder(input: {
   const paymentAmount = catalogPriceToAlipayAmount(input.quotedPrice);
   if (!paymentAmount) throw new Error("服务公开价格无法转换为支付宝订单金额。");
   const requestHash = idempotencyHash(input.idempotencyKey);
+  const requestFingerprint = orderRequestFingerprint(input);
   return mutateStateDocument(orderDocument, (store) => {
     scrubExpiredContacts(store, new Date());
     const existing = store.orders.find((order) => order.idempotencyHash === requestHash);
-    if (existing) return publicOrder(existing);
+    if (existing) {
+      const legacyIdentityMatches = (
+        existing.serviceKind === input.serviceKind
+        && existing.serviceSlug === input.serviceSlug
+        && existing.serviceCode === input.serviceCode
+        && existing.serviceName === input.serviceName
+        && existing.serviceRevision === input.serviceRevision
+        && existing.quotedPrice === input.quotedPrice
+      );
+      if (
+        (existing.requestFingerprint && existing.requestFingerprint !== requestFingerprint)
+        || (!existing.requestFingerprint && !legacyIdentityMatches)
+      ) {
+        throw new OpcOrderIdempotencyConflictError();
+      }
+      return publicOrder(existing);
+    }
 
     const timestamp = new Date().toISOString();
     const order: StoredOpcOrder = {
       id: randomUUID(),
       reference: uniqueOrderReference(store),
       idempotencyHash: requestHash,
+      requestFingerprint,
       serviceKind: input.serviceKind,
       serviceSlug: input.serviceSlug,
       serviceCode: input.serviceCode,
@@ -349,20 +398,25 @@ export async function recordOpcAlipayQuery(reference: string, result: OpcAlipayQ
 }
 
 export async function listAdminOpcOrders() {
-  return mutateStateDocument(orderDocument, (store) => {
-    scrubExpiredContacts(store, new Date());
-    return store.orders
-      .map((order) => {
-        const contact = order.contactEncrypted
-          ? JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact
-          : null;
-        const { contactEncrypted: _contactEncrypted, idempotencyHash: _idempotencyHash, ...record } = order;
-        return { ...record, contact };
-      })
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-      .slice(0, 1_000);
-  });
-}
+    return mutateStateDocument(orderDocument, (store) => {
+      scrubExpiredContacts(store, new Date());
+      return store.orders
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        .slice(0, 1_000)
+        .map((order) => {
+          const contact = order.contactEncrypted
+            ? JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact
+            : null;
+          const {
+            contactEncrypted: _contactEncrypted,
+            idempotencyHash: _idempotencyHash,
+            requestFingerprint: _requestFingerprint,
+            ...record
+          } = order;
+          return { ...record, contact };
+        });
+    });
+  }
 
 export async function updateOpcOrderStatus(id: string, status: OpcOrderStatus) {
   return mutateStateDocument(orderDocument, (store) => {

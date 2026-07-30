@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { formatNumber } from "@/lib/data";
+import { formatNumber } from "@/lib/number-format";
 import type { SicBoard } from "@/lib/sic";
 
 type BoardCardProps = {

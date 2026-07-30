@@ -17,6 +17,8 @@ test("OPC order endpoint enforces its public-write security boundary", async () 
   assert.match(route, /withinDurableRateLimit\(`opc-orders:\$\{clientHash\}`, 6/);
   assert.match(route, /website/);
   assert.match(route, /consent/);
+  assert.match(route, /OpcOrderIdempotencyConflictError/);
+  assert.match(route, /status: 409/);
 });
 
 test("OPC order endpoint trusts the published service snapshot, not client pricing", async () => {

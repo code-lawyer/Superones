@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
 import {
   infrastructureGroups,
@@ -230,12 +230,15 @@ function ServiceNavigation({ groups, openGroup, selected, onToggle, onSelect, on
 }) {
   return <div className="opc-accordion">{groups.map((group) => {
     const open = openGroup === group.id;
-    return <section className={open ? "opc-accordion__group is-open" : "opc-accordion__group"} key={group.id}>
-      <button className="opc-accordion__trigger" type="button" aria-expanded={open} onClick={() => onToggle(open ? "" : group.id)}>
-        <span><strong>{group.label}</strong><small>{group.note}</small></span>
-        <i className="mono">{String(group.items.length).padStart(2, "0")} {open ? "−" : "+"}</i>
-      </button>
-      <div className="opc-accordion__drawer" aria-hidden={!open}><div>
+    return <AccordionGroup
+      id={group.id}
+      label={group.label}
+      note={group.note}
+      count={group.items.length}
+      open={open}
+      onToggle={onToggle}
+      key={group.id}
+    >
         {group.items.map((service) => {
           const selectedItem = selected?.code === service.code;
           return <button
@@ -252,8 +255,7 @@ function ServiceNavigation({ groups, openGroup, selected, onToggle, onSelect, on
             <i aria-hidden="true">→</i>
           </button>;
         })}
-      </div></div>
-    </section>;
+    </AccordionGroup>;
   })}
     {selected ? <div className="opc-service-browser__selected">
       <p className="mono">SELECTED / 已选择</p>
@@ -270,12 +272,15 @@ function RangerNavigation({ groups, openGroup, onToggle }: {
 }) {
   return <div className="opc-accordion">{groups.map((group) => {
     const open = openGroup === group.id;
-    return <section className={open ? "opc-accordion__group is-open" : "opc-accordion__group"} key={group.id}>
-      <button className="opc-accordion__trigger" type="button" aria-expanded={open} onClick={() => onToggle(open ? "" : group.id)}>
-        <span><strong>{group.label}</strong><small>{group.note}</small></span>
-        <i className="mono">{String(group.items.length).padStart(2, "0")} {open ? "−" : "+"}</i>
-      </button>
-      <div className="opc-accordion__drawer" aria-hidden={!open}><div>
+    return <AccordionGroup
+      id={group.id}
+      label={group.label}
+      note={group.note}
+      count={group.items.length}
+      open={open}
+      onToggle={onToggle}
+      key={group.id}
+    >
         {group.items.length > 0
           ? group.items.map((profile) => <Link className="opc-accordion__item" href={`/opc/rangers/${profile.slug}`} key={profile.slug}>
             <span className="mono">PROFILE</span><strong>{profile.publicName}</strong><i aria-hidden="true">→</i>
@@ -284,9 +289,26 @@ function RangerNavigation({ groups, openGroup, onToggle }: {
             <span className="mono">TEMPLATE</span>
             <strong>真实顾问档案待补充</strong>
           </div>}
-      </div></div>
-    </section>;
+    </AccordionGroup>;
   })}</div>;
+}
+
+function AccordionGroup({ id, label, note, count, open, onToggle, children }: {
+  id: string;
+  label: string;
+  note: string;
+  count: number;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: ReactNode;
+}) {
+  return <section className={open ? "opc-accordion__group is-open" : "opc-accordion__group"}>
+    <button className="opc-accordion__trigger" type="button" aria-expanded={open} onClick={() => onToggle(open ? "" : id)}>
+      <span><strong>{label}</strong><small>{note}</small></span>
+      <i className="mono">{String(count).padStart(2, "0")} {open ? "−" : "+"}</i>
+    </button>
+    <div className="opc-accordion__drawer" aria-hidden={!open}><div>{children}</div></div>
+  </section>;
 }
 
 function ServiceEmptyPane({ title }: { title: string }) {
@@ -332,7 +354,7 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
             ) : null}
           </div>
           {orderingAvailable ? (
-            <Link className="opc-reading-pane__purchase" href={`/opc/order?service=${encodeURIComponent(service.slug)}`}>
+            <Link className="opc-reading-pane__purchase" href={`/opc/order?kind=${service.kind}&service=${encodeURIComponent(service.slug)}`}>
               <span>立即下单</span>
               <span aria-hidden="true">→</span>
             </Link>

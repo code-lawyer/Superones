@@ -1,6 +1,5 @@
 import "server-only";
 
-import { events as demoEvents, informationItems as demoInformation, siteStatus } from "./data";
 import { getStoredContent } from "./content-store";
 import type { ContentState, EventRecord, InformationItem } from "./types";
 
@@ -33,26 +32,8 @@ export async function getPublicContent(): Promise<PublicContent> {
     if (stored.state.mode === "live") {
       return { events: stored.events, information: stored.information, state: stored.state };
     }
-    if (process.env.NODE_ENV === "production") {
-      return degradedContent(stored.state);
-    }
+    return degradedContent(stored.state);
   } catch {
-    if (process.env.NODE_ENV === "production") {
-      return degradedContent();
-    }
+    return degradedContent();
   }
-  return {
-    events: demoEvents,
-    information: demoInformation,
-    state: {
-      mode: "demo",
-      updatedAt: null,
-      sourceCount: siteStatus.sources,
-      eventCount: demoEvents.length,
-      informationCount: demoInformation.length,
-      projectCount: 0,
-      quarantinedCount: 0,
-      publicationVersion: 0,
-    },
-  };
 }

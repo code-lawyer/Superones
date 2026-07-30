@@ -1,6 +1,6 @@
 ---
 type: research
-status: complete
+status: reference
 updated: 2026-07-28
 ---
 
@@ -62,7 +62,7 @@ https://raw.githubusercontent.com/VoltAgent/awesome-agent-skills/main/README.md
 1. 用 `requests` 下载这个 raw README；
 2. 把 `##` / `###` 标题当作当前分类；
 3. 只处理以 `-` 开头的行；
-4. 用正则解析 `[name](link) - description`；
+4. 用正则解析 Markdown 链接中的名称、链接与尾部说明；
 5. 写入 `name`、`description`、`link`、`category`、固定 `source` 和 `crawled_at`。
 
 证据见 [`crawler.py` 下载逻辑](https://github.com/anbeime/skill/blob/f595e9637eb6ce160889a8434c1edf49b0b1fd0f/crawler.py#L27-L51)和[Markdown 正则解析逻辑](https://github.com/anbeime/skill/blob/f595e9637eb6ce160889a8434c1edf49b0b1fd0f/crawler.py#L53-L101)。

@@ -5,7 +5,6 @@ import { EventList } from "@/components/event-list";
 import { InformationList } from "@/components/information-list";
 import { PageIntro } from "@/components/page-intro";
 import { RoadsideList } from "@/components/statement-list";
-import { siteStatus } from "@/lib/data";
 import { beijingTime, compareEventsNewest, compareInformationNewest } from "@/lib/feed-format";
 import { getCachedPublicContent } from "@/lib/public-read-cache";
 
@@ -61,13 +60,11 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const visibleEvents = eventItems.slice(0, EVENT_LIMIT);
   const visibleInformation = informationItems.slice(0, state.waterfallLimit);
   const visibleRoadside = roadsideItems.slice(0, state.roadsideLimit);
-  const updatedAt = content.state.updatedAt ?? siteStatus.updated;
+  const updatedAt = content.state.updatedAt;
   const previewLabel = process.env.VAULT2077_CONTENT_PREVIEW_LABEL?.trim();
   const modeLabel = previewLabel
     ? ` / ${previewLabel}`
-    : content.state.mode === "demo"
-      ? " / 示例数据"
-      : content.state.mode === "degraded"
+    : content.state.mode === "degraded"
         ? " / 服务降级"
         : "";
 

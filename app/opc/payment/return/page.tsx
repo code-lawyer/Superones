@@ -26,7 +26,7 @@ export default async function OpcPaymentReturnPage({
       <p className="mono">ORDER / 订单</p>
       <h2>{reference ?? "订单号待确认"}</h2>
       <p>通常几分钟内即可完成自动核验。请不要为同一订单重复付款；如已经扣款而订单迟迟未更新，OPC 服务团队会使用订单号查询付款状态。</p>
-      <Link href={reference ? `/opc?view=infrastructure&order=${encodeURIComponent(reference)}` : "/opc"}>
+      <Link href="/opc">
         返回 OPC 服务台 <span aria-hidden="true">→</span>
       </Link>
     </main>

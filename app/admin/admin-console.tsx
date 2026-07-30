@@ -145,11 +145,13 @@ export function AdminConsole() {
   const [pending, setPending] = useState(false);
 
   const load = useCallback(async () => {
-    const [response, contentResponse] = await Promise.all([
+    const [response, summaryResponse, correctionsResponse, ordersResponse] = await Promise.all([
       fetch("/api/admin/frontier", { cache: "no-store" }),
-      fetch("/api/admin/content", { cache: "no-store" }),
+      fetch("/api/admin/content?section=summary", { cache: "no-store" }),
+      fetch("/api/admin/content?section=corrections", { cache: "no-store" }),
+      fetch("/api/admin/content?section=orders", { cache: "no-store" }),
     ]);
-    if (response.status === 401 || contentResponse.status === 401) {
+    if ([response, summaryResponse, correctionsResponse, ordersResponse].some((item) => item.status === 401)) {
       setSubmissions(null);
       setDonations([]);
       setContentState(null);
@@ -158,12 +160,16 @@ export function AdminConsole() {
       return;
     }
     const body = await jsonMessage(response);
-    const content = await jsonMessage(contentResponse);
+    const [summary, correctionData, orderData] = await Promise.all([
+      jsonMessage(summaryResponse),
+      jsonMessage(correctionsResponse),
+      jsonMessage(ordersResponse),
+    ]);
     setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
     setDonations(Array.isArray(body?.donations) ? body.donations : []);
-    setContentState(content?.state ?? null);
-    setCorrections(Array.isArray(content?.corrections) ? content.corrections : []);
-    setOrders(Array.isArray(content?.orders) ? content.orders : []);
+    setContentState(summary?.state ?? null);
+    setCorrections(Array.isArray(correctionData?.corrections) ? correctionData.corrections : []);
+    setOrders(Array.isArray(orderData?.orders) ? orderData.orders : []);
   }, []);
 
   useEffect(() => {

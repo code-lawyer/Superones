@@ -36,6 +36,13 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     const repeated = await store.createOpcOrder(input);
     assert.equal(repeated.id, created.id);
     assert.equal(repeated.reference, created.reference);
+    await assert.rejects(
+      store.createOpcOrder({
+        ...input,
+        contact: { ...input.contact, phone: "13900139000" },
+      }),
+      store.OpcOrderIdempotencyConflictError,
+    );
 
     const orders = await store.listAdminOpcOrders();
     assert.equal(orders.length, 1);

@@ -195,15 +195,16 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(workspace, /\{orderingAvailable \? "独立付款页面" : "付款服务配置完成后可提交订单"\}/);
   assert.match(workspace, /className="opc-reading-pane__purchase"/);
   assert.match(workspace, /<span>立即下单<\/span>/);
-  assert.match(workspace, /href=\{`\/opc\/order\?service=\$\{encodeURIComponent\(service\.slug\)\}`\}/);
+  assert.match(workspace, /href=\{`\/opc\/order\?kind=\$\{service\.kind\}&service=\$\{encodeURIComponent\(service\.slug\)\}`\}/);
   assert.match(workspace, /\{orderingAvailable \? \(/);
   assert.match(workspace, /<button[\s\S]*?className="opc-reading-pane__purchase"[\s\S]*?disabled/);
   assert.doesNotMatch(workspace, /opc-universal-order|orderRequest|openRequest|<OpcOrderEntry/);
   assert.match(workspace, /aria-label="切换服务"/);
   assert.doesNotMatch(workspace, /当前页面为工作原型|由谁完成/);
-  assert.match(orderPage, /const services = \[\.\.\.catalog\.infrastructure, \.\.\.catalog\.specialties\]/);
+  assert.match(orderPage, /const services = query\.kind === "infrastructure" \? catalog\.infrastructure : catalog\.specialties/);
   assert.match(orderPage, /const service = services\.find\(\(item\) => item\.slug === query\.service\)/);
-  assert.match(orderPage, /if \(!query\.service \|\| !publicServiceSlug\.test\(query\.service\)\) notFound\(\)/);
+  assert.match(orderPage, /query\.kind !== "infrastructure" && query\.kind !== "specialty"/);
+  assert.match(orderPage, /if \(!service \|\| service\.kind !== query\.kind\) notFound\(\)/);
   assert.match(orderPage, /const view = service\.kind === "infrastructure" \? "infrastructure" : "specialties"/);
   assert.match(orderPage, /const orderingAvailable = opcOrderingAvailable\(\)/);
   assert.match(orderPage, /<OpcOrderEntry service=\{service\} returnHref=\{returnHref\} \/>/);
@@ -254,7 +255,7 @@ test("public interaction copy does not expose third-party payment or messaging b
   ]);
   const publicSurfaceCopy = await Promise.all([
     readFile(path.join(root, "app", "page.tsx"), "utf8"),
-    readFile(path.join(root, "components", "home-prototype-variants.tsx"), "utf8"),
+    readFile(path.join(root, "components", "home-experience.tsx"), "utf8"),
     readFile(path.join(root, "app", "sources", "pipeline", "page.tsx"), "utf8"),
     readFile(path.join(root, "app", "frontier", "frontier-copy.tsx"), "utf8"),
     readFile(path.join(root, "app", "frontier", "submit", "submit-form.tsx"), "utf8"),

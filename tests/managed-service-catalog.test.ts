@@ -108,6 +108,16 @@ test("OPC service catalog rejects new uncontrolled taxonomies", async () => {
   assert.ok(result.errors.some((error) => error.includes("专项服务领域无效")));
 });
 
+test("OPC service catalog requires globally unique service slugs", async () => {
+  const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+  const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
+  const catalog = createDefaultOpcCatalog();
+  catalog.specialties[0].slug = catalog.infrastructure[0].slug;
+  const result = validateOpcCatalog(normalizeOpcCatalog(catalog));
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.includes("全部 OPC 服务中保持唯一")));
+});
+
 test("OPC service catalog initializes an empty local store from the tracked seed", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-seed-bootstrap-"));
   const previousDataDir = process.env.VAULT2077_DATA_DIR;

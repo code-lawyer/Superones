@@ -5,7 +5,6 @@ import {
   authenticatedAdminJson,
   configuredAdminReauthenticationUrl,
 } from "@/lib/admin-access";
-import { configuredAcquisitionReceiver } from "@/lib/acquisition-inbox";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import { getStoredContent } from "@/lib/content-store";
 import { closeCorrectionReport, listAdminCorrectionReports } from "@/lib/correction-store";
@@ -31,13 +30,20 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return adminAccessErrorResponse(error);
   }
-  const [content, queue, corrections, orders] = await Promise.all([
-    getStoredContent(),
-    configuredAcquisitionReceiver().stats(),
-    listAdminCorrectionReports(),
-    listAdminOpcOrders(),
-  ]);
-  return authenticatedAdminJson(access, { state: content.state, queue, corrections, orders });
+  const section = request.nextUrl.searchParams.get("section");
+  if (section === "summary") {
+    const content = await getStoredContent();
+    return authenticatedAdminJson(access, { state: content.state });
+  }
+  if (section === "corrections") {
+    return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
+  }
+  if (section === "orders") {
+    return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
+  }
+  return authenticatedAdminJson(access, {
+    error: "请指定有效的后台内容分区。",
+  }, { status: 400 });
 }
 
 export async function POST(request: NextRequest) {

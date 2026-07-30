@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource-variable/manrope";
 import "./globals.css";
 import "./institutional.css";
-import "./home-prototype.css";
+import "./home.css";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

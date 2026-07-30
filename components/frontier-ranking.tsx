@@ -1,4 +1,4 @@
-import { formatNumber } from "@/lib/data";
+import { formatNumber } from "@/lib/number-format";
 import type { FrontierEntry } from "@/lib/types";
 
 export function FrontierRanking({

@@ -77,7 +77,7 @@ try {
   children.push(site);
   site.stdout.on("data", (chunk) => { siteOutput += chunk; });
   site.stderr.on("data", (chunk) => { siteOutput += chunk; });
-  await waitUntilReady(`http://127.0.0.1:${sitePort}/feed`, site, () => siteOutput);
+  await waitUntilReady(`http://127.0.0.1:${sitePort}/about`, site, () => siteOutput);
 
   await run(process.execPath, ["scripts/e2e-content-pipeline.mjs"], {
     cwd: process.cwd(),

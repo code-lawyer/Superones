@@ -10,6 +10,7 @@ export const metadata: Metadata = { title: "确认订单 — OPC 服务台" };
 export const dynamic = "force-dynamic";
 
 type OpcOrderPageSearchParams = {
+  kind?: string;
   service?: string;
 };
 
@@ -21,12 +22,16 @@ export default async function OpcOrderPage({
   searchParams: Promise<OpcOrderPageSearchParams>;
 }) {
   const query = await searchParams;
-  if (!query.service || !publicServiceSlug.test(query.service)) notFound();
+  if (
+    (query.kind !== "infrastructure" && query.kind !== "specialty")
+    || !query.service
+    || !publicServiceSlug.test(query.service)
+  ) notFound();
 
   const catalog = await getCachedPublishedServiceCatalog();
-  const services = [...catalog.infrastructure, ...catalog.specialties];
+  const services = query.kind === "infrastructure" ? catalog.infrastructure : catalog.specialties;
   const service = services.find((item) => item.slug === query.service);
-  if (!service) notFound();
+  if (!service || service.kind !== query.kind) notFound();
 
   const view = service.kind === "infrastructure" ? "infrastructure" : "specialties";
   const returnHref = `/opc?view=${view}&service=${encodeURIComponent(service.slug)}`;
