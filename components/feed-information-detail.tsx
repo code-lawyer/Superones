@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContentMarkup } from "@/components/content-markup";
 import { informationTime } from "@/lib/feed-format";
 import { cleanStatementText } from "@/lib/statement-text";
 import type { EventRecord, InformationItem } from "@/lib/types";
@@ -33,12 +34,16 @@ export function FeedInformationDetail({
         <div className="feed-detail__body">
           <section className="information-copy">
             <p className="detail-section-label mono">中文处理结果</p>
-            <p>{roadside ? cleanStatementText(item.translatedContent) : item.translatedContent}</p>
+            {roadside
+              ? <p>{cleanStatementText(item.translatedContent)}</p>
+              : <ContentMarkup content={item.translatedContent} format={item.contentFormat} />}
           </section>
           <section className="information-copy information-copy--original" lang={item.originalLanguage}>
             <p className="detail-section-label mono">{item.originalDisplay === "full" ? "原始正文" : "原始正文摘录"}</p>
             <h2>{item.originalTitle}</h2>
-            <p>{roadside ? cleanStatementText(item.originalContent) : item.originalContent}</p>
+            {roadside
+              ? <p>{cleanStatementText(item.originalContent)}</p>
+              : <ContentMarkup content={item.originalContent} format={item.contentFormat} />}
           </section>
           <a className="original-source-action" href={sourceUrl} target="_blank" rel="noreferrer">
             {isX ? "查看原始 X 言论" : "查看原始发布"}

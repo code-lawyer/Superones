@@ -14,6 +14,10 @@ export function informationHref(slug: string) {
   return `/feed/info/${encodeFeedSlug(slug)}`;
 }
 
+export function eventHref(slug: string) {
+  return `/feed/${encodeFeedSlug(slug)}`;
+}
+
 export function roadsideHref(slug: string) {
   return `/feed/roadside/${encodeFeedSlug(slug)}`;
 }

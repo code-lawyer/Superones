@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-07-29
+updated: 2026-07-30
 ---
 
 # Vault2077 文档权威索引
@@ -43,7 +43,7 @@ updated: 2026-07-29
 - [ADR-0009：内容频道采用独立编辑配置](adr/0009-channel-editorial-profiles.md)
 - [ADR-0010：生产持久化与安全状态统一进入 PostgreSQL](adr/0010-production-persistence-and-security-seam.md)
 - [ADR-0011：人工编辑只进入结构化服务目录](adr/0011-managed-service-catalog.md)
-- [ADR-0012：生产后台采用身份网关与可撤销应用会话](adr/0012-production-admin-access.md)
+- [ADR-0012：生产后台采用托管 OIDC 身份与可撤销应用会话](adr/0012-production-admin-access.md)
 - [ADR-0013：境外可靠投递与境内独立消费](adr/0013-reliable-delivery-and-domestic-worker.md)
 - [ADR-0014：OPC 无账号订单与支付宝服务器到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
 
@@ -51,6 +51,7 @@ updated: 2026-07-29
 
 - [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
 - [部署配置手册](Vault2077-Deployment-Configuration-Manual.md)
+- [阿里云轻量服务器与后台 OIDC 身份决策](Vault2077-Aliyun-Identity-Gateway-Decision.md)：IDaaS 与唯一管理员邮箱均已确认。
 - [OPC 服务目录后台操作手册](Vault2077-OPC-Admin-Manual.md)
 - [Content Pipeline Operations](Content-Pipeline-Operations.md) 已被统一采集手册取代，只保留迁移指引。
 
@@ -65,10 +66,14 @@ updated: 2026-07-29
 以下文档均不产生当前需求：
 
 - 项目审计：[2026-07-24 深层次项目审计](Vault2077-Deep-Audit-2026-07-24.md)
-- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)
+- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)
 - 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)
-- 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)
-- SiC 调研：[Source Candidates Batch 1](Vault2077-SiC-Source-Candidates-Batch-1.md)、[Official Sources Research](Vault2077-SiC-Official-Sources-Research.md)、[Papers and Official Archives Research](Vault2077-SiC-Papers-and-Official-Archives-Research.md)、[Frontier AI Resource Audit](Vault2077-SiC-Frontier-AI-Resource-Audit.md)、[GitHub Trending API Research](Vault2077-SiC-GitHub-Trending-API-Research.md)、[Hugging Face Ranking Research](Vault2077-SiC-Hugging-Face-Weekly-Model-Ranking-Research.md)、[OpenRouter Ranking Research](Vault2077-SiC-OpenRouter-Model-Ranking-Research.md)、[Skill Market Research](Vault2077-Skill-Market-Integration-Research.md)、[`dukelyuu/skills-marketplace` Skill 收集机制研究](Vault2077-Skills-Marketplace-Collection-Research.md)、[Skill 推荐、热门榜与聚合源替代方案研究](Vault2077-Skill-Aggregator-Alternatives-Research.md)、[Code Agent Skill 市场 API 调研](Vault2077-Code-Agent-Skill-Market-API-Research.md)、[`anbeime/skill` 源码研究](anbeime-skill-research.md)、[VoltAgent 与 OpenAI Skill 来源研究](Vault2077-VoltAgent-OpenAI-Skill-Sources-Research.md)
+- 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)、[Akta News Signals 信源审计](Vault2077-Akta-Source-Audit.md)、[Horizon 信息源审计](Vault2077-Horizon-Source-Audit.md)、[TrendRadar 信源与管线审查](Vault2077-TrendRadar-Source-Audit.md)
+- SiC 调研：[Source Candidates Batch 1](Vault2077-SiC-Source-Candidates-Batch-1.md)、[Official Sources Research](Vault2077-SiC-Official-Sources-Research.md)、[Papers and Official Archives Research](Vault2077-SiC-Papers-and-Official-Archives-Research.md)、[Frontier AI Resource Audit](Vault2077-SiC-Frontier-AI-Resource-Audit.md)、[GitHub Trending API Research](Vault2077-SiC-GitHub-Trending-API-Research.md)、[Hugging Face Ranking Research](Vault2077-SiC-Hugging-Face-Weekly-Model-Ranking-Research.md)、[OpenRouter Ranking Research](Vault2077-SiC-OpenRouter-Model-Ranking-Research.md)、[Skill Market Research](Vault2077-Skill-Market-Integration-Research.md)、[`dukelyuu/skills-marketplace` Skill 收集机制研究](Vault2077-Skills-Marketplace-Collection-Research.md)、[Skill 推荐、热门榜与聚合源替代方案研究](Vault2077-Skill-Aggregator-Alternatives-Research.md)、[Code Agent Skill 市场 API 调研](Vault2077-Code-Agent-Skill-Market-API-Research.md)、[`anbeime/skill` 源码研究](anbeime-skill-research.md)、[VoltAgent 与 OpenAI Skill 来源研究](Vault2077-VoltAgent-OpenAI-Skill-Sources-Research.md)、[Skill 精选首批来源与候选证据](Vault2077-Skill-Collection-Source-Evidence.md)
+
+## 历史产品提案
+
+- SiC：[已废止的 Skill 精选集策划方案](Vault2077-SiC-Skill-Collection-Plan.md)
 
 ## 维护规则
 

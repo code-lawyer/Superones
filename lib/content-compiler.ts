@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { InformationEnvelope, InboundContentBatch } from "./content-contract.ts";
 import { isEventInput } from "./content-provenance.ts";
+import { cleanEditorialTitle } from "./editorial-title.ts";
+import { normalizeStructuredContent } from "./content-markup.ts";
 import type { EventCategory, EventRecord, InformationItem, QuarantinedContent } from "./types.ts";
 
 export type InformationEditorial = {
@@ -85,19 +87,31 @@ export function meetsEventThreshold(items: InformationItem[]) {
 }
 
 function validInformationEditorial(value: InformationEditorial) {
-  const translatedTitle = clamp(value.translatedTitle, 72);
+  const translatedTitle = clamp(cleanEditorialTitle(value.translatedTitle), 72);
   const summary = clamp(value.summary, 120);
-  const translatedContent = clamp(value.translatedContent, 12_000);
+  const translatedContent = normalizeStructuredContent(value.translatedContent, 12_000);
   if (!translatedTitle || !summary || !translatedContent) throw new Error("资讯编辑结果字段不完整。");
   return { translatedTitle, summary, translatedContent };
 }
 
-function validEventEditorial(value: EventEditorial) {
+function hasValidCitations(value: string, sourceCount: number) {
+  const citations = [...value.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1]));
+  return citations.length > 0 && citations.every((citation) => citation >= 1 && citation <= sourceCount);
+}
+
+function validEventEditorial(value: EventEditorial, sourceCount: number) {
   const title = clamp(value.title, 30);
   const judgment = clamp(value.judgment, 44);
   const summary = clamp(value.summary, 1_200);
   const significance = clamp(value.significance, 560);
   if (!title || !judgment || !summary || !significance) throw new Error("事件编辑结果字段不完整。");
+  if (
+    !hasValidCitations(judgment, sourceCount)
+    || !hasValidCitations(summary, sourceCount)
+    || !hasValidCitations(significance, sourceCount)
+  ) {
+    throw new Error("事件判断、摘要和意义必须包含指向现有资讯的有效 [n] 引用。");
+  }
   return { ...value, title, judgment, summary, significance, entities: value.entities.map((item) => clamp(item, 80)).filter(Boolean).slice(0, 8) };
 }
 
@@ -113,8 +127,8 @@ function quarantine(batch: InboundContentBatch, kind: QuarantinedContent["kind"]
   };
 }
 
-function eventFromEditorial(editorial: EventEditorial, items: InformationItem[], now: string, prior?: EventRecord): EventRecord {
-  const normalized = validEventEditorial(editorial);
+export function eventFromEditorial(editorial: EventEditorial, items: InformationItem[], now: string, prior?: EventRecord): EventRecord {
+  const normalized = validEventEditorial(editorial, items.length);
   const newest = [...items].sort((left, right) => Date.parse(right.publishedAt ?? right.discoveredAt) - Date.parse(left.publishedAt ?? left.discoveredAt))[0];
   const eventSlug = prior?.slug ?? `${slug(normalized.title)}-${hash(items.map((item) => item.slug).sort().join(":" )).slice(0, 8)}`;
   return {
@@ -263,6 +277,7 @@ export async function compileInformationBatch(input: {
       ...translated,
       originalTitle: envelope.originalTitle,
       originalContent: envelope.originalContent ?? envelope.originalTitle,
+      contentFormat: envelope.contentFormat,
       originalLanguage: envelope.originalLanguage,
       sourceName: envelope.originalPublisher,
         sourceRole: envelope.sourceRole,

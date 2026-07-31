@@ -6,7 +6,7 @@ import { InformationList } from "@/components/information-list";
 import { PageIntro } from "@/components/page-intro";
 import { RoadsideList } from "@/components/statement-list";
 import { beijingTime, compareEventsNewest, compareInformationNewest } from "@/lib/feed-format";
-import { getCachedPublicContent } from "@/lib/public-read-cache";
+import { getPublicContent } from "@/lib/public-content";
 
 export const metadata: Metadata = { title: "Vault 信息流" };
 export const dynamic = "force-dynamic";
@@ -41,11 +41,12 @@ function feedHref(state: FeedState, override: Partial<FeedState>) {
 }
 
 export default async function FeedPage({ searchParams }: { searchParams: Promise<FeedSearchParams> }) {
-  const [content, params] = await Promise.all([getCachedPublicContent(), searchParams]);
+  const [content, params] = await Promise.all([getPublicContent(), searchParams]);
   const state: FeedState = {
     waterfallLimit: positiveLimit(valueOf(params.waterfall), WATERFALL_LIMIT),
     roadsideLimit: positiveLimit(valueOf(params.roadside ?? params.statements), STATEMENT_LIMIT),
   };
+  const requestedRoadsideSlug = valueOf(params.roadsideItem);
 
   const eventItems = [...content.events]
     .sort(compareEventsNewest);
@@ -69,7 +70,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         : "";
 
   return (
-    <>
+    <div className="feed-page">
       <PageIntro
         code="VAULT / INFORMATION FLOW"
         title="维度收束，视界引擎"
@@ -113,7 +114,12 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
                 <h2 id="roadside-stream-title">路边社</h2>
                 <p>自然人言论、个人博客及社区原生条目；Hacker News 与 Lobsters 的外链只展示、不递归抓取，评论不进入正文。</p>
               </header>
-              <RoadsideList items={visibleRoadside} />
+              <RoadsideList
+                items={visibleRoadside}
+                initialItem={requestedRoadsideSlug
+                  ? roadsideItems.find((item) => item.slug === requestedRoadsideSlug)
+                  : undefined}
+              />
               {visibleRoadside.length === 0 ? <p className="feed-empty">暂无个人或社区发布</p> : null}
               {visibleRoadside.length < roadsideItems.length ? (
                 <Link className="feed-more" href={feedHref(state, { roadsideLimit: state.roadsideLimit + STATEMENT_LIMIT })}>
@@ -125,6 +131,6 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
           </aside>
         </div>
       </section>
-    </>
+    </div>
   );
 }

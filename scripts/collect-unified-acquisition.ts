@@ -387,14 +387,11 @@ const vaultOutcomeById = new Map((vault?.report.outcomes ?? []).map((outcome) =>
   outcome,
 ]));
 const rankingNames = new Map([
-  ["ranking:github:today", "GitHub Trending Today"],
-  ["ranking:github:week", "GitHub Trending This week"],
-  ["ranking:github:month", "GitHub Trending This month"],
+  ["ranking:github:today", "OpenGithubs Daily Rank"],
+  ["ranking:github:week", "OpenGithubs Weekly Rank"],
+  ["ranking:github:month", "OpenGithubs Monthly Rank"],
   ["ranking:hugging-face:trending", "Hugging Face Trending"],
   ["ranking:openrouter:top-weekly", "OpenRouter Top Weekly"],
-  ["ranking:skills:all-time", "Skill All Time"],
-  ["ranking:skills:trending-24h", "Skill Trending 24h"],
-  ["ranking:skills:hot", "Skill Hot"],
 ]);
 const statusWeight = { empty: 0, succeeded: 1, partial: 2, failed: 3 } as const;
 const consolidatedReports = new Map<string, typeof sourceReports[number]>();

@@ -4,7 +4,7 @@ import {
   adminCookieOptions,
   isValidLocalAdminPassword,
 } from "@/lib/admin-auth";
-import { adminAccessMode, localAdminIdentity, readGatewayAdminIdentity } from "@/lib/admin-identity";
+import { adminAccessMode, localAdminIdentity } from "@/lib/admin-identity";
 import { assertAdminHost, assertAdminMutationRequest, AdminRequestSecurityError } from "@/lib/admin-request-security";
 import { createAdminSession } from "@/lib/admin-session-store";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
@@ -63,12 +63,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "登录尝试次数过多，请稍后再试。", code: "ADMIN_LOGIN_LOCKED" }, { status: 429 });
   }
   try {
+    if (adminAccessMode() === "oidc") {
+      return NextResponse.json({
+        error: "请通过阿里云 IDaaS 安全身份入口登录。",
+        code: "ADMIN_OIDC_REQUIRED",
+        loginUrl: "/api/admin/oidc/start?intent=login",
+      }, { status: 409 });
+    }
     const body = await request.json() as { password?: unknown };
-    const identity = adminAccessMode() === "identity-gateway"
-      ? await readGatewayAdminIdentity(request.headers)
-      : typeof body.password === "string" && await isValidLocalAdminPassword(body.password)
-        ? localAdminIdentity()
-        : null;
+    const identity = typeof body.password === "string" && await isValidLocalAdminPassword(body.password)
+      ? localAdminIdentity()
+      : null;
     if (!identity) throw new Error("invalid-credential");
     await clearLoginFailures(clientHash);
     const created = await createAdminSession(identity);
@@ -94,9 +99,7 @@ export async function POST(request: NextRequest) {
       reason: error instanceof Error ? error.message.slice(0, 120) : "invalid-identity",
     }).catch(() => undefined);
     return NextResponse.json({
-      error: adminAccessMode() === "identity-gateway"
-        ? "安全身份验证失败。"
-        : "密码不正确。",
+      error: "密码不正确。",
       code: "ADMIN_IDENTITY_REJECTED",
     }, { status: 401 });
   }

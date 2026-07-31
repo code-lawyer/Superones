@@ -9,23 +9,23 @@ limit_req_zone $binary_remote_addr zone=vault2077_ingest:10m rate=10r/m;
 
 server {
     listen 80;
-    server_name vault2077.com www.vault2077.com;
-    return 301 https://vault2077.com$request_uri;
+    server_name superones.top www.superones.top;
+    return 301 https://superones.top$request_uri;
 }
 
 server {
     listen 80;
-    server_name admin.vault2077.com;
-    return 301 https://admin.vault2077.com$request_uri;
+    server_name admin.superones.top;
+    return 301 https://admin.superones.top$request_uri;
 }
 
 # Public site: the administration surface is deliberately absent.
 server {
     listen 443 ssl http2;
-    server_name vault2077.com www.vault2077.com;
+    server_name superones.top www.superones.top;
 
-    ssl_certificate /etc/letsencrypt/live/vault2077.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/vault2077.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/superones.top/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/superones.top/privkey.pem;
 
     location = /admin { return 404; }
     location ^~ /api/admin/ { return 404; }
@@ -85,15 +85,14 @@ server {
     }
 }
 
-# Administration site: place this hostname behind the identity gateway.
-# The gateway must authenticate the owner with Passkey/MFA and inject the
-# configured signed JWT assertion before traffic reaches this origin.
+# Administration site: the application redirects anonymous users to Alibaba
+# Cloud IDaaS and verifies the OIDC authorization-code callback server-side.
 server {
     listen 443 ssl http2;
-    server_name admin.vault2077.com;
+    server_name admin.superones.top;
 
-    ssl_certificate /etc/letsencrypt/live/admin.vault2077.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/admin.vault2077.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/admin.superones.top/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/admin.superones.top/privkey.pem;
 
     add_header X-Robots-Tag "noindex, nofollow" always;
 

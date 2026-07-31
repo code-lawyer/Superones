@@ -69,7 +69,7 @@ export function clearAdminSessionCookie(response: NextResponse) {
 }
 
 export function configuredAdminReauthenticationUrl() {
-  const configured = process.env.VAULT2077_ADMIN_REAUTH_URL?.trim();
-  if (configured) return configured;
-  return process.env.NODE_ENV === "production" ? "" : "/admin";
+  return process.env.NODE_ENV === "production"
+    ? "/api/admin/oidc/start?intent=reauth"
+    : "/admin";
 }

@@ -31,7 +31,17 @@
     "sources:bundle": "node scripts/build-source-bundle.mjs",
     "acquisition:collect": "node --conditions=react-server --experimental-strip-types scripts/collect-unified-acquisition.ts",
     "acquisition:work": "node --conditions=react-server --experimental-strip-types scripts/run-acquisition-worker.ts",
-    "pipeline:local": "node scripts/run-local-full-pipeline.mjs"
+    "pipeline:local": "node scripts/run-local-full-pipeline.mjs",
+    "bootstrap:diagnose-events": "node --conditions=react-server --experimental-strip-types scripts/diagnose-event-candidates.ts",
+    "bootstrap:materialize": "node --conditions=react-server --experimental-strip-types scripts/materialize-bootstrap-content.ts",
+    "bootstrap:materialize-sic": "node --conditions=react-server --experimental-strip-types scripts/materialize-bootstrap-sic.ts",
+    "bootstrap:seed-events": "node --conditions=react-server --experimental-strip-types scripts/seed-bootstrap-events.ts",
+    "bootstrap:reconcile-events": "node --conditions=react-server --experimental-strip-types scripts/reconcile-bootstrap-events.ts",
+    "bootstrap:promote": "node --conditions=react-server --experimental-strip-types scripts/promote-bootstrap-run.ts",
+    "bootstrap:refresh-manifest": "node --experimental-strip-types scripts/refresh-bootstrap-manifest.ts",
+    "bootstrap:verify": "node --experimental-strip-types scripts/verify-bootstrap-content.ts",
+    "bootstrap:import": "node --conditions=react-server --experimental-strip-types scripts/import-bootstrap-content.ts",
+    "content:migrate-markup": "node --experimental-strip-types scripts/migrate-content-markup.ts"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",
@@ -41,6 +51,8 @@
     "pg": "^8.22.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "server-only": "0.0.1"
   },
   "devDependencies": {

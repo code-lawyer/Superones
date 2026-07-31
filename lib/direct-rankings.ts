@@ -1,9 +1,9 @@
 import "server-only";
 
-import { fetchJsonBounded, fetchTextBounded } from "./sic-fetch.ts";
+import { fetchJsonBounded } from "./sic-fetch.ts";
 import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 
-export type DirectRankingProvider = "github" | "hugging_face" | "openrouter" | "skills";
+export type DirectRankingProvider = "github" | "hugging_face" | "openrouter";
 
 export type DirectRankingItem = {
   id: string;
@@ -43,6 +43,29 @@ export type DirectRankingRefreshResult = {
 };
 
 const MAX_BOARD_AGE_MS = 36 * 60 * 60 * 1000;
+const DIRECT_RANKING_BOARD_DEFINITIONS = [
+  { id: "github:today", provider: "github", providerView: "today" },
+  { id: "github:week", provider: "github", providerView: "week" },
+  { id: "github:month", provider: "github", providerView: "month" },
+  { id: "hugging-face:trending", provider: "hugging_face", providerView: "trending" },
+  { id: "openrouter:top-weekly", provider: "openrouter", providerView: "top-weekly" },
+] as const satisfies ReadonlyArray<Pick<DirectRankingBoard, "id" | "provider" | "providerView">>;
+const DIRECT_RANKING_BOARD_ORDER = new Map<string, number>(
+  DIRECT_RANKING_BOARD_DEFINITIONS.map((definition, index) => [definition.id, index]),
+);
+
+function isSupportedDirectRankingBoard(value: unknown): value is DirectRankingBoard {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const boardValue = value as Partial<DirectRankingBoard>;
+  const definition = DIRECT_RANKING_BOARD_DEFINITIONS.find(({ id }) => id === boardValue.id);
+  return Boolean(
+    definition
+    && boardValue.provider === definition.provider
+    && boardValue.providerView === definition.providerView
+    && Array.isArray(boardValue.items),
+  );
+}
+
 const directRankingsDocument: StateDocumentDefinition<DirectRankingStore> = {
   namespace: "direct-rankings",
   fileName: "direct-rankings.json",
@@ -52,7 +75,10 @@ const directRankingsDocument: StateDocumentDefinition<DirectRankingStore> = {
     if (parsed.version !== 1 || !Array.isArray(parsed.boards)) {
       throw new Error("平台原生榜单存储格式无效。");
     }
-    return parsed;
+    return {
+      ...parsed,
+      boards: parsed.boards.filter(isSupportedDirectRankingBoard),
+    };
   },
 };
 
@@ -92,37 +118,54 @@ function item(input: Omit<DirectRankingItem, "providerRank">, index: number): Di
   return { ...input, providerRank: index + 1 };
 }
 
-export function parseGithubTrending(
-  html: string,
+export function parseOpenGithubRankReadme(
+  payload: unknown,
   input: { capturedAt: string; providerView: "today" | "week" | "month"; sourceUrl: string },
 ) {
-  const period = input.providerView === "today"
-    ? "today"
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("OpenGithubs README API 返回结构无效。");
+  }
+  const response = payload as { content?: unknown; encoding?: unknown };
+  if (response.encoding !== "base64" || typeof response.content !== "string") {
+    throw new Error("OpenGithubs README API 缺少 base64 内容。");
+  }
+  const markdown = Buffer.from(response.content.replace(/\s+/g, ""), "base64").toString("utf8");
+  const metricLabel = input.providerView === "today"
+    ? "Daily star growth"
     : input.providerView === "week"
-      ? "this week"
-      : "this month";
-  const articles = html.match(/<article\b[^>]*class="[^"]*\bBox-row\b[^"]*"[^>]*>[\s\S]*?<\/article>/gi) ?? [];
-  return articles.flatMap((article, index) => {
-    const repository = /href="\/([^/"?#\s]+)\/([^/"?#\s]+)"/i.exec(article);
-    if (!repository) return [];
-    const owner = decodeHtml(repository[1]);
-    const repo = decodeHtml(repository[2]);
-    const metric = new RegExp(`([\\d,]+)\\s+stars?\\s+${period.replace(" ", "\\s+")}`, "i").exec(decodeHtml(article));
-    const description = /<p\b[^>]*class="[^"]*\bcol-9\b[^"]*"[^>]*>([\s\S]*?)<\/p>/i.exec(article);
-    const name = `${owner}/${repo}`;
-    return [item({
-      id: name.toLowerCase(),
+      ? "Weekly star growth"
+      : "Monthly star growth";
+  const rows = markdown.matchAll(
+    /^\|\s*(\d+)\s*\|\s*\[([^\]]+)\]\((https:\/\/github\.com\/([^/\s)]+)\/([^/\s)#?]+))\)\s*\|\s*([^|]*)\|\s*([^|]*)\|/gmi,
+  );
+  const values: DirectRankingItem[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const rank = Number(row[1]);
+    const name = decodeHtml(row[2]);
+    const itemUrl = row[3];
+    const identity = `${row[4]}/${row[5]}`.toLowerCase();
+    if (rank !== values.length + 1 || seen.has(identity)) {
+      if (values.length > 0) break;
+      continue;
+    }
+    const growth = /([\d,.]+\s*[KMB]?)/i.exec(decodeHtml(row[7]))?.[1] ?? "";
+    seen.add(identity);
+    values.push({
+      id: identity,
       name,
       provider: "github",
       providerView: input.providerView,
-      providerMetric: `Stars ${period}`,
-      value: metric ? numericMetric(metric[1]) : null,
+      providerRank: rank,
+      providerMetric: metricLabel,
+      value: numericMetric(growth.replace(/\s+/g, "")),
       capturedAt: input.capturedAt,
       sourceUrl: input.sourceUrl,
-      itemUrl: `https://github.com/${owner}/${repo}`,
-      description: description ? decodeHtml(description[1]).slice(0, 300) : undefined,
-    }, index)];
-  });
+      itemUrl,
+    });
+    if (values.length >= 20) break;
+  }
+  return values;
 }
 
 export function parseHuggingFaceTrending(
@@ -177,44 +220,6 @@ export function parseOpenRouterWeekly(
   });
 }
 
-export function parseSkillsRanking(
-  html: string,
-  input: {
-    capturedAt: string;
-    providerView: "all-time" | "trending-24h" | "hot";
-    sourceUrl: string;
-  },
-) {
-  const anchors = html.match(/<a\b[^>]*href="\/[^"]+"[^>]*>[\s\S]*?<\/a>/gi) ?? [];
-  const seen = new Set<string>();
-  const values: DirectRankingItem[] = [];
-  for (const anchor of anchors) {
-    const href = /href="([^"]+)"/i.exec(anchor)?.[1] ?? "";
-    const text = decodeHtml(anchor);
-    const match = /^(\d+)\s+([^\s]+)\s+([^\s]+\/[^\s]+)\s+([\d.]+[KMB]?)(?:\s+[+-]?\d+)?$/i.exec(text);
-    if (!match || seen.has(href)) continue;
-    seen.add(href);
-    values.push({
-      id: href,
-      name: `${match[2]} · ${match[3]}`,
-      provider: "skills",
-      providerView: input.providerView,
-      providerRank: Number(match[1]),
-      providerMetric: input.providerView === "all-time"
-        ? "All-time installs"
-        : input.providerView === "trending-24h"
-          ? "Trending 24h installs"
-          : "Hot installs",
-      value: numericMetric(match[4]),
-      capturedAt: input.capturedAt,
-      sourceUrl: input.sourceUrl,
-      itemUrl: new URL(href, input.sourceUrl).toString(),
-    });
-    if (values.length >= 20) break;
-  }
-  return values;
-}
-
 function board(input: Omit<DirectRankingBoard, "items">, items: DirectRankingItem[]) {
   if (items.length === 0) throw new Error(`${input.provider}/${input.providerView} 没有返回榜单条目。`);
   return { ...input, items };
@@ -223,11 +228,18 @@ function board(input: Omit<DirectRankingBoard, "items">, items: DirectRankingIte
 async function githubBoard(
   capturedAt: string,
   providerView: "today" | "week" | "month",
-  since: "daily" | "weekly" | "monthly",
+  repository: "github-daily-rank" | "github-weekly-rank" | "github-monthly-rank",
 ) {
-  const sourceUrl = `https://github.com/trending?since=${since}`;
-  const { text } = await fetchTextBounded(sourceUrl, {
-    headers: { Accept: "text/html", "User-Agent": "Vault2077-Ranking-Collector/1.0" },
+  const sourceUrl = `https://github.com/OpenGithubs/${repository}`;
+  const apiUrl = `https://api.github.com/repos/OpenGithubs/${repository}/readme`;
+  const token = process.env.GITHUB_TOKEN?.trim();
+  const { data } = await fetchJsonBounded<unknown>(apiUrl, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "Vault2077-Ranking-Collector/1.0",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
   const title = providerView === "today" ? "GitHub 今日趋势" : providerView === "week" ? "GitHub 本周趋势" : "GitHub 本月趋势";
   return board({
@@ -235,11 +247,15 @@ async function githubBoard(
     provider: "github",
     providerView,
     title,
-    eyebrow: "GITHUB / OFFICIAL TRENDING",
-    providerMetric: `GitHub ${providerView}`,
+    eyebrow: "OPENGITHUBS / GITHUB API",
+    providerMetric: providerView === "today"
+      ? "Daily star growth"
+      : providerView === "week"
+        ? "Weekly star growth"
+        : "Monthly star growth",
     capturedAt,
     sourceUrl,
-  }, parseGithubTrending(text, { capturedAt, providerView, sourceUrl }));
+  }, parseOpenGithubRankReadme(data, { capturedAt, providerView, sourceUrl }));
 }
 
 async function huggingFaceBoard(capturedAt: string) {
@@ -273,28 +289,6 @@ async function openRouterBoard(capturedAt: string) {
   }, parseOpenRouterWeekly(data, { capturedAt, sourceUrl }));
 }
 
-async function skillsBoard(
-  capturedAt: string,
-  providerView: "all-time" | "trending-24h" | "hot",
-  pathname: "/" | "/trending" | "/hot",
-) {
-  const sourceUrl = new URL(pathname, "https://www.skills.sh").toString();
-  const { text } = await fetchTextBounded(sourceUrl, {
-    headers: { Accept: "text/html", "User-Agent": "Vault2077-Ranking-Collector/1.0" },
-  });
-  const title = providerView === "all-time" ? "Skill All Time" : providerView === "trending-24h" ? "Skill Trending 24h" : "Skill Hot";
-  return board({
-    id: `skills:${providerView}`,
-    provider: "skills",
-    providerView,
-    title,
-    eyebrow: "SKILLS.SH / OFFICIAL",
-    providerMetric: providerView,
-    capturedAt,
-    sourceUrl,
-  }, parseSkillsRanking(text, { capturedAt, providerView, sourceUrl }));
-}
-
 async function readStore(): Promise<DirectRankingStore> {
   return readStateDocument(directRankingsDocument);
 }
@@ -302,7 +296,9 @@ async function readStore(): Promise<DirectRankingStore> {
 export function persistDirectRankingBoards(boards: DirectRankingBoard[]) {
   return mutateStateDocument(directRankingsDocument, (current) => {
     const byId = new Map(current.boards.map((value) => [value.id, value]));
-    for (const value of boards) byId.set(value.id, value);
+    for (const value of boards) {
+      if (isSupportedDirectRankingBoard(value)) byId.set(value.id, value);
+    }
     current.boards = [...byId.values()];
   });
 }
@@ -310,14 +306,11 @@ export function persistDirectRankingBoards(boards: DirectRankingBoard[]) {
 export async function refreshDirectRankings(): Promise<DirectRankingRefreshResult> {
   const capturedAt = new Date().toISOString();
   const requests = [
-    { id: "github:today", run: () => githubBoard(capturedAt, "today", "daily") },
-    { id: "github:week", run: () => githubBoard(capturedAt, "week", "weekly") },
-    { id: "github:month", run: () => githubBoard(capturedAt, "month", "monthly") },
+    { id: "github:today", run: () => githubBoard(capturedAt, "today", "github-daily-rank") },
+    { id: "github:week", run: () => githubBoard(capturedAt, "week", "github-weekly-rank") },
+    { id: "github:month", run: () => githubBoard(capturedAt, "month", "github-monthly-rank") },
     { id: "hugging-face:trending", run: () => huggingFaceBoard(capturedAt) },
     { id: "openrouter:top-weekly", run: () => openRouterBoard(capturedAt) },
-    { id: "skills:all-time", run: () => skillsBoard(capturedAt, "all-time", "/") },
-    { id: "skills:trending-24h", run: () => skillsBoard(capturedAt, "trending-24h", "/trending") },
-    { id: "skills:hot", run: () => skillsBoard(capturedAt, "hot", "/hot") },
   ];
   async function withRetry(request: () => Promise<DirectRankingBoard>) {
     try {
@@ -345,5 +338,8 @@ export async function getDirectRankingBoards() {
         stale: !Number.isFinite(age) || age < 0 || age > MAX_BOARD_AGE_MS,
       };
     })
-    .sort((left, right) => left.id.localeCompare(right.id));
+    .sort((left, right) => (
+      (DIRECT_RANKING_BOARD_ORDER.get(left.id) ?? Number.MAX_SAFE_INTEGER)
+      - (DIRECT_RANKING_BOARD_ORDER.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+    ));
 }

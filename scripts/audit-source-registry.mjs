@@ -124,7 +124,7 @@ async function probe(endpoint) {
         Accept: "application/rss+xml, application/atom+xml, application/feed+json, application/json, text/xml, application/xml, text/html;q=0.8, */*;q=0.2",
         "Accept-Language": "en-US,en;q=0.8,zh-CN;q=0.5",
         Range: `bytes=0-${maxBytes - 1}`,
-        "User-Agent": "Vault2077-Source-Auditor/1.0 (+https://vault2077.com)",
+        "User-Agent": "Vault2077-Source-Auditor/1.0 (+https://superones.top)",
       },
       signal: AbortSignal.timeout(timeoutMs),
     });

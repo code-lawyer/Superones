@@ -1,7 +1,19 @@
 import "server-only";
 
 import { isIP } from "node:net";
+import { PRODUCTION_ADMIN_EMAIL } from "./admin-profile.ts";
 import { loadEditorialProfileConfig, type EditorialProfileId } from "./openai-compatible-client.ts";
+import {
+  ADMIN_ORIGIN,
+  ICP_NUMBER,
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_EFFECTIVE_DATE,
+  LEGAL_OPERATOR_CREDIT_CODE,
+  LEGAL_OPERATOR_LEGAL_REPRESENTATIVE,
+  LEGAL_OPERATOR_REGISTERED_ADDRESS,
+  LEGAL_OPERATOR_REGISTERED_CAPITAL,
+  PUBLIC_ORIGIN,
+} from "./legal-profile.ts";
 import { opcAlipayConfigurationErrors } from "./opc-payment-config.ts";
 import { parseSecretKeyring } from "./secret-keyring.ts";
 
@@ -58,7 +70,22 @@ function validateKeyring(
 }
 
 function placeholder(value: string) {
-  return /change-me|replace-with|example|local-development|local-admin/i.test(value);
+  return /change-me|replace-with|example|local-development|local-admin|正式上线前填写/i.test(value);
+}
+
+function requiredPublicValue(
+  environment: Record<string, string | undefined>,
+  name: string,
+  label: string,
+  errors: string[],
+) {
+  const value = environment[name]?.trim() ?? "";
+  if (!value || placeholder(value)) errors.push(`${name} 必须填写真实的${label}。`);
+  return value;
+}
+
+function validEmail(value: string) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
 }
 
 function positiveInteger(
@@ -174,9 +201,93 @@ export function validateProductionConfiguration(
     errors.push("生产环境不得启用 VAULT2077_ALLOW_FILE_PREVIEW。");
   }
 
-  errors.push(...opcAlipayConfigurationErrors(environment, {
-    productionGatewayOnly: true,
-  }).map((error) => `支付宝开放平台：${error}`));
+  if (!["true", "false"].includes(environment.VAULT2077_FRONTIER_WRITES_ENABLED ?? "")) {
+    errors.push("VAULT2077_FRONTIER_WRITES_ENABLED 必须明确设为 true 或 false；每赛季奖励由管理后台发布。");
+  }
+
+  const icpNumber = environment.VAULT2077_ICP_NUMBER?.trim() ?? "";
+  if (!icpNumber || placeholder(icpNumber) || !icpNumber.includes("ICP备")) {
+    errors.push("VAULT2077_ICP_NUMBER 必须填写有效的 ICP 备案号。");
+  } else if (icpNumber !== ICP_NUMBER) {
+    errors.push(`VAULT2077_ICP_NUMBER 必须与已确认备案 ${ICP_NUMBER} 一致。`);
+  }
+
+  const creditCode = requiredPublicValue(
+    environment,
+    "VAULT2077_OPERATOR_CREDIT_CODE",
+    "统一社会信用代码",
+    errors,
+  );
+  if (creditCode && !placeholder(creditCode) && !/^[0-9A-Z]{18}$/.test(creditCode)) {
+    errors.push("VAULT2077_OPERATOR_CREDIT_CODE 必须是 18 位统一社会信用代码。");
+  } else if (creditCode && creditCode !== LEGAL_OPERATOR_CREDIT_CODE) {
+    errors.push("VAULT2077_OPERATOR_CREDIT_CODE 必须与已确认营业执照一致。");
+  }
+  const registeredAddress = requiredPublicValue(
+    environment,
+    "VAULT2077_OPERATOR_REGISTERED_ADDRESS",
+    "营业执照住所",
+    errors,
+  );
+  if (registeredAddress && registeredAddress !== LEGAL_OPERATOR_REGISTERED_ADDRESS) {
+    errors.push("VAULT2077_OPERATOR_REGISTERED_ADDRESS 必须与已确认营业执照一致。");
+  }
+  const legalRepresentative = requiredPublicValue(
+    environment,
+    "VAULT2077_OPERATOR_LEGAL_REPRESENTATIVE",
+    "法定代表人姓名",
+    errors,
+  );
+  if (legalRepresentative && legalRepresentative !== LEGAL_OPERATOR_LEGAL_REPRESENTATIVE) {
+    errors.push("VAULT2077_OPERATOR_LEGAL_REPRESENTATIVE 必须与已确认营业执照一致。");
+  }
+  const registeredCapital = requiredPublicValue(
+    environment,
+    "VAULT2077_OPERATOR_REGISTERED_CAPITAL",
+    "营业执照登记的注册资本",
+    errors,
+  );
+  if (registeredCapital && registeredCapital !== LEGAL_OPERATOR_REGISTERED_CAPITAL) {
+    errors.push("VAULT2077_OPERATOR_REGISTERED_CAPITAL 必须与已确认营业执照一致。");
+  }
+  const legalContactEmail = requiredPublicValue(
+    environment,
+    "VAULT2077_LEGAL_CONTACT_EMAIL",
+    "法律与隐私联系邮箱",
+    errors,
+  );
+  if (legalContactEmail && !placeholder(legalContactEmail) && !validEmail(legalContactEmail)) {
+    errors.push("VAULT2077_LEGAL_CONTACT_EMAIL 必须是有效邮箱。");
+  } else if (legalContactEmail && legalContactEmail.toLowerCase() !== LEGAL_CONTACT_EMAIL) {
+    errors.push("VAULT2077_LEGAL_CONTACT_EMAIL 必须与已确认法律联系邮箱一致。");
+  }
+  const customerServiceEmail = environment.VAULT2077_CUSTOMER_SERVICE_EMAIL?.trim() ?? "";
+  if (customerServiceEmail && !validEmail(customerServiceEmail)) {
+    errors.push("VAULT2077_CUSTOMER_SERVICE_EMAIL 必须是有效邮箱。");
+  }
+  const legalEffectiveDate = requiredPublicValue(
+    environment,
+    "VAULT2077_LEGAL_EFFECTIVE_DATE",
+    "法律文件生效日期",
+    errors,
+  );
+  if (
+    legalEffectiveDate
+    && !placeholder(legalEffectiveDate)
+    && !/^\d{4}-\d{2}-\d{2}$/.test(legalEffectiveDate)
+  ) {
+    errors.push("VAULT2077_LEGAL_EFFECTIVE_DATE 必须使用 YYYY-MM-DD。");
+  } else if (legalEffectiveDate && legalEffectiveDate !== LEGAL_EFFECTIVE_DATE) {
+    errors.push(`VAULT2077_LEGAL_EFFECTIVE_DATE 必须使用已确认日期 ${LEGAL_EFFECTIVE_DATE}。`);
+  }
+
+  if (!["true", "false"].includes(environment.VAULT2077_OPC_PAYMENTS_ENABLED ?? "")) {
+    errors.push("VAULT2077_OPC_PAYMENTS_ENABLED 必须明确设为 true 或 false。");
+  } else if (environment.VAULT2077_OPC_PAYMENTS_ENABLED === "true") {
+    errors.push(...opcAlipayConfigurationErrors(environment, {
+      productionGatewayOnly: true,
+    }).map((error) => `支付宝开放平台：${error}`));
+  }
 
   const configuredSecrets: Array<{ name: string; value: string }> = [];
   for (const name of REQUIRED_SECRETS) {
@@ -193,6 +304,15 @@ export function validateProductionConfiguration(
     "敏感数据密钥环",
     errors,
   ));
+  const oidcClientSecret = environment.VAULT2077_ADMIN_OIDC_CLIENT_SECRET?.trim() ?? "";
+  if (Buffer.byteLength(oidcClientSecret, "utf8") < 16 || placeholder(oidcClientSecret)) {
+    errors.push("VAULT2077_ADMIN_OIDC_CLIENT_SECRET 必须是至少 16 字节的真实 IDaaS 应用密钥。");
+  } else {
+    configuredSecrets.push({
+      name: "VAULT2077_ADMIN_OIDC_CLIENT_SECRET",
+      value: oidcClientSecret,
+    });
+  }
   configuredSecrets.push(...validateKeyring(
     environment,
     "VAULT2077_PIPELINE_SIGNING_KEYS",
@@ -222,42 +342,39 @@ export function validateProductionConfiguration(
 
   const publicOrigin = parseHttpsOrigin(environment, "VAULT2077_PUBLIC_ORIGIN", errors);
   const adminOrigin = parseHttpsOrigin(environment, "VAULT2077_ADMIN_ORIGIN", errors);
+  if (publicOrigin && publicOrigin !== PUBLIC_ORIGIN) {
+    errors.push(`VAULT2077_PUBLIC_ORIGIN 必须与已确认域名一致：${PUBLIC_ORIGIN}。`);
+  }
+  if (adminOrigin && adminOrigin !== ADMIN_ORIGIN) {
+    errors.push(`VAULT2077_ADMIN_ORIGIN 必须使用独立后台域名：${ADMIN_ORIGIN}。`);
+  }
   if (publicOrigin && adminOrigin && new URL(publicOrigin).host === new URL(adminOrigin).host) {
     errors.push("VAULT2077_ADMIN_ORIGIN 必须使用与公开站不同的独立主机。");
   }
 
   const identityIssuerUrl = parseHttpsUrl(
     environment,
-    "VAULT2077_ADMIN_IDENTITY_ISSUER",
+    "VAULT2077_ADMIN_OIDC_ISSUER",
     errors,
   );
-  const identityIssuer = identityIssuerUrl?.origin ?? null;
-  const audience = environment.VAULT2077_ADMIN_IDENTITY_AUDIENCE?.trim() ?? "";
-  if (!audience || placeholder(audience)) {
-    errors.push("VAULT2077_ADMIN_IDENTITY_AUDIENCE 未配置或仍是占位值。");
+  const identityIssuer = identityIssuerUrl?.href.replace(/\/$/, "") ?? null;
+  const clientId = environment.VAULT2077_ADMIN_OIDC_CLIENT_ID?.trim() ?? "";
+  if (!clientId || placeholder(clientId)) {
+    errors.push("VAULT2077_ADMIN_OIDC_CLIENT_ID 未配置或仍是占位值。");
   }
-  parseHttpsUrl(environment, "VAULT2077_ADMIN_IDENTITY_JWKS_URL", errors);
-  const identityHeader = (environment.VAULT2077_ADMIN_IDENTITY_HEADER ?? "").trim().toLowerCase();
-  if (!/^[a-z0-9-]+$/.test(identityHeader)) {
-    errors.push("VAULT2077_ADMIN_IDENTITY_HEADER 必须是明确的 HTTP 请求头名。");
+  const discoveryUrl = environment.VAULT2077_ADMIN_OIDC_DISCOVERY_URL?.trim();
+  if (discoveryUrl) {
+    parseHttpsUrl(environment, "VAULT2077_ADMIN_OIDC_DISCOVERY_URL", errors);
   }
   const allowlist = (environment.VAULT2077_ADMIN_IDENTITY_ALLOWLIST ?? "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
-  if (allowlist.length === 0 || allowlist.some((value) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value))) {
-    errors.push("VAULT2077_ADMIN_IDENTITY_ALLOWLIST 必须包含至少一个有效管理员邮箱。");
-  }
-  if (new Set(allowlist).size !== allowlist.length) {
-    errors.push("VAULT2077_ADMIN_IDENTITY_ALLOWLIST 不得包含重复邮箱。");
-  }
-  const reauthenticationUrl = parseHttpsUrl(
-    environment,
-    "VAULT2077_ADMIN_REAUTH_URL",
-    errors,
-  );
-  if (adminOrigin && reauthenticationUrl && reauthenticationUrl.origin !== adminOrigin) {
-    errors.push("VAULT2077_ADMIN_REAUTH_URL 必须属于管理 origin。");
+  if (
+    allowlist.length !== 1
+    || allowlist[0] !== PRODUCTION_ADMIN_EMAIL
+  ) {
+    errors.push(`VAULT2077_ADMIN_IDENTITY_ALLOWLIST 必须且只能是 ${PRODUCTION_ADMIN_EMAIL}。`);
   }
 
   const githubToken = environment.GITHUB_TOKEN?.trim() ?? "";

@@ -10,6 +10,7 @@ import type {
   ProvenanceRole,
   ProvenanceStatus,
 } from "./content-provenance.ts";
+import type { ContentFormat } from "./content-markup.ts";
 
 export const PUBLISHER_KINDS = ["organization", "person", "editorial_media", "community", "community_user", "platform", "aggregator", "open_source_project"] as const;
 export type PublisherKind = (typeof PUBLISHER_KINDS)[number];
@@ -43,6 +44,7 @@ export type InformationItem = {
   summary: string;
   translatedContent: string;
   originalContent: string;
+  contentFormat?: ContentFormat;
   originalLanguage: string;
   sourceName: string;
   sourceRole: SourceRole;

@@ -334,102 +334,55 @@ const rankingSources: Array<Omit<SourceCatalogItem, "sectionId">> = [
     name: "GitHub Trending Today",
     publisher: "GitHub",
     methodId: "github-trend-data",
-    methodLabel: "GitHub 趋势 / 事件数据",
+    methodLabel: "GitHub API 聚合榜",
     channelLabel: "Today",
     destinationLabel: "SiC / GitHub Today",
     destinationHref: "/sic#sic-rankings",
-    sourceUrl: "https://github.com/trending?since=daily",
-    endpointUrl: "https://github.com/trending?since=daily",
-    purpose: "直接保留 GitHub Trending Today 公开顺序。",
-    nature: "平台公开趋势页",
+    sourceUrl: "https://github.com/OpenGithubs/github-daily-rank",
+    endpointUrl: "https://api.github.com/repos/OpenGithubs/github-daily-rank/readme",
+    purpose: "通过 GitHub 官方 REST API 读取 OpenGithubs Daily Rank 的公开顺序。",
+    nature: "第三方 GitHub API 聚合榜",
     evidenceLabel: "发现性排序 · 不调用 LLM",
-    provenance: "GitHub 公开 Trending 页面",
+    provenance: "OpenGithubs 聚合结果，经 GitHub 官方 REST API 获取",
   },
   {
     id: "ranking:github:week",
     name: "GitHub Trending This week",
     publisher: "GitHub",
     methodId: "github-trend-data",
-    methodLabel: "GitHub 趋势 / 事件数据",
+    methodLabel: "GitHub API 聚合榜",
     channelLabel: "This week",
     destinationLabel: "SiC / GitHub This week",
     destinationHref: "/sic#sic-rankings",
-    sourceUrl: "https://github.com/trending?since=weekly",
-    endpointUrl: "https://github.com/trending?since=weekly",
-    purpose: "直接保留 GitHub Trending This week 公开顺序。",
-    nature: "平台公开趋势页",
+    sourceUrl: "https://github.com/OpenGithubs/github-weekly-rank",
+    endpointUrl: "https://api.github.com/repos/OpenGithubs/github-weekly-rank/readme",
+    purpose: "通过 GitHub 官方 REST API 读取 OpenGithubs Weekly Rank 的公开顺序。",
+    nature: "第三方 GitHub API 聚合榜",
     evidenceLabel: "平台原始顺序 · 不调用 LLM",
-    provenance: "GitHub 公开 Trending 页面",
+    provenance: "OpenGithubs 聚合结果，经 GitHub 官方 REST API 获取",
   },
   {
     id: "ranking:github:month",
     name: "GitHub Trending This month",
     publisher: "GitHub",
     methodId: "github-trend-data",
-    methodLabel: "GitHub 趋势 / 事件数据",
+    methodLabel: "GitHub API 聚合榜",
     channelLabel: "This month",
     destinationLabel: "SiC / GitHub This month",
     destinationHref: "/sic#sic-rankings",
-    sourceUrl: "https://github.com/trending?since=monthly",
-    endpointUrl: "https://github.com/trending?since=monthly",
-    purpose: "直接保留 GitHub Trending This month 公开顺序。",
-    nature: "平台公开趋势页",
+    sourceUrl: "https://github.com/OpenGithubs/github-monthly-rank",
+    endpointUrl: "https://api.github.com/repos/OpenGithubs/github-monthly-rank/readme",
+    purpose: "通过 GitHub 官方 REST API 读取 OpenGithubs Monthly Rank 的公开顺序。",
+    nature: "第三方 GitHub API 聚合榜",
     evidenceLabel: "平台原始顺序 · 不调用 LLM",
-    provenance: "GitHub 公开 Trending 页面",
-  },
-  {
-    id: "ranking:skills:all-time",
-    name: "Agent Skills All Time",
-    publisher: "skills.sh",
-    methodId: "extension-market-api",
-    methodLabel: "扩展市场 API",
-    channelLabel: "All Time",
-    destinationLabel: "SiC / Skill All Time",
-    destinationHref: "/sic#sic-rankings",
-    sourceUrl: "https://skills.sh/",
-    endpointUrl: "https://skills.sh/",
-    purpose: "直接保留 skills.sh All Time 榜公开顺序。",
-    nature: "扩展市场公开榜单",
-    evidenceLabel: "平台原始顺序 · 不调用 LLM",
-    provenance: "skills.sh 公开榜单",
-  },
-  {
-    id: "ranking:skills:trending-24h",
-    name: "Agent Skills Trending 24h",
-    publisher: "skills.sh",
-    methodId: "extension-market-api",
-    methodLabel: "扩展市场 API",
-    channelLabel: "Trending 24h",
-    destinationLabel: "SiC / Skill Trending 24h",
-    destinationHref: "/sic#sic-rankings",
-    sourceUrl: "https://skills.sh/trending",
-    endpointUrl: "https://skills.sh/trending",
-    purpose: "直接保留 skills.sh Trending 24h 榜公开顺序。",
-    nature: "扩展市场公开榜单",
-    evidenceLabel: "平台原始顺序 · 不调用 LLM",
-    provenance: "skills.sh 公开榜单",
-  },
-  {
-    id: "ranking:skills:hot",
-    name: "Agent Skills Hot",
-    publisher: "skills.sh",
-    methodId: "extension-market-api",
-    methodLabel: "扩展市场 API",
-    channelLabel: "Hot",
-    destinationLabel: "SiC / Skill Hot",
-    destinationHref: "/sic#sic-rankings",
-    sourceUrl: "https://skills.sh/hot",
-    endpointUrl: "https://skills.sh/hot",
-    purpose: "直接保留 skills.sh Hot 榜公开顺序。",
-    nature: "扩展市场公开榜单",
-    evidenceLabel: "平台原始顺序 · 不调用 LLM",
-    provenance: "skills.sh 公开榜单",
+    provenance: "OpenGithubs 聚合结果，经 GitHub 官方 REST API 获取",
   },
 ];
 
 function groupMethods(
   sources: SourceCatalogItem[],
   definitions: Record<string, MethodDefinition>,
+  preserveSourceOrder = false,
 ): SourceCatalogMethod[] {
   const byMethod = new Map<string, SourceCatalogItem[]>();
   for (const source of sources) {
@@ -444,7 +397,9 @@ function groupMethods(
         id,
         label: definition?.label ?? items[0].methodLabel,
         description: definition?.description ?? "结构化公开数据接口。",
-        sources: items.sort((left, right) => left.name.localeCompare(right.name, "zh-CN")),
+        sources: preserveSourceOrder
+          ? items
+          : items.sort((left, right) => left.name.localeCompare(right.name, "zh-CN")),
       };
     })
     .sort((left, right) => right.sources.length - left.sources.length || left.label.localeCompare(right.label, "zh-CN"));
@@ -458,8 +413,16 @@ function section(
   destinationHref: string,
   sources: SourceCatalogItem[],
   definitions: Record<string, MethodDefinition>,
+  preserveSourceOrder = false,
 ): SourceCatalogSection {
-  return { id, code, label, description, destinationHref, methods: groupMethods(sources, definitions) };
+  return {
+    id,
+    code,
+    label,
+    description,
+    destinationHref,
+    methods: groupMethods(sources, definitions, preserveSourceOrder),
+  };
 }
 
 export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSource[]): SourceCatalog {
@@ -483,9 +446,7 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
       label: source.methodLabel,
       description: source.methodId === "official-model-api"
         ? "读取模型平台官方排序或累计指标，保存为可比较快照。"
-        : source.methodId === "github-trend-data"
-          ? "读取 GitHub 公开趋势与事件归档，生成不同时间尺度的开源速度榜。"
-          : "读取 Skill 与 MCP 市场采用数据，形成当前采用和增长榜。",
+        : "通过 GitHub 官方 REST API 读取 OpenGithubs 已生成的日、周、月聚合榜，不访问或解析榜单网页。",
     }]),
   );
   const sections = [
@@ -547,10 +508,11 @@ export function buildSourceCatalog(sourceBundle: SourceBundle, sicSources: SicSo
       "sic-rankings",
       "SIGNAL / RANKINGS",
       "SiC 榜单与生态信号",
-      "GitHub、Hugging Face、OpenRouter 与 Skill 榜单直接保留平台公开顺序，不做本地增量推算，也不经过 LLM 改写。",
+      "GitHub、Hugging Face 与 OpenRouter 榜单直接保留平台公开顺序，不做本地增量推算，也不经过 LLM 改写。",
       "/sic#sic-rankings",
       rankings,
       rankingMethods,
+      true,
     ),
   ];
   return {

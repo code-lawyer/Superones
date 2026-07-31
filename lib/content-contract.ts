@@ -20,6 +20,12 @@ import {
   type ProvenanceRole,
   type ProvenanceStatus,
 } from "./content-provenance.ts";
+import {
+  CONTENT_FORMATS,
+  inferContentFormat,
+  normalizeStructuredContent,
+  type ContentFormat,
+} from "./content-markup.ts";
 export { payloadHash, signingInput } from "./batch-signing.ts";
 
 export const CONTENT_BATCH_VERSION = 2 as const;
@@ -49,6 +55,7 @@ export type InformationEnvelope = {
   originalLanguage: string;
   originalTitle: string;
   originalContent?: string;
+  contentFormat?: ContentFormat;
   contentCompleteness: ContentCompleteness;
   contentHash: string;
   contentGroup?: ContentGroup;
@@ -122,6 +129,14 @@ function optionalText(value: unknown, field: string, limit: number) {
   return requiredText(value, field, limit);
 }
 
+function optionalStructuredText(value: unknown, field: string, limit: number) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new ContentContractError(`${field} 必须是文本。`);
+  const result = normalizeStructuredContent(value, limit);
+  if (!result) throw new ContentContractError(`${field} 不能为空。`);
+  return result;
+}
+
 function requiredDate(value: unknown, field: string) {
   const result = requiredText(value, field, 64);
   if (Number.isNaN(Date.parse(result))) throw new ContentContractError(`${field} 不是有效时间。`);
@@ -177,6 +192,9 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   const completeness = item.contentCompleteness;
   if (!["metadata", "excerpt", "fulltext", "transcript"].includes(String(completeness))) {
     throw new ContentContractError(`information[${index}].contentCompleteness 无效。`);
+  }
+  if (item.contentFormat !== undefined && !CONTENT_FORMATS.includes(item.contentFormat as ContentFormat)) {
+    throw new ContentContractError(`information[${index}].contentFormat 无效。`);
   }
   const contentHash = requiredText(item.contentHash, `information[${index}].contentHash`, 64).toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(contentHash)) {
@@ -235,6 +253,7 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
       500,
     )))]
     : [discoveryPath];
+  const originalContent = optionalStructuredText(item.originalContent, `information[${index}].originalContent`, 48_000);
   return {
     idempotencyKey: requiredText(item.idempotencyKey, `information[${index}].idempotencyKey`, 180),
     sourceChannelId: requiredText(item.sourceChannelId, `information[${index}].sourceChannelId`, 180),
@@ -253,7 +272,8 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     fetchedAt: requiredDate(item.fetchedAt, `information[${index}].fetchedAt`),
     originalLanguage: requiredText(item.originalLanguage, `information[${index}].originalLanguage`, 32),
     originalTitle: requiredText(item.originalTitle, `information[${index}].originalTitle`, 500),
-    originalContent: optionalText(item.originalContent, `information[${index}].originalContent`, 48_000),
+    originalContent,
+    contentFormat: (item.contentFormat as ContentFormat | undefined) ?? inferContentFormat(originalContent ?? ""),
     contentCompleteness: completeness as ContentCompleteness,
     contentHash,
     contentGroup,
@@ -299,7 +319,7 @@ function validateRepository(value: unknown, index: number): RepositoryEnvelope {
     name,
     canonicalUrl,
     description: optionalText(item.description, `repositories[${index}].description`, 2_000),
-    readme: optionalText(item.readme, `repositories[${index}].readme`, 48_000),
+    readme: optionalStructuredText(item.readme, `repositories[${index}].readme`, 48_000),
     readmeSha: optionalText(item.readmeSha, `repositories[${index}].readmeSha`, 120),
     license: optionalText(item.license, `repositories[${index}].license`, 120),
     primaryLanguage: optionalText(item.primaryLanguage, `repositories[${index}].primaryLanguage`, 120),

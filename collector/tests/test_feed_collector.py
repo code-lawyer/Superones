@@ -2,7 +2,7 @@ import json
 import unittest
 from datetime import datetime, timezone
 
-from collector.feed_collector import build_packets, collection_window, document, validate_public_https_url
+from collector.feed_collector import build_packets, collect_github, collection_window, document, validate_public_https_url
 
 
 class CollectorContractTests(unittest.TestCase):
@@ -42,6 +42,49 @@ class CollectorContractTests(unittest.TestCase):
         self.assertIsNotNone(item)
         self.assertEqual(item["contentCompleteness"], "excerpt")
         self.assertEqual(item["originalContent"], "Original English.")
+        self.assertEqual(item["contentFormat"], "plain_text")
+
+    def test_github_release_markdown_keeps_block_structure(self):
+        source = {
+            "id": "source-github-release",
+            "name": "example/project",
+            "connector": "github-releases",
+            "endpoint": "https://api.github.com/repos/example/project/releases",
+            "contentCapability": "fulltext",
+            "evidenceNature": "primary",
+            "publisherKind": "open_source_project",
+        }
+        item = document(
+            source,
+            "https://github.com/example/project/releases/tag/v1.0.0",
+            "v1.0.0",
+            "## Release notes\n\n- Fixed one issue\n- Added one feature\n\n```bash\nexample --version\n```",
+        )
+        self.assertEqual(item["contentFormat"], "markdown")
+        self.assertIn("\n\n- Fixed one issue\n", item["originalContent"])
+        self.assertIn("```bash\nexample --version\n```", item["originalContent"])
+
+    def test_routine_nightly_release_is_not_admitted_to_information(self):
+        source = {
+            "id": "source-github-release",
+            "name": "example/project",
+            "connector": "github-releases",
+            "endpoint": "https://api.github.com/repos/example/project/releases",
+            "contentCapability": "fulltext",
+            "evidenceNature": "primary",
+            "publisherKind": "open_source_project",
+        }
+        start = datetime(2026, 7, 30, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        releases = [{
+            "name": "Nightly",
+            "tag_name": "nightly",
+            "html_url": "https://github.com/example/project/releases/tag/nightly",
+            "body": "Routine build.",
+            "published_at": "2026-07-31T00:00:00Z",
+            "author": {"login": "bot"},
+        }]
+        self.assertEqual(collect_github(source, releases, start, end), [])
 
     def test_x_statement_records_verified_root_identity_separately_from_rss_transport(self):
         source = {

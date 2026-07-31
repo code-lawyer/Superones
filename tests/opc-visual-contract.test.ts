@@ -90,7 +90,7 @@ test("structural reversals never rely on detached viewport-fill effects", async 
   assert.doesNotMatch(reversalStyles, /(?:box-shadow:\s*[^;]*100vmax|clip-path:\s*inset\([^)]*100vmax|inset:\s*0\s+-100vmax)/);
   assert.doesNotMatch(sic, /\.sic-content-list a::before/);
   assert.match(frontier, /\.frontier-principle\s*\{[\s\S]*?background:\s*transparent[\s\S]*?transition:\s*background-color 170ms ease, color 170ms ease/);
-  assert.match(feed, /\.event-entry__link,\s*\n\.information-row__link\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--rule\)[\s\S]*?transition:\s*background-color 170ms ease, color 170ms ease/);
+  assert.match(feed, /\.event-entry__link,\s*\n\.information-row__link\s*\{[\s\S]*?border:\s*0;[\s\S]*?transition:\s*background-color 170ms ease, color 170ms ease/);
 });
 
 test("OPC primary navigation recomposes into viewport-wide rows on narrow screens", async () => {
@@ -117,9 +117,10 @@ test("outer reversal controls use the physical viewport instead of the shell edg
     readFile(path.join(root, "app", "institutional-frontier.css"), "utf8"),
   ]);
 
-  assert.match(feed, /--feed-viewport-bleed:\s*calc\(max\(0px, \(100vw - var\(--shell\)\) \/ 2\) \+ var\(--gutter\)\)/);
+  assert.match(feed, /--feed-viewport-bleed:\s*calc\(max\(0px, \(100cqw - var\(--shell\)\) \/ 2\) \+ var\(--gutter\)\)/);
   assert.match(feed, /\.feed-column--ledger \.event-entry__link,[\s\S]*?width:\s*calc\(100% \+ var\(--feed-viewport-bleed\) \+ var\(--feed-gutter\)\)[\s\S]*?margin-left:\s*calc\(-1 \* var\(--feed-viewport-bleed\)\)/);
-  assert.match(feed, /\.feed-column--streams \.information-row__link,[\s\S]*?width:\s*calc\(100% \+ var\(--feed-gutter\) \+ var\(--feed-viewport-bleed\)\)[\s\S]*?padding-right:\s*var\(--feed-viewport-bleed\)/);
+  assert.match(feed, /\.feed-column--streams \.information-row__link\s*\{[\s\S]*?width:\s*calc\(100% \+ var\(--information-row-inline-start\) \+ var\(--information-row-inline-end\)\)[\s\S]*?margin-left:\s*calc\(-1 \* var\(--information-row-inline-start\)\)/);
+  assert.match(feed, /\.feed-column--streams \.information-row__main\s*\{[\s\S]*?width:\s*calc\(100% - var\(--information-row-inline-start\) - var\(--information-row-inline-end\)\)[\s\S]*?margin-left:\s*var\(--information-row-inline-start\)/);
   assert.match(frontier, /\.frontier-principle\s*\{[\s\S]*?width:\s*calc\(100% \+ var\(--frontier-doctrine-viewport-bleed\)\)[\s\S]*?padding:\s*0 calc\(var\(--frontier-doctrine-gutter\) \+ var\(--frontier-doctrine-viewport-bleed\)\) 0 var\(--frontier-doctrine-gutter\)/);
   assert.match(frontier, /@media \(max-width: 820px\)[\s\S]*?\.frontier-principle\s*\{[\s\S]*?width:\s*calc\(100% \+ \(var\(--frontier-doctrine-viewport-bleed\) \* 2\)\)[\s\S]*?margin-left:\s*calc\(-1 \* var\(--frontier-doctrine-viewport-bleed\)\)/);
 });
@@ -209,7 +210,7 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(orderPage, /const orderingAvailable = opcOrderingAvailable\(\)/);
   assert.match(orderPage, /<OpcOrderEntry service=\{service\} returnHref=\{returnHref\} \/>/);
   assert.match(orderPage, /\{orderingAvailable \? \(/);
-  assert.match(orderPage, /当前暂时无法生成付款订单。/);
+  assert.match(orderPage, /在线付款尚未开放。/);
   assert.match(orderPage, /<OpcFeeNotePopover/);
   assert.doesNotMatch(orderPage, /<details|opc-order-page__fee-note/);
   assert.match(orderPage, /className="opc-order-page__workspace"/);

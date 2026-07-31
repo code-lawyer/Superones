@@ -7,6 +7,7 @@ import {
   createEditorialProfileClient,
   loadEditorialProfileConfig,
 } from "./openai-compatible-client.ts";
+import { normalizeStructuredContent } from "./content-markup.ts";
 import { EVENT_CATEGORIES, type BatchReceipt, type EventCategory } from "./types.ts";
 
 export class BatchConflictError extends Error {
@@ -15,6 +16,9 @@ export class BatchConflictError extends Error {
     this.name = "BatchConflictError";
   }
 }
+
+const MODEL_SOURCE_CONTENT_CHARACTERS = 3_000;
+const MODEL_CHUNK_CONTENT_CHARACTERS = MODEL_SOURCE_CONTENT_CHARACTERS;
 
 function cleanText(value: string, limit: number) {
   return value.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
@@ -33,7 +37,7 @@ function modelInformation(value: unknown): InformationEditorial {
   const item = object(value, "资讯编辑结果格式无效。");
   const translatedTitle = typeof item.translatedTitle === "string" ? cleanText(item.translatedTitle, 72) : "";
   const summary = typeof item.summary === "string" ? cleanText(item.summary, 120) : "";
-  const translatedContent = typeof item.translatedContent === "string" ? cleanText(item.translatedContent, 12_000) : "";
+  const translatedContent = typeof item.translatedContent === "string" ? normalizeStructuredContent(item.translatedContent, 12_000) : "";
   if (!translatedTitle || !summary || !translatedContent) throw new Error("资讯编辑结果缺少必要字段。");
   return { translatedTitle, summary, translatedContent };
 }
@@ -55,6 +59,13 @@ function modelInformationBatch(value: unknown): BatchedInformationEditorial[] {
   });
 }
 
+function modelSourceContent(item: InformationEnvelope) {
+  return normalizeStructuredContent(
+    item.originalContent ?? item.originalTitle,
+    MODEL_SOURCE_CONTENT_CHARACTERS,
+  ) || item.originalTitle;
+}
+
 function informationChunks(information: InformationEnvelope[]) {
   const chunks: InformationEnvelope[][] = [];
   let current: InformationEnvelope[] = [];
@@ -68,8 +79,11 @@ function informationChunks(information: InformationEnvelope[]) {
     ? Math.max(1, Math.min(8, Math.floor(configuredItems)))
     : 3;
   for (const item of information) {
-    const characters = item.originalTitle.length + (item.originalContent?.length ?? 0);
-    if (current.length > 0 && (current.length >= maxItems || currentCharacters + characters > 24_000)) {
+    const characters = item.originalTitle.length + modelSourceContent(item).length;
+    if (
+      current.length > 0
+      && (current.length >= maxItems || currentCharacters + characters > MODEL_CHUNK_CONTENT_CHARACTERS)
+    ) {
       chunks.push(current);
       current = [];
       currentCharacters = 0;
@@ -145,13 +159,13 @@ function llmEditorialPort(): EditorialPort {
         const complete = () => requestModel(
           "information_batch_editorial",
           "information-batch-editorial/v1",
-          "逐条处理输入资讯，一次完成中文翻译、摘要和事件归类。必须为每条输入返回且只返回一条结果，保持原 idempotencyKey。返回 {items:[{idempotencyKey,translatedTitle,summary,translatedContent,decision}]}。translatedTitle 最多 72 字符；summary 最多 120 字符且为一行；translatedContent 是忠实中文译文或完整中文整理，不补充输入之外的事实。decision 只能是 {disposition:'existing',eventSlug}、{disposition:'candidate',candidateKey,directionAligned:true} 或 {disposition:'independent'}。只有重大变化且多条不同资讯指向同一方向时才使用 candidate；普通工具热度、单一评论或零散消息保持 independent。existing 只能引用提供的近 30 天事件 slug。",
+          "逐条处理输入资讯，一次完成中文翻译、摘要和事件归类。必须为每条输入返回且只返回一条结果，保持原 idempotencyKey。返回 {items:[{idempotencyKey,translatedTitle,summary,translatedContent,decision}]}。translatedTitle 最多 72 字符；summary 最多 120 字符且为一行；translatedContent 是忠实中文译文或完整中文整理，不补充输入之外的事实。必须保留原文的段落、列表、链接和代码块边界；原文为 Markdown 时 translatedContent 也使用 Markdown，不得把块级语法压成一行。decision 只能是 {disposition:'existing',eventSlug}、{disposition:'candidate',candidateKey,directionAligned:true} 或 {disposition:'independent'}。只有重大变化且多条不同资讯指向同一方向时才使用 candidate；普通工具热度、单一评论或零散消息保持 independent。existing 只能引用提供的近 30 天事件 slug。",
           {
             information: chunk.map((item) => ({
               idempotencyKey: item.idempotencyKey,
               originalLanguage: item.originalLanguage,
               originalTitle: item.originalTitle,
-              originalContent: item.originalContent,
+              originalContent: modelSourceContent(item),
               originalPublisher: item.originalPublisher,
               sourceRole: item.sourceRole,
               publishedAt: item.originalPublishedAt,
@@ -205,11 +219,11 @@ function llmEditorialPort(): EditorialPort {
       return modelInformation(await requestModel(
         "information_editorial",
         "information-editorial/v1",
-        "将原始资讯处理为中文。返回 {translatedTitle,summary,translatedContent}。translatedTitle 最多 72 字符，summary 最多 120 字符且只写一个自然段；保留事实边界，不补充未提供的信息。",
+        "将原始资讯处理为中文。返回 {translatedTitle,summary,translatedContent}。translatedTitle 最多 72 字符，summary 最多 120 字符且只写一个自然段；保留事实边界，不补充未提供的信息。translatedContent 必须保留原文段落、列表、链接和代码块边界；原文为 Markdown 时继续返回 Markdown，不得把块级语法压成一行。",
         {
           originalLanguage: item.originalLanguage,
           originalTitle: item.originalTitle,
-          originalContent: item.originalContent,
+          originalContent: modelSourceContent(item),
           publisher: item.originalPublisher,
           publishedAt: item.originalPublishedAt,
         },
@@ -220,15 +234,46 @@ function llmEditorialPort(): EditorialPort {
         "event_classification",
         "event-classification/v1",
         "判断新资讯是否属于近 30 天已有事件，或与近期独立资讯指向同一个尚未形成的重大事件。返回以下之一：{disposition:'existing',eventSlug}、{disposition:'candidate',candidateKey,directionAligned:true}、{disposition:'independent'}。只有意义足够大且方向一致时才使用 candidate；普通工具热度或单一观点保持 independent。candidateKey 应是简短稳定的语义键。",
-        input,
+        {
+          ...input,
+          information: {
+            slug: input.information.slug,
+            translatedTitle: input.information.translatedTitle,
+            summary: input.information.summary,
+            sourceName: input.information.sourceName,
+            sourceRole: input.information.sourceRole,
+            publishedAt: input.information.publishedAt,
+            ownerEntity: input.information.ownerEntity,
+            publisherKind: input.information.publisherKind,
+            evidenceNature: input.information.evidenceNature,
+            classificationConfidence: input.information.classificationConfidence,
+            contentGroup: input.information.contentGroup,
+            itemKind: input.information.itemKind,
+          },
+        },
       ));
     },
     async composeEvent(input) {
       return modelEvent(await requestModel(
         "event_editorial",
         "event-editorial/v1",
-        "基于全部相关资讯生成事件记录。返回 {title,judgment,summary,significance,entities,category}；title 最多 30 个字符，judgment 最多 44 个字符；category 只能是 模型与产品、研究与能力、公司与市场、政策与安全、开源与生态。不得遗漏反对意见或来源分歧。",
-        input,
+        "基于全部相关资讯生成事件记录。输入资讯按数组顺序编号为 [1]、[2]……；返回 {title,judgment,summary,significance,entities,category}。judgment、summary 和 significance 都必须使用一个或多个有效的 [n] 引用支撑事实与判断，n 只能指向本次输入数组中的资讯；不得引用不存在的编号。title 最多 30 个字符，judgment 最多 44 个字符；category 只能是 模型与产品、研究与能力、公司与市场、政策与安全、开源与生态。不得遗漏反对意见或来源分歧。",
+        {
+          information: input.information.map((item) => ({
+            slug: item.slug,
+            translatedTitle: item.translatedTitle,
+            summary: item.summary,
+            translatedContent: normalizeStructuredContent(item.translatedContent, 2_000) || item.summary,
+            sourceName: item.sourceName,
+            sourceRole: item.sourceRole,
+            publishedAt: item.publishedAt,
+            ownerEntity: item.ownerEntity,
+            publisherKind: item.publisherKind,
+            evidenceNature: item.evidenceNature,
+            classificationConfidence: item.classificationConfidence,
+          })),
+          previous: input.previous,
+        },
       ));
     },
   };

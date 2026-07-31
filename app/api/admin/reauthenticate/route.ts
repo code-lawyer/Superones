@@ -6,7 +6,7 @@ import {
   configuredAdminReauthenticationUrl,
 } from "@/lib/admin-access";
 import { ADMIN_REAUTH_SECONDS, adminActorHash, isValidLocalAdminPassword } from "@/lib/admin-auth";
-import { adminAccessMode, readGatewayAdminIdentity } from "@/lib/admin-identity";
+import { adminAccessMode } from "@/lib/admin-identity";
 import {
   markAdminSessionReauthenticated,
 } from "@/lib/admin-session-store";
@@ -22,19 +22,19 @@ export async function POST(request: NextRequest) {
     return adminAccessErrorResponse(error);
   }
   try {
+    if (adminAccessMode() === "oidc") {
+      return authenticatedAdminJson(access, {
+        error: "请通过阿里云 IDaaS 重新验证身份。",
+        code: "ADMIN_REAUTH_REQUIRED",
+        reauthenticationUrl: configuredAdminReauthenticationUrl(),
+      }, { status: 403 });
+    }
     const body = await request.json() as { password?: unknown };
-    const mode = adminAccessMode();
-    const gatewayIdentity = mode === "identity-gateway"
-      ? await readGatewayAdminIdentity(request.headers)
-      : null;
-    const authenticatedAt = gatewayIdentity
-      ? gatewayIdentity.authenticatedAt
-      : typeof body.password === "string" && await isValidLocalAdminPassword(body.password)
-        ? new Date().toISOString()
-        : "";
-    const actorMatches = gatewayIdentity
-      ? adminActorHash(gatewayIdentity.subject) === access.session.actorHash
-      : true;
+    const authenticatedAt = typeof body.password === "string"
+      && await isValidLocalAdminPassword(body.password)
+      ? new Date().toISOString()
+      : "";
+    const actorMatches = adminActorHash("local-owner") === access.session.actorHash;
     const authenticatedTime = Date.parse(authenticatedAt);
     if (
       !authenticatedAt

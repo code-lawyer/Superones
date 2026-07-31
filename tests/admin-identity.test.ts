@@ -3,7 +3,7 @@ import test from "node:test";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { verifyAdminIdentityJwt } from "../lib/admin-identity.ts";
 
-test("identity gateway JWT requires valid cryptography, audience, and allowlist", async () => {
+test("OIDC ID Token requires valid cryptography, audience, nonce, and allowlist", async () => {
   const now = new Date("2027-01-15T08:00:00.000Z");
   const nowSeconds = Math.floor(now.getTime() / 1_000);
   const { privateKey, publicKey } = await generateKeyPair("RS256");
@@ -18,6 +18,7 @@ test("identity gateway JWT requires valid cryptography, audience, and allowlist"
   const assertion = await new SignJWT({
     email: "Owner@Vault2077.test",
     auth_time: nowSeconds - 30,
+    nonce: "expected-nonce",
   })
     .setProtectedHeader({ alg: "RS256", kid: publicJwk.kid })
     .setIssuer(configuration.issuer)
@@ -32,6 +33,7 @@ test("identity gateway JWT requires valid cryptography, audience, and allowlist"
     { keys: [publicJwk] },
     configuration,
     now,
+    "expected-nonce",
   );
   assert.equal(identity.email, "owner@vault2077.test");
   assert.equal(identity.role, "owner");
@@ -49,9 +51,40 @@ test("identity gateway JWT requires valid cryptography, audience, and allowlist"
       allowlist: new Set(["other@vault2077.test"]),
     }, now),
   );
+  await assert.rejects(
+    verifyAdminIdentityJwt(
+      assertion,
+      { keys: [publicJwk] },
+      configuration,
+      now,
+      "wrong-nonce",
+    ),
+  );
+  const unverifiedEmailAssertion = await new SignJWT({
+    email: "owner@vault2077.test",
+    email_verified: false,
+    auth_time: nowSeconds - 30,
+    nonce: "expected-nonce",
+  })
+    .setProtectedHeader({ alg: "RS256", kid: publicJwk.kid })
+    .setIssuer(configuration.issuer)
+    .setAudience(configuration.audience)
+    .setSubject("identity-provider-subject")
+    .setIssuedAt(nowSeconds - 30)
+    .setExpirationTime(nowSeconds + 300)
+    .sign(privateKey);
+  await assert.rejects(
+    verifyAdminIdentityJwt(
+      unverifiedEmailAssertion,
+      { keys: [publicJwk] },
+      configuration,
+      now,
+      "expected-nonce",
+    ),
+  );
 });
 
-test("identity gateway JWT rejects expired assertions", async () => {
+test("OIDC ID Token rejects expired assertions", async () => {
   const now = new Date("2027-01-15T08:00:00.000Z");
   const nowSeconds = Math.floor(now.getTime() / 1_000);
   const { privateKey, publicKey } = await generateKeyPair("RS256");

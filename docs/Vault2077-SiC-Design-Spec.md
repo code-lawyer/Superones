@@ -15,7 +15,7 @@ SiC 学院帮助超级个体持续阅读硅碳共生相关的一手正式内容�
 `/sic` 由两部分组成：
 
 1. 最新内容：论文、档案、课程、播客。
-2. 平台原生榜：GitHub、Hugging Face、OpenRouter、skills.sh。
+2. 平台原生榜：GitHub、Hugging Face、OpenRouter。
 
 内容与榜单可以在同页分区或使用页内视图切换，但不得混成一个综合排名。
 
@@ -47,10 +47,9 @@ SiC 学院帮助超级个体持续阅读硅碳共生相关的一手正式内容�
 
 | 平台 | 视图 | 展示原则 |
 | --- | --- | --- |
-| GitHub Trending | Today / This week / This month | 保留平台顺序与语言筛选语义 |
+| OpenGithubs GitHub Rank | Daily / Weekly / Monthly | 通过 GitHub 官方 REST API 读取第三方聚合榜，保留其公开顺序 |
 | Hugging Face | Trending | 保留平台公开趋势顺序 |
 | OpenRouter | `top-weekly` | 保留提供方周口径 |
-| skills.sh | All Time / Trending 24h / Hot | 保留三个平台命名视图 |
 
 ### 4.2 禁止事项
 
@@ -92,7 +91,7 @@ SiC 学院帮助超级个体持续阅读硅碳共生相关的一手正式内容�
 ## 7. 明确不做
 
 - MCP 排名；
-- 自算 GitHub、Hugging Face 或 skills.sh 增长；
+- 自算 GitHub 或 Hugging Face 增长；
 - 对榜单项目进行主观推荐；
 - 视频、音频下载或转录；
 - 用单篇临时挑选替代来源准入。

@@ -1,8 +1,21 @@
 import Link from "next/link";
 
 type Section = { title: string; paragraphs: string[] };
+type RelatedLink = { href: string; label: string };
 
-export function ProsePage({ code, title, lead, sections }: { code: string; title: string; lead: string; sections: Section[] }) {
+export function ProsePage({
+  code,
+  title,
+  lead,
+  sections,
+  relatedLinks = [],
+}: {
+  code: string;
+  title: string;
+  lead: string;
+  sections: Section[];
+  relatedLinks?: RelatedLink[];
+}) {
   return (
     <article className="prose-page shell">
       <header>
@@ -22,6 +35,15 @@ export function ProsePage({ code, title, lead, sections }: { code: string; title
               {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
             </section>
           ))}
+          {relatedLinks.length > 0 ? (
+            <section aria-labelledby="related-legal-documents">
+              <p className="eyebrow mono">RELATED</p>
+              <h2 id="related-legal-documents">相关文件</h2>
+              {relatedLinks.map((item) => (
+                <p key={item.href}><Link className="text-link" href={item.href}>{item.label}</Link></p>
+              ))}
+            </section>
+          ) : null}
           <Link className="text-link" href="/">返回首页</Link>
         </div>
       </div>

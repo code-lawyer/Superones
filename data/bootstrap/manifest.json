@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "promotedAt": "2026-07-31T00:46:28.111Z",
+  "sourceRunDirectory": ".collector-output/runs/20260730T134309209Z",
+  "counts": {
+    "information": 132,
+    "roadside": 728,
+    "events": 4,
+    "sic": 22,
+    "rankingBoards": 5,
+    "rankingItems": 90
+  },
+  "files": {
+    "content-store.seed.json": {
+      "sha256": "bfd482bbec89ec162aa33a18223f459330746d38735030791fe98c6d0e1ac19a",
+      "bytes": 2753199
+    },
+    "sic-content-store.seed.json": {
+      "sha256": "aba398577decd97ce52775ce9c1834e31a2c39703943540e9a74bc85f8ef5afe",
+      "bytes": 56885
+    },
+    "direct-rankings.seed.json": {
+      "sha256": "f9bb9bc13fe922b64296e08861cd141c4da0371af41eb9c9b76eee4c680c742d",
+      "bytes": 44919
+    }
+  }
+}

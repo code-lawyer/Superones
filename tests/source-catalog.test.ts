@@ -19,16 +19,30 @@ test("source catalog mirrors every active acquisition registry", () => {
   const result = catalog();
   const counts = Object.fromEntries(result.sections.map((section) => [section.id, sourceCount(section)]));
 
-  assert.equal(result.total, 88);
+  assert.equal(result.total, 81);
   assert.deepEqual(counts, {
     "information-flow": 17,
     roadside: 37,
-    documents: 9,
+    documents: 8,
     papers: 1,
-    podcasts: 8,
-    courses: 8,
-    "sic-rankings": 8,
+    podcasts: 7,
+    courses: 6,
+    "sic-rankings": 5,
   });
+});
+
+test("source catalog exposes only the five supported SiC ranking views", () => {
+  const rankings = catalog().sections.find((section) => section.id === "sic-rankings");
+  const rankingIds = rankings?.methods.flatMap((method) => method.sources.map((source) => source.id));
+
+  assert.deepEqual(rankingIds, [
+    "ranking:github:today",
+    "ranking:github:week",
+    "ranking:github:month",
+    "ranking:hugging-face",
+    "ranking:openrouter",
+  ]);
+  assert.ok(rankingIds?.every((id) => !id.includes("skills")));
 });
 
 test("source catalog keeps collection methods grouped and source identities unique", () => {
@@ -41,9 +55,9 @@ test("source catalog keeps collection methods grouped and source identities uniq
   assert.equal(identities.size, sources.length);
   const roadside = result.sections.find((section) => section.id === "roadside");
 
-  assert.equal(information?.methods.find((method) => method.id === "rss-atom")?.sources.length, 5);
+  assert.equal(information?.methods.find((method) => method.id === "rss-atom")?.sources.length, 6);
   assert.equal(roadside?.methods.find((method) => method.id === "x-rss-relay")?.sources.length, 34);
-  assert.equal(podcasts && sourceCount(podcasts), 8);
+  assert.equal(podcasts && sourceCount(podcasts), 7);
 
   for (const source of sources) {
     assert.ok(source.destinationHref.startsWith("/"));

@@ -4,12 +4,8 @@ import { ChannelRibbon } from "@/components/channel-ribbon";
 import { FrontierRanking } from "@/components/frontier-ranking";
 import { PageIntro } from "@/components/page-intro";
 import { beijingSeasonDate, seasonFromCode } from "@/lib/frontier-domain";
-import {
-  OFFICIAL_CHAMPION_REWARD,
-  currentSeason,
-} from "@/lib/frontier-store";
+import { currentSeason, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
 import { getCachedFrontierSnapshot } from "@/lib/public-read-cache";
-import { persistenceMode } from "@/lib/state-document-store";
 import { RulesContent } from "./frontier-copy";
 import { FrontierDialog } from "./frontier-dialog";
 import { FrontierPrinciples } from "./frontier-principles";
@@ -23,8 +19,15 @@ function displayTime(value: string | null) {
 }
 
 export default async function FrontierPage() {
-  const productionData = persistenceMode() === "postgresql";
   const season = currentSeason();
+  const { configuration, writesEnabled } = await getFrontierSeasonLaunchState(season.code);
+  const production = process.env.NODE_ENV === "production";
+  const liveLabel = writesEnabled
+    ? (production ? "CURRENT SEASON / LIVE" : "LOCAL PREVIEW / WRITES ENABLED")
+    : "SEASON / PREPARING";
+  const officialReward = configuration.status === "published"
+    ? configuration.officialReward
+    : "等待管理后台发布本赛季奖励";
   const [seasonYear, seasonLabel] = season.name.split(" ");
   const { rankings, updatedAt, prizes, history } = await getCachedFrontierSnapshot(season.code);
 
@@ -34,7 +37,7 @@ export default async function FrontierPage() {
         code="FRONTIER / PERPETUAL HACKATHON"
         title="无垠荒野，永不落幕"
         lead="提交一件你真正想做的事。没有赛道，没有评委，也没有人替你决定它是否值得。"
-        meta={`${season.name} / 全赛季开放报名 / ${beijingSeasonDate(season.endsAt)} 结算`}
+        meta={`${season.name} / ${writesEnabled ? "全赛季开放报名" : "报名开放前准备中"} / ${beijingSeasonDate(season.endsAt)} 结算`}
       />
       <ChannelRibbon identity="THE FRONTIER" slogan="HERE, YOU MAY PASS." />
 
@@ -45,10 +48,12 @@ export default async function FrontierPage() {
       <section className="shell frontier-live" aria-labelledby="frontier-live-title">
         <header className="frontier-live__header">
           <div>
-            <p className="eyebrow mono">{productionData ? "CURRENT SEASON / LIVE" : "LOCAL PREVIEW / NON-PRODUCTION"}</p>
-            <h2 id="frontier-live-title">这一季，正在发生。</h2>
+            <p className="eyebrow mono">{liveLabel}</p>
+            <h2 id="frontier-live-title">{writesEnabled ? "这一季，正在发生。" : "这一季，准备开放。"}</h2>
           </div>
-          <p>从验证通过的那一刻起，只计算真实发生的变化。没有评审席，排行榜就是公共记录。</p>
+          <p>{writesEnabled
+            ? "从验证通过的那一刻起，只计算真实发生的变化。没有评审席，排行榜就是公共记录。"
+            : "官方奖励与生产配置确认后才会开放报名；开放前不会接收参赛或奖品捐献信息。"}</p>
         </header>
 
         <div className="frontier-live__grid">
@@ -58,13 +63,13 @@ export default async function FrontierPage() {
               <strong>{seasonLabel}</strong>
             </div>
             <dl className="frontier-season-card__facts">
-              <div><dt className="mono">报名</dt><dd>全赛季开放</dd></div>
+              <div><dt className="mono">报名</dt><dd>{writesEnabled ? "全赛季开放" : "准备中"}</dd></div>
               <div><dt className="mono">排名</dt><dd>净新增 Star</dd></div>
               <div><dt className="mono">更新</dt><dd>每小时一次</dd></div>
               <div><dt className="mono">结算</dt><dd>{beijingSeasonDate(season.endsAt)}</dd></div>
             </dl>
             <div className="frontier-season-card__actions">
-              <Link className="frontier-primary-action" href="/frontier/submit">参加本赛季 <span aria-hidden="true">↗</span></Link>
+              <Link className="frontier-primary-action" href="/frontier/submit">{writesEnabled ? "参加本赛季" : "查看开放状态"} <span aria-hidden="true">↗</span></Link>
               <FrontierDialog trigger="查看参赛规则" title="边境计划参赛规则" eyebrow="FRONTIER / RULES" triggerClassName="frontier-secondary-action"><RulesContent /></FrontierDialog>
             </div>
           </section>
@@ -100,8 +105,9 @@ export default async function FrontierPage() {
             <p className="mono">OFFICIAL / CHAMPION</p>
             <div>
               <h3 id="official-reward-title">季度冠军奖励</h3>
-              <strong>{OFFICIAL_CHAMPION_REWARD}</strong>
-              <p>只授予本赛季第一名，不进入随机奖池。</p>
+              <strong>{officialReward}</strong>
+              <p>由{configuration.rewardProvider}提供，只授予本赛季第一名，不进入随机奖池。</p>
+              <p>{configuration.taxNotice}；赛季结束后 {configuration.rewardProcessOpenWithinDays} 日内开放奖励确认与发放流程。</p>
             </div>
           </section>
           <section className="frontier-random-pool" aria-labelledby="random-pool-title">
@@ -111,7 +117,7 @@ export default async function FrontierPage() {
                 <h3 id="random-pool-title">穿越者随机奖池</h3>
                 <p>最终排名决定抽取顺序，每个有效项目最多一件。</p>
               </div>
-              <Link className="frontier-pool-action" href="/frontier/donate">捐献奖品 ↗</Link>
+              <Link className="frontier-pool-action" href="/frontier/donate">{writesEnabled ? "捐献奖品" : "查看开放状态"} ↗</Link>
             </header>
             {prizes.length === 0 ? (
               <div className="frontier-pool-empty">

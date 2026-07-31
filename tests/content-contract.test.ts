@@ -26,7 +26,8 @@ function batch() {
       fetchedAt: "2026-07-22T10:00:00.000Z",
       originalLanguage: "en",
       originalTitle: "A material event",
-      originalContent: "Original English content.",
+      originalContent: "## Release\n\n- Original English content.",
+      contentFormat: "markdown",
       contentCompleteness: "fulltext",
       contentHash: "a".repeat(64),
     }],
@@ -37,7 +38,8 @@ function batch() {
 test("v2 contract preserves original fields and normalizes timestamps", () => {
   const result = validateContentBatch(batch());
   assert.equal(result.version, 2);
-  assert.equal(result.information[0].originalContent, "Original English content.");
+  assert.equal(result.information[0].originalContent, "## Release\n\n- Original English content.");
+  assert.equal(result.information[0].contentFormat, "markdown");
   assert.equal(result.information[0].sourceRole, "官方");
   assert.equal(result.information[0].ownerEntity, "entity:publisher-one");
   assert.equal(result.information[0].externalUrl, "https://example.net/referenced-story");

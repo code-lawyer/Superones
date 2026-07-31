@@ -83,7 +83,8 @@
     {
       "id": "anthropic-research",
       "group": "documents",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "当前只有 sitemap 与文章网页可用，不符合“仅 API/RSS、禁止网页抓取”的上线原则；待出现稳定 RSS/API 后再恢复。",
       "name": "Anthropic Research",
       "publisher": "Anthropic",
       "kind": "official_sitemap",
@@ -231,7 +232,8 @@
     {
       "id": "google-ml-courses",
       "group": "courses",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "当前接入依赖网页课程目录，不符合“仅 API/RSS、禁止网页抓取”的上线原则。",
       "name": "Google Machine Learning Courses",
       "publisher": "Google",
       "kind": "official_catalog",
@@ -315,7 +317,8 @@
     {
       "id": "nvidia-deep-learning-institute",
       "group": "courses",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "当前接入依赖网页课程目录，不符合“仅 API/RSS、禁止网页抓取”的上线原则。",
       "name": "NVIDIA Deep Learning Institute",
       "publisher": "NVIDIA",
       "kind": "official_catalog",
@@ -375,7 +378,8 @@
     {
       "id": "google-deepmind-podcast",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "当前接入依赖节目网页日期索引，不符合“仅 API/RSS、禁止网页抓取”的上线原则；其他播客 RSS 继续覆盖该栏目。",
       "name": "Google DeepMind: The Podcast",
       "publisher": "Google DeepMind",
       "kind": "official_dated_index",
@@ -422,9 +426,10 @@
       "publisher": "Daniel Miessler",
       "kind": "hosted_podcast",
       "homeUrl": "https://danielmiessler.com/podcast/",
-      "endpoint": "https://feeds.simplecast.com/dOSE_bdP",
+      "endpoint": "https://www.omnycontent.com/d/playlist/070af456-729b-4a0f-9c09-a6c100397b59/3b159371-276d-429e-ae86-a6c1003b01c4/7b61d4e1-bd3d-4d3f-97c2-a6c1003b01c9/podcast.rss",
       "allowedRedirectOrigins": [
-        "https://danielmiessler.com"
+        "https://danielmiessler.com",
+        "https://omny.fm"
       ],
       "admissionRule": "完整接入该节目官方 RSS 的全部新一期节目。",
       "rationale": "持续追踪 AI、安全与技术趋势的个人主理长内容来源。"

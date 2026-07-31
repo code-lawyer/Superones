@@ -9,18 +9,26 @@ function validEnvironment() {
     NODE_ENV: "production",
     VAULT2077_DATABASE_URL: "postgresql://vault2077:secure@db.internal/vault2077",
     VAULT2077_DATABASE_SSL: "require",
+    VAULT2077_ICP_NUMBER: "沪ICP备2026003401号-1",
+    VAULT2077_OPERATOR_CREDIT_CODE: "91310000MAC3G0M33G",
+    VAULT2077_OPERATOR_REGISTERED_ADDRESS: "中国（上海）自由贸易试验区临港新片区环湖西二路888号C楼",
+    VAULT2077_OPERATOR_LEGAL_REPRESENTATIVE: "胡丛蕊",
+    VAULT2077_OPERATOR_REGISTERED_CAPITAL: "50万元人民币",
+    VAULT2077_LEGAL_CONTACT_EMAIL: "lanzhouda@tsinglaw.com",
+    VAULT2077_LEGAL_EFFECTIVE_DATE: "2026-08-01",
+    VAULT2077_FRONTIER_WRITES_ENABLED: "true",
+    VAULT2077_OPC_PAYMENTS_ENABLED: "true",
     VAULT2077_DATA_KEYS: JSON.stringify({ current: secret }),
     VAULT2077_DATA_ACTIVE_KEY_ID: "current",
     VAULT2077_ADMIN_SESSION_SECRET: `${secret}1`,
     VAULT2077_AUDIT_HASH_SECRET: `${secret}2`,
     ...validTestAlipayEnvironment(),
-    VAULT2077_ADMIN_ORIGIN: "https://admin.vault2077.test",
-    VAULT2077_ADMIN_IDENTITY_ISSUER: "https://identity.vault2077.test",
-    VAULT2077_ADMIN_IDENTITY_AUDIENCE: "vault2077-production-admin",
-    VAULT2077_ADMIN_IDENTITY_JWKS_URL: "https://identity.vault2077.test/.well-known/jwks.json",
-    VAULT2077_ADMIN_IDENTITY_HEADER: "cf-access-jwt-assertion",
-    VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "owner@vault2077.test",
-    VAULT2077_ADMIN_REAUTH_URL: "https://admin.vault2077.test/cdn-cgi/access/logout",
+    VAULT2077_PUBLIC_ORIGIN: "https://superones.top",
+    VAULT2077_ADMIN_ORIGIN: "https://admin.superones.top",
+    VAULT2077_ADMIN_OIDC_ISSUER: "https://identity.vault2077.test/oidc",
+    VAULT2077_ADMIN_OIDC_CLIENT_ID: "vault2077-production-admin",
+    VAULT2077_ADMIN_OIDC_CLIENT_SECRET: `${secret}oidc`,
+    VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "lanzhouda@163.com",
     VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ current: `${secret}3` }),
     VAULT2077_PIPELINE_ACTIVE_KEY_ID: "current",
     VAULT2077_PIPELINE_WORKER_SECRET: `${secret}4`,
@@ -65,6 +73,52 @@ test("production configuration gate rejects invalid OPC Alipay Open Platform cre
   assert.ok(report.errors.some((issue) => issue.includes("支付宝网关")));
 });
 
+test("production configuration gate requires explicit feature switches and an ICP filing", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_FRONTIER_WRITES_ENABLED: "",
+    VAULT2077_OPC_PAYMENTS_ENABLED: "",
+    VAULT2077_ICP_NUMBER: "",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("FRONTIER_WRITES_ENABLED")));
+  assert.ok(report.errors.some((issue) => issue.includes("OPC_PAYMENTS_ENABLED")));
+  assert.ok(report.errors.some((issue) => issue.includes("ICP")));
+});
+
+test("production configuration gate requires public business identity and legal contacts", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_OPERATOR_CREDIT_CODE: "",
+    VAULT2077_OPERATOR_REGISTERED_ADDRESS: "",
+    VAULT2077_OPERATOR_LEGAL_REPRESENTATIVE: "",
+    VAULT2077_OPERATOR_REGISTERED_CAPITAL: "",
+    VAULT2077_LEGAL_CONTACT_EMAIL: "",
+    VAULT2077_LEGAL_EFFECTIVE_DATE: "",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("CREDIT_CODE")));
+  assert.ok(report.errors.some((issue) => issue.includes("REGISTERED_ADDRESS")));
+  assert.ok(report.errors.some((issue) => issue.includes("LEGAL_REPRESENTATIVE")));
+  assert.ok(report.errors.some((issue) => issue.includes("REGISTERED_CAPITAL")));
+  assert.ok(report.errors.some((issue) => issue.includes("LEGAL_CONTACT_EMAIL")));
+  assert.ok(report.errors.some((issue) => issue.includes("LEGAL_EFFECTIVE_DATE")));
+});
+
+test("production configuration gate allows OPC payments to remain safely closed", () => {
+  const environment = {
+    ...validEnvironment(),
+    VAULT2077_OPC_PAYMENTS_ENABLED: "false",
+    VAULT2077_ALIPAY_APP_ID: "",
+    VAULT2077_ALIPAY_SELLER_ID: "",
+    VAULT2077_ALIPAY_PRIVATE_KEY: "",
+    VAULT2077_ALIPAY_PUBLIC_KEY: "",
+    VAULT2077_ALIPAY_GATEWAY: "",
+  };
+  const report = validateProductionConfiguration(environment);
+  assert.equal(report.ok, true, report.errors.join("\n"));
+});
+
 test("production configuration gate rejects the official Alipay sandbox gateway", () => {
   const report = validateProductionConfiguration({
     ...validEnvironment(),
@@ -85,7 +139,7 @@ test("production configuration gate warns when both editorial channels share a p
 test("production configuration gate rejects shared host and local password adapters", () => {
   const report = validateProductionConfiguration({
     ...validEnvironment(),
-    VAULT2077_ADMIN_ORIGIN: "https://vault2077.test",
+    VAULT2077_ADMIN_ORIGIN: "https://superones.top",
     VAULT2077_ADMIN_PASSWORD_HASH: "development-only",
   });
   assert.equal(report.ok, false);
@@ -93,17 +147,17 @@ test("production configuration gate rejects shared host and local password adapt
   assert.ok(report.errors.some((issue) => issue.includes("ADMIN_PASSWORD_HASH")));
 });
 
-test("production configuration gate rejects an invalid identity gateway contract", () => {
+test("production configuration gate rejects an invalid IDaaS OIDC contract", () => {
   const report = validateProductionConfiguration({
     ...validEnvironment(),
-    VAULT2077_ADMIN_IDENTITY_JWKS_URL: "http://identity.vault2077.test/jwks",
+    VAULT2077_ADMIN_OIDC_ISSUER: "http://identity.vault2077.test/oidc",
+    VAULT2077_ADMIN_OIDC_CLIENT_SECRET: "short",
     VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "not-an-email",
-    VAULT2077_ADMIN_REAUTH_URL: "https://other.vault2077.test/reauthenticate",
   });
   assert.equal(report.ok, false);
-  assert.ok(report.errors.some((issue) => issue.includes("JWKS_URL")));
+  assert.ok(report.errors.some((issue) => issue.includes("OIDC_ISSUER")));
+  assert.ok(report.errors.some((issue) => issue.includes("OIDC_CLIENT_SECRET")));
   assert.ok(report.errors.some((issue) => issue.includes("ALLOWLIST")));
-  assert.ok(report.errors.some((issue) => issue.includes("REAUTH_URL")));
 });
 
 test("production configuration gate rejects legacy single-value keys and untrusted proxy headers", () => {

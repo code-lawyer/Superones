@@ -7,6 +7,8 @@ export type OpenAICompatibleConfig = {
   timeoutMs: number;
   maxTokens?: number;
   reasoningEffort?: "low" | "medium" | "high";
+  providerSort?: "price" | "throughput" | "latency";
+  providerOrder?: string[];
 };
 
 export const EDITORIAL_PROFILE_IDS = ["vault_editorial", "sic_editorial"] as const;
@@ -71,6 +73,11 @@ export function loadOpenAICompatibleConfig(environment: Record<string, string | 
   const configuredTimeout = Number(environment.VAULT2077_LLM_TIMEOUT_MS ?? "30000");
   const configuredMaxTokens = Number(environment.VAULT2077_LLM_MAX_TOKENS);
   const reasoningEffort = environment.VAULT2077_LLM_REASONING_EFFORT;
+  const providerSort = environment.VAULT2077_LLM_PROVIDER_SORT;
+  const providerOrder = (environment.VAULT2077_LLM_PROVIDER_ORDER ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => /^[a-z0-9][a-z0-9./_-]*$/.test(value));
   return {
     baseUrl,
     apiKey,
@@ -82,6 +89,10 @@ export function loadOpenAICompatibleConfig(environment: Record<string, string | 
     ...(reasoningEffort === "low" || reasoningEffort === "medium" || reasoningEffort === "high"
       ? { reasoningEffort }
       : {}),
+    ...(providerSort === "price" || providerSort === "throughput" || providerSort === "latency"
+      ? { providerSort }
+      : {}),
+    ...(providerOrder.length > 0 ? { providerOrder: [...new Set(providerOrder)] } : {}),
   };
 }
 
@@ -100,6 +111,8 @@ function scopedEnvironment(
     VAULT2077_LLM_TIMEOUT_MS: environment[`${prefix}_TIMEOUT_MS`],
     VAULT2077_LLM_MAX_TOKENS: environment[`${prefix}_MAX_TOKENS`],
     VAULT2077_LLM_REASONING_EFFORT: environment[`${prefix}_REASONING_EFFORT`],
+    VAULT2077_LLM_PROVIDER_SORT: environment[`${prefix}_PROVIDER_SORT`],
+    VAULT2077_LLM_PROVIDER_ORDER: environment[`${prefix}_PROVIDER_ORDER`],
   };
 }
 
@@ -161,6 +174,17 @@ export function createOpenAICompatibleClient(config: OpenAICompatibleConfig, fet
             ...(config.maxTokens ? { max_tokens: config.maxTokens } : {}),
             ...(config.reasoningEffort
               ? { reasoning: { effort: config.reasoningEffort, exclude: true } }
+              : {}),
+            ...(config.providerOrder?.length || config.providerSort
+              ? {
+                  provider: {
+                    ...(config.providerOrder?.length
+                      ? { order: config.providerOrder }
+                      : { sort: config.providerSort }),
+                    require_parameters: true,
+                    allow_fallbacks: true,
+                  },
+                }
               : {}),
             messages: [
               {

@@ -25,6 +25,7 @@ test("Frontier settlement lease is recoverable and settlement is idempotent", as
     const result = await saveSeasonSettlement({
       season,
       settledAt: new Date(startedAt.getTime() + 3_000).toISOString(),
+      officialReward: "季度冠军奖金人民币 10,000 元",
       finalRankings: [],
       ineligibleSubmissionIds: [],
       assignments: [],
@@ -36,6 +37,37 @@ test("Frontier settlement lease is recoverable and settlement is idempotent", as
   } finally {
     if (previous === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Frontier season reward is drafted and published through durable admin state", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-season-"));
+  const previousDataDir = process.env.VAULT2077_DATA_DIR;
+  const previousMasterSwitch = process.env.VAULT2077_FRONTIER_WRITES_ENABLED;
+  process.env.VAULT2077_DATA_DIR = root;
+  process.env.VAULT2077_FRONTIER_WRITES_ENABLED = "true";
+  try {
+    const {
+      getFrontierSeasonLaunchState,
+      publishFrontierSeasonReward,
+      saveFrontierSeasonRewardDraft,
+    } = await import(`../lib/frontier-store.ts?season=${Date.now()}`);
+    const season = "2099-Q2";
+    assert.equal((await getFrontierSeasonLaunchState(season)).writesEnabled, false);
+    const draft = await saveFrontierSeasonRewardDraft(season, "季度冠军奖金人民币 10,000 元");
+    assert.equal(draft.status, "draft");
+    assert.equal((await getFrontierSeasonLaunchState(season)).writesEnabled, false);
+    const published = await publishFrontierSeasonReward(season);
+    assert.equal(published.rewardProvider, "边境计划管理局");
+    assert.equal(published.rewardProcessOpenWithinDays, 7);
+    assert.match(published.taxNotice, /依法需代扣代缴/);
+    assert.equal((await getFrontierSeasonLaunchState(season)).writesEnabled, true);
+  } finally {
+    if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDir;
+    if (previousMasterSwitch === undefined) delete process.env.VAULT2077_FRONTIER_WRITES_ENABLED;
+    else process.env.VAULT2077_FRONTIER_WRITES_ENABLED = previousMasterSwitch;
     await rm(root, { recursive: true, force: true });
   }
 });

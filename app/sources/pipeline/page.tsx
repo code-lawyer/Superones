@@ -115,20 +115,20 @@ const rankingSources: DisplaySource[] = [
   {
     id: "ranking:github:today",
     name: "代码仓库趋势 · 今日",
-    href: "https://github.com/trending?since=daily",
-    method: "公开趋势页",
+    href: "https://github.com/OpenGithubs/github-daily-rank",
+    method: "GitHub API 聚合榜",
   },
   {
     id: "ranking:github:week",
     name: "代码仓库趋势 · 本周",
-    href: "https://github.com/trending?since=weekly",
-    method: "公开趋势页",
+    href: "https://github.com/OpenGithubs/github-weekly-rank",
+    method: "GitHub API 聚合榜",
   },
   {
     id: "ranking:github:month",
     name: "代码仓库趋势 · 本月",
-    href: "https://github.com/trending?since=monthly",
-    method: "公开趋势页",
+    href: "https://github.com/OpenGithubs/github-monthly-rank",
+    method: "GitHub API 聚合榜",
   },
   {
     id: "ranking:hugging-face",
@@ -141,24 +141,6 @@ const rankingSources: DisplaySource[] = [
     name: "模型聚合平台周榜",
     href: "https://openrouter.ai/models?order=top-weekly",
     method: "官方模型 API",
-  },
-  {
-    id: "ranking:skills:all-time",
-    name: "skills.sh · All Time",
-    href: "https://skills.sh/",
-    method: "公开榜单",
-  },
-  {
-    id: "ranking:skills:trending",
-    name: "skills.sh · Trending 24h",
-    href: "https://skills.sh/trending",
-    method: "公开榜单",
-  },
-  {
-    id: "ranking:skills:hot",
-    name: "skills.sh · Hot",
-    href: "https://skills.sh/hot",
-    method: "公开榜单",
   },
 ];
 
@@ -214,7 +196,6 @@ const lanes = [
     destinations: [
       `代码仓库趋势 3`,
       `模型平台 2`,
-      `Skill 市场 3`,
       "→ SiC 榜单",
     ],
     warning: true,
@@ -354,7 +335,7 @@ const sourceGroups = [
     description: "忠实保留平台公开定义的顺序与视图，不跨平台重排，不用本地快照重新计算“增长榜”，也不经过 LLM。",
     subsets: [
       {
-        title: "八个公开视图",
+        title: "五个公开视图",
         description: "一个平台的多个时间视图分别计为独立榜单来源。",
         sources: rankingSources,
       },

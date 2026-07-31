@@ -82,12 +82,11 @@ SiC 包含论文、档案、课程、播客四个内容组，以及以下平台�
 
 其中档案只收机构深度研究与技术材料，不收新闻稿、例行 Release Notes 或 Changelog，也不与 Vault 资讯瀑布重复。
 
-- GitHub Trending：Today、This week、This month。
+- OpenGithubs GitHub Rank：Daily、Weekly、Monthly；只通过 GitHub 官方 REST API 获取仓库内聚合结果。
 - Hugging Face：Trending。
 - OpenRouter：`top-weekly`。
-- skills.sh：All Time、Trending 24h、Hot。
 
-不设置 MCP 榜，不从历史快照计算 GitHub、Hugging Face 或 skills.sh 的增量，不把榜单解释为质量、安全、能力或投资评级。
+不设置 Skill 或 MCP 榜，不从历史快照计算 GitHub 或 Hugging Face 的增量，不把榜单解释为质量、安全、能力或投资评级。
 
 详细规则见 [SiC 设计规格](Vault2077-SiC-Design-Spec.md)与[来源目录](Vault2077-SiC-Source-Catalog.md)。
 

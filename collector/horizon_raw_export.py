@@ -240,7 +240,7 @@ async def collect_batch(
     semaphore = asyncio.Semaphore(max(1, min(WORKERS, int(os.environ.get("VAULT2077_HORIZON_CONCURRENCY", str(WORKERS))))))
     timeout = httpx.Timeout(float(os.environ.get("VAULT2077_SOURCE_TIMEOUT_SECONDS", "20")))
     limits = httpx.Limits(max_connections=WORKERS, max_keepalive_connections=WORKERS)
-    headers = {"User-Agent": "Vault2077-Horizon-Raw-Export/1.0 (+https://vault2077.com)"}
+    headers = {"User-Agent": "Vault2077-Horizon-Raw-Export/1.0 (+https://superones.top)"}
     async with httpx.AsyncClient(timeout=timeout, limits=limits, headers=headers) as client:
         results = await asyncio.gather(*(collect_one(source, since, until, client, semaphore) for source in sources))
         information = [item for records, _ in results for item in records]

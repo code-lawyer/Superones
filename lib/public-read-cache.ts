@@ -10,7 +10,7 @@ import {
   listSeasonHistory,
 } from "./frontier-store";
 import { readPublishedServiceCatalog } from "./managed-service-catalog";
-import { getPublicContent } from "./public-content";
+import { getPublicContentIndex } from "./public-content";
 import { getSicContent } from "./sic-content";
 
 /**
@@ -19,8 +19,8 @@ import { getSicContent } from "./sic-content";
  * worker process become visible without relying on in-process invalidation.
  */
 export const getCachedPublicContent = unstable_cache(
-  getPublicContent,
-  ["public-content"],
+  getPublicContentIndex,
+  ["public-content-index-v2"],
   { revalidate: 30, tags: ["public-content"] },
 );
 

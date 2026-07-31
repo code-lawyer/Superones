@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { beijingDate, eventJudgment } from "@/lib/feed-format";
+import { eventHref } from "@/lib/feed-route";
 import type { EventRecord } from "@/lib/types";
 
 export function EventList({ items }: { items: EventRecord[] }) {
@@ -17,7 +18,7 @@ export function EventList({ items }: { items: EventRecord[] }) {
           <div className="event-day__entries">
             {events.map((item) => (
               <article className="event-entry" key={item.slug}>
-                <Link className="event-entry__link" href={`/feed/${item.slug}`}>
+                <Link className="event-entry__link" href={eventHref(item.slug)}>
                   <h2><span>{item.title}</span></h2>
                   <p>{eventJudgment(item)}</p>
                 </Link>

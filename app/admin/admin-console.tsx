@@ -27,6 +27,17 @@ type Donation = {
   confirmedAt: string | null;
 };
 
+type FrontierSeasonConfiguration = {
+  season: string;
+  officialReward: string;
+  rewardProvider: "边境计划管理局";
+  taxNotice: "依法归属于获奖者的税费由获奖者承担；依法需代扣代缴的，由运营主体依法办理";
+  rewardProcessOpenWithinDays: 7;
+  status: "draft" | "published";
+  updatedAt: string;
+  publishedAt: string | null;
+};
+
 type ContentState = {
   mode: "demo" | "live" | "degraded";
   updatedAt: string | null;
@@ -90,7 +101,7 @@ type OpcOrder = {
   contactDeletedAt: string | null;
 };
 
-type AdminLoginMode = "identity-gateway" | "local-password";
+type AdminLoginMode = "oidc" | "local-password";
 
 const opcOrderStatusLabels: Record<OpcOrderStatus, string> = {
   awaiting_payment: "待付款",
@@ -118,7 +129,7 @@ class AdminApiError extends Error {
 }
 
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; state?: ContentState; corrections?: Correction[]; orders?: OpcOrder[]; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; seasonConfiguration?: FrontierSeasonConfiguration; state?: ContentState; corrections?: Correction[]; orders?: OpcOrder[]; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) {
     throw new AdminApiError(
       typeof body?.error === "string" ? body.error : "请求暂时无法完成。",
@@ -132,11 +143,13 @@ async function jsonMessage(response: Response) {
 export function AdminConsole() {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [seasonConfiguration, setSeasonConfiguration] = useState<FrontierSeasonConfiguration | null>(null);
+  const [seasonReward, setSeasonReward] = useState("");
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [orders, setOrders] = useState<OpcOrder[]>([]);
   const [password, setPassword] = useState("");
-  const [loginMode, setLoginMode] = useState<AdminLoginMode>("local-password");
+  const [loginMode, setLoginMode] = useState<AdminLoginMode | null>(null);
   const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
   const [reauthenticationUrl, setReauthenticationUrl] = useState("");
   const [reauthenticationPassword, setReauthenticationPassword] = useState("");
@@ -154,6 +167,8 @@ export function AdminConsole() {
     if ([response, summaryResponse, correctionsResponse, ordersResponse].some((item) => item.status === 401)) {
       setSubmissions(null);
       setDonations([]);
+      setSeasonConfiguration(null);
+      setSeasonReward("");
       setContentState(null);
       setCorrections([]);
       setOrders([]);
@@ -167,6 +182,8 @@ export function AdminConsole() {
     ]);
     setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
     setDonations(Array.isArray(body?.donations) ? body.donations : []);
+    setSeasonConfiguration(body?.seasonConfiguration ?? null);
+    setSeasonReward(body?.seasonConfiguration?.officialReward ?? "");
     setContentState(summary?.state ?? null);
     setCorrections(Array.isArray(correctionData?.corrections) ? correctionData.corrections : []);
     setOrders(Array.isArray(orderData?.orders) ? orderData.orders : []);
@@ -176,11 +193,17 @@ export function AdminConsole() {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
+      const oidcOutcome = new URLSearchParams(window.location.search).get("oidc");
+      if (oidcOutcome === "failed") setError("阿里云 IDaaS 身份验证失败，请重新尝试。");
+      if (oidcOutcome === "reauthenticated") {
+        setNotice("高风险操作权限已重新验证，有效期五分钟。");
+      }
+      if (oidcOutcome) window.history.replaceState({}, "", window.location.pathname);
       void Promise.all([
         fetch("/api/admin/login", { cache: "no-store" })
           .then((response) => response.json())
           .then((body: { mode?: AdminLoginMode }) => {
-            if (body.mode === "identity-gateway" || body.mode === "local-password") setLoginMode(body.mode);
+            if (body.mode === "oidc" || body.mode === "local-password") setLoginMode(body.mode);
           }),
         load(),
       ]).catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。"));
@@ -190,6 +213,11 @@ export function AdminConsole() {
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!loginMode) return;
+    if (loginMode === "oidc") {
+      window.location.assign("/api/admin/oidc/start?intent=login");
+      return;
+    }
     setPending(true);
     setError("");
     try {
@@ -249,6 +277,35 @@ export function AdminConsole() {
     }
   }
 
+  async function updateSeasonReward(action: "save-season-reward" | "publish-season-reward") {
+    const publishing = action === "publish-season-reward";
+    if (!window.confirm(publishing
+      ? "确认发布本赛季奖励并开放报名、验证与奖品捐献？该操作会写入不可变审计日志。"
+      : "确认保存本赛季奖励草稿？保存草稿会让赛季保持或恢复为准备中。")) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/frontier", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({ action, officialReward: seasonReward, confirm: true }),
+      });
+      const body = await jsonMessage(response);
+      setSeasonConfiguration(body?.seasonConfiguration ?? null);
+      setSeasonReward(body?.seasonConfiguration?.officialReward ?? seasonReward);
+      setNotice(publishing ? "本赛季奖励已发布，公开写入口已开放。" : "本赛季奖励草稿已保存，重新发布前公开写入口保持关闭。");
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "暂时无法更新赛季奖励。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function reauthenticate() {
     setPending(true);
     setError("");
@@ -274,9 +331,16 @@ export function AdminConsole() {
   }
 
   async function logout() {
-    await fetch("/api/admin/logout", { method: "POST", headers: adminMutationHeaders, body: "{}" });
+    const response = await fetch("/api/admin/logout", { method: "POST", headers: adminMutationHeaders, body: "{}" });
+    const body = await response.json().catch(() => null) as { logoutUrl?: unknown } | null;
+    if (typeof body?.logoutUrl === "string" && body.logoutUrl) {
+      window.location.assign(body.logoutUrl);
+      return;
+    }
     setSubmissions(null);
     setDonations([]);
+    setSeasonConfiguration(null);
+    setSeasonReward("");
     setContentState(null);
     setCorrections([]);
     setOrders([]);
@@ -376,13 +440,15 @@ export function AdminConsole() {
         <p className="eyebrow mono">SECURE OPERATOR ACCESS</p>
         <h2>进入运营后台。</h2>
         <div className="form-field">
-          {loginMode === "identity-gateway"
-            ? <><strong>安全身份入口</strong><p className="form-note">身份网关已完成白名单与 MFA 后，点击下方按钮建立可撤销的后台会话。</p></>
+          {loginMode === null
+            ? <><strong>正在确认安全入口</strong><p className="form-note">正在读取当前环境的管理员认证方式。</p></>
+            : loginMode === "oidc"
+            ? <><strong>阿里云 IDaaS 安全身份入口</strong><p className="form-note">仅允许已确认的管理员邮箱，经 IDaaS MFA 后建立可撤销后台会话。</p></>
             : <><label htmlFor="admin-password">本地开发密码</label><input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} required /></>}
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button className="text-action" type="submit" disabled={pending}>{pending ? "正在验证" : loginMode === "identity-gateway" ? "使用安全身份进入" : "进入本地后台"}</button>
-        <p className="form-note mono">{loginMode === "identity-gateway" ? "PROTECTED BY IDENTITY GATEWAY / REVOCABLE SESSION" : "LOCAL DEVELOPMENT ADAPTER ONLY"}</p>
+        <button className="text-action" type="submit" disabled={pending || loginMode === null}>{pending ? "正在验证" : loginMode === null ? "正在载入" : loginMode === "oidc" ? "通过 IDaaS 登录" : "进入本地后台"}</button>
+        <p className="form-note mono">{loginMode === null ? "SECURE MODE DISCOVERY" : loginMode === "oidc" ? "ALIYUN IDAAS OIDC / REVOCABLE SESSION" : "LOCAL DEVELOPMENT ADAPTER ONLY"}</p>
       </form>
     );
   }
@@ -407,12 +473,11 @@ export function AdminConsole() {
           <div>
             <p className="eyebrow mono">STEP-UP AUTHENTICATION</p>
             <h3 id="admin-reauth-title">重新验证高风险操作权限</h3>
-            <p>{loginMode === "identity-gateway" ? "先通过身份网关完成 Passkey/MFA，再刷新当前权限。" : "输入本地开发密码；生产环境不会显示此密码框。"}</p>
+            <p>{loginMode === "oidc" ? "通过阿里云 IDaaS 再次完成 MFA，返回后权限自动刷新。" : "输入本地开发密码；生产环境不会显示此密码框。"}</p>
           </div>
-          {loginMode === "identity-gateway" ? (
+          {loginMode === "oidc" ? (
             <div className="admin-actions">
-              {reauthenticationUrl ? <a className="text-link" href={reauthenticationUrl}>进入安全身份验证 ↗</a> : null}
-              <button className="text-action" type="button" disabled={pending} onClick={() => void reauthenticate()}>身份已更新，刷新权限</button>
+              {reauthenticationUrl ? <a className="text-action" href={reauthenticationUrl}>通过 IDaaS 重新验证 ↗</a> : null}
             </div>
           ) : (
             <div className="admin-actions">
@@ -427,6 +492,24 @@ export function AdminConsole() {
       ) : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {notice ? <p className="admin-notice" role="status">{notice}</p> : null}
+      <section className="admin-donations" aria-labelledby="admin-season-reward-title">
+        <div className="admin-section-heading">
+          <p className="eyebrow mono">FRONTIER / SEASON CONTROL</p>
+          <h2 id="admin-season-reward-title">本赛季官方奖励</h2>
+          <p className="form-note">每个赛季先保存草稿，再经五分钟内重新认证后发布。未发布时赛季显示准备中，报名、验证和捐献接口全部关闭。</p>
+        </div>
+        <div className="form-field">
+          <label htmlFor="frontier-season-reward">奖励公开文案</label>
+          <input id="frontier-season-reward" value={seasonReward} onChange={(event) => setSeasonReward(event.target.value)} minLength={4} maxLength={200} disabled={pending} placeholder="例如：冠军奖金人民币 10,000 元" />
+        </div>
+        <p className="form-note">
+          {seasonConfiguration?.season ?? "当前赛季"} · {seasonConfiguration?.status === "published" ? "已发布" : "草稿"} · 对外组织：边境计划管理局 · 获奖者承担依法归属于其本人的税费 · 赛季结束后 7 日内开放奖励确认与发放流程
+        </p>
+        <div className="admin-actions">
+          <button className="text-link" type="button" disabled={pending || seasonReward.trim().length < 4} onClick={() => void updateSeasonReward("save-season-reward")}>保存草稿</button>
+          <button className="text-action" type="button" disabled={pending || seasonConfiguration?.status !== "draft" || !seasonConfiguration.officialReward} onClick={() => void updateSeasonReward("publish-season-reward")}>发布并开放本赛季</button>
+        </div>
+      </section>
       <div className="admin-table" role="region" aria-label="边境计划报名记录" tabIndex={0}>
         <div className="admin-table__head mono"><span>状态</span><span>仓库 / 项目</span><span>联系邮箱</span><span>Star</span><span>时间</span></div>
         {submissions.length === 0 ? <p className="ranking-empty">当前没有报名记录。</p> : submissions.map((submission) => (

@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof OpcOrderIdempotencyConflictError) {
       return NextResponse.json({ error: message }, { status: 409 });
     }
-    if (message.includes("尚未完成生产配置")) {
+    if (message.includes("尚未完成生产配置") || message.includes("在线付款当前未开放")) {
       return NextResponse.json({ error: "付款服务暂未完成配置，当前不能创建订单。" }, { status: 503 });
     }
     console.error("OPC order creation failed", error);

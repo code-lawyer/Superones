@@ -26,7 +26,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-USER_AGENT = "Vault2077-Overseas-Collector/2.0 (+https://vault2077.com)"
+USER_AGENT = "Vault2077-Overseas-Collector/2.0 (+https://superones.top)"
 WORKERS = int(os.environ.get("VAULT2077_COLLECTOR_CONCURRENCY", "24"))
 PER_HOST_WORKERS = int(os.environ.get("VAULT2077_PER_HOST_CONCURRENCY", "4"))
 TIMEOUT_SECONDS = int(os.environ.get("VAULT2077_SOURCE_TIMEOUT_SECONDS", "20"))
@@ -47,6 +47,16 @@ class _TextExtractor(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         self.parts.append(data)
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in {"br", "p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "pre"}:
+            self.parts.append("\n")
+        if tag == "li":
+            self.parts.append("\n- ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol", "pre"}:
+            self.parts.append("\n")
 
 
 def plain_text(value) -> str:
@@ -91,6 +101,23 @@ def as_text(value, limit: int) -> str:
     if value is None:
         return ""
     return " ".join(str(value).split())[:limit]
+
+def as_structured_text(value, limit: int) -> str:
+    if value is None:
+        return ""
+    raw = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    raw = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", raw)
+    lines = [re.sub(r"[ \t]+$", "", line) for line in raw.split("\n")]
+    normalized = re.sub(r"\n{4,}", "\n\n\n", "\n".join(lines)).strip()
+    if len(normalized) <= limit:
+        return normalized
+    boundary = normalized.rfind("\n\n", 0, limit + 1)
+    while boundary > 0:
+        candidate = normalized[:boundary].rstrip()
+        if len(re.findall(r"^```", candidate, flags=re.MULTILINE)) % 2 == 0:
+            return candidate
+        boundary = normalized.rfind("\n\n", 0, boundary)
+    return ""
 
 
 def now_iso(now: datetime | None = None) -> str:
@@ -188,7 +215,13 @@ def document(source: dict, url, title, content="", published_at="", author="", o
     if not original_url or not original_title or urlparse(original_url).scheme != "https":
         return None
     source_provenance = provenance(source, original_url)
-    original_content = as_text(plain_text(content), 48000)
+    content_format = overrides.get("contentFormat") or source.get("contentFormat")
+    if not content_format:
+        content_format = "markdown" if source.get("connector") == "github-releases" else "plain_text"
+    if content_format not in {"plain_text", "markdown"}:
+        raise ValueError(f"Unsupported content format for {source.get('id')}: {content_format}")
+    content_value = content if content_format == "markdown" else plain_text(content)
+    original_content = as_structured_text(content_value, 48000)
     external_url = as_text(overrides.get("externalUrl"), 2048)
     if external_url and urlparse(external_url).scheme != "https":
         external_url = ""
@@ -217,6 +250,7 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         "originalLanguage": as_text(source.get("primaryLanguage") or source.get("language") or "unknown", 32),
         "originalTitle": original_title,
         "originalContent": original_content or None,
+        "contentFormat": content_format,
         "contentCompleteness": {
             "feed-content": "excerpt",
             "structured-data": "metadata",
@@ -473,6 +507,9 @@ def collect_github(source: dict, payload, start: datetime, end: datetime) -> lis
     for value in (payload if isinstance(payload, list) else []):
         if source["connector"] == "github-releases":
             title = value.get("name") or value.get("tag_name")
+            release_identity = f"{title or ''} {value.get('tag_name') or ''}"
+            if re.search(r"\b(?:nightly|snapshot|canary|continuous)\b", release_identity, flags=re.IGNORECASE):
+                continue
             url = value.get("html_url")
             content = value.get("body", "")
             published_at = value.get("published_at") or value.get("created_at")

@@ -24,12 +24,64 @@ test("OpenAI-compatible client uses chat completions and parses JSON content", a
       headers: { "Content-Type": "application/json" },
     });
   };
-  const client = createOpenAICompatibleClient({ baseUrl: "https://llm.example.com/v1", apiKey: "secret", model: "model-a", timeoutMs: 5_000 }, fakeFetch);
+  const client = createOpenAICompatibleClient({
+    baseUrl: "https://llm.example.com/v1",
+    apiKey: "secret",
+    model: "model-a",
+    timeoutMs: 5_000,
+    providerSort: "throughput",
+  }, fakeFetch);
   const result = await client.completeJson({ task: "test", schemaVersion: "v1", instruction: "return JSON", input: { title: "original" } });
   assert.equal(requestedUrl, "https://llm.example.com/v1/chat/completions");
   assert.equal(requestedBody.model, "model-a");
   assert.deepEqual(requestedBody.response_format, { type: "json_object" });
+  assert.deepEqual(requestedBody.provider, {
+    sort: "throughput",
+    require_parameters: true,
+    allow_fallbacks: true,
+  });
   assert.deepEqual(result, { translatedTitle: "标题" });
+});
+
+test("editorial profiles load scoped OpenRouter provider routing", () => {
+  const config = loadEditorialProfileConfig("vault_editorial", {
+    VAULT2077_VAULT_LLM_BASE_URL: "https://openrouter.ai/api/v1",
+    VAULT2077_VAULT_LLM_API_KEY: "vault-key",
+    VAULT2077_VAULT_LLM_MODEL: "deepseek/deepseek-v4-flash",
+    VAULT2077_VAULT_LLM_PROVIDER_SORT: "throughput",
+    VAULT2077_VAULT_LLM_PROVIDER_ORDER: "deepseek,novita/fp8,deepseek",
+  });
+  assert.equal(config.primary.providerSort, "throughput");
+  assert.deepEqual(config.primary.providerOrder, ["deepseek", "novita/fp8"]);
+});
+
+test("OpenAI-compatible client gives an explicit provider order precedence over sorting", async () => {
+  let requestedBody: Record<string, unknown> = {};
+  const fakeFetch: typeof fetch = async (_input, init) => {
+    requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: "{}" } }],
+    }), { status: 200 });
+  };
+  const client = createOpenAICompatibleClient({
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKey: "secret",
+    model: "deepseek/deepseek-v4-flash",
+    timeoutMs: 5_000,
+    providerSort: "throughput",
+    providerOrder: ["deepseek", "novita/fp8"],
+  }, fakeFetch);
+  await client.completeJson({
+    task: "test",
+    schemaVersion: "v1",
+    instruction: "JSON",
+    input: {},
+  });
+  assert.deepEqual(requestedBody.provider, {
+    order: ["deepseek", "novita/fp8"],
+    require_parameters: true,
+    allow_fallbacks: true,
+  });
 });
 
 test("OpenAI-compatible client rejects a non-JSON assistant message", async () => {

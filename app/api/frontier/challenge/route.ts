@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createPendingSubmission, currentSeason, findSeasonSubmission } from "@/lib/frontier-store";
+import { createPendingSubmission, currentSeason, findSeasonSubmission, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
 import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, parseGitHubRepository } from "@/lib/github";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
@@ -9,6 +9,10 @@ import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-clie
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const season = currentSeason();
+  if (!(await getFrontierSeasonLaunchState(season.code)).writesEnabled) {
+    return NextResponse.json({ error: "边境计划报名尚未开放，请等待管理后台发布本赛季奖励。" }, { status: 503 });
+  }
   const clientHash = anonymizeClientAddress(requestClientAddress(request));
   if (!(await withinDurableRateLimit(`frontier:challenge:${clientHash}`, 8, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "当前请求次数过多，请稍后再试。" }, { status: 429 });
@@ -35,7 +39,6 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "仓库地址无效。" }, { status: 400 });
     }
-    const season = currentSeason();
     const existing = await findSeasonSubmission(owner, repo, season.code);
     if (existing?.status === "verified") {
       return NextResponse.json({

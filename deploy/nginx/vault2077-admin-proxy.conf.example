@@ -6,6 +6,6 @@ proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $remote_addr;
 proxy_set_header Connection "";
 
-# Do not manufacture or accept an unsigned identity header here. The upstream
-# identity gateway must overwrite the configured assertion header and sign it;
-# the application independently verifies that JWT through the configured JWKS.
+# Authentication is handled by the application's Alibaba Cloud IDaaS OIDC
+# authorization-code adapter. Never forward a client-supplied identity header.
+proxy_set_header X-Vault2077-Identity-Assertion "";

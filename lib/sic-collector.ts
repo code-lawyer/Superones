@@ -55,13 +55,6 @@ function text(value: unknown, limit: number) {
     .slice(0, limit);
 }
 
-function readablePageText(payload: string) {
-  const withoutNoise = payload
-    .replace(/<(script|style|svg|nav|footer|header)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
-  const primary = withoutNoise.match(/<(article|main)\b[^>]*>([\s\S]*?)<\/\1>/i)?.[2] ?? withoutNoise;
-  return text(primary, 4_000);
-}
-
 function validDate(value: unknown) {
   const source = String(value ?? "").trim();
   const normalized = /^\d{4}-\d{2}-\d{2}$/.test(source)
@@ -90,8 +83,6 @@ function editorialItems(value: unknown, expectedIds: Set<string>) {
 
 async function enrichItems(
   items: SicRawContentItem[],
-  fetcher: Fetcher,
-  sources: SicSource[],
   options: { requireCompleteEditorial?: boolean } = {},
 ) {
   const stored = await getSicStoredContent();
@@ -116,25 +107,13 @@ async function enrichItems(
     return retained;
   }
 
-  const sourceById = new Map(sources.map((source) => [source.id, source]));
   const materialById = new Map<string, string>();
   let nextMaterial = 0;
   const materialWorker = async () => {
     while (nextMaterial < pending.length) {
       const item = pending[nextMaterial];
       nextMaterial += 1;
-      if (item.sourceMaterial) {
-        materialById.set(item.id, text(item.sourceMaterial, 12_000));
-        continue;
-      }
-      const source = sourceById.get(item.sourceId);
-      if (!source) continue;
-      try {
-        const payload = await fetchText(fetcher, item.url, source);
-        materialById.set(item.id, readablePageText(payload));
-      } catch {
-        materialById.set(item.id, item.summary);
-      }
+      materialById.set(item.id, text(item.sourceMaterial || item.summary, 12_000));
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, pending.length) }, materialWorker));
@@ -274,10 +253,15 @@ function xmlEntries(source: SicSource, payload: string): Candidate[] {
     const url = allowedUrl(atomLink(block), source);
     const title = tagValue(block, "title");
     if (!url || !title) return [];
+    const sourceMaterial = tagValue(block, "content:encoded")
+      || tagValue(block, "description")
+      || tagValue(block, "summary")
+      || tagValue(block, "content");
     return [{
       title,
       url,
-      summary: tagValue(block, "description") || tagValue(block, "summary") || tagValue(block, "content"),
+      summary: sourceMaterial,
+      sourceMaterial,
       publishedAt: validDate(tagValue(block, "pubDate") || tagValue(block, "published") || tagValue(block, "updated")),
     }];
   });
@@ -621,28 +605,8 @@ async function collectSource(
     provenanceStatus: candidate.canonicalId ? "verified" : "declared",
     sourceMaterial: candidate.sourceMaterial,
   }));
-  let materialFailures = 0;
-  let nextItem = 0;
-  const materialWorker = async () => {
-    while (nextItem < items.length) {
-      const index = nextItem;
-      nextItem += 1;
-      const item = items[index];
-      try {
-        const material = item.sourceMaterial
-          ? item.sourceMaterial
-          : item.url === source.endpoint
-          ? readablePageText(payload)
-          : readablePageText(await fetchText(fetcher, item.url, source));
-        item.sourceMaterial = material || item.summary;
-      } catch {
-        materialFailures += 1;
-        item.sourceMaterial = item.summary;
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(3, items.length) }, materialWorker));
-  return { items, materialFailures };
+  for (const item of items) item.sourceMaterial = item.sourceMaterial || item.summary;
+  return { items, materialFailures: 0 };
 }
 
 export type SicRawCollection = {
@@ -786,10 +750,9 @@ function validateRawCollection(value: unknown, options: {
   return { version: 1, collectedAt, items, reports };
 }
 
-export async function ingestSicRawContent(value: unknown, fetcher: Fetcher = fetch) {
+export async function ingestSicRawContent(value: unknown, _fetcher: Fetcher = fetch) {
   const packet = validateRawCollection(value, { enforceAge: true, requireCompleteReports: true });
-  const sources = listCollectableSicSources();
-  const enriched = await enrichItems(packet.items, fetcher, sources);
+  const enriched = await enrichItems(packet.items);
   const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
   return mergeSicStoredContent({
     items,
@@ -798,10 +761,9 @@ export async function ingestSicRawContent(value: unknown, fetcher: Fetcher = fet
   });
 }
 
-export async function ingestSicAcquisitionContent(value: unknown, fetcher: Fetcher) {
+export async function ingestSicAcquisitionContent(value: unknown, _fetcher: Fetcher) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
-  const sources = listCollectableSicSources();
-  const enriched = await enrichItems(packet.items, fetcher, sources, { requireCompleteEditorial: true });
+  const enriched = await enrichItems(packet.items, { requireCompleteEditorial: true });
   const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
   return mergeSicStoredContent({
     items,

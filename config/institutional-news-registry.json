@@ -17,12 +17,12 @@
       "status": "approved",
       "name": "Anthropic News",
       "publisher": "Anthropic",
-      "kind": "official_sitemap",
+      "kind": "aggregated_rss",
       "homeUrl": "https://www.anthropic.com/news",
-      "endpoint": "https://www.anthropic.com/sitemap.xml",
-      "pathPrefix": "/news/",
-      "admissionRule": "仅接入 Anthropic 官方 sitemap 中 /news/ 前缀下的新增公告、产品发布、公司变化与公共回应。",
-      "rationale": "官方 sitemap 能在不依赖第三方 RSS 代理的情况下稳定追踪 Anthropic 新闻；/research/ 由 SiC 档案独立接入。"
+      "endpoint": "https://rsshub.bestblogs.dev/anthropic/news",
+      "aggregator": "rsshub.bestblogs.dev",
+      "admissionRule": "仅通过结构化 RSS 接入 Anthropic News 的公告、产品发布、公司变化与公共回应；不抓取 Anthropic 网页。",
+      "rationale": "Anthropic 未提供稳定的一方 News RSS；按现行政策使用经过验证的第三方 RSS 转接，并保留 Anthropic 原始文章 URL。"
     }
   ]
 }

@@ -28,7 +28,7 @@ type CatalogResponse = {
   catalog?: ManagedCatalogView;
 };
 
-type AdminLoginMode = "identity-gateway" | "local-password";
+type AdminLoginMode = "oidc" | "local-password";
 
 const adminMutationHeaders = {
   "Content-Type": "application/json",
@@ -131,7 +131,7 @@ export function AdminOpcCatalogEditor() {
       fetch("/api/admin/login", { cache: "no-store" }),
     ]);
     const access = await accessResponse.json().catch(() => null) as { mode?: AdminLoginMode } | null;
-    if (access?.mode === "identity-gateway" || access?.mode === "local-password") setAccessMode(access.mode);
+    if (access?.mode === "oidc" || access?.mode === "local-password") setAccessMode(access.mode);
     const catalog = await responseBody(response);
     setState(catalog);
     setDraft(structuredClone(catalog.draft));
@@ -332,10 +332,10 @@ export function AdminOpcCatalogEditor() {
           {reauthenticationRequired ? (
             <div className="admin-opc-editor__reauth">
               <strong>发布前需要重新验证身份</strong>
-              {accessMode === "identity-gateway" ? (
+              {accessMode === "oidc" ? (
                 <>
-                  <p>先通过身份网关完成 Passkey/MFA，再返回这里刷新发布权限。</p>
-                  {reauthenticationUrl ? <a className="text-link" href={reauthenticationUrl}>进入安全身份验证 ↗</a> : null}
+                  <p>通过阿里云 IDaaS 再次完成 MFA，返回后权限自动刷新。</p>
+                  {reauthenticationUrl ? <a className="text-action" href={reauthenticationUrl}>通过 IDaaS 重新验证 ↗</a> : null}
                 </>
               ) : (
                 <div className="form-field">
@@ -343,9 +343,11 @@ export function AdminOpcCatalogEditor() {
                   <input id="admin-opc-reauth-password" type="password" autoComplete="current-password" value={reauthenticationPassword} onChange={(event) => setReauthenticationPassword(event.target.value)} />
                 </div>
               )}
-              <button className="text-action" type="button" disabled={pending || (accessMode === "local-password" && !reauthenticationPassword)} onClick={() => void reauthenticate()}>
-                {accessMode === "identity-gateway" ? "身份已更新，刷新权限" : "验证发布权限"}
-              </button>
+              {accessMode === "local-password" ? (
+                <button className="text-action" type="button" disabled={pending || !reauthenticationPassword} onClick={() => void reauthenticate()}>
+                  验证发布权限
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

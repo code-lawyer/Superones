@@ -27,6 +27,24 @@ test("SiC feed collector preserves every fixed-source entry and rejects foreign 
   assert.equal(entries[0].title, "First technical release");
   assert.equal(entries[0].url, "https://example.com/news/first");
   assert.equal(entries[0].publishedAt, "2026-07-21T10:00:00.000Z");
+  assert.equal(entries[0].sourceMaterial, "Primary details");
+});
+
+test("SiC feed collector uses feed content without requiring article-page fetches", () => {
+  const entries = sicCollectorTestUtils.xmlEntries(rssSource, `
+    <rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>
+      <item>
+        <title>Full feed entry</title>
+        <link>https://example.com/news/full-entry</link>
+        <description>Short description</description>
+        <content:encoded><![CDATA[<p>Complete structured feed material.</p>]]></content:encoded>
+        <pubDate>Tue, 21 Jul 2026 10:00:00 GMT</pubDate>
+      </item>
+    </channel></rss>
+  `);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].summary, "Complete structured feed material.");
+  assert.equal(entries[0].sourceMaterial, "Complete structured feed material.");
 });
 
 test("bootstrap selection keeps the newest real item even outside the daily window", () => {

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentSeason, createPrizeDonation } from "@/lib/frontier-store";
+import { currentSeason, createPrizeDonation, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!(await getFrontierSeasonLaunchState()).writesEnabled) {
+    return NextResponse.json({ error: "边境计划奖池尚未开放，请等待赛季配置确认。" }, { status: 503 });
+  }
   const clientHash = anonymizeClientAddress(requestClientAddress(request));
   if (!(await withinDurableRateLimit(`frontier:donation:${clientHash}`, 6, 24 * 60 * 60 * 1000))) {
     return NextResponse.json({ error: "今天提交的奖品较多，请稍后再试。" }, { status: 429 });

@@ -44,7 +44,7 @@ function editorial(overrides: Partial<EditorialPort> = {}): EditorialPort {
       return { disposition: "candidate", candidateKey: "same-event", directionAligned: true };
     },
     async composeEvent() {
-      return { title: "重大模型正式发布", judgment: "能力边界出现明确变化", summary: "综合摘要", significance: "影响判断", entities: ["Example AI"], category: "模型与产品" };
+      return { title: "重大模型正式发布", judgment: "能力边界出现明确变化[1]", summary: "综合摘要[1][2]", significance: "影响判断[2]", entities: ["Example AI"], category: "模型与产品" };
     },
     ...overrides,
   };
@@ -103,6 +103,29 @@ test("three aligned items from two publishers and roles form one event", async (
   assert.equal(result.events.length, 1);
   assert.equal(result.events[0].sources?.length, 3);
   assert.ok(result.information.every((item) => item.primaryEventSlug === result.events[0].slug));
+});
+
+test("an event without valid evidence citations is quarantined", async () => {
+  const result = await compileInformationBatch({
+    batch: batch([envelope(1, "A", "官方"), envelope(2, "B", "媒体"), envelope(3, "B", "媒体")]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial({
+      async composeEvent() {
+        return {
+          title: "缺少证据引用的事件",
+          judgment: "判断没有引用",
+          summary: "摘要没有引用",
+          significance: "意义没有引用",
+          entities: ["Example AI"],
+          category: "模型与产品",
+        };
+      },
+    }),
+  });
+  assert.equal(result.events.length, 0);
+  assert.equal(result.information.length, 0);
+  assert.equal(result.quarantine[0].errorCode, "EVENT_COMPOSITION_FAILED");
 });
 
 test("event threshold requires both owner entity and role diversity", () => {

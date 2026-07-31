@@ -7,9 +7,13 @@ import {
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import {
+  currentSeason,
+  getFrontierSeasonConfiguration,
   listAdminPrizeDonations,
   listAdminSubmissions,
   listVerifiedSubmissions,
+  publishFrontierSeasonReward,
+  saveFrontierSeasonRewardDraft,
   setPrizeDonationStatus,
   updateSubmissionStars,
 } from "@/lib/frontier-store";
@@ -24,6 +28,7 @@ export async function GET(request: NextRequest) {
     return authenticatedAdminJson(access, {
       submissions: await listAdminSubmissions(),
       donations: await listAdminPrizeDonations(),
+      seasonConfiguration: await getFrontierSeasonConfiguration(),
     });
   } catch (error) {
     return adminAccessErrorResponse(error);
@@ -41,21 +46,22 @@ export async function POST(request: NextRequest) {
   let action = "unknown";
   let targetId = "unknown";
   try {
-    const body = await request.json() as { action?: unknown; donationId?: unknown; confirm?: unknown };
+    const body = await request.json() as { action?: unknown; donationId?: unknown; officialReward?: unknown; confirm?: unknown };
     action = typeof body.action === "string" ? body.action : "unknown";
     targetId = typeof body.donationId === "string" ? body.donationId : "frontier";
     const changesDonation = ["confirm-donation", "reject-donation", "withdraw-donation"].includes(action);
-    if (changesDonation && !hasRecentAdminReauthentication(access.session)) {
+    const publishesSeason = action === "publish-season-reward";
+    if ((changesDonation || publishesSeason) && !hasRecentAdminReauthentication(access.session)) {
       await recordAuditEvent({
         actorHash,
         action: `admin.frontier.${action}`,
-        targetType: "prize-donation",
+        targetType: publishesSeason ? "frontier-season" : "prize-donation",
         targetId,
         result: "rejected",
         reason: "recent-reauthentication-required",
       });
       return authenticatedAdminJson(access, {
-        error: "变更奖品状态前需要重新验证管理员身份。",
+        error: publishesSeason ? "发布本赛季奖励前需要重新验证管理员身份。" : "变更奖品状态前需要重新验证管理员身份。",
         code: "ADMIN_REAUTH_REQUIRED",
         reauthenticationUrl: configuredAdminReauthenticationUrl(),
       }, { status: 403 });
@@ -94,6 +100,38 @@ export async function POST(request: NextRequest) {
         failed,
         submissions: await listAdminSubmissions(),
         donations: await listAdminPrizeDonations(),
+        seasonConfiguration: await getFrontierSeasonConfiguration(),
+      });
+    }
+    if (body.action === "save-season-reward" || body.action === "publish-season-reward") {
+      const season = currentSeason().code;
+      targetId = season;
+      if (body.action === "save-season-reward") {
+        if (typeof body.officialReward !== "string") {
+          return authenticatedAdminJson(access, { error: "请填写本赛季真实官方奖励。" }, { status: 400 });
+        }
+        await saveFrontierSeasonRewardDraft(season, body.officialReward);
+      } else {
+        await publishFrontierSeasonReward(season);
+      }
+      const seasonConfiguration = await getFrontierSeasonConfiguration(season);
+      await recordAuditEvent({
+        actorHash,
+        action: `admin.frontier.${body.action}`,
+        targetType: "frontier-season",
+        targetId: season,
+        result: "success",
+        diff: {
+          status: seasonConfiguration.status,
+          officialReward: seasonConfiguration.officialReward,
+          rewardProvider: seasonConfiguration.rewardProvider,
+          rewardProcessOpenWithinDays: seasonConfiguration.rewardProcessOpenWithinDays,
+        },
+      });
+      return authenticatedAdminJson(access, {
+        submissions: await listAdminSubmissions(),
+        donations: await listAdminPrizeDonations(),
+        seasonConfiguration,
       });
     }
     if (changesDonation && typeof body.donationId === "string") {
@@ -110,6 +148,7 @@ export async function POST(request: NextRequest) {
       return authenticatedAdminJson(access, {
         submissions: await listAdminSubmissions(),
         donations: await listAdminPrizeDonations(),
+        seasonConfiguration: await getFrontierSeasonConfiguration(),
       });
     }
     await recordAuditEvent({

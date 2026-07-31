@@ -11,11 +11,10 @@ import {
   type PrizeDrawAssignment,
   type RankedSubmission,
 } from "./frontier-domain.ts";
+import { frontierMasterWritesEnabled, isValidFrontierReward } from "./frontier-launch-config.ts";
 import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 import { decryptSensitiveText, encryptSensitiveText } from "./sensitive-data.ts";
 import type { FrontierEntry } from "./types.ts";
-
-export const OFFICIAL_CHAMPION_REWARD = "边境计划季度冠军奖励（待公布）";
 
 type SubmissionStatus = "pending" | "verified" | "settled" | "ineligible_at_settlement";
 export type PrizeDonationStatus = "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned";
@@ -83,21 +82,45 @@ export type SettlementRun = {
 };
 
 type FrontierStore = {
-  version: 3;
+  version: 5;
   submissions: StoredSubmission[];
   prizeDonations: StoredPrizeDonation[];
   snapshots: SubmissionSnapshot[];
   seasonResults: SeasonResult[];
   settlementRuns: SettlementRun[];
   championRepositories: string[];
+  seasonConfigurations: FrontierSeasonConfiguration[];
 };
 
-type Version2Store = Omit<FrontierStore, "version" | "settlementRuns"> & { version: 2 };
+type Version4SeasonConfiguration = Omit<
+  FrontierSeasonConfiguration,
+  "taxNotice" | "rewardProcessOpenWithinDays"
+> & {
+  taxNotice: "奖励产生的税费由获奖者自行承担";
+  deliveryDeadlineDays: 7;
+};
+type Version4Store = Omit<FrontierStore, "version" | "seasonConfigurations"> & {
+  version: 4;
+  seasonConfigurations: Version4SeasonConfiguration[];
+};
+type Version3Store = Omit<FrontierStore, "version" | "seasonConfigurations"> & { version: 3 };
+type Version2Store = Omit<Version3Store, "version" | "settlementRuns"> & { version: 2 };
 
 type LegacyStore = {
   version: 1;
   submissions: Array<Omit<StoredSubmission, "rulesRevision" | "rulesAcceptedAt" | "settlementReason" | "status"> & { status: "pending" | "verified" | "disqualified"; reviewNote?: string | null }>;
   winnerRepositories: string[];
+};
+
+export type FrontierSeasonConfiguration = {
+  season: string;
+  officialReward: string;
+  rewardProvider: "边境计划管理局";
+  taxNotice: "依法归属于获奖者的税费由获奖者承担；依法需代扣代缴的，由运营主体依法办理";
+  rewardProcessOpenWithinDays: 7;
+  status: "draft" | "published";
+  updatedAt: string;
+  publishedAt: string | null;
 };
 
 export type AdminSubmission = Omit<StoredSubmission, "emailEncrypted" | "challengeHash"> & { email: string };
@@ -110,19 +133,36 @@ function hash(value: string) {
 
 function defaultStore(): FrontierStore {
   return {
-    version: 3,
+    version: 5,
     submissions: [],
     prizeDonations: [],
     snapshots: [],
     seasonResults: [],
     settlementRuns: [],
     championRepositories: [],
+    seasonConfigurations: [],
   };
 }
 
-function migrateStore(parsed: FrontierStore | Version2Store | LegacyStore): FrontierStore {
-  if (parsed.version === 3) return parsed;
-  if (parsed.version === 2) return { ...parsed, version: 3, settlementRuns: [] };
+function migrateStore(parsed: FrontierStore | Version4Store | Version3Store | Version2Store | LegacyStore): FrontierStore {
+  if (parsed.version === 5) return parsed;
+  if (parsed.version === 4) {
+    return {
+      ...parsed,
+      version: 5,
+      seasonConfigurations: parsed.seasonConfigurations.map((configuration) => {
+        const { deliveryDeadlineDays: _, ...rest } = configuration;
+        return {
+          ...rest,
+          rewardProvider: "边境计划管理局",
+          taxNotice: "依法归属于获奖者的税费由获奖者承担；依法需代扣代缴的，由运营主体依法办理",
+          rewardProcessOpenWithinDays: 7,
+        };
+      }),
+    };
+  }
+  if (parsed.version === 3) return { ...parsed, version: 5, seasonConfigurations: [] };
+  if (parsed.version === 2) return { ...parsed, version: 5, settlementRuns: [], seasonConfigurations: [] };
   return {
     ...defaultStore(),
     submissions: parsed.submissions.map((item) => ({
@@ -138,13 +178,14 @@ function migrateStore(parsed: FrontierStore | Version2Store | LegacyStore): Fron
 
 function validateStore(store: FrontierStore) {
   if (
-    store.version !== 3 ||
+    store.version !== 5 ||
     !Array.isArray(store.settlementRuns) ||
     !Array.isArray(store.submissions) ||
     !Array.isArray(store.prizeDonations) ||
     !Array.isArray(store.snapshots) ||
     !Array.isArray(store.seasonResults) ||
-    !Array.isArray(store.championRepositories)
+    !Array.isArray(store.championRepositories) ||
+    !Array.isArray(store.seasonConfigurations)
   ) throw new Error("边境计划数据文件格式无效。");
   return store;
 }
@@ -153,7 +194,9 @@ const frontierDocument: StateDocumentDefinition<FrontierStore> = {
   namespace: "frontier",
   fileName: "mvp-store.json",
   create: defaultStore,
-  parse: (value) => validateStore(migrateStore(value as FrontierStore | Version2Store | LegacyStore)),
+  parse: (value) => validateStore(migrateStore(
+    value as FrontierStore | Version4Store | Version3Store | Version2Store | LegacyStore,
+  )),
 };
 
 async function readStore(): Promise<FrontierStore> {
@@ -176,6 +219,73 @@ export function challengeMatches(challenge: string, expectedHash: string) {
 
 export function currentSeason(now: Date = new Date()) {
   return seasonForDate(now);
+}
+
+function emptySeasonConfiguration(season: string): FrontierSeasonConfiguration {
+  return {
+    season,
+    officialReward: "",
+    rewardProvider: "边境计划管理局",
+    taxNotice: "依法归属于获奖者的税费由获奖者承担；依法需代扣代缴的，由运营主体依法办理",
+    rewardProcessOpenWithinDays: 7,
+    status: "draft",
+    updatedAt: new Date(0).toISOString(),
+    publishedAt: null,
+  };
+}
+
+export async function getFrontierSeasonConfiguration(season = currentSeason().code) {
+  const store = await readStore();
+  return store.seasonConfigurations.find((item) => item.season === season)
+    ?? emptySeasonConfiguration(season);
+}
+
+export async function getFrontierSeasonLaunchState(season = currentSeason().code) {
+  const configuration = await getFrontierSeasonConfiguration(season);
+  const published = configuration.status === "published" && isValidFrontierReward(configuration.officialReward);
+  return {
+    configuration,
+    writesEnabled: frontierMasterWritesEnabled() && published,
+  };
+}
+
+export async function saveFrontierSeasonRewardDraft(
+  season: string,
+  officialReward: string,
+  now = new Date(),
+) {
+  seasonFromCode(season);
+  const reward = officialReward.trim();
+  if (!isValidFrontierReward(reward)) {
+    throw new Error("官方奖励需为 4–200 字的真实内容，不能包含待公布或占位表述。");
+  }
+  return mutateStore((store) => {
+    const existing = store.seasonConfigurations.find((item) => item.season === season);
+    const configuration: FrontierSeasonConfiguration = {
+      ...(existing ?? emptySeasonConfiguration(season)),
+      officialReward: reward,
+      status: "draft",
+      updatedAt: now.toISOString(),
+      publishedAt: null,
+    };
+    if (existing) Object.assign(existing, configuration);
+    else store.seasonConfigurations.push(configuration);
+    return configuration;
+  });
+}
+
+export async function publishFrontierSeasonReward(season: string, now = new Date()) {
+  seasonFromCode(season);
+  return mutateStore((store) => {
+    const configuration = store.seasonConfigurations.find((item) => item.season === season);
+    if (!configuration || !isValidFrontierReward(configuration.officialReward)) {
+      throw new Error("请先保存本赛季真实官方奖励草稿。");
+    }
+    configuration.status = "published";
+    configuration.updatedAt = now.toISOString();
+    configuration.publishedAt = now.toISOString();
+    return configuration;
+  });
 }
 
 export async function createPendingSubmission(input: {
@@ -443,10 +553,17 @@ export async function saveSeasonSettlement(input: {
       return existing;
     }
     const assignedAt = input.settledAt;
+    const configuredReward = store.seasonConfigurations.find(
+      (item) => item.season === input.season && item.status === "published",
+    )?.officialReward;
+    const officialReward = input.officialReward ?? configuredReward;
+    if (!officialReward || !isValidFrontierReward(officialReward)) {
+      throw new Error("本赛季没有已发布的真实官方奖励，不能执行结算。");
+    }
     const result: SeasonResult = {
       season: input.season,
       settledAt: input.settledAt,
-      officialReward: input.officialReward ?? OFFICIAL_CHAMPION_REWARD,
+      officialReward,
       championSubmissionId: input.finalRankings[0]?.id ?? null,
       finalRankings: input.finalRankings,
       ineligibleSubmissionIds: input.ineligibleSubmissionIds,

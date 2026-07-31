@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-07-25
+updated: 2026-07-31
 ---
 
 # Vault2077 统一采集运行手册
@@ -121,6 +121,7 @@ Frontier 境内侧另配置只读 GitHub 服务端凭证和 tick 鉴权。交互
 1. timer 领取已持久化批次，处理完成或明确进入可重试/隔离状态；
 2. 最后成功时间只在完整发布后推进；
 3. inbox、worker 退出码和频道新鲜度均未触发告警。
+4. 对声明为 `markdown` 的抽样记录核对段落、列表和代码块边界；若页面出现原样的 `###`、代码围栏或被压成一行的列表，视为处理失败，不得以“内容已入库”判定发布成功。
 
 bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记录或有明确的可恢复失败；“来源可访问但日常窗口为空”不算基线完成。
 
@@ -135,6 +136,15 @@ bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记�
 - 主路由冲突：若同一 endpoint 或同一原始 URL 同时出现在机构新闻与 SiC 档案来源中，阻止部署来源 bundle，先修注册表。
 - 单一来源失败：允许其他来源继续，但按新鲜度告警，不得虚构数据补齐。
 - 处理失败：保留 inbox，以同一 `batchId` 幂等重试，不重新采集制造重复批次。
+- 正文结构损坏：先停止受影响来源的新发布，核对采集产物的 `contentFormat` 和原始换行；旧记录从原 API/RSS 重拉或执行已审计的一次性迁移，不通过网页抓取补正文，也不在前端用字符串替换长期掩盖。
+
+本地预览或尚未上线的 bootstrap 内容库可执行一次：
+
+```powershell
+npm run content:migrate-markup -- data/content-store.json data/bootstrap/content-store.seed.json
+```
+
+迁移只处理显式传入且位于仓库内的内容库，为记录补充 `contentFormat`，并恢复旧版本已压平的 Markdown 块边界。生产 PostgreSQL 不直接运行该文件迁移；上线前应通过原 API/RSS 重放受影响批次。
 - worker 未运行：检查 `vault2077-acquisition-worker.timer`、最近 service 退出码和 journal；恢复 timer 后由 inbox 继续消费，不从境外调用 process route。
 - 单个编辑配置积压：只降低该配置的消费速度或暂停其新任务，保持另一配置继续处理；不得临时把积压任务随机撒到未登记的提供方。
 - 主处理提供方失败：达到既定阈值后切换该配置的受控备用，记录切换原因、起止时间、提供方/模型/提示版本；恢复主提供方前先以非发布探针验证。
@@ -151,4 +161,4 @@ bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记�
 
 监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、Vault/SiC 新鲜度、平台榜 stale、Frontier 回退积压和两套编辑配置。返回 `503` 表示至少一项 degraded；告警平台还必须采集两个 systemd timer 的最近成功与失败退出码，不能只以 Web 进程存活代替业务健康。
 
-部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、不完整身份网关配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；warning 必须在发布记录中解释。
+部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、不完整 OIDC 配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；warning 必须在发布记录中解释。

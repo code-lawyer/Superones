@@ -1,7 +1,7 @@
 ---
 type: engineering-spec
 status: active
-updated: 2026-07-25
+updated: 2026-07-31
 ---
 
 # Vault2077 系统交付规格
@@ -41,7 +41,7 @@ updated: 2026-07-25
 - `institutional-news-registry.json` 只批准机构新闻入口；`sic-source-registry.json` 的 documents 只批准深度材料入口。同一 endpoint 或同一原始发布不得同时进入两个生产通道。
 - 宽泛机构 Feed 无法用固定入口稳定区分新闻与深度材料时保持待审，不在境内用 LLM 补救来源路由。
 - Hacker News 与 Lobsters 产出 canonical 社区条目，canonical URL 为社区讨论页；外链只存为 `externalUrl`，不得递归请求或晋升为原站正文。
-- GitHub Trending、Hugging Face Trending、OpenRouter `top-weekly`、skills.sh 原生视图保持提供方顺序。
+- 经 GitHub 官方 REST API 获取的 OpenGithubs 日/周/月聚合榜、Hugging Face Trending 与 OpenRouter `top-weekly` 保持提供方顺序。
 - 不采集 MCP 排名，不计算本地增长榜。
 - 通用内容与平台榜的境外读取在采集器侧执行。Frontier 是唯一例外：境内服务端可以按当前参赛名单读取已知公开 GitHub 仓库；浏览器和普通页面不得直连，失败必须保持可恢复状态并转异步公开任务。
 
@@ -117,6 +117,8 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 每个编辑配置映射一个主处理提供方和一个受控备用。主提供方达到配置化失败条件后才切换备用；同一任务不得随机跨提供方分发，也不得并行生成多个结果后择优。重试必须使用稳定任务 ID 并保持幂等。处理记录至少保存编辑配置、提供方、模型、提示版本、处理版本和切换原因，任何原始字段不可被处理结果覆盖。
 
+information 记录使用向后兼容的 `contentFormat` 标记 `plain_text` 或 `markdown`。采集器必须在签名前保留原始正文中的换行和块级结构；境内 Schema 校验只移除非法控制字符，不得折叠段落、列表或代码围栏。编辑处理结果沿用同一结构合同，公开端通过统一安全渲染模块展示，禁止原始 HTML和非 HTTP(S) 链接执行。该字段的增加不改变批次 v2 的签名、幂等和原始字段不可变规则。
+
 ### 5.2 rankings 通道
 
 平台榜不进入编辑模型，不跨平台重排。Frontier 的仓库核验、Star 观察、排名与结算也不得使用编辑模型生成或修改确定性结果。每个结果保存平台、视图、平台内顺序、原始链接、采集时间和平台公开字段。
@@ -154,10 +156,10 @@ Redis 仅在需要分布式锁、缓存或队列吞吐时加入；对象存储�
 - 公网反向代理在内部命名空间只允许精确的 `POST /api/internal/acquisition` 与只读 `GET /api/internal/frontier/tasks`；前者写入签名批次，后者使用独立密钥返回已脱敏公开任务。两者在边缘限制方法与速率，其余 `/api/internal/*` 返回 `404`。Node 端口不得暴露公网。
 - `/pipeline` 必须限制为本地或认证后台诊断，不进入 sitemap、公开导航或搜索索引。
 - 生产错误不得静默回退到演示数据；公开页面显示可理解的降级状态。
-- 生产后台只接受独立管理来源上的身份网关签名 JWT；应用必须校验发行者、受众、时效和身份白名单。本地密码适配器在生产关闭。
+- 生产后台只接受独立管理来源上的阿里云 IDaaS OIDC 授权码登录；应用必须校验 state、nonce、PKCE、issuer、client ID、ID Token 时效、RS256/JWKS 和唯一邮箱白名单。本地密码适配器在生产关闭。
 - 管理会话使用 PostgreSQL 中可撤销的不透明令牌摘要；生产 Cookie 使用 `__Host-` 前缀、`HttpOnly`、`Secure`、`SameSite=Strict`，空闲 30 分钟、绝对 4 小时过期。
 - 浏览器写请求检查 JSON、自定义同源头、`Origin`/`Referer` 和 Fetch Metadata；所有写操作二次确认并写不可变审计日志。发布 OPC 与奖品状态操作还要求最近 5 分钟身份再认证。
-- 公共站来源和源站 IP 不提供管理入口；反向代理、身份网关和应用鉴权共同保护 `/admin` 与 `/api/admin/*`。
+- 公共站来源和源站 IP 不提供管理入口；反向代理、IDaaS MFA、OIDC 回调验证和应用会话共同保护 `/admin` 与 `/api/admin/*`。
 - 人工可编辑内容使用 OPC 服务目录深模块：后台读取和保存草稿、校验并发布完整快照；公开 OPC 路由只读取最近一次已发布快照。目录保存在统一生产持久化中，更新使用预期修订号防止并发覆盖，每次发布保留历史快照。
 - 该编辑接口只接受结构化的基础设施、专项服务和游骑兵档案，不接受资讯、来源 URL、模型结果、SiC 平台榜或 Frontier 排名。一级入口和受控分类法不得由请求自由创建。
 

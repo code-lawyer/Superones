@@ -193,6 +193,7 @@ function institutionalNewsSource(source) {
   const connector = source.kind === "official_sitemap"
     ? "sitemap"
     : "rss";
+  const aggregated = source.kind === "aggregated_rss";
   return {
     id: `institutional-news:${source.id}`,
     identity: `institutional-news:${source.id}`,
@@ -216,13 +217,13 @@ function institutionalNewsSource(source) {
     contentGroup: "information",
     itemKind: "article",
     provenanceRole: "canonical",
-    provenanceStatus: "verified",
+    provenanceStatus: aggregated ? "declared" : "verified",
     originPlatform: "web",
     authorityTier: null,
     endpoint: source.endpoint,
     connector,
     pathPrefix: source.pathPrefix ?? null,
-    aggregator: null,
+    aggregator: source.aggregator ?? null,
     validation: {
       status: "usable",
       checkedAt: new Date().toISOString(),

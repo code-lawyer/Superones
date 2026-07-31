@@ -155,10 +155,19 @@ function createAlipaySdk(configuration: OpcAlipayConfiguration) {
 export function opcOrderingAvailable(
   environment: Record<string, string | undefined> = process.env,
 ) {
-  return readOpcAlipayConfiguration(environment) !== null;
+  const enabled = environment.NODE_ENV === "production"
+    ? environment.VAULT2077_OPC_PAYMENTS_ENABLED === "true"
+    : environment.VAULT2077_OPC_PAYMENTS_ENABLED !== "false";
+  return enabled && readOpcAlipayConfiguration(environment) !== null;
 }
 
 export function requireOpcAlipayConfiguration() {
+  const enabled = process.env.NODE_ENV === "production"
+    ? process.env.VAULT2077_OPC_PAYMENTS_ENABLED === "true"
+    : process.env.VAULT2077_OPC_PAYMENTS_ENABLED !== "false";
+  if (!enabled) {
+    throw new Error("OPC 在线付款当前未开放。");
+  }
   const configuration = readOpcAlipayConfiguration();
   if (!configuration) {
     throw new Error("支付宝开放平台尚未完成生产配置，当前不能创建支付订单。");

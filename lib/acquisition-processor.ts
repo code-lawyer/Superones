@@ -87,7 +87,7 @@ function optionalHttps(payload: JsonObject, field: string) {
   return parsed.toString();
 }
 
-function information(record: AcquisitionRecord): InformationEnvelope {
+export function informationFromAcquisitionRecord(record: AcquisitionRecord): InformationEnvelope {
   const payload = record.payload;
   return {
     idempotencyKey: record.recordId,
@@ -108,6 +108,7 @@ function information(record: AcquisitionRecord): InformationEnvelope {
     originalLanguage: string(payload, "originalLanguage"),
     originalTitle: string(payload, "originalTitle"),
     originalContent: string(payload, "originalContent", false),
+    contentFormat: string(payload, "contentFormat", false) as InformationEnvelope["contentFormat"],
     contentCompleteness: string(payload, "contentCompleteness") as InformationEnvelope["contentCompleteness"],
     contentHash: record.contentHash,
     contentGroup: string(payload, "contentGroup", false) as InformationEnvelope["contentGroup"],
@@ -181,7 +182,7 @@ const blockedDomesticFetch: typeof fetch = async () => {
   throw new Error("统一境内处理禁止回源访问境外页面。");
 };
 
-const DIRECT_PROVIDERS = new Set<DirectRankingProvider>(["github", "hugging_face", "openrouter", "skills"]);
+const DIRECT_PROVIDERS = new Set<DirectRankingProvider>(["github", "hugging_face", "openrouter"]);
 
 function directRankingBoard(record: AcquisitionRecord): DirectRankingBoard {
   const payload = record.payload;
@@ -286,7 +287,7 @@ export function createAcquisitionBatchProcessor(input: {
         collectedFrom: batch.collectedFrom,
         collectedUntil: batch.collectedUntil,
         generatedAt: batch.collectedAt,
-        information: informationRecords.map(information),
+        information: informationRecords.map(informationFromAcquisitionRecord),
         repositories: [],
       });
       await processContent(legacy, work.payloadHash, { requireNoQuarantine: true });

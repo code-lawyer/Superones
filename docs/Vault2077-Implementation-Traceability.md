@@ -1,7 +1,7 @@
 ---
 type: traceability
 status: active
-updated: 2026-07-29
+updated: 2026-07-31
 ---
 
 # Vault2077 实现追踪矩阵
@@ -19,9 +19,9 @@ updated: 2026-07-29
 | OPC 三入口业务模型 | partial | 三入口、七项基础设施、十四项专项服务、六领域和十类顾问身份已实现；21 项服务已有完整页面字段、人民币公开价和无账号下单入口，真实支付宝收款资料仍待输入；默认游骑兵名录为空，不展示样例档案 |
 | SiC 内容组 | partial | 页面与存储已实现；档案来源已迁入 SiC 单一路由并由 sic 通道采集，公开术语仍需完成“文档”到“档案”的迁移 |
 | SiC 平台原生榜 | done | 原生顺序、last-success 保留和 stale 明示已实现 |
-| 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等状态和预览边界已实现；真实赛季与奖励输入仍阻断 |
+| 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等、后台逐赛季奖励草稿/发布和预览边界已实现；当前赛季真实奖励仍待运营发布 |
 | 无账户公开产品 | done | 公开用户无需站内账户 |
-| 运营后台 | partial | 独立管理来源、身份网关 JWT 校验、白名单 owner、PostgreSQL 可撤销会话、同源写请求防护、五分钟再认证、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；真实网关/防火墙绕过测试与内容纠错实际编辑动作仍待目标环境验收 |
+| 运营后台 | partial | 独立管理来源、阿里云 IDaaS OIDC 授权码/state/nonce/PKCE/ID Token 校验、唯一 owner 白名单、PostgreSQL 可撤销会话、同源写请求防护、五分钟再认证、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；真实 IDaaS/防火墙绕过测试与内容纠错实际编辑动作仍待目标环境验收 |
 | 统一采集批次/inbox | done | 四 lane、带 key ID 的签名密钥环、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
 | 四采集通道 | done | `collect-content.yml` 支持四通道，rankings 每小时 `:35`；旧境外投递/处理实现已删除，Node 模块独占签名和有界重试 |
 | 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；待阿里云目标服务器安装、退出码告警和积压恢复演练 |
@@ -42,6 +42,7 @@ updated: 2026-07-29
 | 要求 | 状态 | 说明 |
 | --- | --- | --- |
 | 事件簿、资讯瀑布、详情、来源回链 | partial | 公开路由存在；详情判断尚未强制证据引用 |
+| 双语正文结构与安全渲染 | done | v2 兼容 `contentFormat`、采集/处理换行保真、受控 Markdown 渲染、旧压平记录迁移与回归测试已实现 |
 | information/roadside 分流 | done | 数据模型和页面支持 |
 | 偶数小时 `:05` / `:55` 调度 | done | `collect-content.yml` 已配置 |
 | 生产不回退演示数据 | done | Vault 读取失败返回显式 degraded 空态，演示数据仅用于非生产 |
@@ -68,7 +69,7 @@ updated: 2026-07-29
 | 要求 | 状态 | 说明 |
 | --- | --- | --- |
 | 四内容组 | partial | 组数与页面已实现，但 `documents` 尚未迁移为规范中的“档案” |
-| GitHub/HF/OpenRouter/skills.sh 原生榜 | done | 平台顺序、last-success 保留和 stale 明示已实现 |
+| OpenGithubs/HF/OpenRouter 榜单 | done | GitHub 榜经官方 REST API 获取第三方聚合结果；提供方顺序、last-success 保留和 stale 明示已实现 |
 | 无 MCP、无本地增量 | done | 当前规范与榜单模块一致，旧 SiC 写接口已删除 |
 | 每日 `07:25`/`19:25` 内容通道 | done | workflow 已配置 |
 | 来源目录计数与状态一致 | done | SiC 注册表为 34=26 approved+7 retired+1 pending_review；目录与注册表同次修订 |
@@ -107,7 +108,7 @@ updated: 2026-07-29
 | 备份恢复演练 | missing | 无日期、RPO/RTO 和恢复结果 |
 | 监控告警 | partial | 受保护 `/api/internal/health` 已覆盖迁移、inbox、内容新鲜度、榜单 stale、Frontier 回退和编辑配置；待接入目标告警平台并演练 |
 | 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、预算和备用配置已实现，PostgreSQL 支持并发 worker；尚缺目标容量和持续积压演练 |
-| 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、不完整身份网关和旧共享模型 |
+| 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、不完整 OIDC、非唯一管理员邮箱和旧共享模型 |
 | 生产依赖安全 | done | Next.js 固定为 16.2.11，PostCSS/Sharp 覆盖到修复版本；`npm audit --omit=dev --audit-level=high` 为 0 漏洞 |
 
 ## 4. 2026-07-29 工程证据

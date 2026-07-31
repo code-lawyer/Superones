@@ -6,7 +6,7 @@ updated: 2026-07-25
 
 # Vault2077 SiC 来源目录
 
-本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 34 个来源：26 个 approved、7 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
+本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 34 个来源：22 个 approved、11 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
 
 ## 准入规则
 

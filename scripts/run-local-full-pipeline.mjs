@@ -11,19 +11,46 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import {
+  assertCollectorReport,
+  localUvEnvironment,
+  selectedPipelineLanes,
+} from "./local-pipeline-runner-helpers.mjs";
 
 const root = process.cwd();
+try {
+  process.loadEnvFile(path.join(root, ".env.local"));
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
 const port = Number(process.env.VAULT2077_LOCAL_PIPELINE_PORT ?? "3100");
 const python = process.env.VAULT2077_PYTHON || (process.platform === "win32" ? "uv" : "python3");
 const stamp = new Date().toISOString().replace(/[-:.]/g, "").replace("Z", "Z");
+const resumeRunDirectory = process.env.VAULT2077_LOCAL_RESUME_RUN_DIR?.trim();
+const resumeLanes = new Set(
+  (process.env.VAULT2077_LOCAL_RESUME_LANES ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
 const runRoot = path.resolve(
-  process.env.VAULT2077_LOCAL_RUN_DIR
+  resumeRunDirectory
+    || process.env.VAULT2077_LOCAL_RUN_DIR
     || path.join(".collector-output", "runs", stamp),
 );
+const lanes = selectedPipelineLanes(process.env);
+const uvEnvironment = localUvEnvironment(root, runRoot, process.env);
 const collectorRoot = path.join(runRoot, "collector");
 const dataRoot = path.join(runRoot, "data");
 const localSecret = `vault2077-local-${randomBytes(24).toString("base64url")}`;
-const localRounds = Math.max(1, Math.min(3, Number(process.env.VAULT2077_LOCAL_ROUNDS ?? "3")));
+const runMode = process.env.VAULT2077_ACQUISITION_RUN_MODE ?? "bootstrap";
+if (!["bootstrap", "incremental"].includes(runMode)) {
+  throw new Error("VAULT2077_ACQUISITION_RUN_MODE 必须是 bootstrap 或 incremental。");
+}
+const localRounds = Math.max(
+  1,
+  Math.min(3, Number(process.env.VAULT2077_LOCAL_ROUNDS ?? (runMode === "bootstrap" ? "1" : "3"))),
+);
 const useEnvironmentProxy = Boolean(
   process.env.HTTP_PROXY
   || process.env.HTTPS_PROXY
@@ -46,6 +73,11 @@ const modelValues = {
   baseUrl: process.env.VAULT2077_VAULT_LLM_BASE_URL ?? process.env.VAULT2077_LLM_BASE_URL,
   apiKey: process.env.VAULT2077_VAULT_LLM_API_KEY ?? process.env.VAULT2077_LLM_API_KEY,
   model: process.env.VAULT2077_VAULT_LLM_MODEL ?? process.env.VAULT2077_LLM_MODEL,
+};
+const sicModelValues = {
+  baseUrl: process.env.VAULT2077_SIC_LLM_BASE_URL ?? modelValues.baseUrl,
+  apiKey: process.env.VAULT2077_SIC_LLM_API_KEY ?? modelValues.apiKey,
+  model: process.env.VAULT2077_SIC_LLM_MODEL ?? modelValues.model,
 };
 const missingModelVariables = Object.entries(modelValues)
   .filter(([, value]) => !value?.trim())
@@ -103,9 +135,9 @@ const site = spawn(process.execPath, [
     VAULT2077_VAULT_LLM_BATCH_ITEMS: process.env.VAULT2077_VAULT_LLM_BATCH_ITEMS ?? process.env.VAULT2077_LLM_BATCH_ITEMS ?? "5",
     VAULT2077_VAULT_LLM_MAX_TOKENS: process.env.VAULT2077_VAULT_LLM_MAX_TOKENS ?? process.env.VAULT2077_LLM_MAX_TOKENS ?? "6000",
     VAULT2077_VAULT_LLM_REASONING_EFFORT: process.env.VAULT2077_VAULT_LLM_REASONING_EFFORT ?? process.env.VAULT2077_LLM_REASONING_EFFORT ?? "low",
-    VAULT2077_SIC_LLM_BASE_URL: process.env.VAULT2077_SIC_LLM_BASE_URL ?? modelValues.baseUrl,
-    VAULT2077_SIC_LLM_API_KEY: process.env.VAULT2077_SIC_LLM_API_KEY ?? modelValues.apiKey,
-    VAULT2077_SIC_LLM_MODEL: process.env.VAULT2077_SIC_LLM_MODEL ?? modelValues.model,
+    VAULT2077_SIC_LLM_BASE_URL: sicModelValues.baseUrl,
+    VAULT2077_SIC_LLM_API_KEY: sicModelValues.apiKey,
+    VAULT2077_SIC_LLM_MODEL: sicModelValues.model,
     VAULT2077_SIC_LLM_TIMEOUT_MS: process.env.VAULT2077_SIC_LLM_TIMEOUT_MS ?? "120000",
   },
   stdio: ["ignore", siteStdout, siteStderr],
@@ -190,11 +222,13 @@ function runCollector(lane, round) {
       windowsHide: true,
       env: {
         ...process.env,
+        ...uvEnvironment,
         ...(localGithubToken ? { GITHUB_TOKEN: localGithubToken } : {}),
         ...(useEnvironmentProxy ? { NODE_USE_ENV_PROXY: "1" } : {}),
         VAULT2077_PYTHON: python,
         VAULT2077_COLLECTOR_OUTPUT_DIR: collectorRoot,
         VAULT2077_ACQUISITION_LANE: lane,
+        VAULT2077_ACQUISITION_RUN_MODE: runMode,
         VAULT2077_SCHEDULE_ID: `local:${stamp}:round-${round}:${lane}`,
         VAULT2077_DOMESTIC_ACQUISITION_URL: `http://127.0.0.1:${port}/api/internal/acquisition`,
         VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ local: localSecret }),
@@ -223,14 +257,15 @@ try {
   await waitUntilReady();
   const laneReports = [];
   const collectorExitCodes = {};
-  const lanes = ["information", "roadside", "sic", "rankings"];
   for (let round = 1; round <= localRounds; round += 1) {
   for (const lane of lanes) {
-    const collectorExitCode = await runCollector(lane, round);
+    const resumeExistingLane = round === 1 && resumeLanes.has(lane);
+    const collectorExitCode = resumeExistingLane ? 0 : await runCollector(lane, round);
     collectorExitCodes[`round-${round}:${lane}`] = collectorExitCode;
     const report = JSON.parse(
       await readFile(path.join(collectorRoot, "acquisition-report.json"), "utf8"),
     );
+    assertCollectorReport(lane, collectorExitCode, report);
   const initialProcessingStartedAt = Date.now();
   const initialResponse = await postLocalJson(
     `http://127.0.0.1:${port}/api/internal/acquisition/process`,
@@ -270,7 +305,16 @@ try {
     }
     report.processing = mergeProcessing(report.processing, JSON.parse(response.body));
   }
-  report.processor = { provider: null, model: null, durationMs: retryDurationMs };
+  const laneModel = lane === "sic"
+    ? sicModelValues
+    : lane === "rankings"
+      ? null
+      : modelValues;
+  report.processor = {
+    provider: laneModel ? new URL(laneModel.baseUrl).hostname : null,
+    model: laneModel?.model ?? null,
+    durationMs: retryDurationMs,
+  };
   report.localRetry = {
     passes: retries,
     durationMs: retryDurationMs,
@@ -306,7 +350,11 @@ try {
         .map((status) => [status, currentLaneReports.reduce((sum, item) => sum + (item.sourceStatus?.[status] ?? 0), 0)]),
     ),
     sourceReports: currentLaneReports.flatMap((item) => item.sourceReports ?? []),
-    collectionLimits: { lookbackHours: 24, maxItemsPerSource: null },
+    runMode,
+    collectionLimits: {
+      informationAndRoadsideLookbackHours: runMode === "bootstrap" ? 30 * 24 : 12,
+      sicMaxItemsPerSource: runMode === "bootstrap" ? 1 : null,
+    },
     processor: {
       provider: currentLaneReports.find((item) => item.processor?.provider)?.processor.provider ?? null,
       model: currentLaneReports.find((item) => item.processor?.model)?.processor.model ?? null,

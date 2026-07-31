@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { seasonFromCode } from "@/lib/frontier-domain";
-import { challengeMatches, getSubmission, markSubmissionVerified } from "@/lib/frontier-store";
+import { challengeMatches, getFrontierSeasonLaunchState, getSubmission, markSubmissionVerified } from "@/lib/frontier-store";
 import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, readGitHubChallengeFile } from "@/lib/github";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
@@ -9,6 +9,9 @@ import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-clie
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!(await getFrontierSeasonLaunchState()).writesEnabled) {
+    return NextResponse.json({ error: "边境计划报名尚未开放，当前不能验证报名。" }, { status: 503 });
+  }
   const clientHash = anonymizeClientAddress(requestClientAddress(request));
   if (!(await withinDurableRateLimit(`frontier:verify:${clientHash}`, 12, 60 * 60 * 1000))) {
     return NextResponse.json({ error: "当前验证次数过多，请稍后再试。" }, { status: 429 });

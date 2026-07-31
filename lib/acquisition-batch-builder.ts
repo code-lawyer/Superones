@@ -223,6 +223,7 @@ export function buildVaultAcquisitionBatches(input: {
           originalLanguage: item.originalLanguage,
           originalTitle: item.originalTitle,
           originalContent: item.originalContent,
+          contentFormat: item.contentFormat,
           contentCompleteness: item.contentCompleteness,
           contentGroup: item.contentGroup,
           itemKind: item.itemKind,

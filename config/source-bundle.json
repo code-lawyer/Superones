@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "revision": "source-bundle-fd68c4cc4bb3bb45",
-  "generatedAt": "2026-07-25T10:53:26.470Z",
+  "revision": "source-bundle-adb4a7d346dad46c",
+  "generatedAt": "2026-07-30T12:47:50.955Z",
   "registryGeneratedAt": "2026-07-22T14:02:45.177Z",
   "registryAuditedAt": "2026-07-22T15:51:02.486Z",
   "policy": "Approved news publications, official newsrooms and project releases enter information. Verified people, personal blogs and approved community-native platforms enter roadside. Approved deep research and engineering publications enter SiC documents and never duplicate into information. Hacker News and Lobsters are canonical only for their own community submissions; their external links are never recursively fetched. Podcasts run in the SiC lane. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
   "counts": {
     "active": 54,
     "pending": 396,
-    "rss": 40,
-    "structured": 14,
+    "rss": 41,
+    "structured": 13,
     "information": 17,
     "documents": 0,
     "roadside": 37,
@@ -926,7 +926,7 @@
       "channelIdentifier": "anthropic-news",
       "homeUrl": "https://www.anthropic.com/news",
       "evidenceEligible": true,
-      "contentCapability": "fulltext",
+      "contentCapability": "feed-content",
       "discoveredFrom": [
         {
           "repository": "code-lawyer/Superones",
@@ -937,17 +937,17 @@
       "contentGroup": "information",
       "itemKind": "article",
       "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
+      "provenanceStatus": "declared",
       "originPlatform": "web",
       "authorityTier": null,
-      "endpoint": "https://www.anthropic.com/sitemap.xml",
-      "connector": "sitemap",
-      "pathPrefix": "/news/",
-      "aggregator": null,
+      "endpoint": "https://rsshub.bestblogs.dev/anthropic/news",
+      "connector": "rss",
+      "pathPrefix": null,
+      "aggregator": "rsshub.bestblogs.dev",
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-07-25T10:53:26.461Z",
-        "finalUrl": "https://www.anthropic.com/sitemap.xml"
+        "checkedAt": "2026-07-30T12:47:50.942Z",
+        "finalUrl": "https://rsshub.bestblogs.dev/anthropic/news"
       }
     },
     {
@@ -987,7 +987,7 @@
       "aggregator": null,
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-07-25T10:53:26.460Z",
+        "checkedAt": "2026-07-30T12:47:50.942Z",
         "finalUrl": "https://openai.com/news/rss.xml"
       }
     },

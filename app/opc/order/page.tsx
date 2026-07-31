@@ -85,8 +85,8 @@ export default async function OpcOrderPage({
         ) : (
           <section className="opc-order-entry opc-order-entry--unavailable" aria-labelledby="opc-order-unavailable-title">
             <p className="mono">PAYMENT / 付款服务</p>
-            <h3 id="opc-order-unavailable-title">当前暂时无法生成付款订单。</h3>
-            <p>付款服务尚未完成运行配置。你可以返回服务详情继续核对范围，配置恢复后再提交订单。</p>
+            <h3 id="opc-order-unavailable-title">在线付款尚未开放。</h3>
+            <p>服务目录可以正常浏览，订单与付款入口将在商户接入和真实交易验收完成后开放。当前页面不会收集或保存联系人信息。</p>
             <Link href={returnHref}>返回服务详情</Link>
           </section>
         )}
