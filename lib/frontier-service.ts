@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomInt } from "node:crypto";
-import { drawRandomPrizes, rankSubmissions, seasonForDate } from "./frontier-domain";
+import { drawRandomPrizes, rankSubmissions, seasonForDate } from "./frontier-domain.ts";
 import {
   challengeMatches,
   beginSeasonSettlement,
@@ -13,9 +13,9 @@ import {
   recordStarSnapshots,
   saveSeasonSettlement,
   type StoredSubmission,
-} from "./frontier-store";
-import { inspectGitHubRepository, readGitHubChallengeFile, type GitHubRepository } from "./github";
-import { enqueueFrontierObservationTask } from "./frontier-public-tasks";
+} from "./frontier-store.ts";
+import { inspectGitHubRepository, readGitHubChallengeFile, type GitHubRepository } from "./github.ts";
+import { enqueueFrontierObservationTask } from "./frontier-public-tasks.ts";
 
 export function repositoryEligibilityError(repository: GitHubRepository) {
   if (repository.isPrivate) return "边境计划只接受公开仓库。";
@@ -37,6 +37,7 @@ export async function refreshSeasonStars(season: string) {
       return { submissionId: submission.id, stars: repository.stars };
     } catch (error) {
       await enqueueFrontierObservationTask({
+        kind: "observe_stars",
         season,
         submissionId: submission.id,
         owner: submission.owner,
@@ -111,7 +112,9 @@ export async function settleSeason(season: string, settledAt = new Date().toISOS
       await recordStarSnapshots(season, candidates.map((item) => ({ submissionId: item.id, stars: item.current })), settledAt);
     }
     const finalRankings = rankSubmissions(candidates);
-    const prizes = (await listPublicPrizePool(season)).filter((item) => item.status === "available");
+    const prizes = (await listPublicPrizePool(season)).filter((item) => (
+      item.status === "available" || item.status === "carried_over"
+    ));
     const draw = drawRandomPrizes(finalRankings, prizes.map((item) => item.id), (upperExclusive) => randomInt(upperExclusive));
 
     return await saveSeasonSettlement({

@@ -1,6 +1,7 @@
 # Vault2077 上线负责人必办事项
 
 日期：2026-07-30
+更新：2026-07-31。基础设施规格和免费管理员方案以 `Vault2077-Production-Deployment-Plan-2026-07-31.md` 为最新执行基线。
 适用范围：只列必须由项目负责人申请、签约、购买、授权或作业务决定的事项。代码修复、门禁、文档与本地验证不重复分配给负责人。
 
 ## 1. 已由工程侧完成
@@ -60,7 +61,8 @@
 
 - 已确定的公开域名 `superones.top` 和建议后台域名 `admin.superones.top`；
 - 阿里云境内轻量应用服务器，最低按 2 核 2G 起步；
-- 同账号、同地域的 RDS PostgreSQL 17，以及轻量服务器到 RDS 所在 VPC 的内网互通；
+- 同账号、同地域的 RDS PostgreSQL 17 基础版，初始存储 20 GB，先按量付费，上线稳定 7～14 天后转包月；
+- 轻量服务器到 RDS 所在 VPC 的内网互通；
 - TLS 证书、DNS、安全组、自动备份、日志备份/PITR、删除保护和基础监控。
 
 必须作出的选择：
@@ -72,21 +74,19 @@
 
 验收：数据库不对公网开放，Node 只监听回环，公网只开放 80/443；迁移和 PostgreSQL 集成测试通过，并从真实备份恢复到隔离实例完成读取验证。
 
-### 2.5 在阿里云控制台配置 IDaaS
+### 2.5 注册生产管理员 Passkey
 
-方案与唯一生产 owner 邮箱 `lanzhouda@163.com` 均已确认，工程侧已经实现 OIDC 登录/回调、PKCE/state/nonce、ID Token 验证、注销、五分钟重新认证、白名单和生产配置门禁。
+不再要求购买阿里云 IDaaS，也不使用 GitHub 或 Cloudflare 处理管理员身份。唯一生产 owner 邮箱仍为 `lanzhouda@163.com`。项目内原生 WebAuthn/Passkey、可撤销会话、恢复码和 SSH 本地恢复流程已经实现；你只需在目标 HTTPS 域名用真实设备完成首次注册和恢复演练。
 
-你需要在阿里云控制台：
+部署到真实 HTTPS 域名后，你需要：
 
-1. 创建/启用邮箱为 `lanzhouda@163.com` 的 IDaaS 账户并仅由本人控制；
-2. 创建自研 OIDC 应用，只授权该账户；
-3. scope 设置 `openid email profile`；
-4. 登录 Redirect URI 设置为 `https://admin.superones.top/api/admin/oidc/callback`；
-5. 登出回调允许 `https://admin.superones.top/admin`；
-6. 开启 Passkey/WebAuthn 或其他抗钓鱼 MFA；
-7. 把 issuer、client ID 和 client secret 通过服务器秘密配置注入，client secret 不发送到聊天或 Git。
+1. 通过服务器本地维护命令生成短时、一次性的注册令牌；
+2. 在 `https://admin.superones.top` 为 `lanzhouda@163.com` 注册 Passkey；
+3. 建议注册两个独立认证器，避免手机或电脑丢失后失去后台；
+4. 将一次性恢复码离线保存，不放入服务器、聊天或 Git；
+5. 实际验证登录、注销、五分钟再认证、单会话撤销和恢复流程。
 
-验收：匿名写接口为 `401`；唯一 owner 可登录；非白名单、伪造/重放回调、错误 nonce、公开域名和 Node 端口均无法进入后台；注销和五分钟再认证生效。
+验收：匿名写接口为 `401`；唯一 owner 可通过 Passkey 登录；伪造挑战、重放认证、公开域名和 Node 端口均无法进入后台；注销、五分钟再认证、凭证撤销和恢复生效。
 
 ### 2.6 提供生产凭证与模型选择
 

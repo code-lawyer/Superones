@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
     return adminAccessErrorResponse(error);
   }
   try {
-    if (adminAccessMode() === "oidc") {
+    if (adminAccessMode() === "passkey") {
       return authenticatedAdminJson(access, {
-        error: "请通过阿里云 IDaaS 重新验证身份。",
+        error: "请使用 Passkey 重新验证身份。",
         code: "ADMIN_REAUTH_REQUIRED",
         reauthenticationUrl: configuredAdminReauthenticationUrl(),
       }, { status: 403 });

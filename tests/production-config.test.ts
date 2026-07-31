@@ -25,10 +25,6 @@ function validEnvironment() {
     ...validTestAlipayEnvironment(),
     VAULT2077_PUBLIC_ORIGIN: "https://superones.top",
     VAULT2077_ADMIN_ORIGIN: "https://admin.superones.top",
-    VAULT2077_ADMIN_OIDC_ISSUER: "https://identity.vault2077.test/oidc",
-    VAULT2077_ADMIN_OIDC_CLIENT_ID: "vault2077-production-admin",
-    VAULT2077_ADMIN_OIDC_CLIENT_SECRET: `${secret}oidc`,
-    VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "lanzhouda@163.com",
     VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ current: `${secret}3` }),
     VAULT2077_PIPELINE_ACTIVE_KEY_ID: "current",
     VAULT2077_PIPELINE_WORKER_SECRET: `${secret}4`,
@@ -147,17 +143,13 @@ test("production configuration gate rejects shared host and local password adapt
   assert.ok(report.errors.some((issue) => issue.includes("ADMIN_PASSWORD_HASH")));
 });
 
-test("production configuration gate rejects an invalid IDaaS OIDC contract", () => {
+test("production configuration gate rejects retired OIDC configuration", () => {
   const report = validateProductionConfiguration({
     ...validEnvironment(),
     VAULT2077_ADMIN_OIDC_ISSUER: "http://identity.vault2077.test/oidc",
-    VAULT2077_ADMIN_OIDC_CLIENT_SECRET: "short",
-    VAULT2077_ADMIN_IDENTITY_ALLOWLIST: "not-an-email",
   });
   assert.equal(report.ok, false);
-  assert.ok(report.errors.some((issue) => issue.includes("OIDC_ISSUER")));
-  assert.ok(report.errors.some((issue) => issue.includes("OIDC_CLIENT_SECRET")));
-  assert.ok(report.errors.some((issue) => issue.includes("ALLOWLIST")));
+  assert.ok(report.errors.some((issue) => issue.includes("已退役") && issue.includes("OIDC_ISSUER")));
 });
 
 test("production configuration gate rejects legacy single-value keys and untrusted proxy headers", () => {

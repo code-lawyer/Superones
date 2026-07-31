@@ -6,6 +6,8 @@ updated: 2026-07-31
 
 # Vault2077 部署配置手册
 
+> 2026-07-31 更新：RDS 已确定为 PostgreSQL 17 基础版、20 GB、先按量后包月。付费 IDaaS 已取消，生产后台改为项目内原生 Passkey；上线前仍须完成真实设备、TLS、恢复与源站绕过验收。最新执行顺序见根目录 `Vault2077-Production-Deployment-Plan-2026-07-31.md`。
+
 ## 1. 环境级别
 
 - 本地开发：允许开发默认值与文件适配器。
@@ -44,15 +46,10 @@ updated: 2026-07-31
 | `VAULT2077_CUSTOMER_SERVICE_EMAIL` | 可选 | 售后与投诉；缺省使用法律联系邮箱 |
 | `VAULT2077_LEGAL_EFFECTIVE_DATE` | 必需，`YYYY-MM-DD` | 当前公开法律文件生效日期 |
 | `VAULT2077_ADMIN_ORIGIN` | 必需且不同于公开来源 | 独立管理来源 |
-| `VAULT2077_ADMIN_OIDC_ISSUER` | 必需，HTTPS | IDaaS OIDC issuer，必须与 ID Token 和 discovery 一致 |
-| `VAULT2077_ADMIN_OIDC_DISCOVERY_URL` | 可选，HTTPS | 缺省为 issuer 下的 `.well-known/openid-configuration` |
-| `VAULT2077_ADMIN_OIDC_CLIENT_ID` | 必需 | IDaaS 自研应用 client ID，同时作为 ID Token audience |
-| `VAULT2077_ADMIN_OIDC_CLIENT_SECRET` | 必需、秘密 | IDaaS 自研应用 client secret，仅服务器持有 |
-| `VAULT2077_ADMIN_IDENTITY_ALLOWLIST` | 固定 | 必须且只能为 `lanzhouda@163.com` |
 
 本项目已确认公开来源为 `https://superones.top`、管理来源为 `https://admin.superones.top`、备案为 `沪ICP备2026003401号-1`。营业执照公示字段必须逐字复制，不能用品牌名或简称替代。
 
-IDaaS 应用只授权 `lanzhouda@163.com`，开启 Passkey/WebAuthn 或其他抗钓鱼 MFA，scope 使用 `openid email profile`。登录 Redirect URI 固定为 `https://admin.superones.top/api/admin/oidc/callback`；登出回调允许 `https://admin.superones.top/admin`。应用执行 state、nonce、PKCE、授权码服务端交换、RS256/JWKS 和邮箱白名单校验。Node 端口不得对公网开放。详见[阿里云轻量服务器与后台 OIDC 身份决策](Vault2077-Aliyun-Identity-Gateway-Decision.md)。
+唯一 owner 固定为 `lanzhouda@163.com`，无需身份环境变量。WebAuthn RP ID 从 `VAULT2077_ADMIN_ORIGIN` 的主机名派生，生产必须使用 HTTPS。部署后通过 SSH 在应用目录执行 `npm run admin:passkey:enroll`，将十分钟一次性令牌仅交给 owner，在管理域名完成首次注册并立即离线保存首次显示的恢复码。紧急全量恢复使用 `npm run admin:passkey:enroll -- --revoke-existing`；该命令会撤销现有 Passkey 和全部后台会话。Node 端口不得对公网开放。详见 [ADR-0012](adr/0012-production-admin-access.md)。
 
 Frontier 生产开放配置：
 
@@ -139,7 +136,7 @@ Frontier 生产开放配置：
 
 生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
 
-阿里云首个商用版本优先使用 RDS PostgreSQL，而不是把 PostgreSQL 与 Node 放在同一台轻量服务器。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动备份、日志备份/时间点恢复、删除保护和监控；上线前从生产备份恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 当前也不需要；只有原始包/长期归档体量超过数据库保留策略后，才通过新 ADR 引入私有 Bucket、服务端加密、生命周期与恢复验证。
+阿里云首个商用版本使用 RDS PostgreSQL 17 基础版，而不是把 PostgreSQL 与 Node 放在同一台轻量服务器。初始存储固定为 20 GB，连接池为 4；先按量付费完成 7～14 天上线验证，稳定后转包月。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动备份、日志备份/时间点恢复、删除保护和监控；容量在 50%/70%/80% 分级告警，上线前从生产备份恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 当前也不需要；只有原始包/长期归档体量超过数据库保留策略后，才通过新 ADR 引入私有 Bucket、服务端加密、生命周期与恢复验证。
 
 ## 6. GitHub Actions
 
@@ -158,16 +155,16 @@ GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥
 
 Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限流、缓存或条件请求并记录最近成功时间。普通页面不得触发 GitHub 请求；直读失败必须转为只含公开仓库标识的 rankings 回退任务。
 
-相关变量为 `GITHUB_TOKEN`、`VAULT2077_GITHUB_TIMEOUT_MS`、`VAULT2077_GITHUB_CONCURRENCY`。生产必须使用仓库 Nginx 模板覆盖 `X-Forwarded-For` 与 `X-Real-IP`，随后设置 `VAULT2077_TRUST_PROXY_HEADERS=true`；门禁不再允许未信任代理头的生产配置。若未来增加 CDN，必须以 `set_real_ip_from` 限定其出口地址后再恢复真实地址，不得直接信任用户提交的头；当前原生 OIDC 方案不要求在 Nginx 前另设身份网关。
+相关变量为 `GITHUB_TOKEN`、`VAULT2077_GITHUB_TIMEOUT_MS`、`VAULT2077_GITHUB_CONCURRENCY`。生产必须使用仓库 Nginx 模板覆盖 `X-Forwarded-For` 与 `X-Real-IP`，随后设置 `VAULT2077_TRUST_PROXY_HEADERS=true`；门禁不再允许未信任代理头的生产配置。若未来增加 CDN，必须以 `set_real_ip_from` 限定其出口地址后再恢复真实地址，不得直接信任用户提交的头；当前原生 Passkey 方案不要求在 Nginx 前另设身份网关。
 
 ## 7. 反向代理与公开边界
 
-- 仓库中的 `deploy/nginx/vault2077.conf.example`、`deploy/nginx/vault2077-admin-proxy.conf.example` 和 `deploy/systemd/vault2077-web.service` 是双入口与应用服务模板；部署时必须核对域名、证书路径、目录和 IDaaS OIDC 配置，并先通过目标环境审查。
+- 仓库中的 `deploy/nginx/vault2077.conf.example`、`deploy/nginx/vault2077-admin-proxy.conf.example` 和 `deploy/systemd/vault2077-web.service` 是双入口与应用服务模板；部署时必须核对域名、证书路径、目录和 Passkey RP 来源，并先通过目标环境审查。
 - 只公开产品路由和必要表单 API。
 - 内部命名空间在公网仅开放两个精确跨境接口：`POST /api/internal/acquisition` 负责写入签名批次，`GET /api/internal/frontier/tasks` 使用独立只读密钥返回已脱敏公开任务；两者均由 Nginx 先执行方法和速率限制。
 - `/api/internal/acquisition/process`、健康、Frontier tick、后台与诊断路由不得经公开域名访问；监控和人工处理使用回环或受控内网。
 - `/admin` 与 `/api/admin/*` 只在 `VAULT2077_ADMIN_ORIGIN` 的主机上提供；公开站主机显式拒绝这些路径。
-- 管理入口由应用发起 IDaaS OIDC 登录；Nginx 清空客户端提交的旧身份断言头，Node 只监听回环应用端口，防火墙拒绝服务器 IP 绕过。
+- 管理入口由应用发起原生 Passkey ceremony；Nginx 清空客户端提交的身份断言头，Node 只监听回环应用端口，防火墙拒绝服务器 IP 绕过。
 - 监控以 Bearer 密钥读取 `/api/internal/health`；`503` 或任一 degraded 检查触发告警，不向公网匿名暴露检查详情。
 - `/pipeline` 只允许回环/内部网络或认证后台访问，并设置 `noindex`。
 - 配置 TLS、HSTS、逐请求 nonce CSP、MIME 防护、Referrer Policy、请求体限制与日志脱敏。nonce 使页面采用动态渲染；首发 VPS 必须以压测确认可接受的 CPU、TTFB 和并发。
@@ -176,7 +173,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 
 1. 固定提交、Node/Python 运行时和锁文件；在阿里云创建轻量应用服务器、RDS、轻量与 VPC 内网互通、安全组/防火墙、DNS、TLS 证书和监控联系人。
 2. 安全组仅允许公网 `80/443`，SSH 只允许受控运维来源；RDS 只允许应用安全组访问。Node 只监听 `127.0.0.1:3000`。
-3. 在 IDaaS 创建自研 OIDC 应用，只授权 `lanzhouda@163.com`，配置 Passkey/MFA、issuer、client ID/secret、登录/登出回调和 `openid email profile`；确认公开域名和 Node 端口都不能进入后台。
+3. 通过 SSH 生成一次性 Passkey 注册令牌，在管理域名为唯一 owner 注册至少一个凭证并离线保存恢复码；确认公开域名和 Node 端口都不能进入后台。
 4. 生成彼此独立的高熵秘密与两个版本化密钥环；把采集签名密钥环、活动 ID 和 Frontier 公开任务只读密钥配置到 GitHub Secrets，把完整验签密钥环配置在境内。不得复制 worker、LLM、后台或用户数据秘密到 GitHub。
 5. 在最终生产环境变量下运行 `npm run deploy:check`，再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
 6. 运行 PostgreSQL 迁移，确认健康检查识别最新迁移；创建自动备份后执行一次隔离恢复演练。

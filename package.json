@@ -20,6 +20,7 @@
     "db:migrate": "node scripts/migrate-database.mjs",
     "test:postgres:integration": "node --conditions=react-server --experimental-strip-types scripts/test-postgres-integration.ts",
     "admin:hash-password": "node scripts/hash-admin-password.mjs",
+    "admin:passkey:enroll": "node --conditions=react-server --experimental-strip-types scripts/create-admin-passkey-enrollment.ts",
     "opc:sync-seed": "node --conditions=react-server --experimental-strip-types scripts/sync-opc-seed.ts",
     "opc:build-default-seed": "node --experimental-strip-types scripts/build-opc-default-seed.ts",
     "deploy:check": "node --conditions=react-server --experimental-strip-types scripts/check-production-config.ts",
@@ -45,8 +46,9 @@
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "alipay-sdk": "^4.14.0",
-    "jose": "^6.2.4",
     "next": "16.2.11",
     "pg": "^8.22.0",
     "react": "19.2.7",

@@ -126,7 +126,7 @@ export default async function FrontierPage() {
               </div>
             ) : (
               <ol className="frontier-pool-list">
-                {prizes.map((prize, index) => <li key={prize.id}><span className="mono">{String(index + 1).padStart(2, "0")}</span><div><strong>{prize.name}</strong><p>{prize.description}</p></div><span className="mono muted">{prize.status === "assigned" ? "ASSIGNED" : "AVAILABLE"}</span></li>)}
+                {prizes.map((prize, index) => <li key={prize.id}><span className="mono">{String(index + 1).padStart(2, "0")}</span><div><strong>{prize.name}</strong><p>{prize.description}</p></div><span className="mono muted">{prize.status === "assigned" ? "ASSIGNED" : prize.status === "carried_over" ? "CARRIED OVER" : "AVAILABLE"}</span></li>)}
               </ol>
             )}
           </section>

@@ -17,7 +17,7 @@ import { decryptSensitiveText, encryptSensitiveText } from "./sensitive-data.ts"
 import type { FrontierEntry } from "./types.ts";
 
 type SubmissionStatus = "pending" | "verified" | "settled" | "ineligible_at_settlement";
-export type PrizeDonationStatus = "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned";
+export type PrizeDonationStatus = "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned" | "carried_over";
 
 export type StoredSubmission = {
   id: string;
@@ -335,6 +335,81 @@ export async function createPendingSubmission(input: {
   return submission;
 }
 
+export async function removePendingSubmission(id: string) {
+  return mutateStore((store) => {
+    const before = store.submissions.length;
+    store.submissions = store.submissions.filter((item) => item.id !== id || item.status !== "pending");
+    return store.submissions.length !== before;
+  });
+}
+
+export async function removePendingSubmissions(ids: readonly string[]) {
+  if (ids.length === 0) return 0;
+  const removing = new Set(ids);
+  return mutateStore((store) => {
+    const before = store.submissions.length;
+    store.submissions = store.submissions.filter((item) => (
+      item.status !== "pending" || !removing.has(item.id)
+    ));
+    return before - store.submissions.length;
+  });
+}
+
+export async function updatePendingSubmissionRepository(
+  id: string,
+  input: { defaultBranch: string },
+) {
+  return mutateStore((store) => {
+    const submission = store.submissions.find((item) => item.id === id);
+    if (!submission || submission.status !== "pending") return null;
+    submission.defaultBranch = input.defaultBranch;
+    return submission;
+  });
+}
+
+export async function applyFrontierVerificationObservation(input: {
+  submissionId: string;
+  season: string;
+  defaultBranch: string;
+  stars: number;
+  challenge?: string;
+  capturedAt: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  return mutateStore((store) => {
+    const submission = store.submissions.find((item) => (
+      item.id === input.submissionId && item.season === input.season
+    ));
+    if (!submission) return "missing" as const;
+    if (submission.status === "verified") return "verified" as const;
+    if (submission.status !== "pending") return "ineligible" as const;
+    if (Date.parse(submission.challengeExpiresAt) <= now.getTime()) {
+      store.submissions = store.submissions.filter((item) => item.id !== submission.id);
+      return "challenge-expired" as const;
+    }
+    if (Date.parse(seasonFromCode(submission.season).endsAt) < now.getTime()) {
+      store.submissions = store.submissions.filter((item) => item.id !== submission.id);
+      return "season-closed" as const;
+    }
+    submission.defaultBranch = input.defaultBranch;
+    if (!input.challenge) return "inspected" as const;
+    if (!challengeMatches(input.challenge, submission.challengeHash)) return "challenge-mismatch" as const;
+    submission.status = "verified";
+    submission.verifiedAt = input.capturedAt;
+    submission.baselineStars = input.stars;
+    submission.currentStars = input.stars;
+    submission.lastSnapshotAt = input.capturedAt;
+    store.snapshots.push({
+      submissionId: submission.id,
+      season: submission.season,
+      capturedAt: input.capturedAt,
+      stars: input.stars,
+    });
+    return "verified" as const;
+  });
+}
+
 export async function getSubmission(id: string) {
   const store = await readStore();
   return store.submissions.find((item) => item.id === id) ?? null;
@@ -381,13 +456,6 @@ export async function recordStarSnapshots(season: string, updates: Array<{ submi
     store.snapshots = store.snapshots.slice(-20_000);
     return updates.length;
   });
-}
-
-export async function updateSubmissionStars(id: string, stars: number) {
-  const submission = await getSubmission(id);
-  if (!submission) throw new Error("报名记录不存在。");
-  await recordStarSnapshots(submission.season, [{ submissionId: id, stars }]);
-  return getSubmission(id);
 }
 
 export async function listVerifiedSubmissions(season = seasonForDate().code) {
@@ -442,7 +510,7 @@ export async function createPrizeDonation(input: { name: string; description: st
 export async function listPublicPrizePool(season = seasonForDate().code): Promise<PublicPrizeDonation[]> {
   const store = await readStore();
   return store.prizeDonations
-    .filter((item) => item.season === season && (item.status === "available" || item.status === "assigned"))
+    .filter((item) => item.season === season && ["available", "assigned", "carried_over"].includes(item.status))
     .map(({ id, season: itemSeason, name, description, status }) => ({ id, season: itemSeason, name, description, status }));
 }
 
@@ -465,7 +533,9 @@ export async function setPrizeDonationStatus(id: string, action: "confirm" | "re
       if (donation.status !== "pending_confirmation") throw new Error("只有待确认奖品可以拒绝。");
       donation.status = "rejected";
     } else {
-      if (donation.status !== "available") throw new Error("只有已确认且尚未分配的奖品可以撤回。");
+      if (donation.status !== "available" && donation.status !== "carried_over") {
+        throw new Error("只有已确认且尚未分配的奖品可以撤回。");
+      }
       donation.status = "withdrawn";
     }
     return donation;
@@ -610,7 +680,13 @@ export async function saveSeasonSettlement(input: {
     const next = nextSeason(input.season);
     for (const donation of store.prizeDonations.filter((item) => item.season === input.season)) {
       if (assignedIds.has(donation.id)) donation.status = "assigned";
-      else if (input.remainingPrizeDonationIds.includes(donation.id) && donation.status === "available") donation.season = next.code;
+      else if (
+        input.remainingPrizeDonationIds.includes(donation.id)
+        && (donation.status === "available" || donation.status === "carried_over")
+      ) {
+        donation.status = "carried_over";
+        donation.season = next.code;
+      }
       else if (donation.status === "pending_confirmation") donation.season = next.code;
     }
     return result;

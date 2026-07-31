@@ -2,7 +2,7 @@ import "server-only";
 
 import { configuredAcquisitionReceiver } from "./acquisition-inbox.ts";
 import { getStoredContent } from "./content-store.ts";
-import { getDirectRankingBoards } from "./direct-rankings.ts";
+import { getDirectRankingBoards, getDirectRankingSourceReports } from "./direct-rankings.ts";
 import { frontierObservationTaskStats } from "./frontier-public-tasks.ts";
 import { loadEditorialProfileConfig, type EditorialProfileId } from "./openai-compatible-client.ts";
 import { getSicStoredContent } from "./sic-content-store.ts";
@@ -73,11 +73,12 @@ export async function getOperationsHealth() {
     };
   }
 
-  const [queue, content, sic, rankings, frontierTasks] = await Promise.all([
+  const [queue, content, sic, rankings, rankingReports, frontierTasks] = await Promise.all([
     safely(() => configuredAcquisitionReceiver().stats()),
     safely(() => getStoredContent()),
     safely(() => getSicStoredContent()),
     safely(() => getDirectRankingBoards()),
+    safely(() => getDirectRankingSourceReports()),
     safely(() => frontierObservationTaskStats()),
   ]);
   checks.inbox = queue
@@ -103,8 +104,12 @@ export async function getOperationsHealth() {
   };
   checks.rankings = rankings
     ? {
-        status: rankings.length > 0 && rankings.every((board) => !board.stale) ? "ok" : "degraded",
-        detail: `${rankings.length} boards; stale=${rankings.filter((board) => board.stale).length}`,
+        status: rankings.length > 0
+          && rankings.every((board) => !board.stale)
+          && (rankingReports ?? []).every((report) => !["failed", "partial"].includes(report.status))
+          ? "ok"
+          : "degraded",
+        detail: `${rankings.length} boards; stale=${rankings.filter((board) => board.stale).length}; failed=${(rankingReports ?? []).filter((report) => ["failed", "partial"].includes(report.status)).length}`,
       }
     : { status: "degraded", detail: "rankings unavailable" };
   checks.frontierFallback = frontierTasks

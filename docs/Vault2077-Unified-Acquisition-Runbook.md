@@ -106,7 +106,7 @@ GitHub Actions 不配置 worker 或 LLM 密钥。境内侧至少配置完整验�
 
 每个编辑配置分别设置主处理提供方、受控备用、队列并发、超时与熔断阈值。模型请求额度为无限，但无限额度不等于无限并发：批次按固定时刻错峰进入 inbox，境内 systemd worker 再按配置的有界并发消费；不得把一个批次内的全部记录同时发起模型请求。密钥不得进入仓库、日志或 artifact。
 
-当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和熔断状态；请求预算默认 `unlimited`，生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 通过 `SKIP LOCKED` 和 claim token 领取不同批次，失败最多六次指数退避。业务快照先幂等写入，再确认 inbox；两步不是跨文档单事务，安全重放依赖稳定批次 ID、单调快照时间与 claim token。正式开放前仍须用目标提供方完成容量、切换和长时间积压演练，并保存提供方/模型/Schema 版本审计证据。
+当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和熔断状态；请求预算默认 `unlimited`，生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 通过 `SKIP LOCKED` 和 claim token 领取不同批次，失败最多六次指数退避。生产 PostgreSQL 模式下，业务写模型与 inbox 完成状态在同一数据库事务中原子提交；任一步失败都会整体回滚，稳定批次 ID、单调快照时间与 claim token 继续保证重试幂等。文件模式只用于本地开发，不提供跨文档事务保证。正式开放前仍须用目标提供方完成容量、切换和长时间积压演练，并保存提供方/模型/Schema 版本审计证据。
 
 Frontier 境内侧另配置只读 GitHub 服务端凭证和 tick 鉴权。交互式核验先写报名再尝试短时直读；失败必须保持待验证并写公开回退任务。北京时间 08:45–22:45 每两小时观察一次当前已验证仓库，保存最近成功时间、限流信息和失败分类；页面不触发 GitHub 请求。
 
@@ -168,4 +168,4 @@ npm run content:migrate-markup -- data/content-store.json data/bootstrap/content
 
 监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、Vault/SiC 新鲜度、平台榜 stale、Frontier 回退积压和两套编辑配置。返回 `503` 表示至少一项 degraded；告警平台还必须采集两个 systemd timer 的最近成功与失败退出码，不能只以 Web 进程存活代替业务健康。
 
-部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、不完整 OIDC 配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；warning 必须在发布记录中解释。
+部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、任何已退役 OIDC 配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；warning 必须在发布记录中解释。

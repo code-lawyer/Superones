@@ -12,8 +12,13 @@ import type {
   JsonValue,
 } from "./acquisition-contract.ts";
 import { assertAcquisitionLaneKinds } from "./acquisition-contract.ts";
-import { recordStarSnapshots } from "./frontier-store.ts";
+import {
+  applyFrontierVerificationObservation,
+  recordStarSnapshots,
+  removePendingSubmission,
+} from "./frontier-store.ts";
 import { completeFrontierObservationTasks } from "./frontier-public-tasks.ts";
+import { repositoryEligibilityError } from "./frontier-service.ts";
 import {
   ingestSicAcquisitionContent,
   type SicRawCollection,
@@ -47,6 +52,12 @@ function number(payload: JsonObject, field: string, fallback?: number) {
   const value = payload[field];
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (fallback !== undefined && (value === undefined || value === null)) return fallback;
+  throw new Error(`统一采集记录的 ${field} 无效。`);
+}
+
+function boolean(payload: JsonObject, field: string) {
+  const value = payload[field];
+  if (typeof value === "boolean") return value;
   throw new Error(`统一采集记录的 ${field} 无效。`);
 }
 
@@ -140,10 +151,25 @@ function repositoryTarget(record: AcquisitionRecord) {
 
 function frontierObservation(record: AcquisitionRecord) {
   const payload = record.payload;
+  const taskKind = (string(payload, "taskKind", false) ?? "observe_stars") as (
+    "inspect_submission" | "verify_submission" | "observe_stars"
+  );
+  if (!["inspect_submission", "verify_submission", "observe_stars"].includes(taskKind)) {
+    throw new Error("Frontier 公开任务类型无效。");
+  }
   return {
+    taskKind,
     season: string(payload, "season"),
     submissionId: string(payload, "submissionId"),
     stars: number(payload, "stars"),
+    defaultBranch: taskKind === "observe_stars"
+      ? string(payload, "defaultBranch", false)
+      : string(payload, "defaultBranch"),
+    isFork: taskKind === "observe_stars" ? false : boolean(payload, "isFork"),
+    isArchived: taskKind === "observe_stars" ? false : boolean(payload, "isArchived"),
+    isPrivate: taskKind === "observe_stars" ? false : boolean(payload, "isPrivate"),
+    license: payload.license === null ? null : string(payload, "license", false) ?? null,
+    challenge: string(payload, "challenge", false),
   };
 }
 
@@ -295,16 +321,25 @@ function directRankingBoard(record: AcquisitionRecord): DirectRankingBoard {
 
 async function processRankings(
   records: AcquisitionRecord[],
+  reports: AcquisitionBatch["sourceReports"],
+  collectedAt: string,
   persist: typeof persistDirectRankingBoards,
 ) {
   const adapted = adaptRecords(records, directRankingBoard);
+  const sourceReports = reportsAfterAdaptation(reports, records, adapted);
   const ids = new Set<string>();
   const boards = adapted.values.filter((board) => {
     if (ids.has(board.id)) return false;
     ids.add(board.id);
     return true;
   });
-  if (boards.length > 0) await persist(boards);
+  await persist(boards, sourceReports.map((report) => ({
+    sourceId: report.sourceId,
+    status: report.status,
+    collectedAt,
+    errorCode: report.errorCode,
+    errorMessage: report.errorMessage,
+  })));
   return boards.length;
 }
 
@@ -317,12 +352,14 @@ export function createAcquisitionBatchProcessor(input: {
   processPublications?: (value: unknown, fetcher: typeof fetch) => Promise<unknown>;
   persistDirectRankings?: typeof persistDirectRankingBoards;
   recordFrontierSnapshots?: typeof recordStarSnapshots;
+  applyFrontierVerification?: typeof applyFrontierVerificationObservation;
   completeFrontierFallbackTasks?: typeof completeFrontierObservationTasks;
 } = {}): AcquisitionBatchProcessor {
   const processContent = input.processContent ?? processInboundContent;
   const processPublications = input.processPublications ?? ingestSicAcquisitionContent;
   const persistRankings = input.persistDirectRankings ?? persistDirectRankingBoards;
   const persistFrontier = input.recordFrontierSnapshots ?? recordStarSnapshots;
+  const applyFrontierVerification = input.applyFrontierVerification ?? applyFrontierVerificationObservation;
   const completeFrontierFallback = input.completeFrontierFallbackTasks ?? completeFrontierObservationTasks;
 
   return async (batch, work) => {
@@ -398,15 +435,64 @@ export function createAcquisitionBatchProcessor(input: {
       processedPublications = adapted.values.length;
     }
 
-    if (rankings.length > 0) processedRankings = await processRankings(rankings, persistRankings);
+    const rankingSourceIds = new Set(rankings.map((record) => record.sourceId));
+    const rankingReports = batch.sourceReports.filter((report) => (
+      report.sourceId.startsWith("ranking:") || rankingSourceIds.has(report.sourceId)
+    ));
+    if (rankings.length > 0 || rankingReports.length > 0) {
+      processedRankings = await processRankings(
+        rankings,
+        rankingReports,
+        batch.collectedAt,
+        persistRankings,
+      );
+    }
 
     const frontierBySeason = new Map<string, Array<{ submissionId: string; stars: number }>>();
+    const completedFrontierTasks: string[] = [];
     for (const record of frontierRecords) {
       try {
         const value = frontierObservation(record);
-        const entries = frontierBySeason.get(value.season) ?? [];
-        entries.push({ submissionId: value.submissionId, stars: value.stars });
-        frontierBySeason.set(value.season, entries);
+        if (value.taskKind === "observe_stars") {
+          const entries = frontierBySeason.get(value.season) ?? [];
+          entries.push({ submissionId: value.submissionId, stars: value.stars });
+          frontierBySeason.set(value.season, entries);
+        } else {
+          const eligibilityError = repositoryEligibilityError({
+            owner: record.canonicalUrl,
+            repo: record.canonicalUrl,
+            fullName: record.canonicalUrl,
+            defaultBranch: value.defaultBranch!,
+            stars: value.stars,
+            isFork: value.isFork,
+            isArchived: value.isArchived,
+            isPrivate: value.isPrivate,
+            license: value.license,
+          });
+          if (eligibilityError) {
+            await removePendingSubmission(value.submissionId);
+          } else {
+            const outcome = await applyFrontierVerification({
+              submissionId: value.submissionId,
+              season: value.season,
+              defaultBranch: value.defaultBranch!,
+              stars: value.stars,
+              challenge: value.taskKind === "verify_submission" ? value.challenge : undefined,
+              capturedAt: batch.collectedAt,
+            });
+            const terminalVerificationOutcomes = new Set([
+              "verified",
+              "challenge-expired",
+              "season-closed",
+              "missing",
+              "ineligible",
+            ]);
+            if (value.taskKind === "verify_submission" && !terminalVerificationOutcomes.has(outcome)) {
+              throw new Error(`Frontier 异步验证未完成：${outcome}。`);
+            }
+          }
+        }
+        completedFrontierTasks.push(value.submissionId);
         processedRepositories += 1;
       } catch {
         // Malformed observations are isolated; valid observations still publish.
@@ -415,8 +501,8 @@ export function createAcquisitionBatchProcessor(input: {
     for (const [season, updates] of frontierBySeason) {
       await persistFrontier(season, updates, batch.collectedAt);
     }
-    if (processedRepositories > 0) {
-      await completeFrontierFallback([...frontierBySeason.values()].flat().map((record) => record.submissionId));
+    if (completedFrontierTasks.length > 0) {
+      await completeFrontierFallback(completedFrontierTasks);
     }
 
     return {

@@ -32,8 +32,19 @@ export type DirectRankingBoard = {
 };
 
 type DirectRankingStore = {
-  version: 1;
+  version: 2;
   boards: DirectRankingBoard[];
+  reports: DirectRankingSourceReport[];
+};
+
+type LegacyDirectRankingStore = Omit<DirectRankingStore, "version" | "reports"> & { version: 1 };
+
+export type DirectRankingSourceReport = {
+  sourceId: string;
+  status: "succeeded" | "empty" | "failed" | "partial";
+  collectedAt: string;
+  errorCode?: string;
+  errorMessage?: string;
 };
 
 export type DirectRankingRefreshResult = {
@@ -69,15 +80,16 @@ function isSupportedDirectRankingBoard(value: unknown): value is DirectRankingBo
 const directRankingsDocument: StateDocumentDefinition<DirectRankingStore> = {
   namespace: "direct-rankings",
   fileName: "direct-rankings.json",
-  create: () => ({ version: 1, boards: [] }),
+  create: () => ({ version: 2, boards: [], reports: [] }),
   parse: (value) => {
-    const parsed = value as DirectRankingStore;
-    if (parsed.version !== 1 || !Array.isArray(parsed.boards)) {
+    const parsed = value as DirectRankingStore | LegacyDirectRankingStore;
+    if (![1, 2].includes(parsed.version) || !Array.isArray(parsed.boards)) {
       throw new Error("平台原生榜单存储格式无效。");
     }
     return {
-      ...parsed,
+      version: 2,
       boards: parsed.boards.filter(isSupportedDirectRankingBoard),
+      reports: parsed.version === 2 && Array.isArray(parsed.reports) ? parsed.reports : [],
     };
   },
 };
@@ -293,7 +305,10 @@ async function readStore(): Promise<DirectRankingStore> {
   return readStateDocument(directRankingsDocument);
 }
 
-export function persistDirectRankingBoards(boards: DirectRankingBoard[]) {
+export function persistDirectRankingBoards(
+  boards: DirectRankingBoard[],
+  reports: DirectRankingSourceReport[] = [],
+) {
   return mutateStateDocument(directRankingsDocument, (current) => {
     const byId = new Map(current.boards.map((value) => [value.id, value]));
     for (const value of boards) {
@@ -304,6 +319,16 @@ export function persistDirectRankingBoards(boards: DirectRankingBoard[]) {
       ) byId.set(value.id, value);
     }
     current.boards = [...byId.values()];
+    if (reports.length > 0) {
+      const bySource = new Map(current.reports.map((report) => [report.sourceId, report]));
+      for (const report of reports) {
+        const previous = bySource.get(report.sourceId);
+        if (!previous || Date.parse(report.collectedAt) >= Date.parse(previous.collectedAt)) {
+          bySource.set(report.sourceId, report);
+        }
+      }
+      current.reports = [...bySource.values()];
+    }
   });
 }
 
@@ -346,4 +371,8 @@ export async function getDirectRankingBoards() {
       (DIRECT_RANKING_BOARD_ORDER.get(left.id) ?? Number.MAX_SAFE_INTEGER)
       - (DIRECT_RANKING_BOARD_ORDER.get(right.id) ?? Number.MAX_SAFE_INTEGER)
     ));
+}
+
+export async function getDirectRankingSourceReports() {
+  return (await readStore()).reports;
 }

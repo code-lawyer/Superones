@@ -25,7 +25,7 @@ export type ProductionConfigurationReport = {
     databaseHost: string | null;
     publicOrigin: string | null;
     adminOrigin: string | null;
-    identityIssuer: string | null;
+    passkeyRpId: string | null;
     editorialProviders: Record<EditorialProfileId, string | null>;
     trustedProxyHeaders: boolean;
   };
@@ -140,23 +140,6 @@ function parseHttpsOrigin(
     if (isIP(parsed.hostname)) errors.push(`${name} 必须使用域名，不能使用服务器 IP。`);
     if (placeholder(value)) errors.push(`${name} 仍含示例占位值。`);
     return parsed.origin;
-  } catch {
-    errors.push(`${name} 不是有效 URL。`);
-    return null;
-  }
-}
-
-function parseHttpsUrl(
-  environment: Record<string, string | undefined>,
-  name: string,
-  errors: string[],
-) {
-  const value = environment[name]?.trim() ?? "";
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "https:") errors.push(`${name} 必须使用 HTTPS。`);
-    if (placeholder(value)) errors.push(`${name} 仍含示例占位值。`);
-    return parsed;
   } catch {
     errors.push(`${name} 不是有效 URL。`);
     return null;
@@ -304,15 +287,6 @@ export function validateProductionConfiguration(
     "敏感数据密钥环",
     errors,
   ));
-  const oidcClientSecret = environment.VAULT2077_ADMIN_OIDC_CLIENT_SECRET?.trim() ?? "";
-  if (Buffer.byteLength(oidcClientSecret, "utf8") < 16 || placeholder(oidcClientSecret)) {
-    errors.push("VAULT2077_ADMIN_OIDC_CLIENT_SECRET 必须是至少 16 字节的真实 IDaaS 应用密钥。");
-  } else {
-    configuredSecrets.push({
-      name: "VAULT2077_ADMIN_OIDC_CLIENT_SECRET",
-      value: oidcClientSecret,
-    });
-  }
   configuredSecrets.push(...validateKeyring(
     environment,
     "VAULT2077_PIPELINE_SIGNING_KEYS",
@@ -352,30 +326,18 @@ export function validateProductionConfiguration(
     errors.push("VAULT2077_ADMIN_ORIGIN 必须使用与公开站不同的独立主机。");
   }
 
-  const identityIssuerUrl = parseHttpsUrl(
-    environment,
+  for (const retiredIdentityVariable of [
     "VAULT2077_ADMIN_OIDC_ISSUER",
-    errors,
-  );
-  const identityIssuer = identityIssuerUrl?.href.replace(/\/$/, "") ?? null;
-  const clientId = environment.VAULT2077_ADMIN_OIDC_CLIENT_ID?.trim() ?? "";
-  if (!clientId || placeholder(clientId)) {
-    errors.push("VAULT2077_ADMIN_OIDC_CLIENT_ID 未配置或仍是占位值。");
+    "VAULT2077_ADMIN_OIDC_DISCOVERY_URL",
+    "VAULT2077_ADMIN_OIDC_CLIENT_ID",
+    "VAULT2077_ADMIN_OIDC_CLIENT_SECRET",
+    "VAULT2077_ADMIN_IDENTITY_ALLOWLIST",
+  ]) {
+    if (environment[retiredIdentityVariable]) {
+      errors.push(`生产配置不得再使用已退役的 OIDC 变量 ${retiredIdentityVariable}；管理员身份固定为 ${PRODUCTION_ADMIN_EMAIL} 并由原生 Passkey 验证。`);
+    }
   }
-  const discoveryUrl = environment.VAULT2077_ADMIN_OIDC_DISCOVERY_URL?.trim();
-  if (discoveryUrl) {
-    parseHttpsUrl(environment, "VAULT2077_ADMIN_OIDC_DISCOVERY_URL", errors);
-  }
-  const allowlist = (environment.VAULT2077_ADMIN_IDENTITY_ALLOWLIST ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  if (
-    allowlist.length !== 1
-    || allowlist[0] !== PRODUCTION_ADMIN_EMAIL
-  ) {
-    errors.push(`VAULT2077_ADMIN_IDENTITY_ALLOWLIST 必须且只能是 ${PRODUCTION_ADMIN_EMAIL}。`);
-  }
+  const passkeyRpId = adminOrigin ? new URL(adminOrigin).hostname : null;
 
   const githubToken = environment.GITHUB_TOKEN?.trim() ?? "";
   if (githubToken.length < 20 || placeholder(githubToken)) {
@@ -444,7 +406,7 @@ export function validateProductionConfiguration(
       databaseHost,
       publicOrigin,
       adminOrigin,
-      identityIssuer,
+      passkeyRpId,
       editorialProviders,
       trustedProxyHeaders: environment.VAULT2077_TRUST_PROXY_HEADERS === "true",
     },

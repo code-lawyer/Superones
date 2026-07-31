@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { AdminOpcCatalogEditor } from "@/components/admin-opc-catalog-editor";
 
 type Submission = {
@@ -22,7 +23,7 @@ type Donation = {
   name: string;
   description: string;
   email: string;
-  status: "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned";
+  status: "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned" | "carried_over";
   createdAt: string;
   confirmedAt: string | null;
 };
@@ -87,7 +88,16 @@ type OpcOrder = {
   contactDeletedAt: string | null;
 };
 
-type AdminLoginMode = "oidc" | "local-password";
+type AdminLoginMode = "passkey" | "local-password";
+
+type AdminPasskeyCredential = {
+  credentialId: string;
+  transports: string[];
+  deviceType: string;
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
 
 const opcOrderStatusLabels: Record<OpcOrderStatus, string> = {
   awaiting_payment: "待付款",
@@ -133,7 +143,11 @@ export function AdminConsole() {
   const [seasonReward, setSeasonReward] = useState("");
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [orders, setOrders] = useState<OpcOrder[]>([]);
+  const [passkeys, setPasskeys] = useState<AdminPasskeyCredential[]>([]);
   const [password, setPassword] = useState("");
+  const [enrollmentToken, setEnrollmentToken] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [enrollmentRequired, setEnrollmentRequired] = useState(false);
   const [loginMode, setLoginMode] = useState<AdminLoginMode | null>(null);
   const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
   const [reauthenticationUrl, setReauthenticationUrl] = useState("");
@@ -143,18 +157,20 @@ export function AdminConsole() {
   const [pending, setPending] = useState(false);
 
   const load = useCallback(async () => {
-    const [response, summaryResponse, ordersResponse] = await Promise.all([
+    const [response, summaryResponse, ordersResponse, passkeysResponse] = await Promise.all([
       fetch("/api/admin/frontier", { cache: "no-store" }),
       fetch("/api/admin/content?section=summary", { cache: "no-store" }),
       fetch("/api/admin/content?section=orders", { cache: "no-store" }),
+      fetch("/api/admin/passkey/credentials", { cache: "no-store" }),
     ]);
-    if ([response, summaryResponse, ordersResponse].some((item) => item.status === 401)) {
+    if ([response, summaryResponse, ordersResponse, passkeysResponse].some((item) => item.status === 401)) {
       setSubmissions(null);
       setDonations([]);
       setSeasonConfiguration(null);
       setSeasonReward("");
       setContentState(null);
       setOrders([]);
+      setPasskeys([]);
       return;
     }
     const body = await jsonMessage(response);
@@ -168,23 +184,24 @@ export function AdminConsole() {
     setSeasonReward(body?.seasonConfiguration?.officialReward ?? "");
     setContentState(summary?.state ?? null);
     setOrders(Array.isArray(orderData?.orders) ? orderData.orders : []);
+    if (passkeysResponse.ok) {
+      const passkeyData = await passkeysResponse.json() as { credentials?: AdminPasskeyCredential[] };
+      setPasskeys(Array.isArray(passkeyData.credentials) ? passkeyData.credentials : []);
+    } else {
+      setPasskeys([]);
+    }
   }, []);
 
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
-      const oidcOutcome = new URLSearchParams(window.location.search).get("oidc");
-      if (oidcOutcome === "failed") setError("阿里云 IDaaS 身份验证失败，请重新尝试。");
-      if (oidcOutcome === "reauthenticated") {
-        setNotice("高风险操作权限已重新验证，有效期五分钟。");
-      }
-      if (oidcOutcome) window.history.replaceState({}, "", window.location.pathname);
       void Promise.all([
         fetch("/api/admin/login", { cache: "no-store" })
           .then((response) => response.json())
-          .then((body: { mode?: AdminLoginMode }) => {
-            if (body.mode === "oidc" || body.mode === "local-password") setLoginMode(body.mode);
+          .then((body: { mode?: AdminLoginMode; enrollmentRequired?: boolean }) => {
+            if (body.mode === "passkey" || body.mode === "local-password") setLoginMode(body.mode);
+            setEnrollmentRequired(body.enrollmentRequired === true);
           }),
         load(),
       ]).catch((cause) => setError(cause instanceof Error ? cause.message : "无法读取运营数据。"));
@@ -195,13 +212,50 @@ export function AdminConsole() {
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!loginMode) return;
-    if (loginMode === "oidc") {
-      window.location.assign("/api/admin/oidc/start?intent=login");
-      return;
-    }
     setPending(true);
     setError("");
     try {
+      if (loginMode === "passkey") {
+        if (enrollmentRequired) {
+          const optionsResponse = await fetch("/api/admin/passkey/register/options", {
+            method: "POST",
+            headers: adminMutationHeaders,
+            body: JSON.stringify({ enrollmentToken }),
+          });
+          const optionsBody = await optionsResponse.json() as { ceremonyId?: string; options?: Parameters<typeof startRegistration>[0]["optionsJSON"]; error?: string };
+          if (!optionsResponse.ok || !optionsBody.ceremonyId || !optionsBody.options) throw new Error(optionsBody.error ?? "无法开始 Passkey 注册。");
+          const credential = await startRegistration({ optionsJSON: optionsBody.options });
+          const verifyResponse = await fetch("/api/admin/passkey/register/verify", {
+            method: "POST",
+            headers: adminMutationHeaders,
+            body: JSON.stringify({ ceremonyId: optionsBody.ceremonyId, response: credential }),
+          });
+          const verifyBody = await verifyResponse.json() as { recoveryCodes?: string[]; error?: string };
+          if (!verifyResponse.ok) throw new Error(verifyBody.error ?? "Passkey 注册失败。");
+          setEnrollmentToken("");
+          setEnrollmentRequired(false);
+          if (verifyBody.recoveryCodes?.length) {
+            setNotice(`恢复码只显示这一次，请立即离线保存：\n${verifyBody.recoveryCodes.join("\n")}`);
+          }
+        } else {
+          const optionsResponse = await fetch("/api/admin/passkey/authenticate/options", {
+            method: "POST",
+            headers: adminMutationHeaders,
+            body: JSON.stringify({ purpose: "login" }),
+          });
+          const optionsBody = await optionsResponse.json() as { ceremonyId?: string; options?: Parameters<typeof startAuthentication>[0]["optionsJSON"]; error?: string };
+          if (!optionsResponse.ok || !optionsBody.ceremonyId || !optionsBody.options) throw new Error(optionsBody.error ?? "无法开始 Passkey 验证。");
+          const credential = await startAuthentication({ optionsJSON: optionsBody.options });
+          const verifyResponse = await fetch("/api/admin/passkey/authenticate/verify", {
+            method: "POST",
+            headers: adminMutationHeaders,
+            body: JSON.stringify({ ceremonyId: optionsBody.ceremonyId, purpose: "login", response: credential }),
+          });
+          await jsonMessage(verifyResponse);
+        }
+        await load();
+        return;
+      }
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: adminMutationHeaders,
@@ -212,24 +266,6 @@ export function AdminConsole() {
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "无法登录后台。" );
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function refreshStars() {
-    if (!window.confirm("确认立即读取所有已验证参赛仓库并写入新的 Star 快照？")) return;
-    setPending(true);
-    setError("");
-    setNotice("");
-    try {
-      const response = await fetch("/api/admin/frontier", { method: "POST", headers: adminMutationHeaders, body: JSON.stringify({ action: "refresh-stars", confirm: true }) });
-      const body = await jsonMessage(response);
-      setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
-      setDonations(Array.isArray(body?.donations) ? body.donations : []);
-      setNotice(`已刷新 ${body?.refreshed ?? 0} 个仓库${body?.failed ? `，${body.failed} 个仓库暂时无法读取` : ""}。`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "暂时无法刷新 Star。" );
     } finally {
       setPending(false);
     }
@@ -287,10 +323,105 @@ export function AdminConsole() {
     }
   }
 
+  async function recoverPasskey() {
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/passkey/recover", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({ recoveryCode }),
+      });
+      const body = await response.json() as { enrollmentToken?: string; error?: string };
+      if (!response.ok || !body.enrollmentToken) throw new Error(body.error ?? "恢复失败。");
+      setEnrollmentToken(body.enrollmentToken);
+      setRecoveryCode("");
+      setEnrollmentRequired(true);
+      setNotice("恢复码已兑换为十分钟有效的注册令牌，请立即注册新的 Passkey。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "恢复失败。");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function addPasskey() {
+    setPending(true);
+    setError("");
+    try {
+      const optionsResponse = await fetch("/api/admin/passkey/register/options", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: "{}",
+      });
+      const optionsBody = await optionsResponse.json() as { ceremonyId?: string; options?: Parameters<typeof startRegistration>[0]["optionsJSON"]; error?: string; code?: string };
+      if (!optionsResponse.ok || !optionsBody.ceremonyId || !optionsBody.options) {
+        if (optionsBody.code === "ADMIN_REAUTH_REQUIRED") setReauthenticationRequired(true);
+        throw new Error(optionsBody.error ?? "无法开始 Passkey 注册。");
+      }
+      const credential = await startRegistration({ optionsJSON: optionsBody.options });
+      const verifyResponse = await fetch("/api/admin/passkey/register/verify", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({ ceremonyId: optionsBody.ceremonyId, response: credential }),
+      });
+      await jsonMessage(verifyResponse);
+      setNotice("新的 Passkey 已注册。");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Passkey 注册失败。");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function revokePasskey(credentialId: string) {
+    if (!window.confirm("确认撤销这个 Passkey？最后一个有效凭证不能撤销。")) return;
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/passkey/credentials", {
+        method: "DELETE",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({ credentialId, confirm: true }),
+      });
+      const body = await response.json() as { error?: string; code?: string };
+      if (!response.ok) {
+        if (body.code === "ADMIN_REAUTH_REQUIRED") setReauthenticationRequired(true);
+        throw new Error(body.error ?? "无法撤销 Passkey。");
+      }
+      setNotice("Passkey 已撤销。");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "无法撤销 Passkey。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function reauthenticate() {
     setPending(true);
     setError("");
     try {
+      if (loginMode === "passkey") {
+        const optionsResponse = await fetch("/api/admin/passkey/authenticate/options", {
+          method: "POST",
+          headers: adminMutationHeaders,
+          body: JSON.stringify({ purpose: "reauthentication" }),
+        });
+        const optionsBody = await optionsResponse.json() as { ceremonyId?: string; options?: Parameters<typeof startAuthentication>[0]["optionsJSON"]; error?: string };
+        if (!optionsResponse.ok || !optionsBody.ceremonyId || !optionsBody.options) throw new Error(optionsBody.error ?? "无法开始 Passkey 验证。");
+        const credential = await startAuthentication({ optionsJSON: optionsBody.options });
+        const verifyResponse = await fetch("/api/admin/passkey/authenticate/verify", {
+          method: "POST",
+          headers: adminMutationHeaders,
+          body: JSON.stringify({ ceremonyId: optionsBody.ceremonyId, purpose: "reauthentication", response: credential }),
+        });
+        await jsonMessage(verifyResponse);
+        setReauthenticationRequired(false);
+        setNotice("高风险操作权限已重新验证，有效期五分钟。");
+        return;
+      }
       const response = await fetch("/api/admin/reauthenticate", {
         method: "POST",
         headers: adminMutationHeaders,
@@ -394,13 +525,14 @@ export function AdminConsole() {
         <div className="form-field">
           {loginMode === null
             ? <><strong>正在确认安全入口</strong><p className="form-note">正在读取当前环境的管理员认证方式。</p></>
-            : loginMode === "oidc"
-            ? <><strong>阿里云 IDaaS 安全身份入口</strong><p className="form-note">仅允许已确认的管理员邮箱，经 IDaaS MFA 后建立可撤销后台会话。</p></>
+            : loginMode === "passkey"
+            ? <><strong>原生 Passkey 安全身份入口</strong><p className="form-note">凭证仅绑定本站管理域名，并要求设备完成用户验证。</p>{enrollmentRequired ? <><label htmlFor="admin-enrollment-token">一次性注册令牌</label><input id="admin-enrollment-token" value={enrollmentToken} onChange={(event) => setEnrollmentToken(event.target.value)} autoComplete="off" required /></> : null}</>
             : <><label htmlFor="admin-password">本地开发密码</label><input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} required /></>}
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button className="text-action" type="submit" disabled={pending || loginMode === null}>{pending ? "正在验证" : loginMode === null ? "正在载入" : loginMode === "oidc" ? "通过 IDaaS 登录" : "进入本地后台"}</button>
-        <p className="form-note mono">{loginMode === null ? "SECURE MODE DISCOVERY" : loginMode === "oidc" ? "ALIYUN IDAAS OIDC / REVOCABLE SESSION" : "LOCAL DEVELOPMENT ADAPTER ONLY"}</p>
+        <button className="text-action" type="submit" disabled={pending || loginMode === null || (loginMode === "passkey" && enrollmentRequired && !enrollmentToken)}>{pending ? "正在验证" : loginMode === null ? "正在载入" : loginMode === "passkey" ? enrollmentRequired ? "注册 Passkey" : "使用 Passkey 登录" : "进入本地后台"}</button>
+        <p className="form-note mono">{loginMode === null ? "SECURE MODE DISCOVERY" : loginMode === "passkey" ? "WEBAUTHN / USER VERIFICATION / REVOCABLE SESSION" : "LOCAL DEVELOPMENT ADAPTER ONLY"}</p>
+        {loginMode === "passkey" && !enrollmentRequired ? <div className="form-field"><label htmlFor="admin-recovery-code">丢失 Passkey？使用一次性恢复码</label><input id="admin-recovery-code" value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} autoComplete="off" /><button className="text-link" type="button" disabled={pending || !recoveryCode} onClick={() => void recoverPasskey()}>开始恢复</button></div> : null}
       </form>
     );
   }
@@ -416,19 +548,19 @@ export function AdminConsole() {
         <a href="/pipeline"><span className="mono">DIAGNOSTIC</span><strong>系统记录</strong><small>受保护管线诊断</small></a>
       </nav>
       <div className="admin-console__top" id="admin-frontier">
-        <div><p className="eyebrow mono">FRONTIER / BUSINESS OPERATIONS</p><h2>报名与奖品业务</h2><p className="form-note">排名和 Star 观察由系统自动完成；手动刷新只用于故障恢复，不能编辑基线、分数或名次。</p></div>
-        <div className="admin-actions"><button className="text-action" type="button" disabled={pending} onClick={refreshStars}>{pending ? "正在刷新" : "刷新 Star"}</button><button className="text-link" type="button" onClick={logout}>退出后台</button></div>
+        <div><p className="eyebrow mono">FRONTIER / BUSINESS OPERATIONS</p><h2>报名与奖品业务</h2><p className="form-note">排名和 Star 观察仅由定时任务与异步兜底生成；后台不能人工触发、编辑或覆盖排名事实。</p></div>
+        <div className="admin-actions"><button className="text-link" type="button" onClick={logout}>退出后台</button></div>
       </div>
       {reauthenticationRequired ? (
-        <section className="admin-reauth-panel" aria-labelledby="admin-reauth-title">
+        <section className="admin-reauth-panel" id="admin-reauth" aria-labelledby="admin-reauth-title">
           <div>
             <p className="eyebrow mono">STEP-UP AUTHENTICATION</p>
             <h3 id="admin-reauth-title">重新验证高风险操作权限</h3>
-            <p>{loginMode === "oidc" ? "通过阿里云 IDaaS 再次完成 MFA，返回后权限自动刷新。" : "输入本地开发密码；生产环境不会显示此密码框。"}</p>
+            <p>{loginMode === "passkey" ? "再次使用已注册 Passkey 完成设备用户验证。" : "输入本地开发密码；生产环境不会显示此密码框。"}</p>
           </div>
-          {loginMode === "oidc" ? (
+          {loginMode === "passkey" ? (
             <div className="admin-actions">
-              {reauthenticationUrl ? <a className="text-action" href={reauthenticationUrl}>通过 IDaaS 重新验证 ↗</a> : null}
+              <button className="text-action" type="button" disabled={pending} onClick={() => void reauthenticate()}>使用 Passkey 重新验证</button>
             </div>
           ) : (
             <div className="admin-actions">
@@ -443,6 +575,24 @@ export function AdminConsole() {
       ) : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {notice ? <p className="admin-notice" role="status">{notice}</p> : null}
+      {loginMode === "passkey" ? (
+        <section className="admin-donations" aria-labelledby="admin-passkeys-title">
+          <div className="admin-section-heading">
+            <p className="eyebrow mono">SECURITY / PASSKEYS</p>
+            <h2 id="admin-passkeys-title">管理员凭证</h2>
+            <p className="form-note">添加或撤销凭证前必须在五分钟内重新验证；系统拒绝撤销最后一个有效 Passkey。</p>
+          </div>
+          <div className="admin-donation-list">
+            {passkeys.map((credential, index) => (
+              <article className="admin-donation" key={credential.credentialId}>
+                <div><strong>Passkey {index + 1}</strong><p className="form-note mono">{credential.credentialId.slice(0, 16)}… · {credential.backedUp ? "已备份" : "单设备"} · {credential.lastUsedAt ? `最近使用 ${new Date(credential.lastUsedAt).toLocaleDateString("zh-CN")}` : `注册 ${new Date(credential.createdAt).toLocaleDateString("zh-CN")}`}</p></div>
+                <div className="admin-actions"><button className="text-link" type="button" disabled={pending || passkeys.length <= 1} onClick={() => void revokePasskey(credential.credentialId)}>撤销</button></div>
+              </article>
+            ))}
+          </div>
+          <div className="admin-actions"><button className="text-action" type="button" disabled={pending} onClick={() => void addPasskey()}>添加 Passkey</button></div>
+        </section>
+      ) : null}
       <section className="admin-donations" aria-labelledby="admin-season-reward-title">
         <div className="admin-section-heading">
           <p className="eyebrow mono">FRONTIER / SEASON CONTROL</p>
@@ -482,7 +632,7 @@ export function AdminConsole() {
               <div className="admin-donation-meta"><span className="mono">{donation.email}</span><time className="mono">{new Date(donation.createdAt).toLocaleString("zh-CN", { hour12: false })}</time></div>
               <div className="admin-actions">
                 {donation.status === "pending_confirmation" ? <><button className="text-action" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "confirm-donation")}>确认并公开</button><button className="text-link" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "reject-donation")}>拒绝</button></> : null}
-                {donation.status === "available" ? <button className="text-link" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "withdraw-donation")}>撤回奖品</button> : null}
+                {donation.status === "available" || donation.status === "carried_over" ? <button className="text-link" type="button" disabled={pending} onClick={() => updateDonation(donation.id, "withdraw-donation")}>撤回奖品</button> : null}
               </div>
             </article>
           ))}

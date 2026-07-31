@@ -104,3 +104,105 @@ test("verified Frontier submissions are recoverable by repository identity", asy
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("asynchronous Frontier verification rejects expired challenges and closed seasons", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-async-guard-"));
+  const previous = process.env.VAULT2077_DATA_DIR;
+  process.env.VAULT2077_DATA_DIR = root;
+  try {
+    const {
+      applyFrontierVerificationObservation,
+      createPendingSubmission,
+      getSubmission,
+    } = await import(`../lib/frontier-store.ts?async-guard=${Date.now()}`);
+    const { seasonFromCode } = await import("../lib/frontier-domain.ts");
+
+    const createdAt = new Date("2099-01-02T00:00:00.000Z");
+    const expired = await createPendingSubmission({
+      owner: "Example",
+      repo: "Expired",
+      email: "owner@example.com",
+      note: "An expired asynchronous verification",
+      defaultBranch: "main",
+      challenge: "expired-challenge",
+      rulesAccepted: true,
+      now: createdAt,
+    });
+    assert.equal(await applyFrontierVerificationObservation({
+      submissionId: expired.id,
+      season: expired.season,
+      defaultBranch: "main",
+      stars: 10,
+      challenge: "expired-challenge",
+      capturedAt: new Date(createdAt.getTime() + 60_000).toISOString(),
+      now: new Date(Date.parse(expired.challengeExpiresAt) + 1),
+    }), "challenge-expired");
+    assert.equal(await getSubmission(expired.id), null);
+
+    const seasonEnd = new Date(seasonFromCode("2099-Q1").endsAt);
+    const closing = await createPendingSubmission({
+      owner: "Example",
+      repo: "Closing",
+      email: "owner@example.com",
+      note: "A verification delivered after season close",
+      defaultBranch: "main",
+      challenge: "closing-challenge",
+      rulesAccepted: true,
+      now: new Date(seasonEnd.getTime() - 60 * 60 * 1000),
+    });
+    assert.equal(await applyFrontierVerificationObservation({
+      submissionId: closing.id,
+      season: closing.season,
+      defaultBranch: "main",
+      stars: 20,
+      challenge: "closing-challenge",
+      capturedAt: new Date(seasonEnd.getTime() - 30 * 60 * 1000).toISOString(),
+      now: new Date(seasonEnd.getTime() + 1),
+    }), "season-closed");
+    assert.equal(await getSubmission(closing.id), null);
+  } finally {
+    if (previous === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("unassigned confirmed prizes are explicitly carried into the next season", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-carryover-"));
+  const previous = process.env.VAULT2077_DATA_DIR;
+  process.env.VAULT2077_DATA_DIR = root;
+  try {
+    const {
+      createPrizeDonation,
+      listAdminPrizeDonations,
+      listPublicPrizePool,
+      saveSeasonSettlement,
+      setPrizeDonationStatus,
+    } = await import(`../lib/frontier-store.ts?carryover=${Date.now()}`);
+    const donation = await createPrizeDonation({
+      name: "Hardware prize",
+      description: "A confirmed prize for the winner",
+      email: "donor@example.com",
+      noticeAccepted: true,
+      now: new Date("2099-01-15T00:00:00.000Z"),
+    });
+    await setPrizeDonationStatus(donation.id, "confirm");
+    await saveSeasonSettlement({
+      season: "2099-Q1",
+      settledAt: "2099-04-01T00:00:00.000Z",
+      officialReward: "季度冠军奖金人民币 10,000 元",
+      finalRankings: [],
+      ineligibleSubmissionIds: [],
+      assignments: [],
+      remainingPrizeDonationIds: [donation.id],
+    });
+    const stored = (await listAdminPrizeDonations()).find((item: { id: string }) => item.id === donation.id);
+    assert.equal(stored?.status, "carried_over");
+    assert.equal(stored?.season, "2099-Q2");
+    assert.equal((await listPublicPrizePool("2099-Q2"))[0]?.status, "carried_over");
+  } finally {
+    if (previous === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});

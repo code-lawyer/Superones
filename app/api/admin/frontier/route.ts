@@ -11,13 +11,10 @@ import {
   getFrontierSeasonConfiguration,
   listAdminPrizeDonations,
   listAdminSubmissions,
-  listVerifiedSubmissions,
   publishFrontierSeasonReward,
   saveFrontierSeasonRewardDraft,
   setPrizeDonationStatus,
-  updateSubmissionStars,
 } from "@/lib/frontier-store";
-import { inspectGitHubRepository } from "@/lib/github";
 import { recordAuditEvent } from "@/lib/security-audit";
 
 export const runtime = "nodejs";
@@ -77,32 +74,6 @@ export async function POST(request: NextRequest) {
       });
       return authenticatedAdminJson(access, { error: "该后台写操作需要明确二次确认。" }, { status: 409 });
     }
-    if (body.action === "refresh-stars") {
-      const verified = await listVerifiedSubmissions();
-      const result = await Promise.allSettled(verified.map(async (submission) => {
-        const repository = await inspectGitHubRepository(submission.owner, submission.repo);
-        await updateSubmissionStars(submission.id, repository.stars);
-        return submission.repository;
-      }));
-      const refreshed = result.filter((item) => item.status === "fulfilled").length;
-      const failed = result.length - refreshed;
-      await recordAuditEvent({
-        actorHash,
-        action: "admin.frontier.refresh-stars",
-        targetType: "frontier",
-        targetId: "current-season",
-        result: failed ? "failed" : "success",
-        reason: failed ? `${failed} repositories failed` : undefined,
-        diff: { refreshed, failed },
-      });
-      return authenticatedAdminJson(access, {
-        refreshed,
-        failed,
-        submissions: await listAdminSubmissions(),
-        donations: await listAdminPrizeDonations(),
-        seasonConfiguration: await getFrontierSeasonConfiguration(),
-      });
-    }
     if (body.action === "save-season-reward" || body.action === "publish-season-reward") {
       const season = currentSeason().code;
       targetId = season;
@@ -161,7 +132,7 @@ export async function POST(request: NextRequest) {
     });
     return authenticatedAdminJson(access, { error: "不支持的后台操作。" }, { status: 400 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "暂时无法刷新 Star。";
+    const message = error instanceof Error ? error.message : "暂时无法完成边境计划后台操作。";
     await recordAuditEvent({
       actorHash,
       action: `admin.frontier.${action}`,

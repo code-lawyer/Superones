@@ -1,14 +1,17 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
+import { removePendingSubmissions } from "./frontier-store.ts";
+import { mutateStateDocument, readStateDocument, withPersistenceTransaction, type StateDocumentDefinition } from "./state-document-store.ts";
 
 export type FrontierPublicObservationTask = {
   taskId: string;
+  kind: "inspect_submission" | "verify_submission" | "observe_stars";
   season: string;
   submissionId: string;
   owner: string;
   repo: string;
+  expiresAt: string | null;
   requestedAt: string;
   lastDispatchedAt: string | null;
   dispatches: number;
@@ -28,7 +31,22 @@ const taskDocument: StateDocumentDefinition<FrontierPublicTaskStore> = {
     if (parsed.version !== 1 || !Array.isArray(parsed.tasks)) {
       throw new Error("Frontier 公开回退任务格式无效。");
     }
-    return parsed;
+    return {
+      ...parsed,
+      tasks: parsed.tasks.map((task) => {
+        const kind = task.kind ?? "observe_stars";
+        const requestedAt = Date.parse(task.requestedAt);
+        return {
+          ...task,
+          kind,
+          expiresAt: task.expiresAt ?? (
+            kind !== "observe_stars" && Number.isFinite(requestedAt)
+              ? new Date(requestedAt + 24 * 60 * 60 * 1000).toISOString()
+              : null
+          ),
+        };
+      }),
+    };
   },
 };
 
@@ -37,19 +55,35 @@ function taskId(season: string, submissionId: string) {
 }
 
 export async function enqueueFrontierObservationTask(input: {
+  kind?: FrontierPublicObservationTask["kind"];
   season: string;
   submissionId: string;
   owner: string;
   repo: string;
+  expiresAt?: string;
+  now?: Date;
 }) {
   return mutateStateDocument(taskDocument, (store) => {
     const id = taskId(input.season, input.submissionId);
     const existing = store.tasks.find((task) => task.taskId === id);
-    if (existing) return existing;
+    if (existing) {
+      const requestedKind = input.kind ?? "observe_stars";
+      const priority = { observe_stars: 0, inspect_submission: 1, verify_submission: 2 } as const;
+      if (priority[requestedKind] > priority[existing.kind]) {
+        existing.kind = requestedKind;
+      }
+      if (input.expiresAt) existing.expiresAt = input.expiresAt;
+      return existing;
+    }
     const task: FrontierPublicObservationTask = {
       taskId: id,
-      ...input,
-      requestedAt: new Date().toISOString(),
+      kind: input.kind ?? "observe_stars",
+      season: input.season,
+      submissionId: input.submissionId,
+      owner: input.owner,
+      repo: input.repo,
+      expiresAt: input.expiresAt ?? null,
+      requestedAt: (input.now ?? new Date()).toISOString(),
       lastDispatchedAt: null,
       dispatches: 0,
     };
@@ -59,18 +93,24 @@ export async function enqueueFrontierObservationTask(input: {
   });
 }
 
-export async function dispatchFrontierObservationTasks(limit = 200) {
-  return mutateStateDocument(taskDocument, (store) => {
-    const now = new Date().toISOString();
+export async function dispatchFrontierObservationTasks(limit = 200, now = new Date()) {
+  return withPersistenceTransaction(() => mutateStateDocument(taskDocument, async (store) => {
+    const expiredSubmissionIds = store.tasks
+      .filter((task) => task.expiresAt && Date.parse(task.expiresAt) <= now.getTime())
+      .map((task) => task.submissionId);
+    await removePendingSubmissions(expiredSubmissionIds);
+    const expired = new Set(expiredSubmissionIds);
+    store.tasks = store.tasks.filter((task) => !expired.has(task.submissionId));
+    const dispatchedAt = now.toISOString();
     const selected = store.tasks
       .sort((left, right) => left.requestedAt.localeCompare(right.requestedAt))
       .slice(0, Math.max(1, Math.min(500, limit)));
     for (const task of selected) {
-      task.lastDispatchedAt = now;
+      task.lastDispatchedAt = dispatchedAt;
       task.dispatches += 1;
     }
     return selected.map((task) => ({ ...task }));
-  });
+  }));
 }
 
 export async function completeFrontierObservationTasks(submissionIds: readonly string[]) {

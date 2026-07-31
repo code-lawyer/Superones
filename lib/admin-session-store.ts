@@ -12,7 +12,7 @@ import {
   type AdminRole,
 } from "./admin-auth.ts";
 import type { AdminIdentity } from "./admin-identity.ts";
-import { configuredPostgresPool, persistenceMode } from "./state-document-store.ts";
+import { configuredPostgresPool, configuredPostgresWriter, persistenceMode } from "./state-document-store.ts";
 
 export type AdminSession = {
   id: string;
@@ -201,7 +201,7 @@ export async function readAdminSession(token: string | undefined, now = new Date
   const tokenHash = adminSessionTokenHash(token);
   const nextIdle = new Date(now.getTime() + ADMIN_IDLE_SECONDS * 1000);
   if (persistenceMode() === "postgresql") {
-    const result = await configuredPostgresPool().query<Record<string, unknown>>(
+    const result = await (await configuredPostgresWriter()).query<Record<string, unknown>>(
       `UPDATE vault2077_admin_sessions
        SET last_seen_at = $2,
            idle_expires_at = LEAST(absolute_expires_at, $3)
@@ -235,7 +235,7 @@ export async function revokeAdminSession(token: string | undefined, now = new Da
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return false;
   const tokenHash = adminSessionTokenHash(token);
   if (persistenceMode() === "postgresql") {
-    const result = await configuredPostgresPool().query(
+    const result = await (await configuredPostgresWriter()).query(
       `UPDATE vault2077_admin_sessions
        SET revoked_at = $2
        WHERE token_hash = $1 AND revoked_at IS NULL`,
@@ -248,6 +248,28 @@ export async function revokeAdminSession(token: string | undefined, now = new Da
     if (!session) return false;
     session.revokedAt = now.toISOString();
     return true;
+  });
+}
+
+export async function revokeAllAdminSessions(now = new Date()) {
+  if (persistenceMode() === "postgresql") {
+    const result = await (await configuredPostgresWriter()).query(
+      `UPDATE vault2077_admin_sessions
+       SET revoked_at = $1
+       WHERE revoked_at IS NULL`,
+      [now.toISOString()],
+    );
+    return result.rowCount ?? 0;
+  }
+  return mutateFileStore((store) => {
+    let revoked = 0;
+    for (const session of store.sessions) {
+      if (!session.revokedAt) {
+        session.revokedAt = now.toISOString();
+        revoked += 1;
+      }
+    }
+    return revoked;
   });
 }
 

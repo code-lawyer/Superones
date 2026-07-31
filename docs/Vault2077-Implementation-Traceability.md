@@ -21,7 +21,7 @@ updated: 2026-07-31
 | SiC 平台原生榜 | done | 原生顺序、last-success 保留和 stale 明示已实现 |
 | 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等、后台逐赛季奖励草稿/发布和预览边界已实现；当前赛季真实奖励仍待运营发布 |
 | 无账户公开产品 | done | 公开用户无需站内账户 |
-| 运营后台 | partial | 阿里云 IDaaS OIDC 授权码/state/nonce/PKCE/ID Token 校验、唯一 owner 白名单、PostgreSQL 可撤销会话、同源写请求防护、五分钟再认证、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；资讯、事件、SiC、榜单与逐条纠错处置均不进入后台；真实 IDaaS/防火墙绕过测试仍待目标环境验收 |
+| 运营后台 | partial | 原生 Passkey 的引导、注册、登录、五分钟再认证、恢复与撤销，以及 PostgreSQL 可撤销会话、同源写请求防护、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；资讯、事件、SiC、榜单与逐条纠错处置均不进入后台；真实认证器、TLS 与防火墙绕过测试仍待目标环境验收 |
 | 统一采集批次/inbox | done | 四 lane、带 key ID 的签名密钥环、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
 | 四采集通道 | done | `collect-content.yml` 按白天低频节奏支持四通道；采集 job 与 PR/push/每日质量门禁已拆分，Node 模块独占签名和有界重试 |
 | 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；待阿里云目标服务器安装、退出码告警和积压恢复演练 |
@@ -109,7 +109,7 @@ updated: 2026-07-31
 | 备份恢复演练 | missing | 无日期、RPO/RTO 和恢复结果 |
 | 监控告警 | partial | 受保护 `/api/internal/health` 已覆盖迁移、inbox、内容新鲜度、榜单 stale、Frontier 回退和编辑配置；待接入目标告警平台并演练 |
 | 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、超时、熔断和备用配置已实现，额度无限且 PostgreSQL 支持并发 worker；尚缺目标容量和持续积压演练 |
-| 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、不完整 OIDC、非唯一管理员邮箱和旧共享模型 |
+| 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、任何已退役 OIDC 变量和旧共享模型 |
 | 生产依赖安全 | done | Next.js 固定为 16.2.11，PostCSS/Sharp 覆盖到修复版本；`npm audit --omit=dev --audit-level=high` 为 0 漏洞 |
 
 ## 4. 2026-07-29 工程证据

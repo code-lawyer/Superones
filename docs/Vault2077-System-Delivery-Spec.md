@@ -159,10 +159,10 @@ Redis 仅在需要分布式锁、缓存或队列吞吐时加入；对象存储�
 - 公网反向代理在内部命名空间只允许精确的 `POST /api/internal/acquisition` 与只读 `GET /api/internal/frontier/tasks`；前者写入签名批次，后者使用独立密钥返回已脱敏公开任务。两者在边缘限制方法与速率，其余 `/api/internal/*` 返回 `404`。Node 端口不得暴露公网。
 - `/pipeline` 必须限制为本地或认证后台诊断，不进入 sitemap、公开导航或搜索索引。
 - 生产错误不得静默回退到演示数据；公开页面显示可理解的降级状态。
-- 生产后台只接受独立管理来源上的阿里云 IDaaS OIDC 授权码登录；应用必须校验 state、nonce、PKCE、issuer、client ID、ID Token 时效、RS256/JWKS 和唯一邮箱白名单。本地密码适配器在生产关闭。
+- 生产后台只接受独立 HTTPS 管理来源上的原生 Passkey；应用必须校验 WebAuthn challenge、来源、RP ID、签名、用户验证和计数器，唯一 owner 固定为 `lanzhouda@163.com`。本地密码适配器在生产关闭。
 - 管理会话使用 PostgreSQL 中可撤销的不透明令牌摘要；生产 Cookie 使用 `__Host-` 前缀、`HttpOnly`、`Secure`、`SameSite=Strict`，空闲 30 分钟、绝对 4 小时过期。
 - 浏览器写请求检查 JSON、自定义同源头、`Origin`/`Referer` 和 Fetch Metadata；所有写操作二次确认并写不可变审计日志。发布 OPC 与奖品状态操作还要求最近 5 分钟身份再认证。
-- 公共站来源和源站 IP 不提供管理入口；反向代理、IDaaS MFA、OIDC 回调验证和应用会话共同保护 `/admin` 与 `/api/admin/*`。
+- 公共站来源和源站 IP 不提供管理入口；反向代理、Passkey 验证和可撤销应用会话共同保护 `/admin` 与 `/api/admin/*`。
 - 人工可编辑内容使用 OPC 服务目录深模块：后台读取和保存草稿、校验并发布完整快照；公开 OPC 路由只读取最近一次已发布快照。目录保存在统一生产持久化中，更新使用预期修订号防止并发覆盖，每次发布保留历史快照。
 - 该编辑接口只接受结构化的基础设施、专项服务和游骑兵档案，不接受资讯、来源 URL、模型结果、SiC 平台榜或 Frontier 排名。一级入口和受控分类法不得由请求自由创建。
 

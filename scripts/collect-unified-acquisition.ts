@@ -157,6 +157,7 @@ async function collectRankings(context: AcquisitionBuildContext) {
 
 type FrontierFallbackTask = {
   taskId: string;
+  kind: "inspect_submission" | "verify_submission" | "observe_stars";
   season: string;
   submissionId: string;
   owner: string;
@@ -189,6 +190,7 @@ async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promi
         || typeof task.taskId !== "string"
         || typeof task.season !== "string"
         || typeof task.submissionId !== "string"
+        || !["inspect_submission", "verify_submission", "observe_stars"].includes(task.kind)
         || !/^[A-Za-z0-9_.-]+$/.test(task.owner)
         || !/^[A-Za-z0-9_.-]+$/.test(task.repo)
       ) throw new Error("Frontier 公开任务字段无效。");
@@ -205,13 +207,51 @@ async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promi
         },
       );
       if (!github.ok) throw new Error(`GitHub 返回 HTTP ${github.status}。`);
-      const repository = await github.json() as { stargazers_count?: unknown; full_name?: unknown; private?: unknown };
+      const repository = await github.json() as {
+        stargazers_count?: unknown;
+        full_name?: unknown;
+        default_branch?: unknown;
+        fork?: unknown;
+        archived?: unknown;
+        private?: unknown;
+        license?: { spdx_id?: unknown } | null;
+      };
       if (
         typeof repository.stargazers_count !== "number"
         || typeof repository.full_name !== "string"
-        || repository.private === true
+        || typeof repository.default_branch !== "string"
         || repository.full_name.toLowerCase() !== `${task.owner}/${task.repo}`.toLowerCase()
       ) throw new Error("GitHub 仓库响应与公开任务不匹配。");
+      const repositoryLicense = repository.license && typeof repository.license.spdx_id === "string"
+        ? repository.license.spdx_id
+        : null;
+      const repositoryIsIneligible = repository.private === true
+        || repository.fork === true
+        || repository.archived === true
+        || !repositoryLicense
+        || repositoryLicense === "NOASSERTION";
+      let verificationChallenge: string | undefined;
+      if (task.kind === "verify_submission" && !repositoryIsIneligible) {
+        const filePath = `.vault2077/season-${task.season}.json`;
+        const raw = await fetch(
+          `https://raw.githubusercontent.com/${encodeURIComponent(task.owner)}/${encodeURIComponent(task.repo)}/${encodeURIComponent(repository.default_branch)}/${filePath.split("/").map(encodeURIComponent).join("/")}`,
+          {
+            headers: { "User-Agent": "Vault2077-Frontier-Fallback/1.0" },
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+        if (!raw.ok) throw new Error(`GitHub 验证文件返回 HTTP ${raw.status}。`);
+        const rawBody = await raw.text();
+        if (Buffer.byteLength(rawBody, "utf8") > 16_384) throw new Error("GitHub 验证文件超过大小限制。");
+        const verification = JSON.parse(rawBody) as Record<string, unknown>;
+        if (
+          verification.platform !== "vault2077"
+          || verification.season !== task.season
+          || String(verification.repository).toLowerCase() !== `${task.owner}/${task.repo}`.toLowerCase()
+          || typeof verification.challenge !== "string"
+        ) throw new Error("GitHub 验证文件内容与公开任务不匹配。");
+        verificationChallenge = verification.challenge;
+      }
       const record: AcquisitionRecord = {
         schemaVersion: 1,
         kind: "repository_observation",
@@ -225,9 +265,16 @@ async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promi
           .digest("hex"),
         payload: {
           target: "frontier",
+          taskKind: task.kind,
           season: task.season,
           submissionId: task.submissionId,
           stars: repository.stargazers_count,
+          defaultBranch: repository.default_branch,
+          isFork: repository.fork === true,
+          isArchived: repository.archived === true,
+          isPrivate: repository.private === true,
+          license: repositoryLicense,
+          ...(verificationChallenge ? { challenge: verificationChallenge } : {}),
         },
       };
       return {

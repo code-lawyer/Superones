@@ -32,8 +32,9 @@ export async function GET(request: NextRequest) {
     const tasks = await dispatchFrontierObservationTasks();
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
-      tasks: tasks.map(({ taskId, season, submissionId, owner, repo, requestedAt }) => ({
+      tasks: tasks.map(({ taskId, kind, season, submissionId, owner, repo, requestedAt }) => ({
         taskId,
+        kind,
         season,
         submissionId,
         owner,

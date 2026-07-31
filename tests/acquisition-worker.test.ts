@@ -143,3 +143,48 @@ test("worker quarantines deterministic processing failures without retrying", as
   assert.deepEqual(dispositions, ["quarantined"]);
   assert.equal(result.failed[0].status, "quarantined");
 });
+
+test("worker commits business writes and inbox completion through one atomic boundary", async () => {
+  const work = { batch: batch("batch:atomic"), payloadHash: "e".repeat(64), rawPayload: "{}", attempt: 1, claimToken: "claim-atomic" };
+  const events: string[] = [];
+  let claimed = false;
+  const worker = createAcquisitionWorker({
+    inbox: {
+      async claimNext() {
+        if (claimed) return null;
+        claimed = true;
+        return work;
+      },
+      async complete() {
+        events.push("complete");
+        throw new Error("completion failed");
+      },
+      async fail() {
+        events.push("fail");
+        return "retryable";
+      },
+      async stats() {
+        return { received: 0, processing: 0, processed: 0, retryable: 1, quarantined: 0 };
+      },
+    },
+    async processBatch() {
+      events.push("business-write");
+      return { information: 1 };
+    },
+    async runAtomically(operation) {
+      events.push("begin");
+      try {
+        const result = await operation();
+        events.push("commit");
+        return result;
+      } catch (error) {
+        events.push("rollback");
+        throw error;
+      }
+    },
+  });
+  const result = await worker.run();
+  assert.deepEqual(events, ["begin", "business-write", "complete", "rollback", "fail"]);
+  assert.equal(result.processed.length, 0);
+  assert.equal(result.failed.length, 1);
+});

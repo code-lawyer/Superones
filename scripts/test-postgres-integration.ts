@@ -106,6 +106,7 @@ try {
     sharedSecret: secret,
     allowedRegistryRevisions: new Set([revision]),
     maxAttempts: 2,
+    retryBaseMs: 0,
   });
   const submissions = batchIds.map((batchId) => submission(batch(batchId)));
   const receipts = await Promise.all(submissions.map((value) => receiverOne.receive(value)));

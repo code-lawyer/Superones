@@ -70,6 +70,6 @@ export function clearAdminSessionCookie(response: NextResponse) {
 
 export function configuredAdminReauthenticationUrl() {
   return process.env.NODE_ENV === "production"
-    ? "/api/admin/oidc/start?intent=reauth"
+    ? "/admin#admin-reauth"
     : "/admin";
 }

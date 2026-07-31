@@ -1,5 +1,6 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -14,6 +15,8 @@ export type StateDocumentDefinition<T> = {
 
 const fileWriteChains = new Map<string, Promise<void>>();
 let pool: Pool | undefined;
+type PersistenceTransaction = { clientPromise?: Promise<PoolClient> };
+const persistenceTransactions = new AsyncLocalStorage<PersistenceTransaction>();
 
 function databaseUrl() {
   return process.env.VAULT2077_DATABASE_URL || process.env.DATABASE_URL || "";
@@ -43,6 +46,47 @@ export function configuredPostgresPool() {
     console.error("PostgreSQL 连接池发生未处理错误。", error);
   });
   return pool;
+}
+
+async function beginTransaction(context: PersistenceTransaction) {
+  context.clientPromise ??= configuredPostgresPool().connect().then(async (client) => {
+    try {
+      await client.query("BEGIN");
+      return client;
+    } catch (error) {
+      client.release();
+      throw error;
+    }
+  });
+  return context.clientPromise;
+}
+
+export async function configuredPostgresWriter(): Promise<Pool | PoolClient> {
+  const context = persistenceTransactions.getStore();
+  return context ? beginTransaction(context) : configuredPostgresPool();
+}
+
+export async function withPersistenceTransaction<T>(operation: () => Promise<T>): Promise<T> {
+  if (persistenceMode() !== "postgresql" || persistenceTransactions.getStore()) return operation();
+  const context: PersistenceTransaction = {};
+  return persistenceTransactions.run(context, async () => {
+    try {
+      const result = await operation();
+      if (context.clientPromise) await (await context.clientPromise).query("COMMIT");
+      return result;
+    } catch (error) {
+      if (context.clientPromise) {
+        const client = await context.clientPromise.catch(() => null);
+        if (client) await client.query("ROLLBACK").catch(() => undefined);
+      }
+      throw error;
+    } finally {
+      if (context.clientPromise) {
+        const client = await context.clientPromise.catch(() => null);
+        client?.release();
+      }
+    }
+  });
 }
 
 function filePath(definition: StateDocumentDefinition<unknown>) {
@@ -77,7 +121,11 @@ async function writeFileDocument<T>(definition: StateDocumentDefinition<T>, valu
 }
 
 async function readPostgresDocument<T>(definition: StateDocumentDefinition<T>): Promise<T> {
-  const result = await configuredPostgresPool().query<{ document: unknown }>(
+  const context = persistenceTransactions.getStore();
+  const executor = context?.clientPromise
+    ? await context.clientPromise
+    : configuredPostgresPool();
+  const result = await executor.query<{ document: unknown }>(
     "SELECT document FROM vault2077_state_documents WHERE namespace = $1",
     [definition.namespace],
   );
@@ -110,6 +158,19 @@ export async function mutateStateDocument<T, R>(
   mutator: (value: T) => R | Promise<R>,
 ): Promise<R> {
   if (persistenceMode() === "postgresql") {
+    const ambient = persistenceTransactions.getStore();
+    if (ambient) {
+      const client = await beginTransaction(ambient);
+      const value = await lockPostgresDocument(client, definition);
+      const result = await mutator(value);
+      await client.query(
+        `UPDATE vault2077_state_documents
+         SET document = $2::jsonb, version = version + 1, updated_at = now()
+         WHERE namespace = $1`,
+        [definition.namespace, JSON.stringify(value)],
+      );
+      return result;
+    }
     const client = await configuredPostgresPool().connect();
     try {
       await client.query("BEGIN");

@@ -17,7 +17,11 @@ import {
   type AcquisitionRunMode,
 } from "./acquisition-contract.ts";
 import { pipelineSigningKeyring } from "./secret-keyring.ts";
-import { configuredPostgresPool, persistenceMode } from "./state-document-store.ts";
+import {
+  configuredPostgresPool,
+  configuredPostgresWriter,
+  persistenceMode,
+} from "./state-document-store.ts";
 
 export const ACQUISITION_INBOX_STATUSES = [
   "received",
@@ -702,7 +706,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
 
   async function complete(batchId: string, claimToken: string) {
     const now = clock().toISOString();
-    const result = await configuredPostgresPool().query(
+    const result = await (await configuredPostgresWriter()).query(
       `UPDATE vault2077_acquisition_inbox
        SET status = 'processed', updated_at = $3, completed_at = $3,
            claim_token = NULL, next_attempt_at = NULL, last_error = NULL

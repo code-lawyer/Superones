@@ -1,10 +1,12 @@
 ---
 type: decision
-status: active
+status: superseded
 updated: 2026-07-30
 ---
 
 # 阿里云轻量服务器与后台 OIDC 身份决策
+
+> 2026-07-31 更新：负责人明确不购买阿里云 IDaaS。本决策保留为现有 OIDC 实现的历史说明，不再是生产目标；最新目标是项目内原生 Passkey，见根目录 `Vault2077-Production-Deployment-Plan-2026-07-31.md`。原生 Passkey 完成前，生产后台仍为阻塞状态。
 
 ## 1. 结论
 

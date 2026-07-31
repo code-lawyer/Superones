@@ -2,7 +2,7 @@ import "server-only";
 
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { configuredPostgresPool, persistenceMode } from "./state-document-store.ts";
+import { configuredPostgresPool, configuredPostgresWriter, persistenceMode } from "./state-document-store.ts";
 
 export type AuditEvent = {
   actorHash: string;
@@ -16,7 +16,7 @@ export type AuditEvent = {
 
 export async function recordAuditEvent(event: AuditEvent) {
   if (persistenceMode() === "postgresql") {
-    await configuredPostgresPool().query(
+    await (await configuredPostgresWriter()).query(
       `INSERT INTO vault2077_audit_log
        (actor_hash, action, target_type, target_id, result, reason, diff)
        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,

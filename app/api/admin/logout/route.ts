@@ -4,7 +4,6 @@ import { adminCookieName } from "@/lib/admin-auth";
 import { assertAdminMutationRequest, AdminRequestSecurityError } from "@/lib/admin-request-security";
 import { readAdminSession, revokeAdminSession } from "@/lib/admin-session-store";
 import { recordAuditEvent } from "@/lib/security-audit";
-import { adminAccessMode } from "@/lib/admin-identity";
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +28,6 @@ export async function POST(request: NextRequest) {
   }
   return clearAdminSessionCookie(NextResponse.json({
     ok: true,
-    logoutUrl: adminAccessMode() === "oidc" ? "/api/admin/oidc/logout" : null,
+    logoutUrl: null,
   }));
 }

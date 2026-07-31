@@ -8,6 +8,7 @@ import type {
   AcquisitionInboxStats,
   AcquisitionWorkItem,
 } from "./acquisition-inbox.ts";
+import { withPersistenceTransaction } from "./state-document-store.ts";
 
 export class AcquisitionQuarantineError extends Error {
   readonly code: string;
@@ -48,7 +49,9 @@ export type AcquisitionWorkerInbox = {
 export function createAcquisitionWorker(input: {
   inbox: AcquisitionWorkerInbox;
   processBatch: AcquisitionBatchProcessor;
+  runAtomically?: typeof withPersistenceTransaction;
 }) {
+  const runAtomically = input.runAtomically ?? withPersistenceTransaction;
   async function run(maxBatches = 8) {
     const limit = Math.max(1, Math.min(50, Math.floor(maxBatches)));
     const attemptedBatchIds = new Set<string>();
@@ -84,11 +87,14 @@ export function createAcquisitionWorker(input: {
       attemptedBatchIds.add(work.batch.batchId);
       const startedAt = Date.now();
       try {
-        const result = await input.processBatch(work.batch, {
-          payloadHash: work.payloadHash,
-          attempt: work.attempt,
+        const result = await runAtomically(async () => {
+          const processed = await input.processBatch(work.batch, {
+            payloadHash: work.payloadHash,
+            attempt: work.attempt,
+          });
+          await input.inbox.complete(work.batch.batchId, work.claimToken);
+          return processed;
         });
-        await input.inbox.complete(work.batch.batchId, work.claimToken);
         const durationMs = Date.now() - startedAt;
         processed.push({
           batchId: work.batch.batchId,

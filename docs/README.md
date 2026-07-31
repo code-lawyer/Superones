@@ -43,7 +43,7 @@ updated: 2026-07-31
 - [ADR-0009：内容频道采用独立编辑配置](adr/0009-channel-editorial-profiles.md)
 - [ADR-0010：生产持久化与安全状态统一进入 PostgreSQL](adr/0010-production-persistence-and-security-seam.md)
 - [ADR-0011：人工编辑只进入结构化服务目录](adr/0011-managed-service-catalog.md)
-- [ADR-0012：生产后台采用托管 OIDC 身份与可撤销应用会话](adr/0012-production-admin-access.md)
+- [ADR-0012：生产后台采用原生 Passkey 与可撤销应用会话](adr/0012-production-admin-access.md)
 - [ADR-0013：境外可靠投递与境内独立消费](adr/0013-reliable-delivery-and-domestic-worker.md)
 - [ADR-0014：OPC 无账号订单与支付宝服务器到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
 - [ADR-0015：当前快照、永久事件证据与自动编辑边界](adr/0015-current-snapshots-and-automated-editorial.md)
@@ -52,7 +52,7 @@ updated: 2026-07-31
 
 - [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
 - [部署配置手册](Vault2077-Deployment-Configuration-Manual.md)
-- [阿里云轻量服务器与后台 OIDC 身份决策](Vault2077-Aliyun-Identity-Gateway-Decision.md)：IDaaS 与唯一管理员邮箱均已确认。
+- [阿里云轻量服务器与历史后台身份决策](Vault2077-Aliyun-Identity-Gateway-Decision.md)：保留已退役 OIDC 方案的历史背景，当前实现见 ADR-0012。
 - [OPC 服务目录后台操作手册](Vault2077-OPC-Admin-Manual.md)
 - [Content Pipeline Operations](Content-Pipeline-Operations.md) 已被统一采集手册取代，只保留迁移指引。
 

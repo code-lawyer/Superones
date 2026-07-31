@@ -1,6 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createPendingSubmission, currentSeason, findSeasonSubmission, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
+import {
+  createPendingSubmission,
+  currentSeason,
+  findSeasonSubmission,
+  getFrontierSeasonLaunchState,
+  removePendingSubmission,
+  updatePendingSubmissionRepository,
+} from "@/lib/frontier-store";
+import { enqueueFrontierObservationTask } from "@/lib/frontier-public-tasks";
 import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, parseGitHubRepository } from "@/lib/github";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
@@ -51,12 +59,40 @@ export async function POST(request: NextRequest) {
         verifiedAt: existing.verifiedAt,
       });
     }
-    const repository = await inspectGitHubRepository(owner, repo);
-    const eligibilityError = repositoryEligibilityError(repository);
-    if (eligibilityError) return NextResponse.json({ error: eligibilityError }, { status: 400 });
-
     const challenge = randomBytes(24).toString("base64url");
-    const submission = await createPendingSubmission({ owner, repo, email, note, defaultBranch: repository.defaultBranch, challenge, rulesAccepted: true });
+    const submission = await createPendingSubmission({
+      owner,
+      repo,
+      email,
+      note,
+      defaultBranch: "",
+      challenge,
+      rulesAccepted: true,
+    });
+    let directInspection = false;
+    try {
+      const repository = await inspectGitHubRepository(owner, repo);
+      const eligibilityError = repositoryEligibilityError(repository);
+      if (eligibilityError) {
+        await removePendingSubmission(submission.id);
+        return NextResponse.json({ error: eligibilityError }, { status: 400 });
+      }
+      await updatePendingSubmissionRepository(submission.id, { defaultBranch: repository.defaultBranch });
+      directInspection = true;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("没有找到")) {
+        await removePendingSubmission(submission.id);
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      await enqueueFrontierObservationTask({
+        kind: "inspect_submission",
+        season: submission.season,
+        submissionId: submission.id,
+        owner,
+        repo,
+        expiresAt: submission.challengeExpiresAt,
+      });
+    }
     const filePath = `.vault2077/season-${season.code}.json`;
     return NextResponse.json({
       id: submission.id,
@@ -65,6 +101,7 @@ export async function POST(request: NextRequest) {
       repository: submission.repository,
       filePath,
       expiresAt: submission.challengeExpiresAt,
+      verificationStatus: directInspection ? "ready" : "pending_inspection",
       payload: {
         platform: "vault2077",
         season: season.code,
@@ -72,7 +109,7 @@ export async function POST(request: NextRequest) {
         challenge,
         issuedAt: submission.createdAt,
       },
-    }, { status: 201 });
+    }, { status: directInspection ? 201 : 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "暂时无法创建验证文件。";
     const status = message.includes("已经") || message.includes("获奖") ? 409 : 502;
