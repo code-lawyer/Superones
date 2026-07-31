@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // ali-oss is a Node-only SDK with runtime-loaded transport adapters.
+  serverExternalPackages: ["ali-oss"],
   // Keep dev artifacts away from production builds. Running `next build` while
   // a dev server is open must not invalidate the dev server's asset manifest.
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",

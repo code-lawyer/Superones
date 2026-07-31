@@ -420,6 +420,11 @@
   transition: filter 320ms ease;
 }
 
+.opc-ranger-portrait__image--custom {
+  background-image: none;
+  object-fit: cover;
+}
+
 .opc-ranger-portrait--0 .opc-ranger-portrait__image { background-position: 0% 0%; }
 .opc-ranger-portrait--1 .opc-ranger-portrait__image { background-position: 25% 0%; }
 .opc-ranger-portrait--2 .opc-ranger-portrait__image { background-position: 50% 0%; }

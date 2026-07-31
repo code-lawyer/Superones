@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { AdminOpcCatalogEditor } from "@/components/admin-opc-catalog-editor";
+import { reauthenticateAdminWithPasskey } from "@/lib/admin-passkey-browser";
 
 type Submission = {
   id: string;
@@ -404,20 +405,7 @@ export function AdminConsole() {
     setError("");
     try {
       if (loginMode === "passkey") {
-        const optionsResponse = await fetch("/api/admin/passkey/authenticate/options", {
-          method: "POST",
-          headers: adminMutationHeaders,
-          body: JSON.stringify({ purpose: "reauthentication" }),
-        });
-        const optionsBody = await optionsResponse.json() as { ceremonyId?: string; options?: Parameters<typeof startAuthentication>[0]["optionsJSON"]; error?: string };
-        if (!optionsResponse.ok || !optionsBody.ceremonyId || !optionsBody.options) throw new Error(optionsBody.error ?? "无法开始 Passkey 验证。");
-        const credential = await startAuthentication({ optionsJSON: optionsBody.options });
-        const verifyResponse = await fetch("/api/admin/passkey/authenticate/verify", {
-          method: "POST",
-          headers: adminMutationHeaders,
-          body: JSON.stringify({ ceremonyId: optionsBody.ceremonyId, purpose: "reauthentication", response: credential }),
-        });
-        await jsonMessage(verifyResponse);
+        await reauthenticateAdminWithPasskey();
         setReauthenticationRequired(false);
         setNotice("高风险操作权限已重新验证，有效期五分钟。");
         return;

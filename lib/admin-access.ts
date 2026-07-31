@@ -2,7 +2,12 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminCookieName, adminCookieOptions } from "./admin-auth.ts";
-import { assertAdminHost, assertAdminMutationRequest, AdminRequestSecurityError } from "./admin-request-security.ts";
+import {
+  assertAdminHost,
+  assertAdminMutationRequest,
+  AdminRequestSecurityError,
+  type AdminMutationBodyType,
+} from "./admin-request-security.ts";
 import { readAdminSession, type AdminSession } from "./admin-session-store.ts";
 
 export type AdminAccess = {
@@ -12,6 +17,7 @@ export type AdminAccess = {
 
 export type AdminAccessOptions = {
   mutation?: boolean;
+  mutationBodyType?: AdminMutationBodyType;
 };
 
 export class AdminAccessError extends Error {
@@ -31,7 +37,7 @@ export async function authenticateAdminRequest(
   options: AdminAccessOptions = {},
 ): Promise<AdminAccess> {
   try {
-    if (options.mutation) assertAdminMutationRequest(request);
+    if (options.mutation) assertAdminMutationRequest(request, options.mutationBodyType);
     else assertAdminHost(request);
   } catch (error) {
     if (error instanceof AdminRequestSecurityError) {

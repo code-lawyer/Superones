@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { RANGER_MEDIA_ORIGIN } from "@/lib/legal-profile";
 
 function contentSecurityPolicy(nonce: string) {
+  const imageSources = `'self' data: ${RANGER_MEDIA_ORIGIN}`;
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -11,7 +13,7 @@ function contentSecurityPolicy(nonce: string) {
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    "img-src 'self' data: https:",
+    `img-src ${imageSources}`,
     "connect-src 'self'",
     "media-src 'self' https:",
     "manifest-src 'self'",

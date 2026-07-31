@@ -1,17 +1,32 @@
 import json
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from collector.feed_collector import (
     build_packets,
+    collect_dated_index,
+    collect_generic,
     collect_github,
+    collect_sitemap,
     collection_window,
     document,
+    plain_text,
     validate_public_https_url,
 )
 
 
 class CollectorContractTests(unittest.TestCase):
+    def test_inline_spans_preserve_word_boundaries_without_spacing_punctuation(self):
+        self.assertEqual(
+            plain_text("<p><span>Hello</span><span>,</span> world</p>").strip(),
+            "Hello, world",
+        )
+        self.assertEqual(
+            plain_text("<p><span>Google</span><span>Research</span></p>").strip(),
+            "Google Research",
+        )
+
     def test_collection_window_uses_latest_beijing_cutoff(self):
         start, end = collection_window(datetime(2026, 7, 22, 10, 17, tzinfo=timezone.utc), lookback_hours=6)
         self.assertEqual(start.isoformat(), "2026-07-22T04:00:00+00:00")
@@ -69,6 +84,93 @@ class CollectorContractTests(unittest.TestCase):
         self.assertEqual(item["contentFormat"], "markdown")
         self.assertIn("\n\n- Fixed one issue\n", item["originalContent"])
         self.assertIn("```bash\nexample --version\n```", item["originalContent"])
+
+    def test_dated_index_keeps_paragraph_and_list_boundaries(self):
+        source = {
+            "id": "source-dated-index",
+            "name": "Example changelog",
+            "connector": "dated-index",
+            "endpoint": "https://example.com/changelog",
+            "homeUrl": "https://example.com/changelog",
+            "contentCapability": "fulltext",
+            "evidenceNature": "primary",
+            "publisherKind": "organization",
+        }
+        payload = b"""
+        <h2>July 30, 2026</h2>
+        <p>First paragraph.</p>
+        <p>Second paragraph.</p>
+        <ul><li>First change</li><li>Second change</li></ul>
+        """
+        start = datetime(2026, 7, 29, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 31, tzinfo=timezone.utc)
+
+        with patch("collector.feed_collector.fetch_bytes", return_value=payload):
+            items = collect_dated_index(source, start, end)
+
+        self.assertEqual(len(items), 1)
+        self.assertRegex(
+            items[0]["originalContent"],
+            r"First paragraph\.\n{2,}Second paragraph\.\n{2,}- First change\n- Second change",
+        )
+
+    def test_sitemap_article_keeps_html_block_boundaries(self):
+        source = {
+            "id": "source-sitemap",
+            "name": "Example articles",
+            "connector": "sitemap",
+            "endpoint": "https://example.com/sitemap.xml",
+            "homeUrl": "https://example.com/updates/",
+            "pathPrefix": "/updates/",
+            "contentCapability": "fulltext",
+            "evidenceNature": "primary",
+            "publisherKind": "organization",
+        }
+        sitemap = b"""
+        <urlset><url><loc>https://example.com/updates/one</loc><lastmod>2026-07-30</lastmod></url></urlset>
+        """
+        article = b"""
+        <html><head><meta property="og:title" content="Structured update"></head>
+        <body><article><p>First paragraph.</p><p>Second paragraph.</p>
+        <ul><li>First change</li><li>Second change</li></ul></article></body></html>
+        """
+        start = datetime(2026, 7, 29, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 31, tzinfo=timezone.utc)
+
+        with patch("collector.feed_collector.fetch_bytes", side_effect=[sitemap, article]):
+            items = collect_sitemap(source, start, end)
+
+        self.assertEqual(len(items), 1)
+        self.assertRegex(
+            items[0]["originalContent"],
+            r"First paragraph\.\n{2,}Second paragraph\.\n{2,}- First change\n- Second change",
+        )
+
+    def test_generic_json_content_keeps_html_block_boundaries(self):
+        source = {
+            "id": "source-json",
+            "name": "Example API",
+            "connector": "json",
+            "endpoint": "https://example.com/api/updates",
+            "homeUrl": "https://example.com/updates/",
+            "contentCapability": "fulltext",
+            "evidenceNature": "primary",
+            "publisherKind": "organization",
+        }
+        start = datetime(2026, 7, 29, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 31, tzinfo=timezone.utc)
+        items = collect_generic(source, {"items": [{
+            "title": "Structured API update",
+            "url": "https://example.com/updates/api",
+            "content": "<p>First paragraph.</p><p>Second paragraph.</p><ul><li>First change</li><li>Second change</li></ul>",
+            "published_at": "2026-07-30T00:00:00Z",
+        }]}, start, end)
+
+        self.assertEqual(len(items), 1)
+        self.assertRegex(
+            items[0]["originalContent"],
+            r"First paragraph\.\n{2,}Second paragraph\.\n{2,}- First change\n- Second change",
+        )
 
     def test_routine_nightly_release_is_not_admitted_to_information(self):
         source = {

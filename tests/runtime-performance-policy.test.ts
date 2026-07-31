@@ -14,6 +14,7 @@ const [
   webService,
   workerService,
   frontierService,
+  rangerMediaCleanupService,
   globalStyles,
   institutionalStyles,
   proxy,
@@ -26,6 +27,7 @@ const [
   source("../deploy/systemd/vault2077-web.service"),
   source("../deploy/systemd/vault2077-acquisition-worker.service"),
   source("../deploy/systemd/vault2077-frontier-tick.service"),
+  source("../deploy/systemd/vault2077-ranger-media-cleanup.service"),
   source("../app/globals.css"),
   source("../app/institutional.css"),
   source("../proxy.ts"),
@@ -35,6 +37,11 @@ const [
 test("per-request nonce CSP keeps document rendering dynamic", () => {
   assert.match(proxy, /'nonce-\$\{nonce\}' 'strict-dynamic'/);
   assert.match(rootLayout, /export const dynamic = "force-dynamic"/);
+});
+
+test("CSP only allows the confirmed ranger media origin for remote images", () => {
+  assert.match(proxy, /RANGER_MEDIA_ORIGIN/);
+  assert.doesNotMatch(proxy, /imageSources \+= " https:"/);
 });
 
 test("public database reads use bounded cross-request caches", () => {
@@ -67,7 +74,8 @@ test("systemd templates bound Node heaps and deprioritize background work", () =
   assert.match(webService, /NODE_OPTIONS=--max-old-space-size=384/);
   assert.match(workerService, /NODE_OPTIONS=--max-old-space-size=512/);
   assert.match(frontierService, /NODE_OPTIONS=--max-old-space-size=384/);
-  for (const backgroundService of [workerService, frontierService]) {
+  assert.match(rangerMediaCleanupService, /NODE_OPTIONS=--max-old-space-size=384/);
+  for (const backgroundService of [workerService, frontierService, rangerMediaCleanupService]) {
     assert.match(backgroundService, /^Nice=5$/m);
     assert.match(backgroundService, /^CPUWeight=50$/m);
   }

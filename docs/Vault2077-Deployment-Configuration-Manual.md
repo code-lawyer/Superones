@@ -6,13 +6,13 @@ updated: 2026-07-31
 
 # Vault2077 部署配置手册
 
-> 2026-07-31 更新：RDS 已确定为 PostgreSQL 17 基础版、20 GB、先按量后包月。付费 IDaaS 已取消，生产后台改为项目内原生 Passkey；上线前仍须完成真实设备、TLS、恢复与源站绕过验收。最新执行顺序见根目录 `Vault2077-Production-Deployment-Plan-2026-07-31.md`。
+> 2026-07-31 更新：RDS 已确定为 PostgreSQL 17 基础版、20 GB、先按量后包月；公开游骑兵头像使用同地域 OSS。付费 IDaaS 已取消，生产后台改为项目内原生 Passkey；上线前仍须完成真实设备、TLS、RDS 恢复、OSS 媒体链路与源站绕过验收。最新执行顺序见根目录 `Vault2077-Production-Deployment-Plan-2026-07-31.md`。
 
 ## 1. 环境级别
 
 - 本地开发：允许开发默认值与文件适配器。
 - 预览：允许单写者文件适配器，但必须标识演示，禁止真实报名、自动发布、收款和结算。
-- 生产：必须使用 PostgreSQL、严格密钥、后台安全、备份和监控；缺项时关闭相关写能力。
+- 生产：必须使用 PostgreSQL 和头像 OSS，并具备严格密钥、后台安全、备份和监控；缺项时关闭相关写能力。
 
 ## 2. 应用秘密
 
@@ -106,6 +106,23 @@ Frontier 生产开放配置：
 
 ## 5. 数据
 
+### 游骑兵公开头像 OSS
+
+生产环境只把服务端处理后的公开头像写入 OSS；原图、授权材料、私人文件、采集包和数据库备份不得进入该 Bucket。本地开发省略以下 OSS 配置时，头像适配器写入 `data/ranger-media/` 并通过 `/media/*` 提供预览。
+
+| 变量 | 生产要求 | 用途 |
+| --- | --- | --- |
+| `VAULT2077_RANGER_MEDIA_STORAGE` | 必须为 `oss` | 禁止生产退回 VPS 本地磁盘 |
+| `VAULT2077_OSS_REGION` | 必需 | 与轻量服务器同地域的 OSS 地域标识 |
+| `VAULT2077_OSS_BUCKET` | 必需 | 只保存处理后公开头像的独立 Bucket |
+| `VAULT2077_OSS_ACCESS_KEY_ID` | 必需 | 应用最小权限 RAM AccessKey ID |
+| `VAULT2077_OSS_ACCESS_KEY_SECRET` | 必需 | 只由服务器秘密管理注入的 RAM Secret |
+| `VAULT2077_OSS_PUBLIC_ORIGIN` | 必需且为独立 HTTPS origin | 固定为 `https://media.superones.top` |
+| `VAULT2077_OSS_INTERNAL` | 必须明确为 `true` 或 `false` | 同地域内网 Endpoint 可用时设为 `true` |
+| `VAULT2077_RANGER_MEDIA_DIR` | 仅本地可选 | 覆盖本地头像预览目录，生产不使用 |
+
+Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入。应用 RAM 身份只授予该前缀的对象写入和元数据读取能力。上传上限为 5MB，Nginx 当前 `client_max_body_size 8m` 足以容纳 multipart 开销；如果修改任一侧上限，必须同步校验浏览器、应用路由和 Nginx。生产启用前验证 CNAME/TLS、320/800 WebP、发布前 HEAD、`Cache-Control: public, max-age=31536000, immutable`、替换、撤回、无引用对象清理和费用告警。
+
 ### OPC 支付宝开放平台支付
 
 | 变量 | 说明 |
@@ -134,9 +151,11 @@ Frontier 生产开放配置：
 
 `VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。Next 生产进程只有在显式设置 `VAULT2077_ALLOW_FILE_PREVIEW=true` 时才允许文件模式，该开关只用于 E2E/本地预览，生产部署必须保持关闭。
 
-生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
+游骑兵头像媒体每天执行一次 `npm run opc:cleanup-ranger-media`：未被草稿、当前发布或发布历史引用的孤儿对象保留 7 天；只存在于发布历史的已替换对象保留 30 天。本人撤回授权时，先从草稿和公开目录移除头像并发布，再执行 `npm run opc:purge-revoked-ranger-media -- <ranger-slug>`；该命令会枚举并删除当前对象、全部历史 versionId 和删除标记。RAM 清理权限必须同时允许列举对象版本和按 versionId 删除。
 
-阿里云首个商用版本使用 RDS PostgreSQL 17 基础版，而不是把 PostgreSQL 与 Node 放在同一台轻量服务器。初始存储固定为 20 GB，连接池为 4；先按量付费完成 7～14 天上线验证，稳定后转包月。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动备份、日志备份/时间点恢复、删除保护和监控；容量在 50%/70%/80% 分级告警，上线前从生产备份恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 当前也不需要；只有原始包/长期归档体量超过数据库保留策略后，才通过新 ADR 引入私有 Bucket、服务端加密、生命周期与恢复验证。
+生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
+
+阿里云首个商用版本使用 RDS PostgreSQL 17 基础版，而不是把 PostgreSQL 与 Node 放在同一台轻量服务器。初始存储固定为 20 GB，连接池为 4；先按量付费完成 7～14 天上线验证，稳定后转包月。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动备份、日志备份/时间点恢复、删除保护和监控；容量在 50%/70%/80% 分级告警，上线前从生产备份恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 仅用于服务端处理后的公开游骑兵头像，按《Vault2077 游骑兵头像存储决策》配置独立媒体域名与最小权限 RAM 身份；原始包、授权材料和长期归档仍不得写入该 Bucket，若未来扩大范围必须另立 ADR。
 
 ## 6. GitHub Actions
 
@@ -171,16 +190,16 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 
 ## 8. 部署步骤
 
-1. 固定提交、Node/Python 运行时和锁文件；在阿里云创建轻量应用服务器、RDS、轻量与 VPC 内网互通、安全组/防火墙、DNS、TLS 证书和监控联系人。
+1. 固定提交、Node/Python 运行时和锁文件；在阿里云创建轻量应用服务器、RDS、头像 OSS、轻量与 VPC 内网互通、安全组/防火墙、三个主机的 DNS/TLS 和监控联系人。
 2. 安全组仅允许公网 `80/443`，SSH 只允许受控运维来源；RDS 只允许应用安全组访问。Node 只监听 `127.0.0.1:3000`。
 3. 通过 SSH 生成一次性 Passkey 注册令牌，在管理域名为唯一 owner 注册至少一个凭证并离线保存恢复码；确认公开域名和 Node 端口都不能进入后台。
 4. 生成彼此独立的高熵秘密与两个版本化密钥环；把采集签名密钥环、活动 ID 和 Frontier 公开任务只读密钥配置到 GitHub Secrets，把完整验签密钥环配置在境内。不得复制 worker、LLM、后台或用户数据秘密到 GitHub。
-5. 在最终生产环境变量下运行 `npm run deploy:check`，再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
+5. 注入 PostgreSQL、OSS、Passkey、管线、模型与功能开关的最终生产变量，运行 `npm run deploy:check`，再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
 6. 运行 PostgreSQL 迁移，确认健康检查识别最新迁移；创建自动备份后执行一次隔离恢复演练。
 7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer` 与 `vault2077-frontier-tick.timer`；执行 `nginx -t`、`systemd-analyze verify` 并接入失败告警。
 8. 部署应用但暂不开放内容频道；执行一次性 bootstrap，把 SiC 每个 approved 来源的最近一条合格内容与 Vault 最近 30 天真实内容写入生产事实源。
 9. 验证 bootstrap 的逐来源覆盖、原始日期、稳定 ID、分批处理和幂等补跑，再启用统一增量计划和境内两个 timer。
-10. 在生产等价预发布环境验证投递重试、GitHub 漏跑补跑、worker 积压恢复、四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台会话与再认证、OPC 下单/到账/完成/退款状态流转、反向代理伪造头拒绝和 `/pipeline` 边界。
+10. 在生产等价预发布环境验证投递重试、GitHub 漏跑补跑、worker 积压恢复、四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台会话与再认证、头像 OSS 上传/访问/发布/撤回/清理、OPC 下单/到账/完成/退款状态流转、反向代理伪造头拒绝和 `/pipeline` 边界。
 11. 完成容量基准、告警演练、回滚演练和发布签字；失败按上一应用版本和向前兼容数据库迁移策略回滚。
 
 bootstrap 是一次性受审计作业，不是应用启动钩子。多副本启动不得各自触发回填；新增 approved 来源时只对该来源执行同一基线规则。

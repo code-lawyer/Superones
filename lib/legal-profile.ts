@@ -10,6 +10,7 @@ export const LEGAL_EFFECTIVE_DATE = "2026-08-01";
 export const PUBLIC_DOMAIN = "superones.top";
 export const PUBLIC_ORIGIN = `https://${PUBLIC_DOMAIN}`;
 export const ADMIN_ORIGIN = `https://admin.${PUBLIC_DOMAIN}`;
+export const RANGER_MEDIA_ORIGIN = `https://media.${PUBLIC_DOMAIN}`;
 export const ICP_NUMBER = "沪ICP备2026003401号-1";
 
 export function getLegalProfile(

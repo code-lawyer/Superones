@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
+import { legacyRangerAvatarPublicUrl, rangerAvatarPublicUrl } from "@/lib/ranger-avatar";
+import { publicRangerMediaOrigin } from "@/lib/ranger-avatar-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +28,9 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
   const verifiedAt = profile.verificationDate ?? "—";
   const updatedAt = profile.profileUpdatedAt ?? "—";
   const [contactLocalPart, contactDomainPart] = profile.contactLabel.split("@", 2);
+  const avatarSource = profile.avatar
+    ? rangerAvatarPublicUrl(profile.avatar, "large", publicRangerMediaOrigin())
+    : legacyRangerAvatarPublicUrl(profile.avatarUrl);
 
   return (
     <>
@@ -56,7 +62,9 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
           </div>
 
           <figure className={`opc-ranger-dossier__portrait opc-ranger-portrait--${portraitIndex}`}>
-            <span className="opc-ranger-portrait__image" role="img" aria-label={`${profile.publicName}的专家头像`} />
+            {avatarSource
+              ? <Image className="opc-ranger-portrait__image opc-ranger-portrait__image--custom" src={avatarSource} width={800} height={800} decoding="async" unoptimized alt={`${profile.publicName}的专家头像`} />
+              : <span className="opc-ranger-portrait__image" role="img" aria-label={`${profile.publicName}的专家头像`} />}
             <figcaption className="mono">
               <span>PORTRAIT / PUBLIC</span>
               <span>FILE / RA-{profileNumber}</span>

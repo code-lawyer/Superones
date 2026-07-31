@@ -16,6 +16,7 @@ import {
   ServiceCatalogValidationError,
 } from "@/lib/managed-service-catalog";
 import { recordAuditEvent } from "@/lib/security-audit";
+import { publicRangerMediaOrigin } from "@/lib/ranger-avatar-storage";
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,12 @@ function catalogCounts(value: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const access = await authenticateAdminRequest(request);
-    return authenticatedAdminJson(access, { catalog: await readManagedServiceCatalog() });
+    return authenticatedAdminJson(access, {
+      catalog: {
+        ...await readManagedServiceCatalog(),
+        rangerMediaOrigin: publicRangerMediaOrigin(),
+      },
+    });
   } catch (error) {
     return adminAccessErrorResponse(error);
   }
@@ -103,7 +109,12 @@ export async function POST(request: NextRequest) {
         ...catalogCounts(body.catalog),
       },
     });
-    return authenticatedAdminJson(access, { catalog: await readManagedServiceCatalog() });
+    return authenticatedAdminJson(access, {
+      catalog: {
+        ...await readManagedServiceCatalog(),
+        rangerMediaOrigin: publicRangerMediaOrigin(),
+      },
+    });
   } catch (error) {
     const status = error instanceof ServiceCatalogConflictError
       ? 409

@@ -4,6 +4,7 @@ import { OpcWorkspace } from "@/components/opc-workspace";
 import { PageIntro } from "@/components/page-intro";
 import { opcOrderingAvailable } from "@/lib/opc-payment-config";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
+import { publicRangerMediaOrigin } from "@/lib/ranger-avatar-storage";
 
 export const metadata: Metadata = { title: "OPC 服务台" };
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export default async function OpcPage({ searchParams }: { searchParams: Promise<
         infrastructure={catalog.infrastructure}
         specialties={catalog.specialties}
         rangers={catalog.rangers}
+        rangerMediaOrigin={publicRangerMediaOrigin()}
         orderingAvailable={orderingAvailable}
         initialView={initialView}
         initialServiceSlug={query.service}

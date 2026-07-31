@@ -20,6 +20,16 @@ import {
   readStateDocument,
   type StateDocumentDefinition,
 } from "./state-document-store.ts";
+import { isRangerAvatarAsset } from "./ranger-avatar.ts";
+import { missingRangerAvatarObjectKeys } from "./ranger-avatar-image.ts";
+import {
+  deleteRangerMediaObject,
+  deleteRangerMediaObjectsForSlug,
+  listRangerMediaObjects,
+} from "./ranger-avatar-storage.ts";
+
+export const RANGER_AVATAR_ORPHAN_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+export const RANGER_AVATAR_REPLACED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ManagedServiceCatalog = {
   schemaVersion: 1;
@@ -67,6 +77,7 @@ const placeholderValues = new Set([
 ]);
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const publicEmailPattern = /^[A-Za-z0-9!$&'*+/=_`{|}~-]+(?:\.[A-Za-z0-9!$&'*+/=_`{|}~-]+)*@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+const rangerAvatarPattern = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i;
 
 function initialState(): ManagedServiceCatalog {
   const seed = readOpcCatalogSeedDocument();
@@ -148,10 +159,13 @@ function normalizeService(value: unknown, kind: OpcService["kind"]): OpcService 
 
 function normalizeRanger(value: unknown): RangerProfile {
   const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const avatar = isRangerAvatarAsset(item.avatar) ? structuredClone(item.avatar) : undefined;
   return {
     slug: cleanText(item.slug, 80).toLowerCase(),
     publicName: cleanText(item.publicName, 120),
     identity: cleanText(item.identity, 60),
+    avatar,
+    avatarUrl: cleanText(item.avatarUrl, 2_100_000) || undefined,
     intro: cleanText(item.intro, 500),
     tags: cleanList(item.tags, 12, 80),
     credential: cleanText(item.credential, 500) || undefined,
@@ -246,6 +260,19 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
     if (rangerSlugs.has(ranger.slug)) errors.push(`${label}：slug 重复`);
     rangerSlugs.add(ranger.slug);
     if (!rangerIdentities.includes(ranger.identity as never)) errors.push(`${label}：顾问身份无效`);
+    if (ranger.avatar && !isRangerAvatarAsset(ranger.avatar)) {
+      errors.push(`${label}：托管头像元数据无效`);
+    }
+    if (
+      ranger.avatar
+      && (!ranger.avatar.smallKey.startsWith(`rangers/${ranger.slug}/`)
+        || !ranger.avatar.largeKey.startsWith(`rangers/${ranger.slug}/`))
+    ) {
+      errors.push(`${label}：托管头像必须属于当前游骑兵 slug`);
+    }
+    if (ranger.avatarUrl && !rangerAvatarPattern.test(ranger.avatarUrl)) {
+      errors.push(`${label}：旧版头像只允许 PNG、JPEG 或 WEBP Data URL；外部图片必须重新上传`);
+    }
     if (!ranger.tags.length) errors.push(`${label}：至少填写一个专长标签`);
     if (forPublication && placeholderValues.has(ranger.contactLabel)) errors.push(`${label}：联系方式仍是预览占位值`);
     if (forPublication && placeholderValues.has(ranger.contactState)) errors.push(`${label}：联系状态仍是预览占位值`);
@@ -277,6 +304,22 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+function legacyAvatarWriteErrors(next: OpcCatalogContent, previous: OpcCatalogContent) {
+  const previousBySlug = new Map(previous.rangers.map((ranger) => [ranger.slug, ranger.avatarUrl]));
+  return next.rangers.flatMap((ranger) => {
+    if (!ranger.avatarUrl) return [];
+    return previousBySlug.get(ranger.slug) === ranger.avatarUrl
+      ? []
+      : [`${ranger.publicName || ranger.slug || "未命名游骑兵"}：旧版 avatarUrl 只允许读取，必须重新上传到托管媒体存储`];
+  });
+}
+
+function rangerAvatarKeys(catalog: OpcCatalogContent) {
+  return catalog.rangers.flatMap((ranger) => ranger.avatar
+    ? [ranger.avatar.smallKey, ranger.avatar.largeKey]
+    : []);
 }
 
 function hasPublishableRangerContact(ranger: RangerProfile) {
@@ -379,6 +422,8 @@ export async function saveServiceCatalogDraft(catalog: unknown, expectedRevision
   if (!validation.valid) throw new ServiceCatalogValidationError(validation.errors);
   return mutateStateDocument(definition, (state) => {
     if (state.revision !== expectedRevision) throw new ServiceCatalogConflictError();
+    const legacyErrors = legacyAvatarWriteErrors(normalized, state.draft);
+    if (legacyErrors.length) throw new ServiceCatalogValidationError(legacyErrors);
     state.draft = normalized;
     state.revision += 1;
     state.draftUpdatedAt = new Date().toISOString();
@@ -394,8 +439,20 @@ export async function publishServiceCatalog(catalog: unknown, expectedRevision: 
   const normalized = normalizeOpcCatalog(catalog);
   const validation = validateOpcCatalog(normalized, true);
   if (!validation.valid) throw new ServiceCatalogValidationError(validation.errors);
+  const missingAvatarObjects = (
+    await Promise.all(normalized.rangers.flatMap((ranger) => ranger.avatar
+      ? [missingRangerAvatarObjectKeys(ranger.avatar)]
+      : []))
+  ).flat();
+  if (missingAvatarObjects.length) {
+    throw new ServiceCatalogValidationError([
+      `游骑兵头像对象不存在，请重新上传后再发布：${missingAvatarObjects.slice(0, 4).join("，")}`,
+    ]);
+  }
   return mutateStateDocument(definition, async (state) => {
     if (state.revision !== expectedRevision) throw new ServiceCatalogConflictError();
+    const legacyErrors = legacyAvatarWriteErrors(normalized, state.draft);
+    if (legacyErrors.length) throw new ServiceCatalogValidationError(legacyErrors);
     const now = new Date().toISOString();
     state.draft = structuredClone(normalized);
     state.published = structuredClone(normalized);
@@ -431,4 +488,57 @@ export async function syncPublishedServiceCatalogSeed() {
     publishedAt: state.publishedAt,
     matchesDefaultPath: target === opcCatalogSeedPath(),
   };
+}
+
+export async function cleanupRangerAvatarMedia(now = new Date()) {
+  const state = await readStateDocument(definition);
+  const activeKeys = new Set([
+    ...rangerAvatarKeys(state.draft),
+    ...rangerAvatarKeys(state.published),
+  ]);
+  const historicalReference = new Map<string, number>();
+  for (const publication of state.publications) {
+    const publishedAt = Date.parse(publication.publishedAt);
+    if (!Number.isFinite(publishedAt)) continue;
+    for (const key of rangerAvatarKeys(publication.catalog)) {
+      historicalReference.set(key, Math.max(historicalReference.get(key) ?? 0, publishedAt));
+    }
+  }
+
+  const deleted: string[] = [];
+  const retained: string[] = [];
+  for (const object of await listRangerMediaObjects()) {
+    if (activeKeys.has(object.key)) {
+      retained.push(object.key);
+      continue;
+    }
+    const modifiedAt = Date.parse(object.lastModified);
+    if (!Number.isFinite(modifiedAt)) {
+      retained.push(object.key);
+      continue;
+    }
+    const historicalAt = historicalReference.get(object.key);
+    const retentionMs = historicalAt === undefined
+      ? RANGER_AVATAR_ORPHAN_RETENTION_MS
+      : RANGER_AVATAR_REPLACED_RETENTION_MS;
+    const retentionAnchor = Math.max(modifiedAt, historicalAt ?? 0);
+    if (now.getTime() - retentionAnchor < retentionMs) {
+      retained.push(object.key);
+      continue;
+    }
+    await deleteRangerMediaObject(object.key);
+    deleted.push(object.key);
+  }
+  return { deleted, retained };
+}
+
+export async function purgeRangerAvatarMediaAfterRevocation(slug: string) {
+  const normalizedSlug = slug.trim().toLowerCase();
+  const state = await readStateDocument(definition);
+  const stillReferenced = [...state.draft.rangers, ...state.published.rangers]
+    .some((ranger) => ranger.slug === normalizedSlug && (ranger.avatar || ranger.avatarUrl));
+  if (stillReferenced) {
+    throw new Error("永久删除头像前必须先从草稿和公开目录移除该游骑兵头像并完成发布。");
+  }
+  return deleteRangerMediaObjectsForSlug(normalizedSlug);
 }

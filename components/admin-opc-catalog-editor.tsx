@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
 import {
   infrastructureGroups,
   rangerIdentities,
@@ -9,6 +10,12 @@ import {
   type OpcService,
   type RangerProfile,
 } from "@/lib/opc-catalog";
+import {
+  legacyRangerAvatarPublicUrl,
+  rangerAvatarPublicUrl,
+  type RangerAvatarAsset,
+} from "@/lib/ranger-avatar";
+import { reauthenticateAdminWithPasskey } from "@/lib/admin-passkey-browser";
 
 type CatalogSection = keyof OpcCatalogContent;
 
@@ -18,17 +25,17 @@ type ManagedCatalogView = {
   publishedAt: string | null;
   draft: OpcCatalogContent;
   validation: { valid: boolean; errors: string[] };
+  rangerMediaOrigin: string;
 };
 
 type CatalogResponse = {
   error?: string;
   code?: string;
-  reauthenticationUrl?: string;
   details?: string[];
   catalog?: ManagedCatalogView;
 };
 
-type AdminLoginMode = "oidc" | "local-password";
+type AdminLoginMode = "passkey" | "local-password";
 
 const adminMutationHeaders = {
   "Content-Type": "application/json",
@@ -37,13 +44,11 @@ const adminMutationHeaders = {
 
 class AdminCatalogError extends Error {
   readonly code?: string;
-  readonly reauthenticationUrl?: string;
 
-  constructor(message: string, code?: string, reauthenticationUrl?: string) {
+  constructor(message: string, code?: string) {
     super(message);
     this.name = "AdminCatalogError";
     this.code = code;
-    this.reauthenticationUrl = reauthenticationUrl;
   }
 }
 
@@ -60,7 +65,6 @@ async function responseBody(response: Response) {
     throw new AdminCatalogError(
       `${body?.error ?? "请求暂时无法完成。"}${details}`,
       body?.code,
-      body?.reauthenticationUrl,
     );
   }
   if (!body?.catalog) throw new Error("后台返回的 OPC 服务目录无效。");
@@ -122,7 +126,6 @@ export function AdminOpcCatalogEditor() {
   const [notice, setNotice] = useState("");
   const [accessMode, setAccessMode] = useState<AdminLoginMode>("local-password");
   const [reauthenticationRequired, setReauthenticationRequired] = useState(false);
-  const [reauthenticationUrl, setReauthenticationUrl] = useState("");
   const [reauthenticationPassword, setReauthenticationPassword] = useState("");
 
   const load = useCallback(async () => {
@@ -131,7 +134,7 @@ export function AdminOpcCatalogEditor() {
       fetch("/api/admin/login", { cache: "no-store" }),
     ]);
     const access = await accessResponse.json().catch(() => null) as { mode?: AdminLoginMode } | null;
-    if (access?.mode === "oidc" || access?.mode === "local-password") setAccessMode(access.mode);
+    if (access?.mode === "passkey" || access?.mode === "local-password") setAccessMode(access.mode);
     const catalog = await responseBody(response);
     setState(catalog);
     setDraft(structuredClone(catalog.draft));
@@ -225,7 +228,6 @@ export function AdminOpcCatalogEditor() {
     } catch (cause) {
       if (cause instanceof AdminCatalogError && cause.code === "ADMIN_REAUTH_REQUIRED") {
         setReauthenticationRequired(true);
-        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
       }
       setError(cause instanceof Error ? cause.message : "暂时无法更新 OPC 服务目录。");
     } finally {
@@ -238,17 +240,19 @@ export function AdminOpcCatalogEditor() {
     setError("");
     setNotice("");
     try {
+      if (accessMode === "passkey") {
+        await reauthenticateAdminWithPasskey();
+        setReauthenticationRequired(false);
+        setNotice("发布权限已重新验证，有效期五分钟。");
+        return;
+      }
       const response = await fetch("/api/admin/reauthenticate", {
         method: "POST",
         headers: adminMutationHeaders,
         body: JSON.stringify(accessMode === "local-password" ? { password: reauthenticationPassword } : {}),
       });
-      const body = await response.json().catch(() => null) as {
-        error?: string;
-        reauthenticationUrl?: string;
-      } | null;
+      const body = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) {
-        setReauthenticationUrl(body?.reauthenticationUrl ?? reauthenticationUrl);
         throw new Error(body?.error ?? "身份重新验证失败。");
       }
       setReauthenticationRequired(false);
@@ -320,7 +324,7 @@ export function AdminOpcCatalogEditor() {
               </div>
               {"kind" in selected
                 ? <ServiceFields service={selected} onChange={updateSelected} />
-                : <RangerFields ranger={selected} onChange={updateSelected} />}
+                : <RangerFields ranger={selected} mediaOrigin={state.rangerMediaOrigin} onChange={updateSelected} />}
             </>
           ) : <p className="ranking-empty">新增一个项目，或从左侧选择现有项目。</p>}
         </div>
@@ -332,11 +336,13 @@ export function AdminOpcCatalogEditor() {
           {reauthenticationRequired ? (
             <div className="admin-opc-editor__reauth">
               <strong>发布前需要重新验证身份</strong>
-              {accessMode === "oidc" ? (
-                <>
-                  <p>通过阿里云 IDaaS 再次完成 MFA，返回后权限自动刷新。</p>
-                  {reauthenticationUrl ? <a className="text-action" href={reauthenticationUrl}>通过 IDaaS 重新验证 ↗</a> : null}
-                </>
+              {accessMode === "passkey" ? (
+                <div className="admin-actions">
+                  <p>再次使用已注册 Passkey 完成设备用户验证。</p>
+                  <button className="text-action" type="button" disabled={pending} onClick={() => void reauthenticate()}>
+                    使用 Passkey 重新验证
+                  </button>
+                </div>
               ) : (
                 <div className="form-field">
                   <label htmlFor="admin-opc-reauth-password">本地开发密码</label>
@@ -418,12 +424,23 @@ function ServiceFields({ service, onChange }: { service: OpcService; onChange: (
   </div>;
 }
 
-function RangerFields({ ranger, onChange }: { ranger: RangerProfile; onChange: (value: RangerProfile) => void }) {
+function RangerFields({ ranger, mediaOrigin, onChange }: {
+  ranger: RangerProfile;
+  mediaOrigin: string;
+  onChange: (value: RangerProfile) => void;
+}) {
   const change = <K extends keyof RangerProfile>(key: K, value: RangerProfile[K]) => onChange({ ...ranger, [key]: value });
   return <div className="admin-opc-editor__fields">
     <TextField label="稳定路径 slug" value={ranger.slug} onChange={(value) => change("slug", value)} help="发布后不建议修改，只能使用小写字母、数字和连字符。" />
     <TextField label="公开名称" value={ranger.publicName} onChange={(value) => change("publicName", value)} />
     <div className="form-field"><label>主要顾问身份<select value={ranger.identity} onChange={(event) => change("identity", event.target.value)}>{rangerIdentities.map((item) => <option key={item}>{item}</option>)}</select></label></div>
+    <RangerAvatarField
+      asset={ranger.avatar}
+      legacyUrl={ranger.avatarUrl}
+      slug={ranger.slug}
+      mediaOrigin={mediaOrigin}
+      onChange={(avatar) => onChange({ ...ranger, avatar, avatarUrl: undefined })}
+    />
     <TextField label="一句话介绍" value={ranger.intro} multiline onChange={(value) => change("intro", value)} />
     <ListField label="专长标签" value={ranger.tags} onChange={(value) => change("tags", value)} />
     <TextField label="公开资质或职业记录" value={ranger.credential ?? ""} multiline onChange={(value) => change("credential", value)} />
@@ -432,5 +449,75 @@ function RangerFields({ ranger, onChange }: { ranger: RangerProfile; onChange: (
     <TextField label="核验日期" value={ranger.verificationDate ?? ""} onChange={(value) => change("verificationDate", value)} />
     <TextField label="资料更新时间" value={ranger.profileUpdatedAt ?? ""} onChange={(value) => change("profileUpdatedAt", value)} />
     <TextField label="本人授权状态" value={ranger.authorizationStatus ?? ""} onChange={(value) => change("authorizationStatus", value)} />
+  </div>;
+}
+
+function RangerAvatarField({ asset, legacyUrl, slug, mediaOrigin, onChange }: {
+  asset?: RangerAvatarAsset;
+  legacyUrl?: string;
+  slug: string;
+  mediaOrigin: string;
+  onChange: (value: RangerAvatarAsset | undefined) => void;
+}) {
+  const fileId = useId();
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const previewUrl = asset
+    ? rangerAvatarPublicUrl(asset, "small", mediaOrigin)
+    : legacyRangerAvatarPublicUrl(legacyUrl);
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError("");
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("头像仅支持 PNG、JPEG 或 WEBP 图片。");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 5_000_000) {
+      setError("头像文件不能超过 5MB。");
+      event.target.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      body.set("slug", slug);
+      const response = await fetch("/api/admin/opc/ranger-avatar", {
+        method: "POST",
+        headers: { "X-Vault2077-Admin-Request": "1" },
+        body,
+      });
+      const result = await response.json().catch(() => null) as {
+        asset?: RangerAvatarAsset;
+        error?: string;
+      } | null;
+      if (!response.ok || !result?.asset) throw new Error(result?.error ?? "头像上传失败。");
+      onChange(result.asset);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "头像上传失败，请重试。");
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  }
+
+  return <div className="form-field admin-ranger-avatar">
+    <label htmlFor={fileId}>头像</label>
+    <div className="admin-ranger-avatar__body">
+      <div className="admin-ranger-avatar__preview">
+        {previewUrl ? <Image src={previewUrl} width={320} height={320} unoptimized alt="头像预览" /> : <span>暂无头像</span>}
+      </div>
+      <div className="admin-ranger-avatar__controls">
+        <input id={fileId} type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={handleFileChange} />
+        {uploading ? <span role="status">正在处理并上传…</span> : null}
+        {asset || legacyUrl ? <button className="text-link" type="button" disabled={uploading} onClick={() => { setError(""); onChange(undefined); }}>移除头像</button> : null}
+      </div>
+    </div>
+    <p>支持 PNG、JPEG、WEBP，最大 5MB、宽高至少 320px；系统会去除图片元数据并生成 320/800px 两档 WEBP。</p>
+    {legacyUrl && !asset ? <p className="form-note">这是旧版头像。重新上传后会迁移到托管媒体存储。</p> : null}
+    {error ? <p className="form-error" role="alert">{error}</p> : null}
   </div>;
 }

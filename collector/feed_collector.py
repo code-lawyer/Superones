@@ -44,19 +44,35 @@ class _TextExtractor(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
+        self.pending_span_boundary = False
 
     def handle_data(self, data: str) -> None:
+        if self.pending_span_boundary and data and self.parts:
+            previous = next((part[-1] for part in reversed(self.parts) if part), "")
+            current = data[0]
+            if (
+                previous.isascii()
+                and current.isascii()
+                and previous.isalnum()
+                and (current.isalnum() or current in {"@", "#"})
+            ):
+                self.parts.append(" ")
+        self.pending_span_boundary = False
         self.parts.append(data)
 
     def handle_starttag(self, tag: str, attrs) -> None:
         if tag in {"br", "p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "pre"}:
+            self.pending_span_boundary = False
             self.parts.append("\n")
         if tag == "li":
-            self.parts.append("\n- ")
+            self.parts.append("- " if self.parts and self.parts[-1].endswith("\n") else "\n- ")
 
     def handle_endtag(self, tag: str) -> None:
         if tag in {"p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol", "pre"}:
+            self.pending_span_boundary = False
             self.parts.append("\n")
+        elif tag == "span":
+            self.pending_span_boundary = True
 
 
 def plain_text(value) -> str:
@@ -108,7 +124,7 @@ def as_structured_text(value, limit: int) -> str:
     raw = str(value).replace("\r\n", "\n").replace("\r", "\n")
     raw = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", raw)
     lines = [re.sub(r"[ \t]+$", "", line) for line in raw.split("\n")]
-    normalized = re.sub(r"\n{4,}", "\n\n\n", "\n".join(lines)).strip()
+    normalized = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
     if len(normalized) <= limit:
         return normalized
     boundary = normalized.rfind("\n\n", 0, limit + 1)
@@ -470,13 +486,14 @@ def collect_dated_index(source: dict, start: datetime, end: datetime) -> list[di
             continue
         content_start = heading.end()
         content_end = headings[index + 1].start() if index + 1 < len(headings) else len(payload)
-        content = as_text(plain_text(payload[content_start:content_end]), 48000)
+        content = as_structured_text(plain_text(payload[content_start:content_end]), 48000)
         if not content:
             continue
+        title_source = as_text(content, 500)
         item = document(
             source,
             source["homeUrl"],
-            content.split(". ", 1)[0][:500] or f"{source['name']} {published_at}",
+            title_source.split(". ", 1)[0] or f"{source['name']} {published_at}",
             content,
             now_iso(parsed),
             overrides={"itemKind": "changelog"},
