@@ -25,7 +25,7 @@ export function RulesContent() {
       <li><strong>四无</strong><span>边境计划遵循无组织、无纪律、无目标、无期限四项原则；四无不豁免公开仓库、开源许可证和控制权验证等机器资格。</span></li>
       <li><strong>仓库资格</strong><span>仓库必须公开、非纯 Fork、未归档，并具有代码托管平台可识别的开源许可证。</span></li>
       <li><strong>挑战文件</strong><span>验证文件必须保留在默认分支直到赛季结算；网站在报名和结算时各检查一次。</span></li>
-      <li><strong>排名</strong><span>验证成功时记录 Star 基线，之后按净新增 Star 排名，每小时更新。</span></li>
+      <li><strong>排名</strong><span>验证成功时记录 Star 基线，之后按净新增 Star 排名；北京时间 08:45–22:45 每两小时更新。</span></li>
       <li><strong>季度结算</strong><span>一次报名只参加最近一次季度结算；结算时重新检查全部机器资格。</span></li>
       <li><strong>奖励</strong><span>冠军获得官方奖励；所有有效报名按最终排名顺序，各随机获得至多一件匿名奖品。</span></li>
       <li><strong>再次报名</strong><span>季度冠军仓库永久退出；其他仓库下季可以重新报名。</span></li>

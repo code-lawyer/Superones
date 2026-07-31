@@ -14,7 +14,7 @@ export default async function RankingPage() {
   const { rankings, updatedAt } = await getCachedFrontierRanking(season.code);
   return (
     <>
-      <PageIntro code="FRONTIER / RANKING" title="每一颗 Star，都从验证通过后开始计算。" lead="排行榜每小时更新。赛季结算时重新检查仓库资格与挑战文件，再冻结最终结果。" meta={`${season.name} / ${beijingSeasonDate(season.endsAt)} 结算 / 最近更新 ${updatedAt ? new Date(updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "等待首次更新"}`} />
+      <PageIntro code="FRONTIER / RANKING" title="每一颗 Star，都从验证通过后开始计算。" lead="排行榜在北京时间 08:45–22:45 每两小时更新。赛季结算时重新检查仓库资格与挑战文件，再冻结最终结果。" meta={`${season.name} / ${beijingSeasonDate(season.endsAt)} 结算 / 最近更新 ${updatedAt ? new Date(updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "等待首次更新"}`} />
       <section className="shell content-section"><FrontierRanking items={rankings} /></section>
       <section className="shell archive-section">
         <div className="section-heading"><p className="eyebrow mono">FINAL CHECK</p><div className="section-heading__main"><h2>结算时再次验证。</h2></div></div>

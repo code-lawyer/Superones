@@ -6,7 +6,7 @@
     "information": 132,
     "roadside": 728,
     "events": 4,
-    "sic": 22,
+    "sic": 156,
     "rankingBoards": 5,
     "rankingItems": 90
   },
@@ -16,8 +16,8 @@
       "bytes": 2753199
     },
     "sic-content-store.seed.json": {
-      "sha256": "aba398577decd97ce52775ce9c1834e31a2c39703943540e9a74bc85f8ef5afe",
-      "bytes": 56885
+      "sha256": "a9ce50dd9065aa62570334e31ebc506c0161e0cbdc4dd0c3b722c28595ae3fe2",
+      "bytes": 425169
     },
     "direct-rankings.seed.json": {
       "sha256": "f9bb9bc13fe922b64296e08861cd141c4da0371af41eb9c9b76eee4c680c742d",

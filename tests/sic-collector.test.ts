@@ -97,20 +97,25 @@ test("SiC dated-index collector keeps every dated release instead of navigation 
   assert.match(entries[1].title, /older model update/i);
 });
 
-test("SiC official-index anchors admit paper entries but reject site navigation", () => {
+test("Hugging Face weekly collection uses the official API with an ISO week", () => {
   const source: SicSource = {
     ...rssSource,
     id: "hugging-face-daily-papers",
     group: "papers",
-    kind: "official_index",
+    kind: "official_api",
     homeUrl: "https://huggingface.co/papers",
-    endpoint: "https://huggingface.co/papers",
+    endpoint: "https://huggingface.co/api/daily_papers?limit=100&p=0&sort=publishedAt",
   };
-  const entries = sicCollectorTestUtils.anchorEntries(source, `
-    <a href="/models">Models</a>
-    <a href="/papers/2607.12345">A New Verifier for Long-Horizon Reasoning</a>
-  `);
-  assert.deepEqual(entries.map((entry) => entry.url), ["https://huggingface.co/papers/2607.12345"]);
+  const endpoint = new URL(sicCollectorTestUtils.huggingFaceWeeklyEndpoint(source, "2026-07-31T08:00:00.000Z"));
+  assert.equal(endpoint.origin + endpoint.pathname, "https://huggingface.co/api/daily_papers");
+  assert.equal(endpoint.searchParams.get("week"), "2026-W31");
+  assert.equal(endpoint.searchParams.get("sort"), "publishedAt");
+  assert.equal(endpoint.searchParams.get("limit"), "100");
+});
+
+test("ISO week calculation observes week-year boundaries", () => {
+  assert.equal(sicCollectorTestUtils.isoWeek("2027-01-01T12:00:00.000Z"), "2026-W53");
+  assert.equal(sicCollectorTestUtils.isoWeek("2027-01-04T12:00:00.000Z"), "2027-W01");
 });
 
 test("SiC podcast admission can require an audio enclosure", () => {
@@ -151,13 +156,32 @@ test("Hugging Face paper discovery is normalized to arXiv identifiers", () => {
     { id: "not-an-arxiv-id" },
   ]));
   assert.deepEqual(records, [
-    { id: "2607.12345", discoveryUrl: "https://huggingface.co/papers/2607.12345" },
-    { id: "2607.54321", discoveryUrl: "https://huggingface.co/papers/2607.54321" },
+    { id: "2607.12345", discoveryUrl: "https://huggingface.co/papers/2607.12345", upvotes: 42 },
+    { id: "2607.54321", discoveryUrl: "https://huggingface.co/papers/2607.54321", upvotes: 0 },
   ]);
 });
 
-test("arXiv metadata replaces discovery metadata and becomes the canonical paper record", () => {
-  const discoveries = new Map([["2607.12345", "https://huggingface.co/papers/2607.12345"]]);
+test("Hugging Face weekly papers are ranked locally by upvotes with stable tie breakers", () => {
+  const ranked = sicCollectorTestUtils.rankHuggingFacePaperRecords([
+    { id: "2607.00003", discoveryUrl: "https://huggingface.co/papers/2607.00003", submittedAt: "2026-07-30T08:00:00.000Z", upvotes: 12 },
+    { id: "2607.00001", discoveryUrl: "https://huggingface.co/papers/2607.00001", submittedAt: "2026-07-29T08:00:00.000Z", upvotes: 40 },
+    { id: "2607.00002", discoveryUrl: "https://huggingface.co/papers/2607.00002", submittedAt: "2026-07-30T08:00:00.000Z", upvotes: 40 },
+  ], "2026-W31");
+  assert.deepEqual(ranked.map((item) => ({ id: item.id, rank: item.weeklyRank, upvotes: item.upvotes })), [
+    { id: "2607.00002", rank: 1, upvotes: 40 },
+    { id: "2607.00001", rank: 2, upvotes: 40 },
+    { id: "2607.00003", rank: 3, upvotes: 12 },
+  ]);
+});
+
+test("arXiv metadata replaces discovery metadata while preserving the weekly rank", () => {
+  const discoveries = new Map([["2607.12345", {
+    id: "2607.12345",
+    discoveryUrl: "https://huggingface.co/papers/2607.12345",
+    upvotes: 42,
+    rankingWeek: "2026-W31",
+    weeklyRank: 3,
+  }]]);
   const entries = sicCollectorTestUtils.arxivEntries(`
     <feed xmlns="http://www.w3.org/2005/Atom">
       <entry>
@@ -173,4 +197,7 @@ test("arXiv metadata replaces discovery metadata and becomes the canonical paper
   assert.equal(entries[0].url, "https://arxiv.org/abs/2607.12345");
   assert.equal(entries[0].discoveryUrl, "https://huggingface.co/papers/2607.12345");
   assert.equal(entries[0].title, "Verified Frontier Paper");
+  assert.equal(entries[0].rankingWeek, "2026-W31");
+  assert.equal(entries[0].weeklyRank, 3);
+  assert.equal(entries[0].weeklyUpvotes, 42);
 });

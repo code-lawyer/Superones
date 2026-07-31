@@ -2,6 +2,7 @@
 type: adr
 status: accepted
 updated: 2026-07-25
+amended-by: ADR-0015
 ---
 
 # ADR-0013：境外可靠投递与境内独立消费
@@ -14,7 +15,7 @@ updated: 2026-07-25
 2. 投递失败只以同一 `batchId` 和完全相同的请求体做最多四次有界指数退避；每次请求重新生成时效签名。
 3. 签名请求携带 `X-Vault2077-Key-Id`。境内通过版本化密钥环短暂同时接受新旧密钥，采集侧只使用活动密钥。
 4. 境内接收完成并持久化 inbox 后立即返回 `202`。GitHub Actions 不调用 LLM、不等待处理、不持有 worker 密钥。
-5. 境内 `vault2077-acquisition-worker.timer` 每五分钟消费 inbox。处理失败保留为 `retryable` 或进入 `quarantined`，不要求境外重新采集。
+5. 境内 `vault2077-acquisition-worker.timer` 每五分钟消费 inbox。领取使用 claim token；处理失败最多六次指数退避后进入 `quarantined`，不要求境外重新采集。成功记录保留 30 天，隔离记录保留 180 天后自动清理。
 6. `/api/internal/acquisition/process` 只保留给回环环境的本地演练和紧急人工诊断，不是公网生产接口。
 7. 公网反向代理在内部命名空间只开放精确的 `POST /api/internal/acquisition` 与只读 `GET /api/internal/frontier/tasks`。前者执行边缘限速后接收签名批次；后者用独立只读密钥返回已脱敏公开任务。其余 `/api/internal/*` 全部拒绝。
 

@@ -396,10 +396,8 @@ export function validateProductionConfiguration(
   for (const name of [
     "VAULT2077_VAULT_LLM_CONCURRENCY",
     "VAULT2077_VAULT_LLM_BATCH_ITEMS",
-    "VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN",
     "VAULT2077_SIC_LLM_CONCURRENCY",
     "VAULT2077_SIC_LLM_BATCH_ITEMS",
-    "VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN",
     "VAULT2077_ACQUISITION_MAX_RECORDS",
     "VAULT2077_ACQUISITION_MAX_ATTEMPTS",
     "VAULT2077_ACQUISITION_WORKER_MAX_BATCHES",
@@ -408,6 +406,16 @@ export function validateProductionConfiguration(
     "VAULT2077_DELIVERY_RETRY_BASE_MS",
   ]) {
     positiveInteger(environment, name, errors, 10_000);
+  }
+  positiveInteger(environment, "VAULT2077_ACQUISITION_RETRY_BASE_MS", errors, 21_600_000);
+
+  for (const name of [
+    "VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN",
+    "VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN",
+  ]) {
+    if (environment[name]?.trim().toLowerCase() !== "unlimited") {
+      positiveInteger(environment, name, errors, 10_000);
+    }
   }
 
   for (const legacy of [

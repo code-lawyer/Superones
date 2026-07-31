@@ -34,7 +34,7 @@
     "pipeline:local": "node scripts/run-local-full-pipeline.mjs",
     "bootstrap:diagnose-events": "node --conditions=react-server --experimental-strip-types scripts/diagnose-event-candidates.ts",
     "bootstrap:materialize": "node --conditions=react-server --experimental-strip-types scripts/materialize-bootstrap-content.ts",
-    "bootstrap:materialize-sic": "node --conditions=react-server --experimental-strip-types scripts/materialize-bootstrap-sic.ts",
+    "bootstrap:materialize-sic": "node --env-file-if-exists=.env.local --conditions=react-server --experimental-strip-types scripts/materialize-bootstrap-sic.ts",
     "bootstrap:seed-events": "node --conditions=react-server --experimental-strip-types scripts/seed-bootstrap-events.ts",
     "bootstrap:reconcile-events": "node --conditions=react-server --experimental-strip-types scripts/reconcile-bootstrap-events.ts",
     "bootstrap:promote": "node --conditions=react-server --experimental-strip-types scripts/promote-bootstrap-run.ts",

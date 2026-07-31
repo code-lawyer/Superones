@@ -7,7 +7,6 @@ import {
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import { getStoredContent } from "@/lib/content-store";
-import { closeCorrectionReport, listAdminCorrectionReports } from "@/lib/correction-store";
 import {
   listAdminOpcOrders,
   OPC_ORDER_STATUSES,
@@ -35,9 +34,6 @@ export async function GET(request: NextRequest) {
     const content = await getStoredContent();
     return authenticatedAdminJson(access, { state: content.state });
   }
-  if (section === "corrections") {
-    return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
-  }
   if (section === "orders") {
     return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
   }
@@ -54,21 +50,18 @@ export async function POST(request: NextRequest) {
     return adminAccessErrorResponse(error);
   }
   const actorHash = access.session.actorHash;
-  let attemptedAction: "admin.opc-order.update" | "admin.opc-order.reconcile" | "admin.correction.close" = "admin.correction.close";
-  let attemptedTargetType: "opc-order" | "correction" = "correction";
+  let attemptedAction: "admin.opc-order.update" | "admin.opc-order.reconcile" = "admin.opc-order.update";
+  const attemptedTargetType = "opc-order";
   let attemptedTargetId = "unknown";
   try {
     const body = await request.json() as {
       action?: unknown;
-      correctionId?: unknown;
-      resolution?: unknown;
       orderId?: unknown;
       orderStatus?: unknown;
       confirm?: unknown;
     };
     if (body.action === "reconcile-opc-order") {
       attemptedAction = "admin.opc-order.reconcile";
-      attemptedTargetType = "opc-order";
       if (!hasRecentAdminReauthentication(access.session)) {
         return authenticatedAdminJson(access, {
           error: "查询 OPC 订单付款状态前需要重新验证管理员身份。",
@@ -102,7 +95,6 @@ export async function POST(request: NextRequest) {
 
     if (body.action === "update-opc-order") {
       attemptedAction = "admin.opc-order.update";
-      attemptedTargetType = "opc-order";
       if (!hasRecentAdminReauthentication(access.session)) {
         return authenticatedAdminJson(access, {
           error: "更新 OPC 订单付款状态前需要重新验证管理员身份。",
@@ -136,35 +128,15 @@ export async function POST(request: NextRequest) {
       return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
     }
 
-    attemptedTargetId = typeof body.correctionId === "string" ? body.correctionId : "unknown";
-    if (
-      body.action !== "close-correction"
-      || typeof body.correctionId !== "string"
-      || typeof body.resolution !== "string"
-      || body.resolution.trim().length < 6
-      || body.resolution.trim().length > 500
-      || body.confirm !== true
-    ) {
-      await recordAuditEvent({
-        actorHash,
-        action: "admin.correction.close",
-        targetType: "correction",
-        targetId: typeof body.correctionId === "string" ? body.correctionId : "unknown",
-        result: "rejected",
-        reason: "invalid-or-unconfirmed-request",
-      });
-      return authenticatedAdminJson(access, { error: "关闭纠错需要明确确认和 6–500 字处理说明。" }, { status: 400 });
-    }
-    await closeCorrectionReport(body.correctionId, body.resolution.trim());
     await recordAuditEvent({
       actorHash,
-      action: "admin.correction.close",
-      targetType: "correction",
-      targetId: body.correctionId,
-      result: "success",
-      diff: { status: "closed" },
+      action: attemptedAction,
+      targetType: attemptedTargetType,
+      targetId: attemptedTargetId,
+      result: "rejected",
+      reason: "unsupported-admin-content-action",
     });
-    return authenticatedAdminJson(access, { corrections: await listAdminCorrectionReports() });
+    return authenticatedAdminJson(access, { error: "后台不提供该内容操作。" }, { status: 400 });
   } catch (error) {
     const publicCode = error instanceof OpcAlipayProviderError
       ? error.code

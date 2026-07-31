@@ -59,12 +59,13 @@ export type AcquisitionWorkItem = {
   payloadHash: string;
   rawPayload: string;
   attempt: number;
+  claimToken: string;
 };
 
 export type AcquisitionInboxStats = Record<AcquisitionInboxStatus, number>;
 
 type AcquisitionInboxRecord = {
-  version: 1;
+  version: 2;
   batchId: string;
   runId: string;
   lane: AcquisitionLane;
@@ -82,6 +83,8 @@ type AcquisitionInboxRecord = {
   sourceCount: number;
   kinds: Partial<Record<AcquisitionRecordKind, number>>;
   processingStartedAt?: string;
+  claimToken?: string;
+  nextAttemptAt?: string;
   completedAt?: string;
   lastError?: string;
   rawPayload: string;
@@ -107,6 +110,7 @@ export type AcquisitionReceiverOptions = {
   maxClockSkewMs?: number;
   processingLeaseMs?: number;
   maxAttempts?: number;
+  retryBaseMs?: number;
   allowedRegistryRevisions?: ReadonlySet<string>;
 };
 
@@ -114,7 +118,23 @@ type PostgresAcquisitionReceiverOptions = Omit<AcquisitionReceiverOptions, "inbo
 
 const DEFAULT_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
-const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_MAX_ATTEMPTS = 6;
+const DEFAULT_RETRY_BASE_MS = 5 * 60 * 1000;
+const MAX_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
+
+export type AcquisitionInboxRetention = {
+  processedMs: number;
+  quarantinedMs: number;
+};
+
+export const DEFAULT_ACQUISITION_INBOX_RETENTION: AcquisitionInboxRetention = {
+  processedMs: 30 * 24 * 60 * 60 * 1000,
+  quarantinedMs: 180 * 24 * 60 * 60 * 1000,
+};
+
+function retryDelayMs(attempt: number, baseMs: number) {
+  return Math.min(MAX_RETRY_DELAY_MS, baseMs * (2 ** Math.max(0, attempt - 1)));
+}
 
 function persistedPath(inboxDirectory: string, batchId: string) {
   const filename = `${createHash("sha256").update(batchId).digest("hex")}.json`;
@@ -217,7 +237,7 @@ function parseBatch(rawPayload: string, headerBatchId: string) {
 
 async function readPersisted(target: string) {
   const parsed = JSON.parse(await readFile(target, "utf8")) as Record<string, unknown>;
-  if (parsed.version !== 1 || !parsed.batchId || !parsed.payloadHash) {
+  if ((parsed.version !== 1 && parsed.version !== 2) || !parsed.batchId || !parsed.payloadHash) {
     throw new Error("持久化采集批次格式无效。");
   }
   const rawStatus = parsed.status;
@@ -231,7 +251,11 @@ async function readPersisted(target: string) {
   if (!ACQUISITION_INBOX_STATUSES.includes(migratedStatus as AcquisitionInboxStatus)) {
     throw new Error("持久化采集批次状态无效。");
   }
-  return { ...parsed, status: migratedStatus as AcquisitionInboxStatus } as AcquisitionInboxRecord;
+  return {
+    ...parsed,
+    version: 2,
+    status: migratedStatus as AcquisitionInboxStatus,
+  } as AcquisitionInboxRecord;
 }
 
 async function persistNew(target: string, record: AcquisitionInboxRecord) {
@@ -271,6 +295,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
   const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
   const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
   const maxAttempts = Math.max(1, Math.min(20, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)));
+  const retryBaseMs = Math.max(0, options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS);
   let queue: Promise<unknown> = Promise.resolve();
 
   function serialized<T>(operation: () => Promise<T>) {
@@ -336,7 +361,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
 
       const receivedAt = now.toISOString();
       const record: AcquisitionInboxRecord = {
-        version: 1,
+        version: 2,
         batchId: batch.batchId,
         runId: batch.runId,
         lane: batch.lane,
@@ -388,6 +413,8 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
             status: "quarantined",
             updatedAt: now.toISOString(),
             completedAt: now.toISOString(),
+            claimToken: undefined,
+            nextAttemptAt: undefined,
             lastError: item.record.lastError ?? "批次达到最大处理尝试次数。",
           };
           await replacePersisted(item.target, item.record);
@@ -395,7 +422,8 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
       }
       const eligible = available.filter(({ record }) => !excludedBatchIds.has(record.batchId));
       const candidate = eligible.find(({ record }) => record.status === "received")
-        ?? eligible.find(({ record }) => record.status === "retryable")
+        ?? eligible.find(({ record }) => record.status === "retryable"
+          && Date.parse(record.nextAttemptAt ?? record.updatedAt) <= now.getTime())
         ?? available.find(({ record }) => record.status === "processing"
           && !excludedBatchIds.has(record.batchId)
           && Date.parse(record.processingStartedAt ?? record.updatedAt) < now.getTime() - processingLeaseMs);
@@ -405,6 +433,8 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
         status: "processing",
         attempts: candidate.record.attempts + 1,
         processingStartedAt: now.toISOString(),
+        claimToken: randomUUID(),
+        nextAttemptAt: undefined,
         updatedAt: now.toISOString(),
         lastError: undefined,
       };
@@ -414,21 +444,26 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
         payloadHash: claimed.payloadHash,
         rawPayload: claimed.rawPayload,
         attempt: claimed.attempts,
+        claimToken: claimed.claimToken!,
       };
     });
   }
 
-  function complete(batchId: string) {
+  function complete(batchId: string, claimToken: string) {
     return serialized(async () => {
       const target = persistedPath(options.inboxDirectory, batchId);
       const record = await readPersisted(target);
-      if (record.status !== "processing") throw new Error(`批次 ${batchId} 当前不可完成。`);
+      if (record.status !== "processing" || record.claimToken !== claimToken) {
+        throw new Error(`批次 ${batchId} 当前不可完成。`);
+      }
       const now = clock().toISOString();
       await replacePersisted(target, {
         ...record,
         status: "processed",
         updatedAt: now,
         completedAt: now,
+        claimToken: undefined,
+        nextAttemptAt: undefined,
         lastError: undefined,
       });
     });
@@ -436,22 +471,30 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
 
   function fail(
     batchId: string,
+    claimToken: string,
     error: unknown,
     disposition: AcquisitionFailureDisposition = "retryable",
   ): Promise<AcquisitionInboxStatus> {
     return serialized(async () => {
       const target = persistedPath(options.inboxDirectory, batchId);
       const record = await readPersisted(target);
-      if (record.status !== "processing") throw new Error(`批次 ${batchId} 当前不可标记失败。`);
+      if (record.status !== "processing" || record.claimToken !== claimToken) {
+        throw new Error(`批次 ${batchId} 当前不可标记失败。`);
+      }
       const status: AcquisitionInboxStatus = disposition === "quarantined" || record.attempts >= maxAttempts
         ? "quarantined"
         : "retryable";
       const now = clock().toISOString();
+      const nextAttemptAt = status === "retryable"
+        ? new Date(Date.parse(now) + retryDelayMs(record.attempts, retryBaseMs)).toISOString()
+        : undefined;
       await replacePersisted(target, {
         ...record,
         status,
         updatedAt: now,
         ...(status === "quarantined" ? { completedAt: now } : {}),
+        claimToken: undefined,
+        nextAttemptAt,
         lastError: cleanError(error),
       });
       return status;
@@ -466,13 +509,34 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
     ) as AcquisitionInboxStats;
   }
 
-  return { receive, claimNext, complete, fail, stats };
+  function prune(retention: AcquisitionInboxRetention = DEFAULT_ACQUISITION_INBOX_RETENTION) {
+    return serialized(async () => {
+      const now = clock().getTime();
+      let removed = 0;
+      for (const item of await records()) {
+        const completedAt = Date.parse(item.record.completedAt ?? item.record.updatedAt);
+        const expired = item.record.status === "processed"
+          ? completedAt < now - retention.processedMs
+          : item.record.status === "quarantined"
+            ? completedAt < now - retention.quarantinedMs
+            : false;
+        if (!expired) continue;
+        await unlink(item.target).catch((error: unknown) => {
+          if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+        });
+        removed += 1;
+      }
+      return removed;
+    });
+  }
+
+  return { receive, claimNext, complete, fail, stats, prune };
 }
 
 function postgresRecord(value: Record<string, unknown>): AcquisitionInboxRecord {
   const iso = (input: unknown) => input instanceof Date ? input.toISOString() : String(input);
   return {
-    version: 1,
+    version: 2,
     batchId: String(value.batch_id),
     runId: String(value.run_id),
     lane: value.lane as AcquisitionLane,
@@ -490,6 +554,8 @@ function postgresRecord(value: Record<string, unknown>): AcquisitionInboxRecord 
     sourceCount: Number(value.source_count),
     kinds: value.kinds as Partial<Record<AcquisitionRecordKind, number>>,
     ...(value.processing_started_at ? { processingStartedAt: iso(value.processing_started_at) } : {}),
+    ...(value.claim_token ? { claimToken: String(value.claim_token) } : {}),
+    ...(value.next_attempt_at ? { nextAttemptAt: iso(value.next_attempt_at) } : {}),
     ...(value.completed_at ? { completedAt: iso(value.completed_at) } : {}),
     ...(value.last_error ? { lastError: String(value.last_error) } : {}),
     rawPayload: String(value.raw_payload),
@@ -502,6 +568,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
   const maxClockSkewMs = options.maxClockSkewMs ?? DEFAULT_CLOCK_SKEW_MS;
   const processingLeaseMs = options.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
   const maxAttempts = Math.max(1, Math.min(20, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS)));
+  const retryBaseMs = Math.max(0, options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS);
 
   async function receive(submission: AcquisitionSubmission): Promise<AcquisitionReceipt> {
     const payloadBytes = Buffer.byteLength(submission.rawPayload, "utf8");
@@ -584,6 +651,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
       await client.query(
         `UPDATE vault2077_acquisition_inbox
          SET status = 'quarantined', updated_at = $1, completed_at = $1,
+             claim_token = NULL, next_attempt_at = NULL,
              last_error = coalesce(last_error, '批次达到最大处理尝试次数。')
          WHERE attempts >= $2
            AND (status = 'retryable' OR (status = 'processing' AND coalesce(processing_started_at, updated_at) < $3))`,
@@ -597,7 +665,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
              AND attempts < $2
              AND (
                status = 'received'
-               OR status = 'retryable'
+               OR (status = 'retryable' AND coalesce(next_attempt_at, updated_at) <= $4)
                OR (status = 'processing' AND coalesce(processing_started_at, updated_at) < $3)
              )
            ORDER BY
@@ -608,11 +676,11 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
          )
          UPDATE vault2077_acquisition_inbox AS inbox
          SET status = 'processing', attempts = attempts + 1, processing_started_at = $4,
-             updated_at = $4, last_error = NULL
+             updated_at = $4, claim_token = $5, next_attempt_at = NULL, last_error = NULL
          FROM candidate
          WHERE inbox.batch_id = candidate.batch_id
          RETURNING inbox.*`,
-        [[...excludedBatchIds], maxAttempts, leaseBefore, now.toISOString()],
+        [[...excludedBatchIds], maxAttempts, leaseBefore, now.toISOString(), randomUUID()],
       );
       await client.query("COMMIT");
       if (!claimed.rowCount) return null;
@@ -622,6 +690,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
         payloadHash: record.payloadHash,
         rawPayload: record.rawPayload,
         attempt: record.attempts,
+        claimToken: record.claimToken!,
       };
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -631,19 +700,21 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     }
   }
 
-  async function complete(batchId: string) {
+  async function complete(batchId: string, claimToken: string) {
     const now = clock().toISOString();
     const result = await configuredPostgresPool().query(
       `UPDATE vault2077_acquisition_inbox
-       SET status = 'processed', updated_at = $2, completed_at = $2, last_error = NULL
-       WHERE batch_id = $1 AND status = 'processing'`,
-      [batchId, now],
+       SET status = 'processed', updated_at = $3, completed_at = $3,
+           claim_token = NULL, next_attempt_at = NULL, last_error = NULL
+       WHERE batch_id = $1 AND status = 'processing' AND claim_token = $2`,
+      [batchId, claimToken, now],
     );
     if (!result.rowCount) throw new Error(`批次 ${batchId} 当前不可完成。`);
   }
 
   async function fail(
     batchId: string,
+    claimToken: string,
     error: unknown,
     disposition: AcquisitionFailureDisposition = "retryable",
   ): Promise<AcquisitionInboxStatus> {
@@ -651,20 +722,23 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     try {
       await client.query("BEGIN");
       const selected = await client.query(
-        "SELECT attempts FROM vault2077_acquisition_inbox WHERE batch_id = $1 AND status = 'processing' FOR UPDATE",
-        [batchId],
+        "SELECT attempts FROM vault2077_acquisition_inbox WHERE batch_id = $1 AND status = 'processing' AND claim_token = $2 FOR UPDATE",
+        [batchId, claimToken],
       );
       if (!selected.rowCount) throw new Error(`批次 ${batchId} 当前不可标记失败。`);
       const status: AcquisitionInboxStatus = disposition === "quarantined" || Number(selected.rows[0].attempts) >= maxAttempts
         ? "quarantined"
         : "retryable";
       const now = clock().toISOString();
+      const nextAttemptAt = status === "retryable"
+        ? new Date(Date.parse(now) + retryDelayMs(Number(selected.rows[0].attempts), retryBaseMs)).toISOString()
+        : null;
       await client.query(
         `UPDATE vault2077_acquisition_inbox
          SET status = $2, updated_at = $3, completed_at = CASE WHEN $2 = 'quarantined' THEN $3::timestamptz ELSE NULL END,
-             last_error = $4
-         WHERE batch_id = $1`,
-        [batchId, status, now, cleanError(error)],
+             claim_token = NULL, next_attempt_at = $4, last_error = $5
+         WHERE batch_id = $1 AND claim_token = $6`,
+        [batchId, status, now, nextAttemptAt, cleanError(error), claimToken],
       );
       await client.query("COMMIT");
       return status;
@@ -685,7 +759,20 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     return counts;
   }
 
-  return { receive, claimNext, complete, fail, stats };
+  async function prune(retention: AcquisitionInboxRetention = DEFAULT_ACQUISITION_INBOX_RETENTION) {
+    const result = await configuredPostgresPool().query(
+      `DELETE FROM vault2077_acquisition_inbox
+       WHERE (status = 'processed' AND coalesce(completed_at, updated_at) < $1)
+          OR (status = 'quarantined' AND coalesce(completed_at, updated_at) < $2)`,
+      [
+        new Date(clock().getTime() - retention.processedMs).toISOString(),
+        new Date(clock().getTime() - retention.quarantinedMs).toISOString(),
+      ],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  return { receive, claimNext, complete, fail, stats, prune };
 }
 
 type ConfiguredReceiver =
@@ -719,6 +806,7 @@ export function configuredAcquisitionReceiver() {
   const common = {
     signingKeys,
     maxAttempts: Number(process.env.VAULT2077_ACQUISITION_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS),
+    retryBaseMs: Number(process.env.VAULT2077_ACQUISITION_RETRY_BASE_MS ?? DEFAULT_RETRY_BASE_MS),
     allowedRegistryRevisions: configuredRegistryRevisions(process.env),
   };
   configuredReceiver = persistenceMode() === "postgresql"

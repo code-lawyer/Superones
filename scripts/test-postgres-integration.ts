@@ -100,6 +100,7 @@ try {
     sharedSecret: secret,
     allowedRegistryRevisions: new Set([revision]),
     maxAttempts: 2,
+    retryBaseMs: 0,
   });
   const receiverTwo = createPostgresAcquisitionReceiver({
     sharedSecret: secret,
@@ -117,12 +118,12 @@ try {
   ]);
   assert.ok(first && second);
   assert.notEqual(first.batch.batchId, second.batch.batchId, "SKIP LOCKED returned one batch twice");
-  await receiverOne.complete(first.batch.batchId);
-  assert.equal(await receiverTwo.fail(second.batch.batchId, new Error("retry me")), "retryable");
+  await receiverOne.complete(first.batch.batchId, first.claimToken);
+  assert.equal(await receiverTwo.fail(second.batch.batchId, second.claimToken, new Error("retry me")), "retryable");
   const retry = await receiverOne.claimNext();
   assert.equal(retry?.batch.batchId, second.batch.batchId);
   assert.equal(retry?.attempt, 2);
-  assert.equal(await receiverOne.fail(second.batch.batchId, new Error("exhausted")), "quarantined");
+  assert.equal(await receiverOne.fail(second.batch.batchId, retry!.claimToken, new Error("exhausted")), "quarantined");
   const stats = await receiverOne.stats();
   assert.equal(stats.processed, 1);
   assert.equal(stats.quarantined, 1);

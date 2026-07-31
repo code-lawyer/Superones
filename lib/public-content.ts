@@ -38,11 +38,12 @@ function publicInformation(item: InformationItem): InformationItem {
 export async function getPublicContent(): Promise<PublicContent> {
   try {
     const stored = await getStoredContent();
-    if (stored.state.mode === "live") {
+    if (stored.state.mode === "live" || stored.state.mode === "degraded") {
+      const age = stored.state.updatedAt ? Date.now() - Date.parse(stored.state.updatedAt) : Number.POSITIVE_INFINITY;
       return {
         events: stored.events,
         information: stored.information.map(publicInformation),
-        state: stored.state,
+        state: age > 12 * 60 * 60 * 1000 ? { ...stored.state, mode: "degraded" } : stored.state,
       };
     }
     return degradedContent(stored.state);

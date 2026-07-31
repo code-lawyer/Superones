@@ -18,7 +18,7 @@ export type EditorialProfileConfig = {
   id: EditorialProfileId;
   primary: OpenAICompatibleConfig;
   fallback?: OpenAICompatibleConfig;
-  maxRequestsPerRun: number;
+  maxRequestsPerRun: number | null;
 };
 
 export type JsonCompletion = {
@@ -55,6 +55,15 @@ export class ModelBudgetExceededError extends Error {
   constructor(profile: EditorialProfileId) {
     super(`${profile} 已达到本轮模型请求预算。`);
     this.name = "ModelBudgetExceededError";
+  }
+}
+
+export class ModelCircuitOpenError extends ModelRequestError {
+  readonly code = "MODEL_CIRCUIT_OPEN";
+
+  constructor(profile: EditorialProfileId, route: "primary" | "fallback") {
+    super(`${profile} 的 ${route} 模型线路暂时熔断。`, { retryable: true });
+    this.name = "ModelCircuitOpenError";
   }
 }
 
@@ -144,15 +153,50 @@ export function loadEditorialProfileConfig(
   const fallback = hasAnyConfig(fallbackEnvironment)
     ? loadOpenAICompatibleConfig(fallbackEnvironment)
     : undefined;
-  const configuredBudget = Number(environment[`${prefix}_MAX_REQUESTS_PER_RUN`] ?? "100");
+  const rawBudget = environment[`${prefix}_MAX_REQUESTS_PER_RUN`]?.trim().toLowerCase();
+  const configuredBudget = Number(rawBudget);
   return {
     id: profile,
     primary,
     fallback,
-    maxRequestsPerRun: Number.isFinite(configuredBudget)
+    maxRequestsPerRun: rawBudget && rawBudget !== "unlimited" && Number.isFinite(configuredBudget)
       ? Math.max(1, Math.min(10_000, Math.floor(configuredBudget)))
-      : 100,
+      : null,
   };
+}
+
+type CircuitState = { failures: number; openUntil: number };
+const editorialCircuits = new Map<string, CircuitState>();
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+const CIRCUIT_OPEN_MS = 60_000;
+
+function circuitKey(profile: EditorialProfileId, route: "primary" | "fallback", config: OpenAICompatibleConfig) {
+  return `${profile}:${route}:${new URL(config.baseUrl).hostname}:${config.model}`;
+}
+
+function assertCircuitClosed(key: string, profile: EditorialProfileId, route: "primary" | "fallback") {
+  const state = editorialCircuits.get(key);
+  if (!state) return;
+  if (state.openUntil <= Date.now()) {
+    editorialCircuits.delete(key);
+    return;
+  }
+  throw new ModelCircuitOpenError(profile, route);
+}
+
+function recordCircuitSuccess(key: string) {
+  editorialCircuits.delete(key);
+}
+
+function recordCircuitFailure(key: string, error: unknown) {
+  if (error instanceof ModelCircuitOpenError) return;
+  if (error instanceof ModelRequestError && !error.retryable) return;
+  const previous = editorialCircuits.get(key) ?? { failures: 0, openUntil: 0 };
+  const failures = previous.failures + 1;
+  editorialCircuits.set(key, {
+    failures,
+    openUntil: failures >= CIRCUIT_FAILURE_THRESHOLD ? Date.now() + CIRCUIT_OPEN_MS : 0,
+  });
 }
 
 function completionUrl(baseUrl: string) {
@@ -237,6 +281,10 @@ export function createEditorialProfileClient(
     ? createOpenAICompatibleClient(config.fallback, fetcher)
     : undefined;
   let requests = 0;
+  const primaryCircuit = circuitKey(config.id, "primary", config.primary);
+  const fallbackCircuit = config.fallback
+    ? circuitKey(config.id, "fallback", config.fallback)
+    : undefined;
 
   async function trace(
     provider: "primary" | "fallback" | "budget",
@@ -271,23 +319,29 @@ export function createEditorialProfileClient(
   return {
     async completeJson(request: JsonCompletion) {
       requests += 1;
-      if (requests > config.maxRequestsPerRun) {
+      if (config.maxRequestsPerRun !== null && requests > config.maxRequestsPerRun) {
         const error = new ModelBudgetExceededError(config.id);
         await trace("budget", request, "rejected", error);
         throw error;
       }
       try {
+        assertCircuitClosed(primaryCircuit, config.id, "primary");
         const result = await primary.completeJson(request);
+        recordCircuitSuccess(primaryCircuit);
         await trace("primary", request, "success");
         return result;
       } catch (error) {
+        recordCircuitFailure(primaryCircuit, error);
         await trace("primary", request, "failed", error);
         if (!fallback || (error instanceof ModelRequestError && !error.retryable)) throw error;
         try {
+          assertCircuitClosed(fallbackCircuit!, config.id, "fallback");
           const result = await fallback.completeJson(request);
+          recordCircuitSuccess(fallbackCircuit!);
           await trace("fallback", request, "success");
           return result;
         } catch (fallbackError) {
+          recordCircuitFailure(fallbackCircuit!, fallbackError);
           await trace("fallback", request, "failed", fallbackError);
           throw fallbackError;
         }

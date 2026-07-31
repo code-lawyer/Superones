@@ -41,12 +41,22 @@ export function SicContentGroups({ groups, content }: { groups: SicContentGroup[
                   const open = activeItem === item.id;
                   const detailId = `sic-content-${item.id}`;
                   const hasTranslation = Boolean(item.translatedTitle && item.translatedTitle !== item.title);
+                  const brief = (item.description ?? item.summary).trim();
+                  const summary = (item.contentSummary ?? item.summary).trim();
+                  const showBrief = Boolean(brief && brief !== summary);
                   return (
                     <li className={`sic-magazine__entry${open ? " is-open" : ""}`} key={item.id}>
                       <article className="sic-magazine__surface">
                         <button className="sic-magazine__trigger" type="button" aria-expanded={open} aria-controls={detailId} onClick={() => setActiveItem(open ? null : item.id)}>
                           <span className="sic-magazine__meta mono">
                             <time dateTime={item.publishedAt ?? item.collectedAt}>{displayDate(item)}</time>
+                            <span aria-hidden="true">/</span>
+                            {item.weeklyRank ? (
+                              <>
+                                <span>周榜 {String(item.weeklyRank).padStart(2, "0")}{typeof item.weeklyUpvotes === "number" ? ` · ${item.weeklyUpvotes} 票` : ""}</span>
+                                <span aria-hidden="true">/</span>
+                              </>
+                            ) : null}
                             <span>{item.sourceName}</span>
                           </span>
                           <h3 className={hasTranslation ? "" : "sic-magazine__fallback-title"} lang={hasTranslation ? "zh-CN" : "en"}><span>{item.translatedTitle ?? item.title}</span></h3>
@@ -54,14 +64,16 @@ export function SicContentGroups({ groups, content }: { groups: SicContentGroup[
                         </button>
                         <div className="sic-magazine__detail" id={detailId} aria-hidden={!open}>
                           <div className="sic-magazine__detail-inner">
-                            <div className="sic-magazine__detail-copy">
-                              <section>
-                                <p className="mono">一句话说明</p>
-                                <p>{item.description ?? item.summary}</p>
-                              </section>
-                              <section>
+                            <div className={`sic-magazine__detail-copy${showBrief ? "" : " is-single"}`}>
+                              {showBrief ? (
+                                <section className="sic-magazine__detail-section sic-magazine__detail-section--brief">
+                                  <p className="mono">一句话说明</p>
+                                  <p>{brief}</p>
+                                </section>
+                              ) : null}
+                              <section className="sic-magazine__detail-section sic-magazine__detail-section--summary">
                                 <p className="mono">内容摘要</p>
-                                <p>{item.contentSummary ?? item.summary}</p>
+                                <p>{summary}</p>
                               </section>
                             </div>
                             <a className="sic-magazine__source-link" href={item.url} target="_blank" rel="noreferrer" tabIndex={open ? 0 : -1}>

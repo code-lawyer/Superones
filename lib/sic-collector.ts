@@ -27,6 +27,9 @@ type Candidate = {
   canonicalId?: string;
   discoveryUrl?: string;
   sourceMaterial?: string;
+  rankingWeek?: string;
+  weeklyRank?: number;
+  weeklyUpvotes?: number;
 };
 
 type SicEditorial = {
@@ -65,6 +68,32 @@ function validDate(value: unknown) {
   return Number.isNaN(milliseconds) ? null : new Date(milliseconds).toISOString();
 }
 
+function isoWeek(value: string | Date) {
+  const source = value instanceof Date ? new Date(value) : new Date(value);
+  if (Number.isNaN(source.getTime())) throw new Error("无法为 Hugging Face 论文计算 ISO 周。");
+  const date = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((date.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function huggingFaceWeeklyEndpoint(source: SicSource, collectedAt: string, page = 0) {
+  const endpoint = new URL(source.endpoint);
+  endpoint.searchParams.set("week", isoWeek(collectedAt));
+  endpoint.searchParams.set("sort", "publishedAt");
+  endpoint.searchParams.set("limit", "100");
+  endpoint.searchParams.set("p", String(page));
+  return endpoint.toString();
+}
+
+function hasCurrentEditorial(item: Partial<SicContentItem>) {
+  return item.editorialLocale === "zh-CN"
+    && item.editorialVersion === 1
+    && Boolean(item.translatedTitle && item.description && item.contentSummary);
+}
+
 function editorialItems(value: unknown, expectedIds: Set<string>) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const entries = (value as { items?: unknown }).items;
@@ -89,14 +118,17 @@ async function enrichItems(
   const previousByIdentity = new Map(stored.items.map((item) => [sicContentIdentityKey(item), item]));
   const retained = items.map((item) => {
     const previous = previousByIdentity.get(sicContentIdentityKey(item));
+    const previousEditorial = previous && hasCurrentEditorial(previous) ? previous : undefined;
     return {
       ...item,
-      translatedTitle: item.translatedTitle ?? previous?.translatedTitle,
-      description: item.description ?? previous?.description,
-      contentSummary: item.contentSummary ?? previous?.contentSummary,
+      translatedTitle: item.translatedTitle ?? previousEditorial?.translatedTitle,
+      description: item.description ?? previousEditorial?.description,
+      contentSummary: item.contentSummary ?? previousEditorial?.contentSummary,
+      editorialLocale: item.editorialLocale ?? previousEditorial?.editorialLocale,
+      editorialVersion: item.editorialVersion ?? previousEditorial?.editorialVersion,
     };
   });
-  const pending = retained.filter((item) => !item.translatedTitle || !item.description || !item.contentSummary);
+  const pending = retained.filter((item) => !hasCurrentEditorial(item));
   if (pending.length === 0) return retained;
 
   let client: ReturnType<typeof createEditorialProfileClient>;
@@ -207,7 +239,12 @@ async function enrichItems(
   }
   return retained.map((item) => {
     const editorial = editorialById.get(item.id);
-    return editorial ? { ...item, ...editorial } : item;
+    return editorial ? {
+      ...item,
+      ...editorial,
+      editorialLocale: "zh-CN" as const,
+      editorialVersion: 1,
+    } : item;
   });
 }
 
@@ -305,9 +342,7 @@ function anchorEntries(source: SicSource, payload: string): Candidate[] {
     if (!url || !title || title.length < 4) continue;
     const path = new URL(url).pathname.toLowerCase();
     const homePath = new URL(source.homeUrl).pathname.replace(/\/$/, "").toLowerCase();
-    const admitted = source.id === "hugging-face-daily-papers"
-      ? /^\/papers\/[^/]+/.test(path)
-      : source.id === "google-ml-courses"
+    const admitted = source.id === "google-ml-courses"
         ? path.startsWith("/machine-learning/") && path !== homePath
         : source.id === "nvidia-deep-learning-institute"
           ? path.includes("/training/") && path !== homePath
@@ -349,7 +384,10 @@ function dedupe(candidates: Candidate[]) {
     if (!unique.has(key)) unique.set(key, candidate);
   }
   return [...unique.values()]
-    .sort((left, right) => Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? ""));
+    .sort((left, right) => {
+      if (left.weeklyRank && right.weeklyRank) return left.weeklyRank - right.weeklyRank;
+      return Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? "");
+    });
 }
 
 function selectCandidates(
@@ -385,6 +423,7 @@ function huggingFacePaperRecords(payload: string): Array<{
   id: string;
   discoveryUrl: string;
   submittedAt?: string;
+  upvotes: number;
 }> {
   let parsed: unknown;
   try {
@@ -410,29 +449,57 @@ function huggingFacePaperRecords(payload: string): Array<{
       ?? outer.submittedOnDailyAt
       ?? outer.publishedAt,
     );
+    const rawUpvotes = Number(paper.upvotes ?? outer.upvotes ?? 0);
     return [{
       id,
       discoveryUrl: `https://huggingface.co/papers/${id}`,
       ...(submittedAt ? { submittedAt } : {}),
+      upvotes: Number.isFinite(rawUpvotes) ? Math.max(0, Math.floor(rawUpvotes)) : 0,
     }];
   });
 }
 
-function arxivEntries(payload: string, discoveries: Map<string, string>): Candidate[] {
+type HuggingFacePaperDiscovery = ReturnType<typeof huggingFacePaperRecords>[number] & {
+  rankingWeek: string;
+  weeklyRank: number;
+};
+
+function rankHuggingFacePaperRecords(
+  records: ReturnType<typeof huggingFacePaperRecords>,
+  rankingWeek: string,
+) {
+  return [...records]
+    .sort((left, right) => (
+      right.upvotes - left.upvotes
+      || Date.parse(right.submittedAt ?? "") - Date.parse(left.submittedAt ?? "")
+      || left.id.localeCompare(right.id)
+    ))
+    .map((record, index): HuggingFacePaperDiscovery => ({
+      ...record,
+      rankingWeek,
+      weeklyRank: index + 1,
+    }));
+}
+
+function arxivEntries(payload: string, discoveries: Map<string, HuggingFacePaperDiscovery>): Candidate[] {
   const blocks = [...payload.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi)].map((match) => match[1]);
   return blocks.flatMap((block) => {
     const id = arxivId(tagValue(block, "id"));
     const title = tagValue(block, "title");
     const summary = tagValue(block, "summary");
-    if (!id || !title || !summary || !discoveries.has(id)) return [];
+    const discovery = id ? discoveries.get(id) : undefined;
+    if (!id || !title || !summary || !discovery) return [];
     return [{
       canonicalId: `arxiv:${id}`,
-      discoveryUrl: discoveries.get(id),
+      discoveryUrl: discovery.discoveryUrl,
       url: `https://arxiv.org/abs/${id}`,
       title,
       summary,
       sourceMaterial: summary,
       publishedAt: validDate(tagValue(block, "published") || tagValue(block, "updated")),
+      rankingWeek: discovery.rankingWeek,
+      weeklyRank: discovery.weeklyRank,
+      weeklyUpvotes: discovery.upvotes,
     }];
   });
 }
@@ -441,41 +508,37 @@ async function collectHuggingFacePapers(
   source: SicSource,
   fetcher: Fetcher,
   firstPayload: string,
-  windowFrom?: string,
+  firstEndpoint: string,
 ) {
-  const discoveries = new Map<string, string>();
+  const recordsById = new Map<string, ReturnType<typeof huggingFacePaperRecords>[number]>();
   let payload = firstPayload;
   for (let page = 0; page < 20; page += 1) {
     const records = huggingFacePaperRecords(payload);
-    const selected = windowFrom
-      ? records
-      : [...records].sort((left, right) => (
-        Date.parse(right.submittedAt ?? "") - Date.parse(left.submittedAt ?? "")
-      )).slice(0, 1);
-    for (const record of selected) {
-      if (!windowFrom || !record.submittedAt || Date.parse(record.submittedAt) >= Date.parse(windowFrom)) {
-        discoveries.set(record.id, record.discoveryUrl);
-      }
-    }
-    if (
-      !windowFrom
-      ||
-      records.length < 100
-      || records.some((record) => record.submittedAt && Date.parse(record.submittedAt) < Date.parse(windowFrom))
-    ) break;
-    const endpoint = new URL(source.endpoint);
-    endpoint.searchParams.set("p", String(page + 1));
-    payload = await fetchText(fetcher, endpoint.toString(), source);
+    const sizeBeforePage = recordsById.size;
+    for (const record of records) recordsById.set(record.id, record);
+    if (records.length < 100 || (page > 0 && recordsById.size === sizeBeforePage)) break;
+    const nextEndpoint = new URL(firstEndpoint);
+    nextEndpoint.searchParams.set("p", String(page + 1));
+    payload = await fetchText(fetcher, nextEndpoint.toString(), source);
   }
+  const rankingWeek = new URL(firstEndpoint).searchParams.get("week") ?? "";
+  const ranked = rankHuggingFacePaperRecords([...recordsById.values()], rankingWeek);
+  const discoveries = new Map<string, HuggingFacePaperDiscovery>(ranked.map((record) => [
+    record.id,
+    record,
+  ]));
   const ids = [...discoveries.keys()];
   const candidates: Candidate[] = [];
   for (let offset = 0; offset < ids.length; offset += 20) {
     if (offset > 0) await new Promise((resolve) => setTimeout(resolve, 3_200));
-    const query = `https://export.arxiv.org/api/query?id_list=${encodeURIComponent(ids.slice(offset, offset + 20).join(","))}`;
+    const batchIds = ids.slice(offset, offset + 20);
+    const query = new URL("https://export.arxiv.org/api/query");
+    query.searchParams.set("id_list", batchIds.join(","));
+    query.searchParams.set("max_results", String(batchIds.length));
     let verified = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        verified = await fetchText(fetcher, query, source);
+        verified = await fetchText(fetcher, query.toString(), source);
         break;
       } catch (error) {
         if (attempt === 1) throw error;
@@ -563,13 +626,16 @@ async function collectSource(
   collectedAt: string,
   runMode: "incremental" | "bootstrap",
 ) {
-  const payload = await fetchText(fetcher, source.endpoint, source);
+  const endpoint = source.id === "hugging-face-daily-papers"
+    ? huggingFaceWeeklyEndpoint(source, collectedAt)
+    : source.endpoint;
+  const payload = await fetchText(fetcher, endpoint, source);
   const windowFrom = runMode === "bootstrap"
     ? undefined
     : new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
   let candidates: Candidate[];
   if (source.id === "hugging-face-daily-papers") {
-    candidates = await collectHuggingFacePapers(source, fetcher, payload, windowFrom);
+    candidates = await collectHuggingFacePapers(source, fetcher, payload, endpoint);
   } else if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
     candidates = xmlEntries(source, payload);
   } else if (source.kind === "official_api" && source.id === "dair-ai-papers-of-the-week") {
@@ -589,7 +655,10 @@ async function collectSource(
   } else {
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
-  const items: SicRawContentItem[] = selectCandidates(candidates, windowFrom, runMode).map((candidate) => ({
+  const selectedCandidates = source.id === "hugging-face-daily-papers"
+    ? dedupe(candidates)
+    : selectCandidates(candidates, windowFrom, runMode);
+  const items: SicRawContentItem[] = selectedCandidates.map((candidate) => ({
     id: createHash("sha256").update(candidate.canonicalId ?? `${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
     group: source.group,
@@ -602,6 +671,9 @@ async function collectSource(
     collectedAt,
     canonicalId: candidate.canonicalId,
     discoveryUrl: candidate.discoveryUrl,
+    rankingWeek: candidate.rankingWeek,
+    weeklyRank: candidate.weeklyRank,
+    weeklyUpvotes: candidate.weeklyUpvotes,
     provenanceStatus: candidate.canonicalId ? "verified" : "declared",
     sourceMaterial: candidate.sourceMaterial,
   }));
@@ -611,6 +683,7 @@ async function collectSource(
 
 export type SicRawCollection = {
   version: 1;
+  snapshotId?: string;
   collectedAt: string;
   items: SicRawContentItem[];
   reports: SicSourceCollectionReport[];
@@ -722,6 +795,9 @@ function validateRawCollection(value: unknown, options: {
       collectedAt,
       canonicalId: text(raw.canonicalId, 180) || undefined,
       discoveryUrl: allowedUrl(String(raw.discoveryUrl ?? ""), source) ?? undefined,
+      rankingWeek: /^\d{4}-W\d{2}$/.test(text(raw.rankingWeek, 8)) ? text(raw.rankingWeek, 8) : undefined,
+      weeklyRank: Number.isInteger(raw.weeklyRank) && Number(raw.weeklyRank) > 0 ? Number(raw.weeklyRank) : undefined,
+      weeklyUpvotes: Number.isInteger(raw.weeklyUpvotes) && Number(raw.weeklyUpvotes) >= 0 ? Number(raw.weeklyUpvotes) : undefined,
       provenanceStatus: text(raw.canonicalId, 180) ? "verified" as const : "declared" as const,
     }];
   });
@@ -747,7 +823,13 @@ function validateRawCollection(value: unknown, options: {
       error: "境外采集包缺少该来源报告。",
     }))
     : [...reportBySource.values()];
-  return { version: 1, collectedAt, items, reports };
+  return {
+    version: 1,
+    snapshotId: text(packet.snapshotId, 180) || undefined,
+    collectedAt,
+    items,
+    reports,
+  };
 }
 
 export async function ingestSicRawContent(value: unknown, _fetcher: Fetcher = fetch) {
@@ -758,17 +840,34 @@ export async function ingestSicRawContent(value: unknown, _fetcher: Fetcher = fe
     items,
     reports: packet.reports,
     updatedAt: packet.collectedAt,
+    activeSourceIds: listCollectableSicSources().map((source) => source.id),
   });
 }
 
 export async function ingestSicAcquisitionContent(value: unknown, _fetcher: Fetcher) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
-  const enriched = await enrichItems(packet.items, { requireCompleteEditorial: true });
-  const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
+  const enriched = await enrichItems(packet.items);
+  const items = enriched
+    .filter(hasCurrentEditorial)
+    .map(({ sourceMaterial: _sourceMaterial, ...item }) => item as SicContentItem);
+  const publishedBySource = new Map<string, number>();
+  for (const item of items) publishedBySource.set(item.sourceId, (publishedBySource.get(item.sourceId) ?? 0) + 1);
+  const reports = packet.reports.map((report) => {
+    const published = publishedBySource.get(report.sourceId) ?? 0;
+    if (report.itemCount > published && published > 0) {
+      return { ...report, status: "partial" as const, error: `境内编辑仅完成 ${published}/${report.itemCount} 条。` };
+    }
+    if (report.itemCount > 0 && published === 0) {
+      return { ...report, status: "failure" as const, error: "境内编辑未完成该来源任何记录；继续保留上一成功快照。" };
+    }
+    return report;
+  });
   return mergeSicStoredContent({
     items,
-    reports: packet.reports,
+    reports,
     updatedAt: packet.collectedAt,
+    snapshotId: packet.snapshotId,
+    activeSourceIds: listCollectableSicSources().map((source) => source.id),
   });
 }
 
@@ -784,5 +883,8 @@ export const sicCollectorTestUtils = {
   datedIndexEntries,
   huggingFacePaperRecords,
   arxivEntries,
+  rankHuggingFacePaperRecords,
   selectCandidates,
+  isoWeek,
+  huggingFaceWeeklyEndpoint,
 };

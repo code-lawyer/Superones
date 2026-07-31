@@ -65,7 +65,7 @@ export default async function FrontierPage() {
             <dl className="frontier-season-card__facts">
               <div><dt className="mono">报名</dt><dd>{writesEnabled ? "全赛季开放" : "准备中"}</dd></div>
               <div><dt className="mono">排名</dt><dd>净新增 Star</dd></div>
-              <div><dt className="mono">更新</dt><dd>每小时一次</dd></div>
+              <div><dt className="mono">更新</dt><dd>白天每两小时</dd></div>
               <div><dt className="mono">结算</dt><dd>{beijingSeasonDate(season.endsAt)}</dd></div>
             </dl>
             <div className="frontier-season-card__actions">

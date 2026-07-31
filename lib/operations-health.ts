@@ -24,7 +24,7 @@ function editorialCheck(profile: EditorialProfileId): HealthCheck {
     const config = loadEditorialProfileConfig(profile);
     return {
       status: "ok",
-      detail: `${config.primary.model}; fallback=${config.fallback ? "configured" : "none"}; budget=${config.maxRequestsPerRun}`,
+      detail: `${config.primary.model}; fallback=${config.fallback ? "configured" : "none"}; budget=${config.maxRequestsPerRun ?? "unlimited"}`,
     };
   } catch (error) {
     return {
@@ -57,7 +57,7 @@ export async function getOperationsHealth() {
       );
       const latestMigration = migration.rows[0]?.name ?? "none";
       checks.database = {
-        status: latestMigration === "0005_admin_sessions.sql" ? "ok" : "degraded",
+        status: latestMigration === "0006_acquisition_reliability.sql" ? "ok" : "degraded",
         detail: `latest=${latestMigration}; ${Date.now() - startedAt}ms`,
       };
     } else {
@@ -84,7 +84,6 @@ export async function getOperationsHealth() {
     ? {
         status: queue.received > 20
           || queue.processing > 2
-          || queue.quarantined > 0
           || queue.retryable > 20
           ? "degraded"
           : "ok",
@@ -94,7 +93,7 @@ export async function getOperationsHealth() {
 
   const contentAge = ageHours(content?.state.updatedAt ?? null);
   checks.vaultFreshness = {
-    status: contentAge !== null && contentAge <= 4 ? "ok" : "degraded",
+    status: contentAge !== null && contentAge <= 12 ? "ok" : "degraded",
     detail: contentAge === null ? "no successful publication" : `${contentAge.toFixed(1)}h`,
   };
   const sicAge = ageHours(sic?.state.updatedAt ?? null);

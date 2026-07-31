@@ -1,5 +1,6 @@
 import "server-only";
 
+import sourceBundle from "../config/source-bundle.json" with { type: "json" };
 import {
   validateContentBatch,
   type InformationEnvelope,
@@ -46,6 +47,13 @@ function number(payload: JsonObject, field: string, fallback?: number) {
   const value = payload[field];
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (fallback !== undefined && (value === undefined || value === null)) return fallback;
+  throw new Error(`统一采集记录的 ${field} 无效。`);
+}
+
+function optionalInteger(payload: JsonObject, field: string, minimum: number) {
+  const value = payload[field];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "number" && Number.isInteger(value) && value >= minimum) return value;
   throw new Error(`统一采集记录的 ${field} 无效。`);
 }
 
@@ -155,6 +163,9 @@ function publication(record: AcquisitionRecord): SicRawContentItem {
     collectedAt: record.observedAt,
     canonicalId: string(payload, "canonicalId", false),
     discoveryUrl: string(payload, "discoveryUrl", false),
+    rankingWeek: string(payload, "rankingWeek", false),
+    weeklyRank: optionalInteger(payload, "weeklyRank", 1),
+    weeklyUpvotes: optionalInteger(payload, "weeklyUpvotes", 0),
     provenanceStatus: string(payload, "provenanceStatus", false) as SicRawContentItem["provenanceStatus"],
   };
 }
@@ -183,6 +194,58 @@ const blockedDomesticFetch: typeof fetch = async () => {
 };
 
 const DIRECT_PROVIDERS = new Set<DirectRankingProvider>(["github", "hugging_face", "openrouter"]);
+
+type RecordAdaptation<T> = {
+  values: T[];
+  failedRecordIdsBySource: Map<string, Set<string>>;
+  errorsBySource: Map<string, string[]>;
+};
+
+function adaptRecords<T>(
+  records: AcquisitionRecord[],
+  adapter: (record: AcquisitionRecord) => T,
+): RecordAdaptation<T> {
+  const values: T[] = [];
+  const failedRecordIdsBySource = new Map<string, Set<string>>();
+  const errorsBySource = new Map<string, string[]>();
+  for (const record of records) {
+    try {
+      values.push(adapter(record));
+    } catch (error) {
+      const failedIds = failedRecordIdsBySource.get(record.sourceId) ?? new Set<string>();
+      failedIds.add(record.recordId);
+      failedRecordIdsBySource.set(record.sourceId, failedIds);
+      const messages = errorsBySource.get(record.sourceId) ?? [];
+      messages.push(`${record.recordId}: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500));
+      errorsBySource.set(record.sourceId, messages);
+    }
+  }
+  return { values, failedRecordIdsBySource, errorsBySource };
+}
+
+function reportsAfterAdaptation(
+  reports: AcquisitionBatch["sourceReports"],
+  records: AcquisitionRecord[],
+  adaptation: Pick<RecordAdaptation<unknown>, "failedRecordIdsBySource" | "errorsBySource">,
+) {
+  const validBySource = new Map<string, number>();
+  for (const record of records) {
+    if (adaptation.failedRecordIdsBySource.get(record.sourceId)?.has(record.recordId)) continue;
+    validBySource.set(record.sourceId, (validBySource.get(record.sourceId) ?? 0) + 1);
+  }
+  return reports.map((report) => {
+    const messages = adaptation.errorsBySource.get(report.sourceId) ?? [];
+    if (messages.length === 0) return report;
+    const recordCount = validBySource.get(report.sourceId) ?? 0;
+    return {
+      ...report,
+      status: recordCount > 0 ? "partial" as const : "failed" as const,
+      recordCount,
+      errorCode: recordCount > 0 ? "DOMESTIC_ADAPTER_PARTIAL" : "DOMESTIC_ADAPTER_FAILED",
+      errorMessage: messages.join(" | ").slice(0, 1_000),
+    };
+  });
+}
 
 function directRankingBoard(record: AcquisitionRecord): DirectRankingBoard {
   const payload = record.payload;
@@ -234,20 +297,22 @@ async function processRankings(
   records: AcquisitionRecord[],
   persist: typeof persistDirectRankingBoards,
 ) {
-  const boards = records.map(directRankingBoard);
+  const adapted = adaptRecords(records, directRankingBoard);
   const ids = new Set<string>();
-  for (const board of boards) {
-    if (ids.has(board.id)) throw new Error(`统一批次包含重复榜单视图：${board.id}。`);
+  const boards = adapted.values.filter((board) => {
+    if (ids.has(board.id)) return false;
     ids.add(board.id);
-  }
-  await persist(boards);
+    return true;
+  });
+  if (boards.length > 0) await persist(boards);
+  return boards.length;
 }
 
 export function createAcquisitionBatchProcessor(input: {
   processContent?: (
     value: unknown,
     bodyHash: string,
-    options?: { requireNoQuarantine?: boolean },
+    options?: Parameters<typeof processInboundContent>[2],
   ) => Promise<unknown>;
   processPublications?: (value: unknown, fetcher: typeof fetch) => Promise<unknown>;
   persistDirectRankings?: typeof persistDirectRankingBoards;
@@ -269,7 +334,9 @@ export function createAcquisitionBatchProcessor(input: {
     const rankings = batch.records.filter((record) => record.kind === "ranking_observation");
     const frontierRecords = repositoryRecords.filter((record) => repositoryTarget(record) === "frontier");
 
-    if (profiles.length > 0 || frontierRecords.length !== repositoryRecords.length) {
+    const unsupportedCount = profiles.length + repositoryRecords.length - frontierRecords.length;
+    const supportedCount = informationRecords.length + publicationRecords.length + rankings.length + frontierRecords.length;
+    if (unsupportedCount > 0 && supportedCount === 0) {
       const unsupported = profiles.length
         ? `${profiles.length} profiles`
         : `${repositoryRecords.length - frontierRecords.length} repositories`;
@@ -279,7 +346,14 @@ export function createAcquisitionBatchProcessor(input: {
       );
     }
 
-    if (informationRecords.length > 0) {
+    let processedInformation = 0;
+    let processedPublications = 0;
+    let processedRankings = 0;
+    let processedRepositories = 0;
+
+    if (batch.lane === "information" || batch.lane === "roadside") {
+      const adapted = adaptRecords(informationRecords, informationFromAcquisitionRecord);
+      const sourceReports = reportsAfterAdaptation(batch.sourceReports, informationRecords, adapted);
       const legacy = validateContentBatch({
         version: 2,
         batchId: batch.batchId,
@@ -287,47 +361,70 @@ export function createAcquisitionBatchProcessor(input: {
         collectedFrom: batch.collectedFrom,
         collectedUntil: batch.collectedUntil,
         generatedAt: batch.collectedAt,
-        information: informationRecords.map(informationFromAcquisitionRecord),
+        information: adapted.values,
         repositories: [],
       });
-      await processContent(legacy, work.payloadHash, { requireNoQuarantine: true });
+      await processContent(legacy, work.payloadHash, {
+        requireNoQuarantine: false,
+        snapshot: {
+          runId: batch.runId,
+          collectedAt: batch.collectedAt,
+          activeSourceIds: sourceBundle.sources
+            .filter((source) => source.contentGroup === "information" || source.contentGroup === "roadside")
+            .map((source) => source.id),
+          sourceReports: sourceReports.map((report) => ({
+            sourceId: report.sourceId,
+            status: report.status,
+            collectedAt: batch.collectedAt,
+            errorCode: report.errorCode,
+            errorMessage: report.errorMessage,
+          })),
+        },
+      });
+      processedInformation = adapted.values.length;
     }
 
-    if (publicationRecords.length > 0) {
-      const publicationSourceIds = new Set(publicationRecords.map((record) => record.sourceId));
+    if (batch.lane === "sic") {
+      const adapted = adaptRecords(publicationRecords, publication);
+      const sourceReports = reportsAfterAdaptation(batch.sourceReports, publicationRecords, adapted);
       const packet: SicRawCollection = {
         version: 1,
+        snapshotId: batch.runId,
         collectedAt: batch.collectedAt,
-        items: publicationRecords.map(publication),
-        reports: batch.sourceReports
-          .filter((report) => publicationSourceIds.has(report.sourceId))
-          .map((report) => publicationReport(report, batch.collectedAt)),
+        items: adapted.values,
+        reports: sourceReports.map((report) => publicationReport(report, batch.collectedAt)),
       };
       await processPublications(packet, blockedDomesticFetch);
+      processedPublications = adapted.values.length;
     }
 
-    if (rankings.length > 0) await processRankings(rankings, persistRankings);
+    if (rankings.length > 0) processedRankings = await processRankings(rankings, persistRankings);
 
     const frontierBySeason = new Map<string, Array<{ submissionId: string; stars: number }>>();
     for (const record of frontierRecords) {
-      const value = frontierObservation(record);
-      const entries = frontierBySeason.get(value.season) ?? [];
-      entries.push({ submissionId: value.submissionId, stars: value.stars });
-      frontierBySeason.set(value.season, entries);
+      try {
+        const value = frontierObservation(record);
+        const entries = frontierBySeason.get(value.season) ?? [];
+        entries.push({ submissionId: value.submissionId, stars: value.stars });
+        frontierBySeason.set(value.season, entries);
+        processedRepositories += 1;
+      } catch {
+        // Malformed observations are isolated; valid observations still publish.
+      }
     }
     for (const [season, updates] of frontierBySeason) {
       await persistFrontier(season, updates, batch.collectedAt);
     }
-    if (frontierRecords.length > 0) {
-      await completeFrontierFallback(frontierRecords.map((record) => frontierObservation(record).submissionId));
+    if (processedRepositories > 0) {
+      await completeFrontierFallback([...frontierBySeason.values()].flat().map((record) => record.submissionId));
     }
 
     return {
-      information: informationRecords.length,
-      publications: publicationRecords.length,
+      information: processedInformation,
+      publications: processedPublications,
       profiles: 0,
-      repositories: repositoryRecords.length,
-      rankings: rankings.length,
+      repositories: processedRepositories,
+      rankings: processedRankings,
     };
   };
 }

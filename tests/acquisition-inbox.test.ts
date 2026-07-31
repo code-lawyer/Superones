@@ -77,6 +77,7 @@ async function fixture() {
       inboxDirectory: path.join(root, "inbox"),
       sharedSecret: secret,
       now: () => now,
+      retryBaseMs: 0,
     }),
   };
 }
@@ -241,12 +242,12 @@ test("claims, fails, retries, and completes a durable batch", async (context) =>
   });
 
   assert.equal(
-    await receiver.fail(batch().batchId, new Error("temporary model failure")),
+    await receiver.fail(batch().batchId, first!.claimToken, new Error("temporary model failure")),
     "retryable",
   );
   const retry = await receiver.claimNext();
   assert.equal(retry?.attempt, 2);
-  await receiver.complete(batch().batchId);
+  await receiver.complete(batch().batchId, retry!.claimToken);
   assert.equal(await receiver.claimNext(), null);
   assert.deepEqual(await receiver.stats(), {
     received: 0,
@@ -265,12 +266,15 @@ test("quarantines a batch after the retry budget is exhausted", async (context) 
     sharedSecret: secret,
     now: () => now,
     maxAttempts: 2,
+    retryBaseMs: 0,
   });
   await receiver.receive(submission());
-  assert.equal((await receiver.claimNext())?.attempt, 1);
-  assert.equal(await receiver.fail(batch().batchId, new Error("temporary")), "retryable");
-  assert.equal((await receiver.claimNext())?.attempt, 2);
-  assert.equal(await receiver.fail(batch().batchId, new Error("still failing")), "quarantined");
+  const first = await receiver.claimNext();
+  assert.equal(first?.attempt, 1);
+  assert.equal(await receiver.fail(batch().batchId, first!.claimToken, new Error("temporary")), "retryable");
+  const second = await receiver.claimNext();
+  assert.equal(second?.attempt, 2);
+  assert.equal(await receiver.fail(batch().batchId, second!.claimToken, new Error("still failing")), "quarantined");
   assert.equal(await receiver.claimNext(), null);
   assert.deepEqual(await receiver.stats(), {
     received: 0,
@@ -285,9 +289,9 @@ test("allows a deterministic failure to enter quarantine immediately", async (co
   const { root, receiver } = await fixture();
   context.after(() => rm(root, { recursive: true, force: true }));
   await receiver.receive(submission());
-  await receiver.claimNext();
+  const claimed = await receiver.claimNext();
   assert.equal(
-    await receiver.fail(batch().batchId, new Error("unsupported schema"), "quarantined"),
+    await receiver.fail(batch().batchId, claimed!.claimToken, new Error("unsupported schema"), "quarantined"),
     "quarantined",
   );
   assert.equal(await receiver.claimNext(), null);
@@ -314,4 +318,67 @@ test("recovers an expired processing lease after restart", async (context) => {
     processingLeaseMs: 60_000,
   });
   assert.equal((await restarted.claimNext())?.attempt, 2);
+});
+
+test("an expired worker cannot complete a batch after a newer lease is claimed", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-fencing-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  let current = new Date(now);
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => current,
+    processingLeaseMs: 60_000,
+  });
+  await receiver.receive(submission());
+  const expired = await receiver.claimNext();
+  current = new Date(current.getTime() + 60_001);
+  const active = await receiver.claimNext();
+  assert.notEqual(active?.claimToken, expired?.claimToken);
+  await assert.rejects(
+    receiver.complete(batch().batchId, expired!.claimToken),
+  );
+  await receiver.complete(batch().batchId, active!.claimToken);
+  assert.equal((await receiver.stats()).processed, 1);
+});
+
+test("retry backoff prevents a failed batch from being reclaimed immediately", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-backoff-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  let current = new Date(now);
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => current,
+    retryBaseMs: 5 * 60 * 1_000,
+  });
+  await receiver.receive(submission());
+  const first = await receiver.claimNext();
+  await receiver.fail(batch().batchId, first!.claimToken, new Error("temporary"));
+  assert.equal(await receiver.claimNext(), null);
+  current = new Date(current.getTime() + 5 * 60 * 1_000);
+  assert.equal((await receiver.claimNext())?.attempt, 2);
+});
+
+test("inbox retention prunes terminal records without touching active work", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-retention-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  let current = new Date(now);
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => current,
+  });
+  await receiver.receive(submission());
+  const claimed = await receiver.claimNext();
+  await receiver.complete(batch().batchId, claimed!.claimToken);
+  current = new Date(current.getTime() + 1_001);
+  assert.equal(await receiver.prune({ processedMs: 1_000, quarantinedMs: 1_000 }), 1);
+  assert.deepEqual(await receiver.stats(), {
+    received: 0,
+    processing: 0,
+    processed: 0,
+    retryable: 0,
+    quarantined: 0,
+  });
 });

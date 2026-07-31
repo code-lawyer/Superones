@@ -105,7 +105,7 @@ test("three aligned items from two publishers and roles form one event", async (
   assert.ok(result.information.every((item) => item.primaryEventSlug === result.events[0].slug));
 });
 
-test("an event without valid evidence citations is quarantined", async () => {
+test("an event without valid evidence citations is quarantined without hiding its source records", async () => {
   const result = await compileInformationBatch({
     batch: batch([envelope(1, "A", "官方"), envelope(2, "B", "媒体"), envelope(3, "B", "媒体")]),
     previousInformation: [],
@@ -124,7 +124,8 @@ test("an event without valid evidence citations is quarantined", async () => {
     }),
   });
   assert.equal(result.events.length, 0);
-  assert.equal(result.information.length, 0);
+  assert.equal(result.information.length, 3);
+  assert.ok(result.information.every((item) => item.eventSlugs.length === 0));
   assert.equal(result.quarantine[0].errorCode, "EVENT_COMPOSITION_FAILED");
 });
 
@@ -163,7 +164,7 @@ test("new information can join and recompose an active event", async () => {
   assert.equal(result.information.find((item) => item.slug !== fixture.information.slug)?.primaryEventSlug, fixture.event.slug);
 });
 
-test("a failed event recomposition keeps the last event and hides the new record", async () => {
+test("a failed event recomposition keeps the last event and publishes the new record independently", async () => {
   const fixture = existingFixture();
   const result = await compileInformationBatch({
     batch: batch([envelope(1, "B", "媒体")]),
@@ -175,7 +176,11 @@ test("a failed event recomposition keeps the last event and hides the new record
     }),
   });
   assert.equal(result.events[0].summary, fixture.event.summary);
-  assert.deepEqual(result.information.map((item) => item.slug), [fixture.information.slug]);
+  assert.equal(result.information.length, 2);
+  assert.ok(result.information.some((item) => item.slug === fixture.information.slug));
+  const newItem = result.information.find((item) => item.slug !== fixture.information.slug);
+  assert.deepEqual(newItem?.eventSlugs, []);
+  assert.equal(newItem?.primaryEventSlug, undefined);
   assert.equal(result.quarantine[0].errorCode, "EVENT_COMPOSITION_FAILED");
 });
 
@@ -236,14 +241,15 @@ test("failed information editorial is quarantined and never published", async ()
   assert.equal(result.quarantine[0].errorCode, "INFORMATION_EDITORIAL_FAILED");
 });
 
-test("failed event classification is quarantined and never published", async () => {
+test("failed event classification is quarantined while the translated record still publishes", async () => {
   const result = await compileInformationBatch({
     batch: batch([envelope(1, "A", "官方")]),
     previousInformation: [],
     previousEvents: [],
     editorial: editorial({ async classifyInformation() { throw new Error("classification unavailable"); } }),
   });
-  assert.equal(result.information.length, 0);
+  assert.equal(result.information.length, 1);
+  assert.deepEqual(result.information[0].eventSlugs, []);
   assert.equal(result.quarantine[0].errorCode, "EVENT_CLASSIFICATION_FAILED");
 });
 
@@ -282,7 +288,7 @@ test("the same canonical URL is processed once even when an aggregate body chang
   assert.equal(translated, 1);
 });
 
-test("a duplicate canonical URL retains every discovery path without another LLM call", async () => {
+test("a refreshed canonical URL is reprocessed and retains every discovery path", async () => {
   const direct = {
     ...envelope(1, "A", SOURCE_ROLES[1]),
     contentGroup: "documents" as const,
@@ -318,8 +324,9 @@ test("a duplicate canonical URL retains every discovery path without another LLM
       },
     }),
   });
-  assert.equal(translated, 0);
-  assert.deepEqual(second.information[0].discoveryPaths, [
+  assert.equal(translated, 1);
+  const refreshed = second.information.find((item) => item.contentHash === discovered.contentHash);
+  assert.deepEqual(refreshed?.discoveryPaths, [
     "rss:https://example.com/feed",
     "https://news.ycombinator.com/item?id=42",
   ]);

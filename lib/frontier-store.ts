@@ -370,9 +370,13 @@ export async function recordStarSnapshots(season: string, updates: Array<{ submi
     for (const update of updates) {
       const submission = store.submissions.find((item) => item.id === update.submissionId && item.season === season && item.status === "verified");
       if (!submission) continue;
+      if (submission.lastSnapshotAt && Date.parse(capturedAt) < Date.parse(submission.lastSnapshotAt)) continue;
       submission.currentStars = update.stars;
       submission.lastSnapshotAt = capturedAt;
-      store.snapshots.push({ submissionId: submission.id, season, capturedAt, stars: update.stars });
+      const duplicate = store.snapshots.some((snapshot) => (
+        snapshot.submissionId === submission.id && snapshot.capturedAt === capturedAt
+      ));
+      if (!duplicate) store.snapshots.push({ submissionId: submission.id, season, capturedAt, stars: update.stars });
     }
     store.snapshots = store.snapshots.slice(-20_000);
     return updates.length;

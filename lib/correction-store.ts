@@ -1,8 +1,8 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { decryptSensitiveText, encryptSensitiveText } from "./sensitive-data.ts";
-import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
+import { encryptSensitiveText } from "./sensitive-data.ts";
+import { mutateStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 
 export const CORRECTION_ISSUE_TYPES = ["incorrect_merge", "factual_error", "source_unavailable"] as const;
 export type CorrectionIssueType = (typeof CORRECTION_ISSUE_TYPES)[number];
@@ -60,27 +60,5 @@ export async function createCorrectionReport(input: {
     store.reports.push(report);
     store.reports = store.reports.slice(-10_000);
     return { id: report.id, status: report.status, createdAt: report.createdAt };
-  });
-}
-
-export async function listAdminCorrectionReports() {
-  const store = await readStateDocument(correctionDocument);
-  return store.reports
-    .map(({ emailEncrypted, ...report }) => ({
-      ...report,
-      email: emailEncrypted ? decryptSensitiveText(emailEncrypted) : null,
-    }))
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-}
-
-export async function closeCorrectionReport(id: string, resolution: string) {
-  return mutateStateDocument(correctionDocument, (store) => {
-    const report = store.reports.find((value) => value.id === id);
-    if (!report) throw new Error("纠错报告不存在。");
-    if (report.status === "closed") return report;
-    report.status = "closed";
-    report.closedAt = new Date().toISOString();
-    report.resolution = resolution;
-    return report;
   });
 }

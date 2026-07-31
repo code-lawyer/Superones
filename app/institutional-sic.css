@@ -540,8 +540,9 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 .sic-magazine__meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px 14px;
   margin-bottom: 12px;
   color: var(--ash);
   font-size: var(--type-label);
@@ -550,8 +551,8 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 }
 
 .sic-magazine__meta span:last-child {
+  max-width: min(52ch, 70%);
   overflow: hidden;
-  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -622,11 +623,15 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 
 .sic-magazine__detail-copy {
   display: grid;
-  grid-template-columns: minmax(180px, .72fr) minmax(0, 1.45fr);
-  gap: clamp(28px, 4vw, 62px);
+  grid-template-columns: minmax(190px, .7fr) minmax(0, 1.55fr);
+  gap: clamp(32px, 4vw, 64px);
+  max-width: 1020px;
   border-top: 1px solid color-mix(in srgb, var(--paper-bright) 34%, transparent);
-  padding-top: 22px;
-  padding-bottom: clamp(30px, 3.3vw, 44px);
+  padding: 24px 0 clamp(26px, 2.6vw, 38px);
+}
+
+.sic-magazine__detail-copy.is-single {
+  grid-template-columns: minmax(0, 760px);
 }
 
 .sic-magazine__detail-copy section > p:first-child {
@@ -637,22 +642,31 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 }
 
 .sic-magazine__detail-copy section > p:last-child {
-  max-width: 720px;
   margin: 0;
   color: var(--paper-bright);
-  font-family: var(--font-editorial);
-  font-size: clamp(14px, 1.2vw, 17px);
-  line-height: 1.78;
+  font-family: var(--font-sans);
+}
+
+.sic-magazine__detail-section--brief > p:last-child {
+  max-width: 28ch;
+  font-size: clamp(16px, 1.15vw, 18px);
+  font-weight: 580;
+  line-height: 1.7;
+}
+
+.sic-magazine__detail-section--summary > p:last-child {
+  max-width: 52ch;
+  font-size: clamp(15px, 1.05vw, 17px);
+  line-height: 1.76;
 }
 
 .sic-magazine__source-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 26px;
-  border-top: 1px solid color-mix(in srgb, var(--paper-bright) 34%, transparent);
-  padding-top: 15px;
+  justify-content: flex-start;
+  gap: 14px;
+  margin: 0 0 clamp(34px, 3vw, 44px);
+  padding: 0;
   color: var(--paper-bright);
   font-size: var(--type-small);
 }
@@ -1195,6 +1209,13 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   }
 }
 
+@media (max-width: 720px) {
+  .sic-magazine__detail-copy {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+}
+
 @media (max-width: 620px) {
   .channel-ribbon__track {
     gap: clamp(12px, 4vw, 20px);
@@ -1263,10 +1284,6 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 
   .sic-magazine__entry h3.sic-magazine__fallback-title {
     font-size: 20px;
-  }
-
-  .sic-magazine__detail-copy {
-    grid-template-columns: 1fr;
   }
 
   body .sic-stage__rail .sic-board h2 {

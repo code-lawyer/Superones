@@ -4,7 +4,7 @@
 
 - `vault2077-web.service`：Web 进程，启动前执行生产配置检查和数据库迁移。
 - `vault2077-acquisition-worker.service/.timer`：每五分钟消费境内 PostgreSQL inbox。
-- `vault2077-frontier-tick.service/.timer`：每小时观察当前参赛仓库并推进结算。
+- `vault2077-frontier-tick.service/.timer`：北京时间 08:45–22:45 每两小时观察当前参赛仓库并推进结算。
 
 示例安装：
 
@@ -28,7 +28,7 @@ journalctl -u vault2077-acquisition-worker.service -n 100 --no-pager
 journalctl -u vault2077-frontier-tick.service -n 100 --no-pager
 ```
 
-oneshot 返回非零、timer 超过两个周期没有成功、inbox 出现 quarantine 或频道超过新鲜度阈值都必须告警。worker 失败后保留 inbox；恢复配置并重新启动 service 即可继续，不得从 GitHub Actions 远程调用处理接口。
+oneshot 本轮返回非零、timer 超过两个周期没有成功、inbox 新增 quarantine 或频道超过新鲜度阈值都必须告警。历史 quarantine 不应让每次 worker 永久返回非零；worker 失败后按最多六次指数退避保留 inbox，成功记录保留 30 天、隔离记录保留 180 天后自动清理。不得从 GitHub Actions 远程调用处理接口。
 
 ## 2 核 2G 基线
 

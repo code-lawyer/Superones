@@ -5,7 +5,7 @@
       "id": "hugging-face-daily-papers",
       "group": "papers",
       "status": "approved",
-      "name": "Hugging Face Daily Papers",
+      "name": "Hugging Face Weekly Papers",
       "publisher": "Hugging Face",
       "kind": "official_api",
       "homeUrl": "https://huggingface.co/papers",
@@ -14,14 +14,14 @@
         "https://arxiv.org",
         "https://export.arxiv.org"
       ],
-      "admissionRule": "分页接入 Hugging Face Daily Papers 的全部每日条目，并按 arXiv ID 核验规范元数据。",
-      "rationale": "HF 社区精选只负责前沿发现；标题、作者、日期和摘要最终以 arXiv 为准。"
+      "admissionRule": "每日按当前 ISO 周分页接入 Hugging Face Weekly Papers 完整清单，读取 paper.upvotes 后在本地按票数降序生成周排名；同票按 Hugging Face 提交时间降序，并按 arXiv ID 核验规范元数据。",
+      "rationale": "HF 官方 API 负责周度论文发现与热度票数；标题、日期和摘要最终以 arXiv 为准。指定周全集与热度排序均使用 API，不读取论文网页。"
     },
     {
       "id": "dair-ai-papers-of-the-week",
       "group": "papers",
       "status": "retired",
-      "statusReason": "Hugging Face Daily Papers 已提供日、周、月和趋势视图；保留第二份人工周报会产生重复发现。",
+      "statusReason": "Hugging Face Weekly Papers 已提供稳定的官方周度 API；保留第二份人工周报会产生重复发现。",
       "name": "AI Papers of the Week",
       "publisher": "DAIR.AI",
       "kind": "official_api",

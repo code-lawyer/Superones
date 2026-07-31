@@ -12,8 +12,8 @@ export const metadata: Metadata = { title: "Vault 信息流" };
 export const dynamic = "force-dynamic";
 
 const EVENT_LIMIT = 10;
-const WATERFALL_LIMIT = 15;
-const STATEMENT_LIMIT = 8;
+const WATERFALL_LIMIT = 5;
+const STATEMENT_LIMIT = 5;
 
 type FeedSearchParams = Record<string, string | string[] | undefined>;
 type FeedState = {
@@ -66,7 +66,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const modeLabel = previewLabel
     ? ` / ${previewLabel}`
     : content.state.mode === "degraded"
-        ? " / 服务降级"
+        ? " / 更新延迟"
         : "";
 
   return (
@@ -102,7 +102,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               {visibleInformation.length === 0 ? <p className="feed-empty">暂无资讯</p> : null}
               {visibleInformation.length < informationItems.length ? (
                 <Link className="feed-more" href={feedHref(state, { waterfallLimit: state.waterfallLimit + WATERFALL_LIMIT })}>
-                  <span>继续接收资讯</span>
+                  <span>展开更多资讯</span>
                   <span className="mono">{visibleInformation.length} / {informationItems.length}</span>
                 </Link>
               ) : null}
@@ -112,7 +112,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               <header className="feed-column__header">
                 <p className="eyebrow mono">ROADSIDE / 个人与社区</p>
                 <h2 id="roadside-stream-title">路边社</h2>
-                <p>自然人言论、个人博客及社区原生条目；Hacker News 与 Lobsters 的外链只展示、不递归抓取，评论不进入正文。</p>
+                <p>自然人言论、个人博客及社区原生条目。</p>
               </header>
               <RoadsideList
                 items={visibleRoadside}
@@ -123,7 +123,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               {visibleRoadside.length === 0 ? <p className="feed-empty">暂无个人或社区发布</p> : null}
               {visibleRoadside.length < roadsideItems.length ? (
                 <Link className="feed-more" href={feedHref(state, { roadsideLimit: state.roadsideLimit + STATEMENT_LIMIT })}>
-                  <span>继续接收路边社</span>
+                  <span>展开更多路边社</span>
                   <span className="mono">{visibleRoadside.length} / {roadsideItems.length}</span>
                 </Link>
               ) : null}

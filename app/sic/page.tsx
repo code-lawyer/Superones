@@ -10,6 +10,7 @@ import {
 } from "@/lib/public-read-cache";
 import { sicContentGroups, type SicBoard } from "@/lib/sic";
 import { addPublishedDocuments } from "@/lib/sic-content";
+import { beijingTime } from "@/lib/feed-format";
 
 export const metadata: Metadata = { title: "SiC 学院" };
 
@@ -45,7 +46,12 @@ export default async function SicPage() {
   }));
   return (
     <>
-      <PageIntro code="SiC / TECHNOLOGY INDEX" title="血肉苦弱，硅碳共生" lead="从代码、模型、论文与一手档案中，看见技术趋势正在怎样形成。" meta="TECHNOLOGY / FIXED SOURCES" />
+      <PageIntro
+        code="SiC / TECHNOLOGY INDEX"
+        title="血肉苦弱，硅碳共生"
+        lead="从代码、模型、论文与一手档案中，看见技术趋势正在怎样形成。"
+        meta={`LAST PUBLISHED ${beijingTime(sicContent.state.updatedAt, true)}${sicContent.state.stale ? " / 更新延迟" : ""}`}
+      />
       <ChannelRibbon identity="SILICON × CARBON" slogan="WE WILL REDEFINE EVOLUTION." />
       <nav className="sic-mobile-index shell mono" aria-label="SiC 页面索引">
         {sicContentGroups.map((group) => <a href={`#sic-group-${group.id}`} key={group.id}>{group.title}</a>)}

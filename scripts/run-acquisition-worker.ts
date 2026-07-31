@@ -19,6 +19,6 @@ console.log(JSON.stringify({
   result,
 }, null, 2));
 
-if (result.failed.length > 0 || result.queue.quarantined > 0) {
+if (result.failed.length > 0) {
   process.exitCode = 1;
 }

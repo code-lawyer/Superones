@@ -176,8 +176,8 @@ const lanes = [
     code: "SIC",
     title: "学院固定内容",
     count: approvedSicSources.length,
-    cadence: "北京时间 07:25、19:25",
-    processing: "境内编辑说明",
+    cadence: "北京时间每日 08:25",
+    processing: "境内中文翻译、摘要与周热度排序",
     destinations: [
       `档案 ${sicDocuments.length}`,
       `论文 ${sicPapers.length}`,
@@ -191,7 +191,7 @@ const lanes = [
     code: "RANKINGS",
     title: "平台原生榜",
     count: rankingSources.length,
-    cadence: "目标每小时；当前每日两次",
+    cadence: "北京时间每日 08:35 / 12:35 / 16:35 / 20:35",
     processing: "保留平台原序，不经过 LLM",
     destinations: [
       `代码仓库趋势 3`,
@@ -284,11 +284,11 @@ const sourceGroups = [
     title: "论文",
     count: sicPapers.length,
     lane: "sic",
-    description: "模型社区负责发现每日论文，标题、作者、日期和摘要最终回到论文原始页面核验。",
+    description: "Hugging Face 官方 API 提供当前 ISO 周完整清单与 upvotes；系统本地生成周热度排名，标题、日期和摘要由 arXiv API 核验，再经 sic_editorial 生成中文说明。全程不读取论文网页。",
     subsets: [
       {
         title: "论文发现入口",
-        description: "当前只有一个正式入口，避免多个榜单重复发现同一论文。",
+        description: "当前只有一个正式周度入口；分页接入整周清单，避免多个榜单重复发现同一论文。",
         sources: sicPapers.map(sicDisplay),
       },
     ],
@@ -575,10 +575,10 @@ export default function PipelineSourcesPage() {
           <li>
             <span>04</span>
             <div>
-              <h3>榜单调度提高到每小时唤醒</h3>
-              <p>规格要求每小时检查到期榜单，当前自动化任务仍是每日两次。建议上线闭环完成后立即调整。</p>
+              <h3>榜单按白天四个时点更新</h3>
+              <p>平台原生榜在北京时间 08:35、12:35、16:35、20:35 采集；夜间不发起公开来源请求。</p>
             </div>
-            <strong>实现欠账</strong>
+            <strong>已统一</strong>
           </li>
           <li>
             <span>05</span>

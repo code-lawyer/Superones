@@ -321,6 +321,9 @@ export function buildSicAcquisitionBatches(input: {
         publishedAt: item.publishedAt,
         canonicalId: item.canonicalId,
         discoveryUrl: item.discoveryUrl,
+        rankingWeek: item.rankingWeek,
+        weeklyRank: item.weeklyRank,
+        weeklyUpvotes: item.weeklyUpvotes,
         provenanceStatus: item.provenanceStatus,
       }),
     }));

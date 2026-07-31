@@ -2,7 +2,7 @@ import "server-only";
 
 import { compileInformationBatch, type BatchedInformationEditorial, type EditorialPort, type EventDecision, type EventEditorial, type InformationEditorial } from "./content-compiler.ts";
 import { validateContentBatch, type InformationEnvelope } from "./content-contract.ts";
-import { getStoredContent, replaceStoredContent } from "./content-store.ts";
+import { getStoredContent, replaceStoredContent, type ContentSourceReport } from "./content-store.ts";
 import {
   createEditorialProfileClient,
   loadEditorialProfileConfig,
@@ -284,7 +284,15 @@ let processChain: Promise<unknown> = Promise.resolve();
 export function processInboundContent(
   value: unknown,
   bodyHash: string,
-  options: { requireNoQuarantine?: boolean } = {},
+  options: {
+    requireNoQuarantine?: boolean;
+    snapshot?: {
+      runId: string;
+      collectedAt: string;
+      sourceReports: ContentSourceReport[];
+      activeSourceIds?: string[];
+    };
+  } = {},
 ) {
   const operation = processChain.then(async () => {
     const batch = validateContentBatch(value);
@@ -298,11 +306,28 @@ export function processInboundContent(
     if (batch.repositories.length > 0) {
       throw new Error("旧 GitHub 增量项目记录已停用；请使用平台原生 rankings 通道。");
     }
-    if (batch.information.length > 0) assertContentModelConfigured();
+    const activeSourceIds = options.snapshot?.activeSourceIds ? new Set(options.snapshot.activeSourceIds) : null;
+    const previousInformation = activeSourceIds
+      ? previous.information.filter((item) => Boolean(item.sourceChannelId) && activeSourceIds.has(item.sourceChannelId!))
+      : previous.information;
+    const snapshotReports = options.snapshot?.sourceReports.filter((report) => (
+      !activeSourceIds || activeSourceIds.has(report.sourceId)
+    ));
+    const acceptedSourceIds = new Set(snapshotReports?.flatMap((report) => {
+      if (report.status === "failed") return [];
+      const previousSnapshot = previous.sourceSnapshots[report.sourceId];
+      return !previousSnapshot || Date.parse(options.snapshot!.collectedAt) >= Date.parse(previousSnapshot.collectedAt)
+        ? [report.sourceId]
+        : [];
+    }) ?? []);
+    const effectiveBatch = options.snapshot
+      ? { ...batch, information: batch.information.filter((item) => acceptedSourceIds.has(item.sourceChannelId)) }
+      : batch;
+    if (effectiveBatch.information.length > 0) assertContentModelConfigured();
 
     const compiled = await compileInformationBatch({
-      batch,
-      previousInformation: previous.information,
+      batch: effectiveBatch,
+      previousInformation,
       previousEvents: previous.events,
       editorial: llmEditorialPort(),
     });
@@ -310,17 +335,66 @@ export function processInboundContent(
     if (options.requireNoQuarantine && quarantine.length > 0) {
       throw new Error(`境内 LLM 未完成 ${quarantine.length} 条内容处理，批次保持可重试状态。`);
     }
+    const snapshotSources = snapshotReports?.flatMap((report) => {
+      if (!acceptedSourceIds.has(report.sourceId)) return [];
+      const envelopes = effectiveBatch.information.filter((item) => item.sourceChannelId === report.sourceId);
+      const candidates = compiled.information.filter((item) => item.sourceChannelId === report.sourceId);
+      const seen = new Set<string>();
+      const items = envelopes.flatMap((envelope) => {
+        const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
+        const match = candidates.find((item) => item.contentHash === envelope.contentHash)
+          ?? candidates.find((item) => (
+            envelope.originContentId
+            && item.originContentId === envelope.originContentId
+            && item.sourceUrl.replace(/[?#].*$/, "").toLowerCase() === canonicalUrl
+          ))
+          ?? candidates.find((item) => item.sourceUrl.replace(/[?#].*$/, "").toLowerCase() === canonicalUrl);
+        if (!match || seen.has(match.slug)) return [];
+        seen.add(match.slug);
+        return [match];
+      });
+      // A successful empty source is a valid empty snapshot. If records were
+      // present but every editorial operation failed, retain the last success.
+      if (envelopes.length > 0 && items.length === 0) return [];
+      return [{ sourceId: report.sourceId, items }];
+    }) ?? [];
+    const snapshotItemsBySource = new Map(snapshotSources.map((source) => [source.sourceId, source.items.length]));
+    const normalizedSourceReports = snapshotReports?.map((report) => {
+      if (!acceptedSourceIds.has(report.sourceId) || report.status === "failed") return report;
+      const received = effectiveBatch.information.filter((item) => item.sourceChannelId === report.sourceId).length;
+      const published = snapshotItemsBySource.get(report.sourceId) ?? 0;
+      if (received > 0 && published === 0) {
+        return {
+          ...report,
+          status: "failed" as const,
+          errorCode: "EDITORIAL_SOURCE_FAILED",
+          errorMessage: "该来源本轮记录均未完成编辑，继续保留上一成功快照。",
+        };
+      }
+      if (published < received) {
+        return {
+          ...report,
+          status: "partial" as const,
+          errorCode: "EDITORIAL_PARTIAL",
+          errorMessage: `境内编辑完成 ${published}/${received} 条；已发布成功条目。`,
+        };
+      }
+      return report;
+    }) ?? [];
+    const publishedCount = options.snapshot
+      ? snapshotSources.reduce((sum, source) => sum + source.items.length, 0)
+      : compiled.information.length;
     const nextReceipt: BatchReceipt = {
       batchId: batch.batchId,
       payloadHash: bodyHash,
       receivedAt: new Date().toISOString(),
       status: "succeeded",
-      informationCount: compiled.information.length,
+      informationCount: publishedCount,
       eventCount: compiled.events.length,
       projectCount: previous.projects.length,
       quarantinedCount: quarantine.length,
     };
-    const sourceIds = new Set(previous.information.map((item) => item.sourceChannelId).filter((value): value is string => Boolean(value)));
+    const sourceIds = new Set(previousInformation.map((item) => item.sourceChannelId).filter((value): value is string => Boolean(value)));
     for (const item of batch.information) sourceIds.add(item.sourceChannelId);
     const stored = await replaceStoredContent({
       events: compiled.events,
@@ -330,6 +404,15 @@ export function processInboundContent(
       receipt: nextReceipt,
       sourceCount: sourceIds.size,
       updatedAt: batch.generatedAt,
+      ...(options.snapshot ? {
+        snapshot: {
+          runId: options.snapshot.runId,
+          collectedAt: options.snapshot.collectedAt,
+          sources: snapshotSources,
+          reports: normalizedSourceReports,
+          activeSourceIds: options.snapshot.activeSourceIds,
+        },
+      } : {}),
     });
     return { ...stored, duplicate: false, receipt: nextReceipt };
   });

@@ -135,7 +135,23 @@ async function collectRankings(context: AcquisitionBuildContext) {
       error,
     }));
   }
-  groups.push(...await collectFrontierFallbacks(context));
+  try {
+    groups.push(...await collectFrontierFallbacks(context));
+  } catch (error) {
+    groups.push({
+      report: {
+        sourceId: "frontier:fallback-queue",
+        adapter: "github-frontier-fallback",
+        status: "failed",
+        startedAt: context.collectedAt,
+        completedAt: new Date().toISOString(),
+        recordCount: 0,
+        errorCode: "FRONTIER_FALLBACK_QUEUE_FAILED",
+        errorMessage: error instanceof Error ? error.message.slice(0, 1_000) : String(error).slice(0, 1_000),
+      },
+      records: [],
+    });
+  }
   return groups;
 }
 
@@ -274,7 +290,7 @@ const lookbackHours = runMode === "bootstrap"
     : 24
   : lane === "sic"
     ? 24
-    : 12;
+    : 24;
 process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS = String(lookbackHours);
 const windowUntil = collectedAt;
 const windowFrom = new Date(Date.parse(windowUntil) - lookbackHours * 60 * 60 * 1000).toISOString();

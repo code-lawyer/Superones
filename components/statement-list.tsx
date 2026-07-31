@@ -50,14 +50,10 @@ export function RoadsideList({
               type="button"
               onClick={() => setSelected(item)}
               aria-haspopup="dialog"
+              aria-label={`查看观点：${item.translatedTitle}`}
             >
-              <header>
-                <strong>{personName(item)}</strong>
-                <span className="mono">{account(item)}</span>
-                <time>{beijingTime(item.publishedAt)}</time>
-              </header>
               <h3>{item.translatedTitle}</h3>
-              <span className="statement-row__open mono">查看言论</span>
+              <time dateTime={item.publishedAt ?? undefined}>{beijingTime(item.publishedAt)}</time>
             </button>
           </article>
         ))}
@@ -91,7 +87,9 @@ export function RoadsideList({
                 关闭
               </button>
             </header>
-            <p className="roadside-voice__statement">{statementText(selected)}</p>
+            <div className="roadside-voice__body">
+              <p className="roadside-voice__statement">{statementText(selected)}</p>
+            </div>
             <footer className="roadside-voice__meta">
               <time>{beijingTime(selected.publishedAt, true)}</time>
               <a

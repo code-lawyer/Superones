@@ -131,6 +131,33 @@ export function eventFromEditorial(editorial: EventEditorial, items: Information
   const normalized = validEventEditorial(editorial, items.length);
   const newest = [...items].sort((left, right) => Date.parse(right.publishedAt ?? right.discoveredAt) - Date.parse(left.publishedAt ?? left.discoveredAt))[0];
   const eventSlug = prior?.slug ?? `${slug(normalized.title)}-${hash(items.map((item) => item.slug).sort().join(":" )).slice(0, 8)}`;
+  const currentSources: NonNullable<EventRecord["sources"]> = items.map((item) => ({
+    name: item.sourceName,
+    url: item.sourceUrl,
+    publishedAt: item.publishedAt ?? item.discoveredAt,
+    author: item.author,
+    role: item.sourceRole,
+    informationSlug: item.slug,
+    translatedTitle: item.translatedTitle,
+    originalTitle: item.originalTitle,
+    summary: item.summary,
+    translatedContent: normalizeStructuredContent(item.translatedContent, 2_000) || item.summary,
+    originalContent: normalizeStructuredContent(item.originalContent, 2_000) || item.originalTitle,
+    contentFormat: item.contentFormat,
+    originalLanguage: item.originalLanguage,
+    originalDisplay: item.originalDisplay,
+    contentGroup: item.contentGroup,
+    sourceStream: item.sourceStream,
+  }));
+  const sourceKeys = new Set(currentSources.map((source) => `${source.url}#${source.informationSlug ?? ""}`));
+  const retainedSources = (prior?.sources ?? []).filter((source) => (
+    !sourceKeys.has(`${source.url}#${source.informationSlug ?? ""}`)
+  ));
+  const currentTimeline = items.map((item) => ({
+    time: item.publishedAt ?? item.discoveredAt,
+    text: `${item.sourceName} 发布或更新相关资讯。`,
+  }));
+  const timelineKeys = new Set(currentTimeline.map((entry) => `${entry.time}#${entry.text}`));
   return {
     slug: eventSlug,
     record: prior?.record ?? `VLT/EVT/${new Date(now).getUTCFullYear()}/${hash(eventSlug).slice(0, 5).toUpperCase()}`,
@@ -143,15 +170,14 @@ export function eventFromEditorial(editorial: EventEditorial, items: Information
     entities: normalized.entities,
     firstSeen: prior?.firstSeen ?? items.map((item) => item.publishedAt ?? item.discoveredAt).sort()[0],
     updated: now,
-    sources: items.map((item) => ({
-      name: item.sourceName,
-      url: item.sourceUrl,
-      publishedAt: item.publishedAt ?? item.discoveredAt,
-      author: item.author,
-      role: item.sourceRole,
-      informationSlug: item.slug,
-    })),
-    timeline: items.map((item) => ({ time: item.publishedAt ?? item.discoveredAt, text: `${item.sourceName} 发布或更新相关资讯。` })),
+    // Current compose inputs remain first so [n] citations retain their exact
+    // source numbering. Older evidence is appended and never discarded when
+    // its waterfall snapshot expires.
+    sources: [...currentSources, ...retainedSources],
+    timeline: [
+      ...currentTimeline,
+      ...(prior?.timeline ?? []).filter((entry) => !timelineKeys.has(`${entry.time}#${entry.text}`)),
+    ],
   };
 }
 
@@ -176,11 +202,7 @@ export async function compileInformationBatch(input: {
   const events = [...input.previousEvents];
   const quarantineRecords: QuarantinedContent[] = [];
   const existingKeys = new Set(information.map((item) => `${item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()}#${item.contentHash ?? ""}`));
-  const existingUrls = new Set(information
-    .filter((item) => item.itemKind !== "changelog")
-    .map((item) => item.sourceUrl.replace(/[?#].*$/, "").toLowerCase()));
   const existingHashes = new Set(information.map((item) => item.contentHash).filter((value): value is string => Boolean(value)));
-  const existingOriginIds = new Set(information.map((item) => item.originContentId).filter((value): value is string => Boolean(value)));
   const existingByUrl = new Map(information
     .filter((item) => item.itemKind !== "changelog")
     .map((item) => [item.sourceUrl.replace(/[?#].*$/, "").toLowerCase(), item]));
@@ -200,24 +222,23 @@ export async function compileInformationBatch(input: {
     if (paths.length > 0) item.discoveryPaths = paths;
   };
   const newSlugs = new Set<string>();
-  const hiddenSlugs = new Set<string>();
   const active = activeEvents(events, batch.generatedAt).map(({ slug: eventSlug, title, summary }) => ({ slug: eventSlug, title, summary }));
   const batchEligible: InformationEnvelope[] = [];
   const incomingKeys = new Set(existingKeys);
-  const incomingUrls = new Set(existingUrls);
   const incomingHashes = new Set(existingHashes);
-  const incomingOriginIds = new Set(existingOriginIds);
+  const incomingUrls = new Set<string>();
+  const incomingOriginIds = new Set<string>();
   for (const envelope of batch.information) {
     const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
     const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
-    const duplicate = (envelope.itemKind !== "changelog" ? existingByUrl.get(canonicalUrl) : undefined)
-      ?? existingByHash.get(envelope.contentHash)
+    const previousIdentity = (envelope.itemKind !== "changelog" ? existingByUrl.get(canonicalUrl) : undefined)
       ?? (envelope.originContentId ? existingByOriginId.get(envelope.originContentId) : undefined);
+    const duplicate = existingByHash.get(envelope.contentHash) ?? previousIdentity;
     if (
       incomingKeys.has(canonicalKey)
-      || (envelope.itemKind !== "changelog" && incomingUrls.has(canonicalUrl))
       || incomingHashes.has(envelope.contentHash)
-      || (envelope.originContentId && incomingOriginIds.has(envelope.originContentId))
+      || (envelope.itemKind !== "changelog" && incomingUrls.has(canonicalUrl))
+      || Boolean(envelope.originContentId && incomingOriginIds.has(envelope.originContentId))
     ) {
       mergeDiscoveryPaths(duplicate, envelope);
       continue;
@@ -232,10 +253,17 @@ export async function compileInformationBatch(input: {
       ));
       continue;
     }
+    if (previousIdentity) {
+      envelope.discoveryPaths = [...new Set([
+        ...(previousIdentity.discoveryPaths ?? []),
+        ...(envelope.discoveryPaths ?? []),
+        envelope.discoveryPath,
+      ].filter((value): value is string => Boolean(value)))];
+    }
     batchEligible.push(envelope);
     incomingKeys.add(canonicalKey);
-    if (envelope.itemKind !== "changelog") incomingUrls.add(canonicalUrl);
     incomingHashes.add(envelope.contentHash);
+    if (envelope.itemKind !== "changelog") incomingUrls.add(canonicalUrl);
     if (envelope.originContentId) incomingOriginIds.add(envelope.originContentId);
   }
   const batchedResults = new Map<string, BatchedInformationEditorial>();
@@ -254,9 +282,7 @@ export async function compileInformationBatch(input: {
     const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
     if (
       existingKeys.has(canonicalKey)
-      || (envelope.itemKind !== "changelog" && existingUrls.has(canonicalUrl))
       || existingHashes.has(envelope.contentHash)
-      || (envelope.originContentId && existingOriginIds.has(envelope.originContentId))
     ) continue;
     let translated: InformationEditorial;
     let batchedDecision: EventDecision | undefined;
@@ -314,9 +340,7 @@ export async function compileInformationBatch(input: {
         information.push(item);
         newSlugs.add(item.slug);
         existingKeys.add(canonicalKey);
-        if (envelope.itemKind !== "changelog") existingUrls.add(canonicalUrl);
         existingHashes.add(envelope.contentHash);
-        if (envelope.originContentId) existingOriginIds.add(envelope.originContentId);
         existingByUrl.set(canonicalUrl, item);
         existingByHash.set(envelope.contentHash, item);
         if (envelope.originContentId) existingByOriginId.set(envelope.originContentId, item);
@@ -332,14 +356,13 @@ export async function compileInformationBatch(input: {
       }
     } catch (error) {
       quarantineRecords.push(quarantine(batch, "event", envelope.idempotencyKey, "EVENT_CLASSIFICATION_FAILED", error instanceof Error ? error.message : "事件归类失败，资讯已隔离。"));
-      continue;
+      // Event classification is enrichment. A translated source record remains
+      // publishable as an independent item when that enrichment fails.
     }
     information.push(item);
     newSlugs.add(item.slug);
     existingKeys.add(canonicalKey);
-    if (envelope.itemKind !== "changelog") existingUrls.add(canonicalUrl);
     existingHashes.add(envelope.contentHash);
-    if (envelope.originContentId) existingOriginIds.add(envelope.originContentId);
     existingByUrl.set(canonicalUrl, item);
     existingByHash.set(envelope.contentHash, item);
     if (envelope.originContentId) existingByOriginId.set(envelope.originContentId, item);
@@ -365,7 +388,6 @@ export async function compileInformationBatch(input: {
         if (knownSources.has(item.slug)) continue;
         item.eventSlugs = [];
         delete item.primaryEventSlug;
-        if (newSlugs.has(item.slug)) hiddenSlugs.add(item.slug);
       }
       quarantineRecords.push(quarantine(batch, "event", eventSlug, "EVENT_COMPOSITION_FAILED", error instanceof Error ? error.message : "事件重算失败。"));
     }
@@ -391,13 +413,12 @@ export async function compileInformationBatch(input: {
         delete item.eventCandidateKey;
       }
     } catch (error) {
-      for (const item of items) if (newSlugs.has(item.slug)) hiddenSlugs.add(item.slug);
       quarantineRecords.push(quarantine(batch, "event", candidateKey, "EVENT_COMPOSITION_FAILED", error instanceof Error ? error.message : "新事件生成失败。"));
     }
   }
 
   return {
-    information: information.filter((item) => !hiddenSlugs.has(item.slug)).sort((left, right) => Date.parse(right.publishedAt ?? right.discoveredAt) - Date.parse(left.publishedAt ?? left.discoveredAt)),
+    information: information.sort((left, right) => Date.parse(right.publishedAt ?? right.discoveredAt) - Date.parse(left.publishedAt ?? left.discoveredAt)),
     events: events.sort((left, right) => Date.parse(right.updated) - Date.parse(left.updated)),
     quarantine: quarantineRecords,
   };

@@ -297,7 +297,11 @@ export function persistDirectRankingBoards(boards: DirectRankingBoard[]) {
   return mutateStateDocument(directRankingsDocument, (current) => {
     const byId = new Map(current.boards.map((value) => [value.id, value]));
     for (const value of boards) {
-      if (isSupportedDirectRankingBoard(value)) byId.set(value.id, value);
+      const previous = byId.get(value.id);
+      if (
+        isSupportedDirectRankingBoard(value)
+        && (!previous || Date.parse(value.capturedAt) >= Date.parse(previous.capturedAt))
+      ) byId.set(value.id, value);
     }
     current.boards = [...byId.values()];
   });

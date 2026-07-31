@@ -1,7 +1,7 @@
 ---
 type: audit
 status: historical
-updated: 2026-07-24
+updated: 2026-07-31
 ---
 
 # Vault2077 SiC：Frontier AI 资源清单审计
@@ -82,7 +82,7 @@ updated: 2026-07-24
 
 | 来源 | 准入角色 | 建议 | 说明 |
 |---|---|---|---|
-| [Hugging Face Daily Papers](https://huggingface.co/papers) | 出版源 / 上游精选 | **推荐** | 有日、周、月视图和官方结构化访问能力；保留其上游排序，不由 SiC 重算“影响力” |
+| [Hugging Face Daily Papers](https://huggingface.co/papers) | 出版源 / 上游精选 | **推荐** | 有日、周、月视图和官方结构化访问能力；生产实现读取指定周全集及官方 upvotes，并仅据此生成周排名，不由 SiC 重算“影响力” |
 | [DAIR.AI Papers of the Week](https://github.com/dair-ai/ML-Papers-of-the-Week) | 出版源 / 上游精选 | **推荐** | 固定团队维护的周度论文清单，与 HF 高频流互补 |
 | [arXiv](https://info.arxiv.org/help/api/index.html) | 元数据源 | **不进入主内容流** | 官方 API 和 RSS 可用；作为原文、作者、分类、版本的底层解析器，不把原始投稿量包装成趋势 |
 | [Semantic Scholar API](https://www.semanticscholar.org/product/api) | 工具源 | **推荐作详情页增强** | 提供论文、作者、引用、推荐和数据集；用于引用关系与研究路线，不作为编辑信息流 |

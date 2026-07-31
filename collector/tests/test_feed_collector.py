@@ -2,7 +2,13 @@ import json
 import unittest
 from datetime import datetime, timezone
 
-from collector.feed_collector import build_packets, collect_github, collection_window, document, validate_public_https_url
+from collector.feed_collector import (
+    build_packets,
+    collect_github,
+    collection_window,
+    document,
+    validate_public_https_url,
+)
 
 
 class CollectorContractTests(unittest.TestCase):

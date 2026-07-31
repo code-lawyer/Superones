@@ -39,8 +39,20 @@ test("event detail keeps the AI attribution in the conclusion-first header", () 
   const header = eventRoute.match(/<header className="feed-detail__header">([\s\S]*?)<\/header>/)?.[1] ?? "";
   assert.match(header, /由 AI 基于公开来源自动编排/);
   assert.match(header, /href="\/methodology"/);
+  assert.match(header, /<CitedText[\s\S]*?text=\{eventJudgment\(event\)\}/);
+  assert.doesNotMatch(header, /\{eventJudgment\(event\)\}<\/p>/);
   const footer = eventRoute.match(/<footer className="event-dossier__footer">([\s\S]*?)<\/footer>/)?.[1] ?? "";
   assert.doesNotMatch(footer, /由 AI 基于公开来源自动编排/);
+});
+
+test("event citations render as accessible superscript links without visible brackets", () => {
+  assert.match(eventRoute, /<sup className="citation"/);
+  assert.match(eventRoute, /aria-label=\{`查看证据 \$\{number\}`\}/);
+  assert.match(eventRoute, /title=\{`查看证据 \$\{number\}`\}/);
+  assert.match(eventRoute, />\s*\{number\}\s*<\/a>/);
+  assert.match(eventRoute, /Math\.ceil\(number \/ 20\) \* 20/);
+  assert.match(feedStyles, /\.citation\s*\{[\s\S]*?font-size:\s*0\.62em;[\s\S]*?line-height:\s*0;[\s\S]*?vertical-align:\s*super;/);
+  assert.match(feedStyles, /\.citation a:focus-visible\s*\{[\s\S]*?outline:\s*2px solid var\(--carbon\);/);
 });
 
 test("structured detail content stays inside the mobile reading rail", () => {

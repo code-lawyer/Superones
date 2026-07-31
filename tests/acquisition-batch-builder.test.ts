@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildSicAcquisitionBatches,
   buildVaultAcquisitionBatches,
   packAcquisitionGroups,
   type AcquisitionBuildContext,
 } from "../lib/acquisition-batch-builder.ts";
+import type { SicRawCollection } from "../lib/sic-collector.ts";
 import type { InboundContentBatch } from "../lib/content-contract.ts";
 import { SOURCE_ROLES } from "../lib/types.ts";
 
@@ -72,6 +74,46 @@ test("Vault adapter preserves success, empty, and failed source reports", () => 
       "source-two": "empty",
     },
   );
+});
+
+test("SiC acquisition packets preserve the Hugging Face weekly ranking fields", () => {
+  const collection: SicRawCollection = {
+    version: 1,
+    collectedAt: context.collectedAt,
+    items: [{
+      id: "paper-1",
+      sourceId: "hugging-face-daily-papers",
+      group: "papers",
+      sourceName: "Hugging Face Weekly Papers",
+      publisher: "Hugging Face",
+      title: "Ranked paper",
+      summary: "Paper abstract.",
+      sourceMaterial: "Paper abstract.",
+      url: "https://arxiv.org/abs/2607.00001",
+      publishedAt: "2026-07-30T00:00:00.000Z",
+      collectedAt: context.collectedAt,
+      canonicalId: "arxiv:2607.00001",
+      discoveryUrl: "https://huggingface.co/papers/2607.00001",
+      rankingWeek: "2026-W31",
+      weeklyRank: 1,
+      weeklyUpvotes: 40,
+      provenanceStatus: "verified",
+    }],
+    reports: [{
+      sourceId: "hugging-face-daily-papers",
+      status: "success",
+      collectedAt: context.collectedAt,
+      itemCount: 1,
+    }],
+  };
+  const batches = buildSicAcquisitionBatches({
+    context: { ...context, lane: "sic", scheduleId: "schedule:test:sic" },
+    collection,
+    adapterBySource: new Map([["hugging-face-daily-papers", "official-api"]]),
+  });
+  assert.equal(batches[0].records[0].payload.rankingWeek, "2026-W31");
+  assert.equal(batches[0].records[0].payload.weeklyRank, 1);
+  assert.equal(batches[0].records[0].payload.weeklyUpvotes, 40);
 });
 
 test("Vault adapter removes exact duplicates repeated across legacy packets", () => {

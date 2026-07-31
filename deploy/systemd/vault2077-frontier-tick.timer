@@ -1,8 +1,8 @@
 [Unit]
-Description=Run Vault2077 Frontier observation hourly
+Description=Run Vault2077 Frontier observation every two daytime hours
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=*-*-* 08,10,12,14,16,18,20,22:45:00 Asia/Shanghai
 Persistent=true
 RandomizedDelaySec=180
 Unit=vault2077-frontier-tick.service

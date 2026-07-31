@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { latestSicContentPerSource } from "../lib/sic-content.ts";
+import { addPublishedDocuments, latestSicContentPerSource, latestSicPapers } from "../lib/sic-content.ts";
 import type { SicContentItem } from "../lib/sic-content-types.ts";
+import type { InformationItem } from "../lib/types.ts";
 
 function item(sourceId: string, publishedAt: string, title: string): SicContentItem {
   return {
@@ -26,4 +27,50 @@ test("SiC reading groups keep only the newest update from each fixed source", ()
   ]);
 
   assert.deepEqual(selected.map((entry) => entry.title), ["latest lesson", "latest lecture"]);
+});
+
+test("SiC papers keep every item in the current weekly snapshot", () => {
+  const papers = [
+    { ...item("hugging-face", "2026-07-28T08:00:00.000Z", "paper one"), group: "papers" as const, rankingWeek: "2026-W31", weeklyRank: 1 },
+    { ...item("hugging-face", "2026-07-30T08:00:00.000Z", "paper two"), group: "papers" as const, rankingWeek: "2026-W31", weeklyRank: 2 },
+  ];
+  assert.deepEqual(latestSicPapers(papers).map((entry) => entry.title), ["paper one", "paper two"]);
+});
+
+test("published documents augment the SiC archive instead of clearing stored sources", () => {
+  const storedDocument = {
+    ...item("microsoft-research-blog", "2026-07-30T08:00:00.000Z", "stored archive"),
+    group: "documents" as const,
+  };
+  const content = {
+    groups: { papers: [], documents: [storedDocument], courses: [], podcasts: [] },
+    state: { updatedAt: "2026-07-31T08:00:00.000Z", itemCount: 1, sourceCount: 1 },
+  };
+
+  assert.deepEqual(
+    addPublishedDocuments(content, []).groups.documents.map((entry) => entry.title),
+    ["stored archive"],
+  );
+
+  const publishedDocument = {
+    slug: "new-archive",
+    sourceName: "Google Research",
+    sourceChannelId: "google-research-blog",
+    contentGroup: "documents",
+    sourceStream: "information",
+    originalTitle: "New archive",
+    translatedTitle: "新档案",
+    summary: "说明",
+    translatedContent: "摘要",
+    originUrl: "https://research.google/blog/new-archive",
+    sourceUrl: "https://research.google/blog/new-archive",
+    publishedAt: "2026-07-31T09:00:00.000Z",
+    discoveredAt: "2026-07-31T10:00:00.000Z",
+    provenanceStatus: "verified",
+  } as InformationItem;
+
+  assert.deepEqual(
+    addPublishedDocuments(content, [publishedDocument]).groups.documents.map((entry) => entry.sourceId),
+    ["google-research-blog", "microsoft-research-blog"],
+  );
 });

@@ -29,8 +29,8 @@ function batch(id: string): AcquisitionBatch {
 
 test("worker continues after one batch fails and reports queue health", async () => {
   const queue: AcquisitionWorkItem[] = [
-    { batch: batch("batch:failed"), payloadHash: "a".repeat(64), rawPayload: "{}", attempt: 1 },
-    { batch: batch("batch:succeeded"), payloadHash: "b".repeat(64), rawPayload: "{}", attempt: 1 },
+    { batch: batch("batch:failed"), payloadHash: "a".repeat(64), rawPayload: "{}", attempt: 1, claimToken: "claim-failed" },
+    { batch: batch("batch:succeeded"), payloadHash: "b".repeat(64), rawPayload: "{}", attempt: 1, claimToken: "claim-succeeded" },
   ];
   const completed: string[] = [];
   const failed: Array<{ batchId: string; disposition?: string }> = [];
@@ -41,7 +41,7 @@ test("worker continues after one batch fails and reports queue health", async ()
     async complete(batchId) {
       completed.push(batchId);
     },
-    async fail(batchId, _error, disposition) {
+    async fail(batchId, _claimToken, _error, disposition) {
       failed.push({ batchId, disposition });
       return disposition === "quarantined" ? "quarantined" : "retryable";
     },
@@ -83,6 +83,7 @@ test("worker does not retry the same failed batch again during one run", async (
     payloadHash: "c".repeat(64),
     rawPayload: "{}",
     attempt: 1,
+    claimToken: "claim-failed-once",
   };
   let attempts = 0;
   const inbox: AcquisitionWorkerInbox = {
@@ -116,6 +117,7 @@ test("worker quarantines deterministic processing failures without retrying", as
     payloadHash: "d".repeat(64),
     rawPayload: "{}",
     attempt: 1,
+    claimToken: "claim-invalid",
   };
   const dispositions: string[] = [];
   const inbox: AcquisitionWorkerInbox = {
@@ -123,7 +125,7 @@ test("worker quarantines deterministic processing failures without retrying", as
       return excluded.has(work.batch.batchId) ? null : work;
     },
     async complete() {},
-    async fail(_batchId, _error, disposition) {
+    async fail(_batchId, _claimToken, _error, disposition) {
       dispositions.push(disposition ?? "retryable");
       return disposition === "quarantined" ? "quarantined" : "retryable";
     },

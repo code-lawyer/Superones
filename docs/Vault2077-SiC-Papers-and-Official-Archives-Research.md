@@ -1,7 +1,7 @@
 ---
 type: research
 status: historical
-updated: 2026-07-24
+updated: 2026-07-31
 ---
 
 # Vault2077 SiC：论文雷达、论文解析与官方技术档案研究
@@ -30,7 +30,7 @@ SiC 的固定来源体系增加三个内容组：
 
 | 候选源 | 类型与更新能力 | 可采集入口 | 结论 | 主要理由 |
 |---|---|---|---|---|
-| [Hugging Face Daily Papers](https://huggingface.co/papers) | 每日论文流，同时提供日、周、月视图和社区热度 | 官方页面；`huggingface_hub` 提供 [`list_daily_papers`](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)；底层有结构化 Daily Papers 数据 | **推荐** | 活跃、结构化、面向 AI 研究；可直接保留上游排序和热度，不需要 SiC 自建论文评分 |
+| [Hugging Face Daily Papers](https://huggingface.co/papers) | 每日论文流，同时提供日、周、月视图和社区热度 | 官方页面；`huggingface_hub` 提供 [`list_daily_papers`](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)；底层有结构化 Daily Papers 数据和 upvotes | **推荐** | 活跃、结构化、面向 AI 研究；生产实现读取指定周全集并按官方 upvotes 本地排序，不自建论文评分，也不直接采用会混入跨周条目的 trending 响应 |
 | [DAIR.AI AI Papers of the Week](https://github.com/dair-ai/ML-Papers-of-the-Week) | 人工维护的每周 AI 论文清单 | 官方 GitHub 仓库中的年度与周目录 | **推荐** | 固定团队持续编辑、周频适合深度阅读，与 HF 的每日热度互补 |
 | [karpathy/arxiv-sanity-lite](https://github.com/karpathy/arxiv-sanity-lite) | 定期从 arXiv 拉取论文，并按用户标签做 TF-IDF/SVM 个性化推荐 | MIT 开源项目，可自部署 | **保留为基础设施参考** | 它是个人兴趣推荐器，不是全站统一的“重要论文榜”；适合未来做用户订阅，不适合作为 SiC 首版公共榜单 |
 | [Papers with Code 数据仓库](https://github.com/paperswithcode/paperswithcode-data) | 历史论文、代码、数据集与评测表数据 | CC-BY-SA 数据仓库 | **拒绝作为实时源；仅保留历史档案价值** | 公开仓库当前只适合作为存量数据参考，无法证明仍持续生成可靠的新论文流；不应让其历史名气掩盖实时性问题 |

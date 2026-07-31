@@ -117,7 +117,7 @@ test("processor routes information and publications through domestic adapters", 
   });
   assert.equal(sicResult.publications, 1);
   assert.equal(calls.length, 2);
-  assert.equal(requireNoQuarantine, true);
+  assert.equal(requireNoQuarantine, false);
   const content = calls[0].value as { information: Array<{ originalTitle: string }> };
   assert.equal(content.information[0].originalTitle, "A material event");
   const publications = calls[1].value as {
@@ -132,6 +132,59 @@ test("processor routes information and publications through domestic adapters", 
   assert.equal(publications.items[0].canonicalId, "arxiv:2607.00001");
   assert.equal(publications.items[0].discoveryUrl, "https://huggingface.co/papers/2607.00001");
   assert.equal(publications.items[0].provenanceStatus, "verified");
+});
+
+test("one malformed information record downgrades its source without blocking valid records", async () => {
+  const value = mixedBatch();
+  const invalid = structuredClone(value.records[0]);
+  invalid.recordId = "information:test:invalid";
+  invalid.externalId = "story-invalid";
+  invalid.canonicalUrl = "https://example.com/invalid";
+  invalid.contentHash = "c".repeat(64);
+  delete invalid.payload.originalTitle;
+  value.records = [value.records[0], invalid];
+  value.sourceReports = [{ ...value.sourceReports[0], recordCount: 2 }];
+  let received = 0;
+  let reportStatus = "";
+  const processor = createAcquisitionBatchProcessor({
+    async processContent(content, _hash, options) {
+      received = (content as { information: unknown[] }).information.length;
+      reportStatus = options?.snapshot?.sourceReports[0]?.status ?? "";
+    },
+  });
+  const result = await processor(value, { payloadHash: "9".repeat(64), attempt: 1 });
+  assert.equal(received, 1);
+  assert.equal(reportStatus, "partial");
+  assert.equal(result.information, 1);
+});
+
+test("one malformed SiC publication does not block the valid source snapshot", async () => {
+  const value = mixedBatch();
+  value.batchId = "batch:sic:partial";
+  value.lane = "sic";
+  value.scheduleId = "schedule:test:sic";
+  const valid = value.records[1];
+  const invalid = structuredClone(valid);
+  invalid.recordId = "publication:test:invalid";
+  invalid.externalId = "publication-invalid";
+  invalid.canonicalUrl = "https://example.org/invalid";
+  invalid.contentHash = "c".repeat(64);
+  delete invalid.payload.title;
+  value.records = [valid, invalid];
+  value.sourceReports = [{ ...value.sourceReports[1], recordCount: 2 }];
+  let itemCount = 0;
+  let reportStatus = "";
+  const processor = createAcquisitionBatchProcessor({
+    async processPublications(content) {
+      const packet = content as { items: unknown[]; reports: Array<{ status: string }> };
+      itemCount = packet.items.length;
+      reportStatus = packet.reports[0]?.status ?? "";
+    },
+  });
+  const result = await processor(value, { payloadHash: "8".repeat(64), attempt: 1 });
+  assert.equal(itemCount, 1);
+  assert.equal(reportStatus, "partial");
+  assert.equal(result.publications, 1);
 });
 
 test("processor persists every ranking provider without invoking the LLM", async () => {
@@ -192,6 +245,34 @@ test("processor fails visibly when a record kind has no domestic adapter", async
     processor(value, { payloadHash: "d".repeat(64), attempt: 1 }),
     /尚未覆盖/,
   );
+});
+
+test("an unsupported SiC profile does not block a valid publication in the same batch", async () => {
+  const value = mixedBatch();
+  value.batchId = "batch:sic:profile-isolation";
+  value.lane = "sic";
+  value.scheduleId = "schedule:test:sic";
+  const publication = value.records[1];
+  value.records = [publication, {
+    ...value.records[0],
+    kind: "entity_profile",
+    recordId: "profile:test:isolated",
+    sourceId: "profile-source",
+  }];
+  value.sourceReports = [
+    value.sourceReports[1],
+    { ...value.sourceReports[0], sourceId: "profile-source", recordCount: 1 },
+  ];
+  let writes = 0;
+  const processor = createAcquisitionBatchProcessor({
+    async processPublications() {
+      writes += 1;
+    },
+  });
+  const result = await processor(value, { payloadHash: "7".repeat(64), attempt: 1 });
+  assert.equal(writes, 1);
+  assert.equal(result.publications, 1);
+  assert.equal(result.profiles, 0);
 });
 
 test("processor rejects an unsupported mixed batch before any write", async () => {

@@ -1,5 +1,5 @@
 [Unit]
-Description=Vault2077 Frontier hourly observation and settlement
+Description=Vault2077 Frontier daytime observation and settlement
 After=network-online.target postgresql.service
 Wants=network-online.target
 

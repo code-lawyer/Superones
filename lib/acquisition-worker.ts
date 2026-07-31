@@ -34,13 +34,15 @@ export type AcquisitionBatchProcessor = (
 
 export type AcquisitionWorkerInbox = {
   claimNext(excludedBatchIds?: ReadonlySet<string>): Promise<AcquisitionWorkItem | null>;
-  complete(batchId: string): Promise<void>;
+  complete(batchId: string, claimToken: string): Promise<void>;
   fail(
     batchId: string,
+    claimToken: string,
     error: unknown,
     disposition?: AcquisitionFailureDisposition,
   ): Promise<AcquisitionInboxStatus>;
   stats(): Promise<AcquisitionInboxStats>;
+  prune?(): Promise<number>;
 };
 
 export function createAcquisitionWorker(input: {
@@ -86,7 +88,7 @@ export function createAcquisitionWorker(input: {
           payloadHash: work.payloadHash,
           attempt: work.attempt,
         });
-        await input.inbox.complete(work.batch.batchId);
+        await input.inbox.complete(work.batch.batchId, work.claimToken);
         const durationMs = Date.now() - startedAt;
         processed.push({
           batchId: work.batch.batchId,
@@ -110,7 +112,7 @@ export function createAcquisitionWorker(input: {
         const disposition = error instanceof AcquisitionQuarantineError
           ? "quarantined"
           : "retryable";
-        const status = await input.inbox.fail(work.batch.batchId, error, disposition);
+        const status = await input.inbox.fail(work.batch.batchId, work.claimToken, error, disposition);
         failed.push({
           batchId: work.batch.batchId,
           runId: work.batch.runId,
@@ -124,10 +126,12 @@ export function createAcquisitionWorker(input: {
       }
     }
 
+    const pruned = await input.inbox.prune?.() ?? 0;
     return {
       processed,
       failed,
       warnings,
+      pruned,
       queue: await input.inbox.stats(),
     };
   }

@@ -46,20 +46,6 @@ type ContentState = {
   projectCount: number;
 };
 
-type Correction = {
-  id: string;
-  issueType: "incorrect_merge" | "factual_error" | "source_unavailable";
-  recordType: "event" | "information";
-  recordId: string;
-  pageUrl: string;
-  description: string;
-  evidenceUrl: string;
-  email: string | null;
-  status: "open" | "closed";
-  createdAt: string;
-  resolution: string | null;
-};
-
 type OpcOrderStatus = "awaiting_payment" | "paid" | "completed" | "cancelled" | "refunded";
 
 type OpcOrder = {
@@ -129,7 +115,7 @@ class AdminApiError extends Error {
 }
 
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; seasonConfiguration?: FrontierSeasonConfiguration; state?: ContentState; corrections?: Correction[]; orders?: OpcOrder[]; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; seasonConfiguration?: FrontierSeasonConfiguration; state?: ContentState; orders?: OpcOrder[]; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) {
     throw new AdminApiError(
       typeof body?.error === "string" ? body.error : "请求暂时无法完成。",
@@ -146,7 +132,6 @@ export function AdminConsole() {
   const [seasonConfiguration, setSeasonConfiguration] = useState<FrontierSeasonConfiguration | null>(null);
   const [seasonReward, setSeasonReward] = useState("");
   const [contentState, setContentState] = useState<ContentState | null>(null);
-  const [corrections, setCorrections] = useState<Correction[]>([]);
   const [orders, setOrders] = useState<OpcOrder[]>([]);
   const [password, setPassword] = useState("");
   const [loginMode, setLoginMode] = useState<AdminLoginMode | null>(null);
@@ -158,26 +143,23 @@ export function AdminConsole() {
   const [pending, setPending] = useState(false);
 
   const load = useCallback(async () => {
-    const [response, summaryResponse, correctionsResponse, ordersResponse] = await Promise.all([
+    const [response, summaryResponse, ordersResponse] = await Promise.all([
       fetch("/api/admin/frontier", { cache: "no-store" }),
       fetch("/api/admin/content?section=summary", { cache: "no-store" }),
-      fetch("/api/admin/content?section=corrections", { cache: "no-store" }),
       fetch("/api/admin/content?section=orders", { cache: "no-store" }),
     ]);
-    if ([response, summaryResponse, correctionsResponse, ordersResponse].some((item) => item.status === 401)) {
+    if ([response, summaryResponse, ordersResponse].some((item) => item.status === 401)) {
       setSubmissions(null);
       setDonations([]);
       setSeasonConfiguration(null);
       setSeasonReward("");
       setContentState(null);
-      setCorrections([]);
       setOrders([]);
       return;
     }
     const body = await jsonMessage(response);
-    const [summary, correctionData, orderData] = await Promise.all([
+    const [summary, orderData] = await Promise.all([
       jsonMessage(summaryResponse),
-      jsonMessage(correctionsResponse),
       jsonMessage(ordersResponse),
     ]);
     setSubmissions(Array.isArray(body?.submissions) ? body.submissions : []);
@@ -185,7 +167,6 @@ export function AdminConsole() {
     setSeasonConfiguration(body?.seasonConfiguration ?? null);
     setSeasonReward(body?.seasonConfiguration?.officialReward ?? "");
     setContentState(summary?.state ?? null);
-    setCorrections(Array.isArray(correctionData?.corrections) ? correctionData.corrections : []);
     setOrders(Array.isArray(orderData?.orders) ? orderData.orders : []);
   }, []);
 
@@ -342,37 +323,8 @@ export function AdminConsole() {
     setSeasonConfiguration(null);
     setSeasonReward("");
     setContentState(null);
-    setCorrections([]);
     setOrders([]);
     setNotice("");
-  }
-
-  async function closeCorrection(correction: Correction) {
-    const resolution = window.prompt("填写处理说明（6–500 字）；说明会进入内部审计记录。", correction.resolution ?? "");
-    if (!resolution || resolution.trim().length < 6) return;
-    if (!window.confirm(`确认关闭纠错报告 ${correction.id}？`)) return;
-    setPending(true);
-    setError("");
-    setNotice("");
-    try {
-      const response = await fetch("/api/admin/content", {
-        method: "POST",
-        headers: adminMutationHeaders,
-        body: JSON.stringify({
-          action: "close-correction",
-          correctionId: correction.id,
-          resolution: resolution.trim(),
-          confirm: true,
-        }),
-      });
-      const body = await jsonMessage(response);
-      setCorrections(Array.isArray(body?.corrections) ? body.corrections : []);
-      setNotice("纠错报告已关闭并写入审计记录。");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "暂时无法关闭纠错。");
-    } finally {
-      setPending(false);
-    }
   }
 
   async function updateOpcOrder(order: OpcOrder, status: OpcOrderStatus) {
@@ -457,7 +409,6 @@ export function AdminConsole() {
     <section className="admin-console">
       <nav className="admin-console__navigation" aria-label="后台功能">
         <a href="#admin-overview"><span className="mono">READ ONLY</span><strong>运行概览</strong><small>自动资讯与榜单状态</small></a>
-        <a href="#admin-corrections"><span className="mono">EXCEPTION</span><strong>内容异常</strong><small>只处理用户纠错报告</small></a>
         <a href="/sources"><span className="mono">GOVERNANCE</span><strong>来源组合</strong><small>查看受控来源目录</small></a>
         <a href="#admin-opc"><span className="mono">EDITABLE</span><strong>OPC 菜单</strong><small>人工服务目录</small></a>
         <a href="#admin-opc-orders"><span className="mono">PAYMENT</span><strong>OPC 订单</strong><small>联系与到账核验</small></a>
@@ -596,33 +547,6 @@ export function AdminConsole() {
                 ) : null}
                 {order.status === "completed" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button> : null}
               </div>
-            </article>
-          ))}
-        </div>
-      </section>
-      <section className="admin-donations" id="admin-corrections" aria-labelledby="admin-corrections-title">
-        <div className="admin-section-heading">
-          <p className="eyebrow mono">CONTENT / CORRECTIONS</p>
-          <h2 id="admin-corrections-title">匿名纠错报告</h2>
-        </div>
-        <div className="admin-donation-list">
-          {corrections.length === 0 ? <p className="ranking-empty">当前没有纠错报告。</p> : corrections.map((correction) => (
-            <article key={correction.id}>
-              <div>
-                <p className="mono muted">{correction.issueType} / {correction.status} / {correction.recordType}</p>
-                <h3>{correction.recordId}</h3>
-                <p>{correction.description}</p>
-                <p><a href={correction.evidenceUrl} target="_blank" rel="noreferrer">查看原始依据 ↗</a></p>
-              </div>
-              <div className="admin-donation-meta">
-                <span className="mono">{correction.email ?? "匿名"}</span>
-                <time className="mono">{new Date(correction.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
-              </div>
-              {correction.status === "open" ? (
-                <div className="admin-actions">
-                  <button className="text-action" type="button" disabled={pending} onClick={() => closeCorrection(correction)}>记录处理并关闭</button>
-                </div>
-              ) : <p className="form-note">{correction.resolution}</p>}
             </article>
           ))}
         </div>

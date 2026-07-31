@@ -1,7 +1,12 @@
 import "server-only";
 
 import { getSicStoredContent } from "./sic-content-store.ts";
-import { SIC_CONTENT_GROUP_IDS, type SicContentGroupId, type SicContentItem } from "./sic-content-types.ts";
+import {
+  SIC_CONTENT_GROUP_IDS,
+  type SicContentGroupId,
+  type SicContentItem,
+  type SicContentState,
+} from "./sic-content-types.ts";
 import type { InformationItem } from "./types.ts";
 
 export type SicContentByGroup = Record<SicContentGroupId, SicContentItem[]>;
@@ -22,23 +27,38 @@ export function latestSicContentPerSource(items: SicContentItem[]) {
     });
 }
 
+export function latestSicPapers(items: SicContentItem[]) {
+  return [...items].sort((left, right) => {
+    if (left.rankingWeek && right.rankingWeek && left.rankingWeek !== right.rankingWeek) {
+      return right.rankingWeek.localeCompare(left.rankingWeek);
+    }
+    if (left.weeklyRank && right.weeklyRank) return left.weeklyRank - right.weeklyRank;
+    return timestamp(right) - timestamp(left);
+  });
+}
+
 export async function getSicContent() {
   const stored = await getSicStoredContent();
   const groups: SicContentByGroup = { papers: [], documents: [], courses: [], podcasts: [] };
   const updatedAt = stored.state.updatedAt ? Date.parse(stored.state.updatedAt) : 0;
-  if (!updatedAt || Date.now() - updatedAt > 36 * 60 * 60 * 1000) {
-    return { groups, state: stored.state };
-  }
+  const sourceDelayed = stored.reports.some((report) => report.status === "failure" || report.status === "partial");
+  const state = {
+    ...stored.state,
+    stale: sourceDelayed || !updatedAt || Date.now() - updatedAt > 36 * 60 * 60 * 1000,
+  };
   for (const item of stored.items) {
     const group = (item.group as string) === "archive" ? "documents" : item.group;
     groups[group].push({ ...item, group });
   }
-  for (const group of SIC_CONTENT_GROUP_IDS) groups[group] = latestSicContentPerSource(groups[group]);
-  return { groups, state: stored.state };
+  groups.papers = latestSicPapers(groups.papers);
+  for (const group of SIC_CONTENT_GROUP_IDS.filter((value) => value !== "papers")) {
+    groups[group] = latestSicContentPerSource(groups[group]);
+  }
+  return { groups, state };
 }
 
 export function addPublishedDocuments(
-  content: Awaited<ReturnType<typeof getSicContent>>,
+  content: { groups: SicContentByGroup; state: SicContentState },
   information: InformationItem[],
 ) {
   const documents: SicContentItem[] = information
@@ -63,7 +83,10 @@ export function addPublishedDocuments(
     ...content,
     groups: {
       ...content.groups,
-      documents: latestSicContentPerSource(documents),
+      documents: latestSicContentPerSource([
+        ...content.groups.documents,
+        ...documents,
+      ]),
     },
   };
 }

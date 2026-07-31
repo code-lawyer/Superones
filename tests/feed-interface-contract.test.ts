@@ -54,15 +54,33 @@ test("feed entries use whitespace and interaction states instead of hairline sep
   );
 });
 
-test("roadside rows show titles and open an in-page speech dialog", () => {
+test("roadside rows show only viewpoints and time before opening the speech dialog", () => {
   assert.match(feedPage, /getPublicContent\(\)/);
   assert.doesNotMatch(feedPage, /getCachedPublicContent/);
   assert.doesNotMatch(roadsideList, /roadsideHref|from "next\/link"/);
-  assert.match(roadsideList, /<h3>\{item\.translatedTitle\}<\/h3>/);
+  const rowButton = roadsideList.match(/<button[\s\S]*?className="statement-row__link"[\s\S]*?<\/button>/)?.[0] ?? "";
+  assert.match(rowButton, /<h3>\{item\.translatedTitle\}<\/h3>/);
+  assert.match(rowButton, /<time dateTime=\{item\.publishedAt \?\? undefined\}>\{beijingTime\(item\.publishedAt\)\}<\/time>/);
+  assert.match(rowButton, /aria-label=\{`查看观点：\$\{item\.translatedTitle\}`\}/);
+  assert.doesNotMatch(rowButton, /personName\(item\)|account\(item\)|statement-row__open|<header>/);
   assert.match(roadsideList, /aria-haspopup="dialog"/);
   assert.match(roadsideList, /<dialog[\s\S]*?className="roadside-dialog"/);
   assert.match(roadsideList, /roadside-voice__statement/);
   assert.match(roadsideList, /item\.originPlatform === "x" \? 1_800 : 900/);
+  assert.match(feedStyles, /\.statement-row__link\s*\{[\s\S]*?padding:\s*18px 0 20px;/);
+  assert.match(feedStyles, /\.statement-row h3\s*\{[\s\S]*?font-size:\s*var\(--type-body-large\);[\s\S]*?line-height:\s*1\.45;/);
+});
+
+test("information and roadside streams disclose five records at a time", () => {
+  assert.match(feedPage, /const WATERFALL_LIMIT = 5;/);
+  assert.match(feedPage, /const STATEMENT_LIMIT = 5;/);
+});
+
+test("roadside dialog uses a wide reading rail with restrained body type", () => {
+  assert.match(roadsideList, /className="roadside-voice__body"/);
+  assert.match(feedStyles, /\.roadside-dialog\s*\{[\s\S]*?width:\s*min\(920px, calc\(100vw - 48px\)\);/);
+  assert.match(feedStyles, /\.roadside-voice__body\s*\{[\s\S]*?overflow-y:\s*auto;/);
+  assert.match(feedStyles, /\.roadside-voice__statement\s*\{[\s\S]*?max-width:\s*72ch;[\s\S]*?font-size:\s*clamp\(16px, 1\.35vw, 18px\);/);
 });
 
 test("legacy roadside detail URLs return to the feed modal instead of a document page", () => {

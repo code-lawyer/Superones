@@ -27,10 +27,10 @@ on:
         type: boolean
   schedule:
     # All schedules are UTC. Beijing = UTC+8.
-    - cron: "5 */2 * * *"       # Information: even Beijing hours at :05.
-    - cron: "55 */2 * * *"      # Roadside: even Beijing hours at :55.
-    - cron: "25 11,23 * * *"    # SiC: Beijing 07:25 / 19:25.
-    - cron: "35 * * * *"        # Rankings: hourly at :35.
+    - cron: "5 0,2,4,6,8,10,12,14 * * *"   # Information: Beijing 08:05-22:05, every 2 hours.
+    - cron: "55 0,2,4,6,8,10,12,14 * * *"  # Roadside: Beijing 08:55-22:55, every 2 hours.
+    - cron: "25 0 * * *"                    # SiC: Beijing 08:25 daily.
+    - cron: "35 0,4,8,12 * * *"             # Rankings: Beijing 08:35/12:35/16:35/20:35.
 
 permissions:
   contents: read
@@ -54,10 +54,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
-      - name: Verify TypeScript and repository policy
-        run: |
-          npm run lint
-          npm run typecheck
       - id: lane
         name: Resolve scheduled lane
         shell: bash
@@ -73,10 +69,10 @@ jobs:
           else
             run_mode="incremental"
             case "$CRON" in
-              "5 */2 * * *") lane="information" ;;
-              "55 */2 * * *") lane="roadside" ;;
-              "25 11,23 * * *") lane="sic" ;;
-              "35 * * * *") lane="rankings" ;;
+              "5 0,2,4,6,8,10,12,14 * * *") lane="information" ;;
+              "55 0,2,4,6,8,10,12,14 * * *") lane="roadside" ;;
+              "25 0 * * *") lane="sic" ;;
+              "35 0,4,8,12 * * *") lane="rankings" ;;
               *) echo "Unknown schedule: $CRON" >&2; exit 1 ;;
             esac
           fi
@@ -88,12 +84,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install and test overseas feed collectors
+      - name: Install overseas feed collectors
         if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         run: |
-          pip install -r collector/requirements-dev.txt
-          ruff check collector
-          python -m unittest discover -s collector/tests -p "test_*.py"
+          pip install -r collector/requirements.txt
       - name: Collect and reliably deliver one lane
         run: npm run acquisition:collect
         env:

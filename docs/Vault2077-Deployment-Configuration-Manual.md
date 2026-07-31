@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Vault2077 部署配置手册
@@ -25,7 +25,7 @@ updated: 2026-07-30
 | `VAULT2077_PIPELINE_WORKER_SECRET` | 必须独立 | 回环手动处理入口鉴权 |
 | `VAULT2077_FRONTIER_TASKS_SECRET` | 必须独立，仅境内与 GitHub Actions 持有 | 读取已脱敏公开回退任务 |
 | `GITHUB_TOKEN` | Frontier 生产必需 | 境内只读公开仓库快速路径 |
-| `VAULT2077_FRONTIER_TICK_SECRET` | Frontier 生产必需 | 境内每小时观察入口鉴权 |
+| `VAULT2077_FRONTIER_TICK_SECRET` | Frontier 生产必需 | 境内白天每两小时观察入口鉴权 |
 | `VAULT2077_HEALTH_SECRET` | 必需 | 受保护健康/新鲜度检查鉴权 |
 
 所有值由秘密管理注入；生产不得使用开发默认值。每个信任边界必须使用彼此独立的随机密钥，生产配置门禁会拒绝跨用途复用。门禁同时拒绝旧单值 `VAULT2077_DATA_KEY` 和 `VAULT2077_PIPELINE_SHARED_SECRET`。密钥环示例为 `{"2026-07":"至少32字节随机值"}`；环境文件中应整体引用 JSON，GitHub Secret 中保存不带外层引号的 JSON 正文。
@@ -74,7 +74,8 @@ Frontier 生产开放配置：
 | `VAULT2077_SOURCE_BUNDLE_REVISION` | 境内 | 紧急显式修订 |
 | `VAULT2077_ALLOWED_SOURCE_REVISIONS` | 境内 | 灰度期逗号分隔允许修订 |
 | `VAULT2077_ACQUISITION_RUN_MODE` | 采集侧 | `incremental` 或一次性 `bootstrap` |
-| `VAULT2077_ACQUISITION_MAX_ATTEMPTS` | 境内 | 进入 quarantine 前的处理上限 |
+| `VAULT2077_ACQUISITION_MAX_ATTEMPTS` | 境内 | 进入 quarantine 前的处理上限，默认 6 |
+| `VAULT2077_ACQUISITION_RETRY_BASE_MS` | 境内 | worker 指数退避基数，默认 300000ms，单次最多 6 小时 |
 | `VAULT2077_ACQUISITION_WORKER_MAX_BATCHES` | 境内 | 每次 timer 消费的批次数，默认 8 |
 | `VAULT2077_ACQUISITION_MAX_RECORDS` | 两侧 | 单批硬上限 |
 | `VAULT2077_SOURCE_TIMEOUT_SECONDS` | 采集侧 | 单来源超时 |
@@ -99,12 +100,12 @@ Frontier 生产开放配置：
 
 | 逻辑配置 | 内容范围 | 必需隔离项 |
 | --- | --- | --- |
-| `vault_editorial` | information、roadside、Vault 事件编排 | 主提供方、受控备用、队列、并发、预算、超时、熔断 |
-| `sic_editorial` | sic 内容 | 主提供方、受控备用、队列、并发、预算、超时、熔断 |
+| `vault_editorial` | information、roadside、Vault 事件编排 | 主提供方、受控备用、队列、并发、超时、熔断 |
+| `sic_editorial` | sic 内容 | 主提供方、受控备用、队列、并发、超时、熔断 |
 
-两个配置都只在境内持有凭证，均须记录提供方、模型、提示和处理版本。提供方缺失、预算耗尽或两个提供方均失败时，内容保留在队列或隔离区，不得把未经处理的数据伪装成已发布。rankings 以及 Frontier 的确定性核验、观察、排名和结算不得使用编辑模型。
+两个配置都只在境内持有凭证，均须记录提供方、模型、提示和处理版本。请求额度设为 `unlimited`，但仍使用有界并发、超时、连续三次瞬时失败后 60 秒熔断及 inbox 指数退避。两个提供方均失败时，失败条目进入重试或隔离，同批正常条目继续发布；不得把未经处理的数据伪装成已发布。rankings 以及 Frontier 的确定性核验、观察、排名和结算不得使用编辑模型。
 
-变量分别使用 `VAULT2077_VAULT_LLM_*` 与 `VAULT2077_SIC_LLM_*` 前缀；主配置包含 `BASE_URL`、`API_KEY`、`MODEL`、`TIMEOUT_MS`、`CONCURRENCY`、`BATCH_ITEMS`、`MAX_REQUESTS_PER_RUN`，受控备用使用各自的 `FALLBACK_BASE_URL`、`FALLBACK_API_KEY`、`FALLBACK_MODEL` 与 `FALLBACK_TIMEOUT_MS`。旧 `VAULT2077_LLM_*` 只作为非生产迁移期本地预览兼容层，生产会拒绝只提供旧配置。
+变量分别使用 `VAULT2077_VAULT_LLM_*` 与 `VAULT2077_SIC_LLM_*` 前缀；主配置包含 `BASE_URL`、`API_KEY`、`MODEL`、`TIMEOUT_MS`、`CONCURRENCY`、`BATCH_ITEMS`，可选的 `MAX_REQUESTS_PER_RUN` 缺省或设为 `unlimited` 表示无限额度。受控备用使用各自的 `FALLBACK_BASE_URL`、`FALLBACK_API_KEY`、`FALLBACK_MODEL` 与 `FALLBACK_TIMEOUT_MS`。旧 `VAULT2077_LLM_*` 只作为非生产迁移期本地预览兼容层，生产会拒绝只提供旧配置。
 
 ## 5. 数据
 
@@ -136,7 +137,7 @@ Frontier 生产开放配置：
 
 `VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。Next 生产进程只有在显式设置 `VAULT2077_ALLOW_FILE_PREVIEW=true` 时才允许文件模式，该开关只用于 E2E/本地预览，生产部署必须保持关闭。
 
-生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0005_admin_sessions.sql`，迁移文件应用后不得修改。
+生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与有界连接池，并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
 
 阿里云首个商用版本优先使用 RDS PostgreSQL，而不是把 PostgreSQL 与 Node 放在同一台轻量服务器。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动备份、日志备份/时间点恢复、删除保护和监控；上线前从生产备份恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 当前也不需要；只有原始包/长期归档体量超过数据库保留策略后，才通过新 ADR 引入私有 Bucket、服务端加密、生命周期与恢复验证。
 
@@ -144,14 +145,16 @@ Frontier 生产开放配置：
 
 目标只保留一个境外采集 workflow，支持四 lane：
 
-- information：北京时间偶数小时 `:05`
-- roadside：北京时间偶数小时 `:55`
-- sic：北京时间 `07:25`、`19:25`
-- rankings：每小时
+- information：北京时间 `08:05–22:05`，每两小时
+- roadside：北京时间 `08:55–22:55`，每两小时
+- sic：北京时间每日 `08:25`
+- rankings：北京时间 `08:35/12:35/16:35/20:35`
+- Frontier：北京时间 `08:45–22:45`，每两小时
+- 全仓质量检查：北京时间每日 `06:30`，并在 pull request / `main` push 执行
 
 计划任务必须要求成功投递。交付模块对瞬时网络错误做最多四次同批次重试，但 GitHub 定时任务仍可能延迟或被平台丢弃，因此必须以境内内容新鲜度告警发现漏跑，并通过 `workflow_dispatch` 使用新的 schedule ID 补跑。workflow 权限保持 `contents: read`，artifact 不得含密钥、邮箱或后台数据。
 
-GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥、版本化签名密钥环和活动 key ID，不得持有 worker、后台、用户数据或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。境内安装并启用 `vault2077-acquisition-worker.{service,timer}`，每五分钟消费 inbox；Frontier 每小时执行 `npm run frontier:tick`。两类任务都以 systemd 退出码、append-only 审计和 `/api/internal/health` 判断成功，并配置失败告警和错过任务补跑策略。
+GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥、版本化签名密钥环和活动 key ID，不得持有 worker、后台、用户数据或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。境内安装并启用 `vault2077-acquisition-worker.{service,timer}`，每五分钟消费 inbox、执行到期重试并清理保留期外记录；Frontier 在白天每两小时执行 `npm run frontier:tick`。两类任务都以 systemd 退出码、append-only 审计和 `/api/internal/health` 判断成功，并配置失败告警和错过任务补跑策略。
 
 Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限流、缓存或条件请求并记录最近成功时间。普通页面不得触发 GitHub 请求；直读失败必须转为只含公开仓库标识的 rankings 回退任务。
 

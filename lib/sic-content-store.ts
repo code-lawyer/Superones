@@ -4,22 +4,24 @@ import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } 
 import type { SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
 
 type SicContentStore = {
-  version: 1;
+  version: 2;
   updatedAt: string | null;
   items: SicContentItem[];
   reports: SicSourceCollectionReport[];
+  sourceSnapshots: Record<string, { snapshotId: string; collectedAt: string }>;
 };
 
 function emptyStore(): SicContentStore {
-  return { version: 1, updatedAt: null, items: [], reports: [] };
+  return { version: 2, updatedAt: null, items: [], reports: [], sourceSnapshots: {} };
 }
 
 function parseStore(value: unknown): SicContentStore {
-  const parsed = value as SicContentStore;
-  if (parsed.version !== 1 || !Array.isArray(parsed.items) || !Array.isArray(parsed.reports)) {
+  const parsed = value as SicContentStore | (Omit<SicContentStore, "version" | "sourceSnapshots"> & { version: 1 });
+  const store = parsed.version === 1 ? { ...parsed, version: 2 as const, sourceSnapshots: {} } : parsed;
+  if (store.version !== 2 || !Array.isArray(store.items) || !Array.isArray(store.reports) || !store.sourceSnapshots) {
     throw new Error("SiC 内容库格式无效。");
   }
-  return parsed;
+  return store;
 }
 
 const sicDocument: StateDocumentDefinition<SicContentStore> = {
@@ -77,6 +79,8 @@ export function mergeSicContentItems(
       translatedTitle: item.translatedTitle ?? previous?.translatedTitle,
       description: item.description ?? previous?.description,
       contentSummary: item.contentSummary ?? previous?.contentSummary,
+      editorialLocale: item.editorialLocale ?? previous?.editorialLocale,
+      editorialVersion: item.editorialVersion ?? previous?.editorialVersion,
     });
   }
   return [...merged.values()]
@@ -84,15 +88,83 @@ export function mergeSicContentItems(
     .slice(0, 2_000);
 }
 
-export async function mergeSicStoredContent(input: { items: SicContentItem[]; reports: SicSourceCollectionReport[]; updatedAt?: string }) {
+export function mergeSicSourceReports(
+  current: SicSourceCollectionReport[],
+  incoming: SicSourceCollectionReport[],
+) {
+  const merged = new Map(current.map((report) => [report.sourceId, report]));
+  for (const report of incoming) {
+    const previous = merged.get(report.sourceId);
+    if (!previous || Date.parse(report.collectedAt) > Date.parse(previous.collectedAt)) {
+      merged.set(report.sourceId, report);
+      continue;
+    }
+    if (Date.parse(report.collectedAt) < Date.parse(previous.collectedAt)) continue;
+    const status = previous.status === "partial" || report.status === "partial"
+      ? "partial"
+      : previous.status === "failure" && report.status === "failure"
+        ? "failure"
+        : previous.status === "failure" || report.status === "failure"
+          ? "partial"
+          : previous.status === "success" || report.status === "success"
+            ? "success"
+            : "empty";
+    const error = [...new Set([previous.error, report.error].filter(Boolean))].join("；");
+    merged.set(report.sourceId, {
+      ...report,
+      status,
+      itemCount: previous.itemCount + report.itemCount,
+      ...(error ? { error } : {}),
+    });
+  }
+  return [...merged.values()].sort((left, right) => left.sourceId.localeCompare(right.sourceId));
+}
+
+export async function mergeSicStoredContent(input: {
+  items: SicContentItem[];
+  reports: SicSourceCollectionReport[];
+  updatedAt?: string;
+  snapshotId?: string;
+  activeSourceIds?: string[];
+}) {
   return mutateStateDocument(sicDocument, (current) => {
-    const replaceSourceIds = new Set(input.reports
-      .filter((report) => report.sourceId === "google-ml-courses" && report.status === "success")
-      .map((report) => report.sourceId));
-    const items = mergeSicContentItems(current.items, input.items, { replaceSourceIds });
-    current.updatedAt = input.updatedAt ?? new Date().toISOString();
-    current.items = items;
-    current.reports = input.reports;
+    const collectedAt = input.updatedAt ?? new Date().toISOString();
+    const snapshotId = input.snapshotId ?? collectedAt;
+    if (input.activeSourceIds) {
+      const activeSourceIds = new Set(input.activeSourceIds);
+      current.items = current.items.filter((item) => activeSourceIds.has(item.sourceId));
+      current.reports = current.reports.filter((report) => activeSourceIds.has(report.sourceId));
+      for (const sourceId of Object.keys(current.sourceSnapshots)) {
+        if (!activeSourceIds.has(sourceId)) delete current.sourceSnapshots[sourceId];
+      }
+    }
+    const incomingBySource = new Map<string, SicContentItem[]>();
+    for (const item of input.items) {
+      const values = incomingBySource.get(item.sourceId) ?? [];
+      values.push(item);
+      incomingBySource.set(item.sourceId, values);
+    }
+    const replaceSourceIds = new Set<string>();
+    const effectiveIncoming: SicContentItem[] = [];
+    for (const report of input.reports) {
+      if (report.status === "failure") continue;
+      const previous = current.sourceSnapshots[report.sourceId];
+      if (previous && Date.parse(collectedAt) < Date.parse(previous.collectedAt)) continue;
+      const incoming = incomingBySource.get(report.sourceId) ?? [];
+      if (report.itemCount > 0 && incoming.length === 0) continue;
+      replaceSourceIds.add(report.sourceId);
+      if (previous?.snapshotId === snapshotId) {
+        effectiveIncoming.push(...current.items.filter((item) => item.sourceId === report.sourceId));
+      }
+      effectiveIncoming.push(...incoming);
+      current.sourceSnapshots[report.sourceId] = { snapshotId, collectedAt };
+    }
+    current.items = mergeSicContentItems(current.items, effectiveIncoming, { replaceSourceIds });
+    current.updatedAt = Object.values(current.sourceSnapshots)
+      .map((snapshot) => snapshot.collectedAt)
+      .sort()
+      .at(-1) ?? current.updatedAt;
+    current.reports = mergeSicSourceReports(current.reports, input.reports);
     return { items: current.items, reports: current.reports, state: state(current) };
   });
 }

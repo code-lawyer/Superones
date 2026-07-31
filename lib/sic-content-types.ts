@@ -13,11 +13,16 @@ export type SicContentItem = {
   description?: string;
   summary: string;
   contentSummary?: string;
+  editorialLocale?: "zh-CN";
+  editorialVersion?: number;
   url: string;
   publishedAt: string | null;
   collectedAt: string;
   canonicalId?: string;
   discoveryUrl?: string;
+  rankingWeek?: string;
+  weeklyRank?: number;
+  weeklyUpvotes?: number;
   provenanceStatus?: "verified" | "declared";
 };
 
@@ -33,4 +38,5 @@ export type SicContentState = {
   updatedAt: string | null;
   itemCount: number;
   sourceCount: number;
+  stale?: boolean;
 };

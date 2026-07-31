@@ -15,20 +15,20 @@ updated: 2026-07-31
 | 领域 | 状态 | 证据/缺口 |
 | --- | --- | --- |
 | 首页与四频道公开页面 | done | Next.js 路由、响应式样式和正式页面实现存在 |
-| Vault 事件/资讯阅读 | partial | 基础阅读、事件引用、相关资讯 20 条分批加载和匿名纠错提交/关闭已实现；纠错后的拆分/移入/隐藏操作仍未闭环 |
+| Vault 事件/资讯阅读 | done | 当前资讯快照、事件永久证据副本、相关证据 20 条分批加载和匿名问题报告已实现；后台不提供拆分/移入/隐藏操作 |
 | OPC 三入口业务模型 | partial | 三入口、七项基础设施、十四项专项服务、六领域和十类顾问身份已实现；21 项服务已有完整页面字段、人民币公开价和无账号下单入口，真实支付宝收款资料仍待输入；默认游骑兵名录为空，不展示样例档案 |
 | SiC 内容组 | partial | 页面与存储已实现；档案来源已迁入 SiC 单一路由并由 sic 通道采集，公开术语仍需完成“文档”到“档案”的迁移 |
 | SiC 平台原生榜 | done | 原生顺序、last-success 保留和 stale 明示已实现 |
 | 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等、后台逐赛季奖励草稿/发布和预览边界已实现；当前赛季真实奖励仍待运营发布 |
 | 无账户公开产品 | done | 公开用户无需站内账户 |
-| 运营后台 | partial | 独立管理来源、阿里云 IDaaS OIDC 授权码/state/nonce/PKCE/ID Token 校验、唯一 owner 白名单、PostgreSQL 可撤销会话、同源写请求防护、五分钟再认证、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；真实 IDaaS/防火墙绕过测试与内容纠错实际编辑动作仍待目标环境验收 |
+| 运营后台 | partial | 阿里云 IDaaS OIDC 授权码/state/nonce/PKCE/ID Token 校验、唯一 owner 白名单、PostgreSQL 可撤销会话、同源写请求防护、五分钟再认证、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；资讯、事件、SiC、榜单与逐条纠错处置均不进入后台；真实 IDaaS/防火墙绕过测试仍待目标环境验收 |
 | 统一采集批次/inbox | done | 四 lane、带 key ID 的签名密钥环、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
-| 四采集通道 | done | `collect-content.yml` 支持四通道，rankings 每小时 `:35`；旧境外投递/处理实现已删除，Node 模块独占签名和有界重试 |
+| 四采集通道 | done | `collect-content.yml` 按白天低频节奏支持四通道；采集 job 与 PR/push/每日质量门禁已拆分，Node 模块独占签名和有界重试 |
 | 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；待阿里云目标服务器安装、退出码告警和积压恢复演练 |
 | 上线基线与初始化回填 | partial | 显式 bootstrap、SiC 每 approved 来源最近一条、Vault 30 天窗口、有界批次和同合同幂等已实现；尚未在生产修订执行并保存逐来源证据 |
-| 频道编辑配置 | partial | 双配置路由、独立并发/批量/预算、主/受控备用与生产拒绝旧全局配置已实现；目标提供方容量、长积压和切换审计演练未完成 |
+| 频道编辑配置 | partial | 双配置路由、独立并发/批量/超时/熔断、无限额度、主/受控备用与生产拒绝旧全局配置已实现；目标提供方容量、长积压和切换审计演练未完成 |
 | 内容单一主路由 | done | 机构新闻与 SiC 深度档案使用独立注册表；bundle 不再包含 documents；HN/Lobsters 外链晋升链路已删除 |
-| 单一境外采集 workflow | done | `.github/workflows` 只保留 `collect-content.yml`，四 lane 共用一个合同和接收端；workflow 不持有 worker/LLM 密钥、不调用境内处理 |
+| 单一境外采集 workflow | done | 采集只使用 `collect-content.yml`，四 lane 共用一个合同和接收端；另有独立 `quality-check.yml` 负责 PR、main push 与每日质量门禁；采集 workflow 不持有 worker/LLM 密钥、不调用境内处理 |
 | Frontier GitHub 混合访问 | partial | 境内短超时、有界并发、持久化限速、缓存/条件请求、审计和公开任务回退代码已闭环；尚缺生产凭证与真实故障演练 |
 | Frontier 境内业务调度 | partial | `npm run frontier:tick`、审计和 systemd service/timer 模板已实现；待目标服务器安装 timer、接入告警并保存运行证据 |
 | 生产持久化 | partial | PostgreSQL state adapter、专用 inbox/安全表、版本迁移和生产 fail-closed 已实现；真实数据库迁移、自动备份、恢复和容量证据未完成 |
@@ -44,10 +44,10 @@ updated: 2026-07-31
 | 事件簿、资讯瀑布、详情、来源回链 | partial | 公开路由存在；详情判断尚未强制证据引用 |
 | 双语正文结构与安全渲染 | done | v2 兼容 `contentFormat`、采集/处理换行保真、受控 Markdown 渲染、旧压平记录迁移与回归测试已实现 |
 | information/roadside 分流 | done | 数据模型和页面支持 |
-| 偶数小时 `:05` / `:55` 调度 | done | `collect-content.yml` 已配置 |
+| 白天每两小时 `:05` / `:55` 调度 | done | `collect-content.yml` 已配置 08:05–22:55 运行窗，00:00–08:00 不采集 |
 | 生产不回退演示数据 | done | Vault 读取失败返回显式 degraded 空态，演示数据仅用于非生产 |
 | 默认 20 条与继续加载 | done | 事件详情默认 20 条，URL 驱动每次继续加载 20 条直到全部可访问 |
-| 匿名纠错闭环 | partial | 三类报告、原始依据、可选加密邮箱、持久化限速和后台审计关闭已实现；实际拆分/移入/隐藏编辑操作待补 |
+| 匿名问题报告 | done | 三类报告、原始依据、可选加密邮箱和持久化限速已实现；报告不授予后台内容编辑能力 |
 | 事件晋升质量证据 | partial | 规则与测试存在，仍需真实数据验收 |
 
 ### OPC
@@ -71,7 +71,8 @@ updated: 2026-07-31
 | 四内容组 | partial | 组数与页面已实现，但 `documents` 尚未迁移为规范中的“档案” |
 | OpenGithubs/HF/OpenRouter 榜单 | done | GitHub 榜经官方 REST API 获取第三方聚合结果；提供方顺序、last-success 保留和 stale 明示已实现 |
 | 无 MCP、无本地增量 | done | 当前规范与榜单模块一致，旧 SiC 写接口已删除 |
-| 每日 `07:25`/`19:25` 内容通道 | done | workflow 已配置 |
+| 每日 `08:25` 内容通道 | done | workflow 已配置；周论文每次读取本周全集并按 API upvotes 本地重排 |
+| 周论文中文编辑门禁 | done | 统一采集保留周次/排名/票数；只有带 zh-CN 编辑标记和当前版本的结果才可作为中文成品 |
 | 来源目录计数与状态一致 | done | SiC 注册表为 34=26 approved+7 retired+1 pending_review；目录与注册表同次修订 |
 | 来源目录字段级一致 | partial | 来源 bundle 已执行新闻/档案去重；仍需把全部字段和 institutional news 注册表纳入文档自动校验 |
 
@@ -80,7 +81,7 @@ updated: 2026-07-31
 | 要求 | 状态 | 说明 |
 | --- | --- | --- |
 | 报名、挑战、基线、排名、奖品、结算 | done | 模块存在；重复报名可恢复当前状态，结算具持久租约、失败、重试与幂等结果 |
-| 每小时公开仓库观察 | partial | 境内 tick 可按参赛名单读取并由 systemd timer 调度；目标服务器安装、告警和真实失败演练待完成 |
+| 白天每两小时公开仓库观察 | partial | 境内 tick 可按参赛名单读取并由 systemd timer 在 08:45–22:45 调度；目标服务器安装、告警和真实失败演练待完成 |
 | 交互式 GitHub 快速路径 | partial | 仓库和挑战核验已直读并具短超时、条件请求、持久化限流与审计；待生产凭证验收 |
 | 异步公开任务回退 | done | 境内只输出公开仓库任务，rankings 通道回传签名 observation，成功后移除任务 |
 | 邮箱不离境 | partial | 当前 GitHub 请求只需仓库信息；仍需生产数据库和任务 payload 测试证明 |
@@ -91,7 +92,7 @@ updated: 2026-07-31
 
 | 要求 | 状态 | 下一证据 |
 | --- | --- | --- |
-| PostgreSQL 生产写模型 | partial | 5 个版本迁移、事务聚合、专用 inbox/审计/限速/后台会话表及 PostgreSQL 17 集成测试已实现；缺目标数据库备份恢复与容量测试 |
+| PostgreSQL 生产写模型 | partial | 6 个版本迁移、单调快照、claim token/退避、专用 inbox/审计/限速/后台会话表及 PostgreSQL 17 集成测试已实现；缺目标数据库备份恢复与容量测试 |
 | Redis 可选 | done | 当前未强制引入 |
 | 对象存储可选 | done | 当前未强制引入 |
 | 来源修订白名单 | done | 接收端只接受部署修订和显式灰度重叠修订 |
@@ -107,7 +108,7 @@ updated: 2026-07-31
 | 静态质量门 | done | Next 16 使用 ESLint CLI，Python 使用 Ruff；两者进入 GitHub workflow，vendored Horizon 排除 |
 | 备份恢复演练 | missing | 无日期、RPO/RTO 和恢复结果 |
 | 监控告警 | partial | 受保护 `/api/internal/health` 已覆盖迁移、inbox、内容新鲜度、榜单 stale、Frontier 回退和编辑配置；待接入目标告警平台并演练 |
-| 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、预算和备用配置已实现，PostgreSQL 支持并发 worker；尚缺目标容量和持续积压演练 |
+| 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、超时、熔断和备用配置已实现，额度无限且 PostgreSQL 支持并发 worker；尚缺目标容量和持续积压演练 |
 | 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、不完整 OIDC、非唯一管理员邮箱和旧共享模型 |
 | 生产依赖安全 | done | Next.js 固定为 16.2.11，PostCSS/Sharp 覆盖到修复版本；`npm audit --omit=dev --audit-level=high` 为 0 漏洞 |
 

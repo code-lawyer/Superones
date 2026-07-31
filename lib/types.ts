@@ -33,7 +33,24 @@ export type EventRecord = {
   entities: string[];
   firstSeen: string;
   updated: string;
-  sources?: { name: string; url: string; publishedAt: string; author?: string; role?: SourceRole; informationSlug?: string }[];
+  sources?: {
+    name: string;
+    url: string;
+    publishedAt: string;
+    author?: string;
+    role?: SourceRole;
+    informationSlug?: string;
+    translatedTitle?: string;
+    originalTitle?: string;
+    summary?: string;
+    translatedContent?: string;
+    originalContent?: string;
+    contentFormat?: ContentFormat;
+    originalLanguage?: string;
+    originalDisplay?: "full" | "excerpt";
+    contentGroup?: ContentGroup;
+    sourceStream?: "information" | "roadside" | "statements";
+  }[];
   timeline?: { time: string; text: string }[];
 };
 

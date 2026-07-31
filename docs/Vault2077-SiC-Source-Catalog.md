@@ -1,7 +1,7 @@
 ---
 type: source-catalog
 status: active
-updated: 2026-07-25
+updated: 2026-07-31
 ---
 
 # Vault2077 SiC 来源目录
@@ -10,22 +10,24 @@ updated: 2026-07-25
 
 ## 准入规则
 
-- 论文：接入边界明确、长期维护的论文发现来源，不把全量论文库变成信息流。
+- 论文：每日通过 Hugging Face 官方 Papers API 接入当前 ISO 周的完整周度清单，保存 `paper.upvotes` 并在本地生成周热度排名，不读取论文网页；论文原始元数据回到 arXiv API 核验。
 - 档案：只接入机构自营的深度研究、技术报告、系统卡、方法论与长篇工程材料；不接入新闻稿、公司公告、例行 Release Notes 或 Changelog。
 - 课程：接入机构自营课程目录或官方频道 feed；频道只提供条目元数据和原始链接，不下载、转录或再发布视频/音频。
 - 播客：按权威主理人或机构准入整档节目，不按单集嘉宾或主题筛选。
 - approved 来源完整接纳其准入边界内的正式更新；pending_review 等待入口边界核验；retired 来源保留原因但不进入运行时。
 - 同一原始内容不得同时进入 Vault 资讯瀑布与 SiC 档案；宽泛混合 Feed 在能用固定栏目、路径或专用入口稳定分流前不得 approved。
-- 首次上线时，每个 approved 内容来源至少回填最近一条符合本目录边界的真实内容；日常增量窗口不用于判定该来源是否拥有上线基线。
+- 首次上线时，每个 approved 内容来源至少回填最近一条符合本目录边界的真实内容；Hugging Face Weekly Papers 是集合型例外，必须回填最新可用 ISO 周的完整清单。
+- 周论文先以 `week + sort=publishedAt` 获取指定周全集，再按 `paper.upvotes` 降序排列；同票按 Hugging Face 提交时间降序。不得直接信任会混入跨周条目的 `week + sort=trending` 结果。
+- 所有论文必须经境内 `sic_editorial` 生成中文标题、中文一句话说明和中文内容摘要，并记录 `editorialLocale=zh-CN` 与编辑版本；英文原文仍保留用于追溯，不能复制到中文字段充当处理结果。
 
 ## 论文
 
 | 来源 | 状态 | 入口 |
 | --- | --- | --- |
-| Hugging Face Daily Papers | approved | [官方页面](https://huggingface.co/papers) |
+| Hugging Face Weekly Papers | approved | [官方 API](https://huggingface.co/api/daily_papers) |
 | AI Papers of the Week | retired | [历史入口](https://github.com/dair-ai/AI-Papers-of-the-Week) |
 
-退役原因：Hugging Face Daily Papers 已提供日、周、月与趋势视图，继续保留第二份人工周报会重复发现。
+退役原因：Hugging Face Weekly Papers 已提供稳定的官方周度 API，继续保留第二份人工周报会重复发现。
 
 ## 档案
 
