@@ -28,6 +28,24 @@ test("admin mutations require the isolated host and same-origin request contract
   environment.VAULT2077_ADMIN_ORIGIN = "https://admin.vault2077.test";
   try {
     assert.doesNotThrow(() => assertAdminMutationRequest(mutationRequest()));
+    const multipartBody = new FormData();
+    multipartBody.set("slug", "legal-advisor");
+    const multipartRequest = new NextRequest("https://admin.vault2077.test/api/admin/opc/ranger-avatar", {
+      method: "POST",
+      headers: {
+        host: "admin.vault2077.test",
+        origin: "https://admin.vault2077.test",
+        "sec-fetch-site": "same-origin",
+        "x-vault2077-admin-request": "1",
+      },
+      body: multipartBody,
+    });
+    assert.doesNotThrow(() => assertAdminMutationRequest(multipartRequest, "multipart"));
+    assert.throws(
+      () => assertAdminMutationRequest(mutationRequest({ "content-type": "multipart/form-data" }), "multipart"),
+      (error: unknown) => error instanceof AdminRequestSecurityError
+        && error.code === "ADMIN_MULTIPART_REQUIRED",
+    );
     assert.throws(
       () => assertAdminMutationRequest(mutationRequest({ "x-vault2077-admin-request": "0" })),
       (error: unknown) => error instanceof AdminRequestSecurityError

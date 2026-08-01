@@ -41,6 +41,14 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
     } = await import(`../lib/managed-service-catalog.ts?test=${Date.now()}`);
 
     const initial = await readManagedServiceCatalog();
+    const legacyWrite = structuredClone(initial.draft);
+    legacyWrite.rangers.push(rangerFixture({ avatarUrl: "data:image/png;base64,AAAA" }));
+    await assert.rejects(
+      saveServiceCatalogDraft(legacyWrite, initial.revision),
+      (error: unknown) => error instanceof Error
+        && error.name === ServiceCatalogValidationError.name
+        && error.message.includes("只允许读取"),
+    );
     const draft = structuredClone(initial.draft);
     draft.infrastructure[0].name = "已修改但未发布的服务";
     draft.rangers.push(rangerFixture({ contactState: "PROFILE PREVIEW" }));
@@ -340,4 +348,54 @@ test("OPC publication requires authorized public ranger emails", async () => {
     assert.equal(unsafeResult.valid, false);
     assert.ok(unsafeResult.errors.some((error) => error.includes("联系方式必须是公开邮箱")));
   }
+});
+
+test("OPC ranger avatars preserve syntactically safe legacy reads and reject unsafe sources", async () => {
+  const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+  const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
+  const catalog = createDefaultOpcCatalog();
+  catalog.rangers.push(rangerFixture({ avatarUrl: "data:image/png;base64,AAAA" }));
+
+  const normalized = normalizeOpcCatalog(catalog);
+  assert.equal(normalized.rangers[0].avatarUrl, "data:image/png;base64,AAAA");
+  assert.equal(validateOpcCatalog(normalized).valid, true);
+
+  for (const avatarUrl of [
+    "https://images.example.com/avatar.png",
+    "http://images.example.com/avatar.png",
+    "data:image/svg+xml;base64,PHN2Zy8+",
+    "javascript:alert(1)",
+  ]) {
+    const unsafeCatalog = createDefaultOpcCatalog();
+    unsafeCatalog.rangers.push(rangerFixture({ avatarUrl }));
+    const result = validateOpcCatalog(normalizeOpcCatalog(unsafeCatalog));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((error) => error.includes("外部图片必须重新上传")));
+  }
+});
+
+test("OPC ranger avatars preserve valid managed media references", async () => {
+  const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+  const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
+  const catalog = createDefaultOpcCatalog();
+  const sha256 = "a".repeat(64);
+  catalog.rangers.push(rangerFixture({
+    avatar: {
+      schemaVersion: 1,
+      smallKey: `rangers/verified-legal-advisor/${sha256}/avatar-320.webp`,
+      largeKey: `rangers/verified-legal-advisor/${sha256}/avatar-800.webp`,
+      sha256,
+      width: 800,
+      height: 800,
+      updatedAt: "2026-07-31T00:00:00.000Z",
+    },
+  }));
+  const normalized = normalizeOpcCatalog(catalog);
+  assert.equal(normalized.rangers[0].avatar?.sha256, sha256);
+  assert.equal(validateOpcCatalog(normalized).valid, true);
+
+  normalized.rangers[0].slug = "renamed-advisor";
+  const mismatched = validateOpcCatalog(normalized);
+  assert.equal(mismatched.valid, false);
+  assert.ok(mismatched.errors.some((error) => error.includes("必须属于当前游骑兵 slug")));
 });

@@ -18,6 +18,9 @@ data/sic-snapshots.json
 data/sic-github-rankings.json
 data/sic-extension-snapshots.json
 data/opc-service-catalog.json
+data/ranger-media/
+data/admin-passkeys.json
+data/opc-orders.json
 data/admin-sessions.json
 data/corrections.json
 data/security-audit.jsonl

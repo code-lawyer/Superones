@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
@@ -11,6 +12,7 @@ import {
   type OpcService,
   type RangerProfile,
 } from "@/lib/opc-catalog";
+import { legacyRangerAvatarPublicUrl, rangerAvatarPublicUrl } from "@/lib/ranger-avatar";
 
 type WorkspaceView = "infrastructure" | "specialties" | "rangers";
 
@@ -19,6 +21,7 @@ type OpcWorkspaceProps = {
   specialties: OpcService[];
   rangers: RangerProfile[];
   orderingAvailable: boolean;
+  rangerMediaOrigin: string;
   initialView?: WorkspaceView;
   initialServiceSlug?: string;
 };
@@ -55,6 +58,7 @@ export function OpcWorkspace({
   specialties,
   rangers,
   orderingAvailable,
+  rangerMediaOrigin,
   initialView = "infrastructure",
   initialServiceSlug,
 }: OpcWorkspaceProps) {
@@ -203,7 +207,7 @@ export function OpcWorkspace({
         aria-label={`${viewCopy[view].title}详情`}
       >
         {view === "rangers"
-          ? <RangerWall profiles={rangers} />
+          ? <RangerWall profiles={rangers} mediaOrigin={rangerMediaOrigin} />
           : selectedService
             ? <ServiceReadingPane
               service={selectedService}
@@ -424,7 +428,7 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
   </article>;
 }
 
-function RangerWall({ profiles }: { profiles: RangerProfile[] }) {
+function RangerWall({ profiles, mediaOrigin }: { profiles: RangerProfile[]; mediaOrigin: string }) {
   const representedIdentities = new Set(profiles.map((profile) => profile.identity));
   const templateIdentities = rangerIdentities.filter((identity) => !representedIdentities.has(identity));
   return <section className="opc-ranger-wall">
@@ -437,7 +441,7 @@ function RangerWall({ profiles }: { profiles: RangerProfile[] }) {
     </header>
     <div className="opc-ranger-wall__portraits">
       {profiles.map((profile, index) => <Link className={`opc-ranger-portrait opc-ranger-portrait--${index}`} href={`/opc/rangers/${profile.slug}`} aria-label={`查看 ${profile.publicName} 的专家档案`} key={profile.slug}>
-        <span className="opc-ranger-portrait__image" aria-hidden="true" />
+        <RangerPortraitImage profile={profile} mediaOrigin={mediaOrigin} />
         <span className="opc-ranger-portrait__copy"><strong>{profile.publicName}</strong><small>{profile.identity}</small></span>
       </Link>)}
       {templateIdentities.map((identity, index) => <article
@@ -450,4 +454,13 @@ function RangerWall({ profiles }: { profiles: RangerProfile[] }) {
       </article>)}
     </div>
   </section>;
+}
+
+function RangerPortraitImage({ profile, mediaOrigin }: { profile: RangerProfile; mediaOrigin: string }) {
+  const source = profile.avatar
+    ? rangerAvatarPublicUrl(profile.avatar, "small", mediaOrigin)
+    : legacyRangerAvatarPublicUrl(profile.avatarUrl);
+  return source
+    ? <Image className="opc-ranger-portrait__image opc-ranger-portrait__image--custom" src={source} width={320} height={320} loading="lazy" decoding="async" unoptimized alt="" />
+    : <span className="opc-ranger-portrait__image" aria-hidden="true" />;
 }

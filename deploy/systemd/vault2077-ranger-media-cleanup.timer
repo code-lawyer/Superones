@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Vault2077 ranger avatar cleanup daily
+
+[Timer]
+OnCalendar=*-*-* 03:25:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=300
+Unit=vault2077-ranger-media-cleanup.service
+
+[Install]
+WantedBy=timers.target

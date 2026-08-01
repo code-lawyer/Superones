@@ -5,6 +5,7 @@
 - `vault2077-web.service`：Web 进程，启动前执行生产配置检查和数据库迁移。
 - `vault2077-acquisition-worker.service/.timer`：每五分钟消费境内 PostgreSQL inbox。
 - `vault2077-frontier-tick.service/.timer`：北京时间 08:45–22:45 每两小时观察当前参赛仓库并推进结算。
+- `vault2077-ranger-media-cleanup.service/.timer`：每天清理超过 7 天的孤儿头像和超过 30 天的已替换头像。
 
 示例安装：
 
@@ -14,7 +15,7 @@ sudo install -m 0644 deploy/systemd/vault2077-*.timer /etc/systemd/system/
 sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd/system/vault2077-*.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now vault2077-web.service
-sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-frontier-tick.timer
+sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-frontier-tick.timer vault2077-ranger-media-cleanup.timer
 ```
 
 部署前必须把模板中的用户、目录、npm 路径和环境文件改成目标服务器实际值。环境文件权限应为 `0600`，归 `root` 所有；应用用户只通过 systemd 读取，不得把密钥写进仓库。
@@ -26,6 +27,7 @@ systemctl status vault2077-web.service
 systemctl list-timers 'vault2077-*'
 journalctl -u vault2077-acquisition-worker.service -n 100 --no-pager
 journalctl -u vault2077-frontier-tick.service -n 100 --no-pager
+journalctl -u vault2077-ranger-media-cleanup.service -n 100 --no-pager
 ```
 
 oneshot 本轮返回非零、timer 超过两个周期没有成功、inbox 新增 quarantine 或频道超过新鲜度阈值都必须告警。历史 quarantine 不应让每次 worker 永久返回非零；worker 失败后按最多六次指数退避保留 inbox，成功记录保留 30 天、隔离记录保留 180 天后自动清理。不得从 GitHub Actions 远程调用处理接口。

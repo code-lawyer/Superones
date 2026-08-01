@@ -1,7 +1,13 @@
+---
+type: deployment-plan
+status: active
+updated: 2026-07-31
+---
+
 # Vault2077 生产部署方案（2026-07-31 更新）
 
 状态：执行基线
-适用域名：`superones.top`、`admin.superones.top`
+适用域名：`superones.top`、`admin.superones.top`、`media.superones.top`
 运营与收款主体：上海睿诚明达咨询管理有限公司
 备案号：沪ICP备2026003401号-1
 
@@ -24,9 +30,12 @@
    ├─ 初始存储 20 GB
    ├─ 自动备份、日志备份/PITR、删除保护
    └─ 50%/70%/80% 容量告警
+
+Node.js ──同地域内网写入/HEAD──▶ 阿里云 OSS Standard LRS
+                                      └─ media.superones.top：匿名只读处理后头像
 ```
 
-首发不使用 Cloudflare、Redis、OSS、RDS 高可用版、只读实例或数据库集群。轻量服务器与 RDS 必须处于同一阿里云账号和地域，并完成轻量网络与目标 VPC 的私网互通；RDS 不开放公网连接。
+首发不使用 Cloudflare、Redis、CDN、RDS 高可用版、只读实例或数据库集群。OSS 只保存服务端处理后的公开游骑兵头像，不保存原图、授权材料、采集包或数据库备份；轻量服务器、RDS 与 OSS 必须处于同一阿里云账号和地域。轻量服务器需完成到目标 VPC 的私网互通，RDS 不开放公网连接。
 
 ## 2. 资源规格与购买顺序
 
@@ -48,7 +57,15 @@
 - 容量达到 10 GB 告警，14 GB 必须检查或扩容，16 GB 进入高危处理；
 - 正常增长预计至少可使用 3～5 年；如果隔离批次异常积压，优先修复清理/处理故障，不用扩容掩盖问题。
 
-### 2.3 数据可靠性
+### 2.3 游骑兵头像 OSS
+
+- Standard LRS，与轻量服务器和 RDS 同地域；
+- 使用独立 Bucket 与 `media.superones.top`，首发不接 CDN；
+- 匿名用户只允许读取 `rangers/*` 处理后对象，绝不允许匿名写入；
+- 应用 RAM 身份只允许写入和读取 `rangers/*` 对象元数据，不授予 Bucket 管理权限；
+- 开启 HTTPS、访问/流量/费用告警和误删保护；生产启用前落实无引用对象清理与本人撤回后的永久删除流程。
+
+### 2.4 数据可靠性
 
 - 开启自动备份、日志备份/时间点恢复、删除保护和监控；
 - 上线前将一次真实备份恢复到隔离实例，验证迁移记录、业务表、关键状态文档和审计链；
@@ -76,15 +93,16 @@
 
 1. 购买阿里云轻量应用服务器；
 2. 购买同账号、同地域 RDS PostgreSQL 17 基础版，20 GB、按量付费；
-3. 配置轻量服务器到 RDS VPC 的私网互通；
-4. 将 `superones.top` 和 `admin.superones.top` 解析到服务器；
-5. 申请并安装两个域名可用的 TLS 证书；
-6. 设置告警接收人、SSH 允许来源和备份保留策略。
+3. 创建同地域 OSS Standard LRS Bucket，配置最小权限 RAM 身份、误删保护和费用告警；
+4. 配置轻量服务器到 RDS VPC 的私网互通；
+5. 将 `superones.top` 和 `admin.superones.top` 解析到服务器，将 `media.superones.top` CNAME 到 OSS；
+6. 为三个公开主机配置有效 TLS；
+7. 设置告警接收人、SSH 允许来源、RDS 备份保留策略和头像对象清理责任人。
 
 ### 阶段 B：工程侧上线前完成
 
 1. 在目标环境用真实设备验收原生 Passkey 的注册、登录、五分钟再认证、恢复、撤销和审计；
-2. 核对生产配置门禁、Nginx 双域名模板、后台文案和身份架构文档；
+2. 核对生产配置门禁、Nginx 双域名模板、OSS 媒体域名、后台文案和身份架构文档；
 3. 生成不复用的生产密钥，写入服务器受限环境文件；
 4. 安装 Node.js 24、Python 运行环境、Nginx 和 systemd 服务；
 5. 连接 RDS，执行两次 `npm run db:migrate` 验证幂等，再运行 PostgreSQL 集成测试；
@@ -92,7 +110,8 @@
 7. 安装 web、acquisition worker 和 Frontier timer；
 8. 配置 Nginx 双域名、TLS、安全头、限流和精确内部 API 放行；
 9. 运行生产配置门禁、质量门禁、构建和 E2E；
-10. 完成数据库恢复、回滚、密钥轮换、任务积压和告警演练。
+10. 用真实 OSS 完成头像上传、320/800 WebP 访问、发布前 HEAD、替换、撤回、无引用对象清理、缓存头和费用告警演练；
+11. 完成数据库恢复、回滚、密钥轮换、任务积压和告警演练。
 
 ### 阶段 C：负责人现场完成
 
@@ -110,6 +129,7 @@
 - `VAULT2077_OPC_PAYMENTS_ENABLED=false`：支付宝未接入前不收集订单联系人、不创建订单；
 - `VAULT2077_FRONTIER_WRITES_ENABLED=false`：真实奖励未在后台发布并验收前，不开放报名、捐献和赛季写入；
 - `VAULT2077_ALLOW_FILE_PREVIEW=false`：生产强制使用 PostgreSQL；
+- `VAULT2077_RANGER_MEDIA_STORAGE=oss`：生产头像强制使用 OSS，并完整配置 `VAULT2077_OSS_*`；
 - 两个 LLM 配置由负责人在服务器 Secret/环境文件中填写；
 - OPC 服务、游骑兵和赛季奖励通过后台逐步发布，不因内容数量未填满阻塞网站上线。
 
@@ -118,8 +138,9 @@
 以下任何一项失败都不能正式开放相应写功能：
 
 - `npm run deploy:check`、lint、typecheck、测试、构建和 E2E 未全部通过；
-- 管理员原生 Passkey 尚未实现或尚未完成真实域名注册/登录/恢复演练；
+- 管理员原生 Passkey 未通过自动化测试，或尚未完成真实域名注册/登录/恢复演练；
 - RDS 未使用 TLS 私网连接，或迁移、备份恢复未通过；
+- OSS、`media.superones.top`、RAM 最小权限、头像撤回或无引用对象清理尚未完成真实联调；
 - Node、数据库或内部管理接口可以绕过 Nginx 从公网访问；
 - 告警接收人和恢复负责人未确定；
 - Frontier 奖励未在后台正式发布，却对外显示为可报名赛季；
@@ -137,8 +158,8 @@
 
 ### 项目负责人必须完成
 
-- 购买轻量服务器和 20 GB RDS，并选择同一地域；
-- 配置 DNS、TLS、网络互通和控制台告警联系人；
+- 购买轻量服务器、20 GB RDS 和头像 OSS，并选择同一地域；
+- 配置三个主机的 DNS/TLS、网络互通、OSS RAM 权限和控制台告警联系人；
 - 提供服务器运维权限，但不把密码、Token 或私钥粘贴到聊天/Git；
 - 在服务器环境中填写两个 LLM 凭证；
 - 在真实域名完成 Passkey 注册，保存第二认证器和恢复码；

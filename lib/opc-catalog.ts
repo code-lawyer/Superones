@@ -4,6 +4,7 @@ import {
   selectedSpecialtyDomains,
   selectedSpecialtyServices,
 } from "./opc-selected-skus.ts";
+import type { RangerAvatarAsset } from "./ranger-avatar.ts";
 
 export type OpcServiceKind = "infrastructure" | "specialty";
 
@@ -32,6 +33,9 @@ export type RangerProfile = {
   slug: string;
   publicName: string;
   identity: string;
+  avatar?: RangerAvatarAsset;
+  /** Legacy read compatibility for drafts created before managed media storage. */
+  avatarUrl?: string;
   intro: string;
   tags: string[];
   credential?: string;

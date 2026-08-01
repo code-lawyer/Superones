@@ -13,6 +13,7 @@ import {
   LEGAL_OPERATOR_REGISTERED_ADDRESS,
   LEGAL_OPERATOR_REGISTERED_CAPITAL,
   PUBLIC_ORIGIN,
+  RANGER_MEDIA_ORIGIN,
 } from "./legal-profile.ts";
 import { opcAlipayConfigurationErrors } from "./opc-payment-config.ts";
 import { parseSecretKeyring } from "./secret-keyring.ts";
@@ -25,6 +26,7 @@ export type ProductionConfigurationReport = {
     databaseHost: string | null;
     publicOrigin: string | null;
     adminOrigin: string | null;
+    rangerMediaOrigin: string | null;
     passkeyRpId: string | null;
     editorialProviders: Record<EditorialProfileId, string | null>;
     trustedProxyHeaders: boolean;
@@ -295,6 +297,25 @@ export function validateProductionConfiguration(
     "统一采集签名密钥环",
     errors,
   ));
+  if (environment.VAULT2077_RANGER_MEDIA_STORAGE !== "oss") {
+    errors.push("生产环境必须配置 VAULT2077_RANGER_MEDIA_STORAGE=oss。");
+  }
+  const rangerMediaOrigin = parseHttpsOrigin(environment, "VAULT2077_OSS_PUBLIC_ORIGIN", errors);
+  if (rangerMediaOrigin && rangerMediaOrigin !== RANGER_MEDIA_ORIGIN) {
+    errors.push(`VAULT2077_OSS_PUBLIC_ORIGIN 必须与已确认媒体域名一致：${RANGER_MEDIA_ORIGIN}。`);
+  }
+  const ossRegion = environment.VAULT2077_OSS_REGION?.trim() ?? "";
+  const ossBucket = environment.VAULT2077_OSS_BUCKET?.trim() ?? "";
+  if (!/^oss-[a-z0-9-]+$/.test(ossRegion)) errors.push("VAULT2077_OSS_REGION 必须是有效的 OSS 地域标识。");
+  if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(ossBucket)) errors.push("VAULT2077_OSS_BUCKET 必须是有效的 OSS Bucket 名称。");
+  if (!["true", "false"].includes(environment.VAULT2077_OSS_INTERNAL ?? "")) {
+    errors.push("VAULT2077_OSS_INTERNAL 必须明确设置为 true 或 false。");
+  }
+  for (const name of ["VAULT2077_OSS_ACCESS_KEY_ID", "VAULT2077_OSS_ACCESS_KEY_SECRET"] as const) {
+    const value = environment[name]?.trim() ?? "";
+    if (value.length < 16 || placeholder(value)) errors.push(`${name} 必须填写真实的最小权限 RAM 凭证。`);
+    if (value) configuredSecrets.push({ name, value });
+  }
   const secretOwners = new Map<string, string>();
   for (const secret of configuredSecrets) {
     const existingOwner = secretOwners.get(secret.value);
@@ -336,6 +357,9 @@ export function validateProductionConfiguration(
     if (environment[retiredIdentityVariable]) {
       errors.push(`生产配置不得再使用已退役的 OIDC 变量 ${retiredIdentityVariable}；管理员身份固定为 ${PRODUCTION_ADMIN_EMAIL} 并由原生 Passkey 验证。`);
     }
+  }
+  if (rangerMediaOrigin && [publicOrigin, adminOrigin].includes(rangerMediaOrigin)) {
+    errors.push("VAULT2077_OSS_PUBLIC_ORIGIN 必须使用独立媒体域名。");
   }
   const passkeyRpId = adminOrigin ? new URL(adminOrigin).hostname : null;
 
@@ -406,6 +430,7 @@ export function validateProductionConfiguration(
       databaseHost,
       publicOrigin,
       adminOrigin,
+      rangerMediaOrigin,
       passkeyRpId,
       editorialProviders,
       trustedProxyHeaders: environment.VAULT2077_TRUST_PROXY_HEADERS === "true",

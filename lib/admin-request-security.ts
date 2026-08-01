@@ -63,10 +63,25 @@ export function assertAdminPageHost(headers: Headers) {
   }
 }
 
-export function assertAdminMutationRequest(request: NextRequest) {
+export type AdminMutationBodyType = "json" | "multipart";
+
+export function assertAdminMutationRequest(
+  request: NextRequest,
+  bodyType: AdminMutationBodyType = "json",
+) {
   assertAdminHost(request);
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
-  if (!contentType.startsWith("application/json")) {
+  const acceptedContentType = bodyType === "multipart"
+    ? contentType.startsWith("multipart/form-data;") && contentType.includes("boundary=")
+    : contentType.startsWith("application/json");
+  if (!acceptedContentType) {
+    if (bodyType === "multipart") {
+      throw new AdminRequestSecurityError(
+        "头像上传必须使用带 boundary 的 multipart/form-data。",
+        415,
+        "ADMIN_MULTIPART_REQUIRED",
+      );
+    }
     throw new AdminRequestSecurityError("后台写请求必须使用 JSON。", 415, "ADMIN_JSON_REQUIRED");
   }
   if (request.headers.get("x-vault2077-admin-request") !== "1") {

@@ -23,6 +23,8 @@
     "admin:passkey:enroll": "node --conditions=react-server --experimental-strip-types scripts/create-admin-passkey-enrollment.ts",
     "opc:sync-seed": "node --conditions=react-server --experimental-strip-types scripts/sync-opc-seed.ts",
     "opc:build-default-seed": "node --experimental-strip-types scripts/build-opc-default-seed.ts",
+    "opc:cleanup-ranger-media": "node --conditions=react-server --experimental-strip-types scripts/cleanup-ranger-media.ts",
+    "opc:purge-revoked-ranger-media": "node --conditions=react-server --experimental-strip-types scripts/purge-revoked-ranger-media.ts",
     "deploy:check": "node --conditions=react-server --experimental-strip-types scripts/check-production-config.ts",
     "frontier:tick": "node --conditions=react-server --experimental-strip-types scripts/run-frontier-tick.ts",
     "dev:check": "node scripts/check-dev-server.mjs",
@@ -48,6 +50,7 @@
     "@fontsource-variable/manrope": "^5.3.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.2",
+    "ali-oss": "^6.23.0",
     "alipay-sdk": "^4.14.0",
     "next": "16.2.11",
     "pg": "^8.22.0",
@@ -55,9 +58,11 @@
     "react-dom": "19.2.7",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
+    "@types/ali-oss": "^6.23.3",
     "@types/node": "latest",
     "@types/pg": "^8.20.0",
     "@types/react": "latest",

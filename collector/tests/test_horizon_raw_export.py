@@ -63,6 +63,59 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(information[0]["originalUrl"], "https://example.test/articles/one")
         self.assertNotIn("本地演练", information[0]["originalTitle"])
 
+    async def test_horizon_rss_adapter_keeps_x_quote_and_chapter_boundaries(self):
+        source = {
+            "id": "source-x-test",
+            "name": "Example Person",
+            "connector": "rss",
+            "endpoint": "https://feeds.example.test/x.xml",
+            "channelType": "x",
+            "channelIdentifier": "ExamplePerson",
+            "sourceStream": "roadside",
+            "contentGroup": "roadside",
+            "originPlatform": "x",
+            "primaryLanguage": "en",
+            "contentCapability": "excerpt",
+            "evidenceNature": "social_community",
+            "publisherKind": "person",
+            "classificationConfidence": "high",
+        }
+        body = """<?xml version='1.0'?>
+        <rss version='2.0'>
+          <channel>
+            <title>Example Person</title>
+            <item>
+              <title>Root statement</title>
+              <link>https://x.com/ExamplePerson/status/123456789</link>
+              <description>&lt;div&gt;&lt;div&gt;Root statement.&lt;/div&gt;&lt;div&gt;&lt;div&gt;&lt;span&gt;Quoted Person&lt;/span&gt;&lt;span&gt;@quoted&lt;/span&gt;&lt;/div&gt;&lt;div&gt;First paragraph.&lt;br/&gt;&lt;br/&gt;Second paragraph.&lt;br/&gt;&lt;br/&gt;00:07 - First chapter&lt;br/&gt;01:44 - Second chapter&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;</description>
+              <pubDate>Thu, 30 Jul 2026 23:39:20 GMT</pubDate>
+              <guid>123456789</guid>
+              <author>Example Person (@ExamplePerson)</author>
+            </item>
+          </channel>
+        </rss>"""
+
+        async def handler(_request):
+            return httpx.Response(200, content=body.encode(), headers={"content-type": "application/rss+xml"})
+
+        start = datetime(2026, 7, 30, 20, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 31, 1, tzinfo=timezone.utc)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+
+        self.assertEqual(outcome.status, "success")
+        self.assertEqual(len(information), 1)
+        content = information[0]["originalContent"]
+        self.assertRegex(
+            content,
+            r"Root statement\.\n{2,}Quoted Person @quoted\n{2,}First paragraph\.",
+        )
+        self.assertRegex(
+            content,
+            r"Second paragraph\.\n{2,}00:07 - First chapter\n01:44 - Second chapter",
+        )
+        self.assertNotIn("\n\n\n", content)
+
     def test_source_filter_keeps_approved_bundle_unchanged(self):
         sources = [{"id": "source-one"}, {"id": "source-two"}]
         self.assertEqual(selected_sources(sources), sources)

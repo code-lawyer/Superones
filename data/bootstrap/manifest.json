@@ -12,8 +12,8 @@
   },
   "files": {
     "content-store.seed.json": {
-      "sha256": "bfd482bbec89ec162aa33a18223f459330746d38735030791fe98c6d0e1ac19a",
-      "bytes": 2753199
+      "sha256": "1cc1c9264b84c48ea2c0316cc0053843976684e1e41cbd57ef52efb732251604",
+      "bytes": 2761924
     },
     "sic-content-store.seed.json": {
       "sha256": "a9ce50dd9065aa62570334e31ebc506c0161e0cbdc4dd0c3b722c28595ae3fe2",

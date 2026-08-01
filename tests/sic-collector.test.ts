@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { sicCollectorTestUtils } from "../lib/sic-collector.ts";
+import { ingestSicAcquisitionContent, sicCollectorTestUtils } from "../lib/sic-collector.ts";
 import type { SicSource } from "../lib/sic-source-registry.ts";
 
 const rssSource: SicSource = {
@@ -45,6 +49,129 @@ test("SiC feed collector uses feed content without requiring article-page fetche
   assert.equal(entries.length, 1);
   assert.equal(entries[0].summary, "Complete structured feed material.");
   assert.equal(entries[0].sourceMaterial, "Complete structured feed material.");
+});
+
+test("SiC feed collector keeps block structure in long editorial source material", () => {
+  const entries = sicCollectorTestUtils.xmlEntries(rssSource, `
+    <rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>
+      <item>
+        <title>Structured feed entry</title>
+        <link>https://example.com/news/structured-entry</link>
+        <content:encoded><![CDATA[
+          <p>First paragraph.</p>
+          <p>Second paragraph.</p>
+          <ul><li>First change</li><li>Second change</li></ul>
+        ]]></content:encoded>
+      </item>
+    </channel></rss>
+  `);
+  assert.equal(entries.length, 1);
+  assert.equal(
+    entries[0].sourceMaterial,
+    "First paragraph.\n\nSecond paragraph.\n\n- First change\n- Second change",
+  );
+  assert.equal(
+    entries[0].summary,
+    "First paragraph. Second paragraph. First change Second change",
+  );
+});
+
+test("SiC feed collector preserves adjacent span words without spacing punctuation", () => {
+  const entries = sicCollectorTestUtils.xmlEntries(rssSource, `
+    <rss><channel><item>
+      <title>Inline spans</title>
+      <link>https://example.com/inline-spans</link>
+      <description><![CDATA[<p><span>Hello</span><span>,</span> world from <span>Google</span><span>Research</span>.</p>]]></description>
+    </item></channel></rss>
+  `);
+  assert.equal(entries[0].sourceMaterial, "Hello, world from Google Research.");
+});
+
+test("SiC acquisition keeps structured source material through domestic editorial input", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-structure-"));
+  const previous = {
+    dataDirectory: process.env.VAULT2077_DATA_DIR,
+    databaseUrl: process.env.VAULT2077_DATABASE_URL,
+    fallbackDatabaseUrl: process.env.DATABASE_URL,
+    baseUrl: process.env.VAULT2077_SIC_LLM_BASE_URL,
+    apiKey: process.env.VAULT2077_SIC_LLM_API_KEY,
+    model: process.env.VAULT2077_SIC_LLM_MODEL,
+    fetch: globalThis.fetch,
+  };
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  process.env.VAULT2077_SIC_LLM_BASE_URL = "http://model.example/v1";
+  process.env.VAULT2077_SIC_LLM_API_KEY = "test-key";
+  process.env.VAULT2077_SIC_LLM_MODEL = "test-model";
+  const editorialId = createHash("sha256").update("structured-material").digest("hex");
+  let modelInput = "";
+  globalThis.fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
+    modelInput = body.messages[1].content;
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        items: [{
+          id: editorialId,
+          translatedTitle: "结构化材料",
+          description: "测试结构保真。",
+          contentSummary: "材料包含两个段落和一个列表。",
+        }],
+      }) } }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  context.after(async () => {
+    if (previous.dataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous.dataDirectory;
+    if (previous.databaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previous.databaseUrl;
+    if (previous.fallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previous.fallbackDatabaseUrl;
+    if (previous.baseUrl === undefined) delete process.env.VAULT2077_SIC_LLM_BASE_URL;
+    else process.env.VAULT2077_SIC_LLM_BASE_URL = previous.baseUrl;
+    if (previous.apiKey === undefined) delete process.env.VAULT2077_SIC_LLM_API_KEY;
+    else process.env.VAULT2077_SIC_LLM_API_KEY = previous.apiKey;
+    if (previous.model === undefined) delete process.env.VAULT2077_SIC_LLM_MODEL;
+    else process.env.VAULT2077_SIC_LLM_MODEL = previous.model;
+    globalThis.fetch = previous.fetch;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const collectedAt = "2026-07-31T12:00:00.000Z";
+  await ingestSicAcquisitionContent({
+    version: 1,
+    snapshotId: "snapshot:structured-material",
+    collectedAt,
+    items: [{
+      id: "structured-material",
+      sourceId: "google-research-blog",
+      group: "documents",
+      sourceName: "Google Research Blog",
+      publisher: "Google Research",
+      title: "Structured material",
+      summary: "First paragraph. Second paragraph.",
+      sourceMaterial: "First paragraph.\n\nSecond paragraph.\n\n- First change\n- Second change",
+      url: "https://research.google/blog/structured-material/",
+      publishedAt: collectedAt,
+      collectedAt,
+      canonicalId: "structured-material",
+      provenanceStatus: "declared",
+    }],
+    reports: [{
+      sourceId: "google-research-blog",
+      status: "success",
+      collectedAt,
+      itemCount: 1,
+    }],
+  }, globalThis.fetch);
+
+  const untrustedInput = modelInput.split("不可信原始资料：\n").at(-1);
+  assert.ok(untrustedInput);
+  const editorialInput = JSON.parse(untrustedInput) as Array<{ sourceMaterial: string }>;
+  assert.equal(
+    editorialInput[0].sourceMaterial,
+    "First paragraph.\n\nSecond paragraph.\n\n- First change\n- Second change",
+  );
 });
 
 test("bootstrap selection keeps the newest real item even outside the daily window", () => {
@@ -95,6 +222,26 @@ test("SiC dated-index collector keeps every dated release instead of navigation 
   assert.match(entries[0].title, /managed agent capability/i);
   assert.equal(entries[1].publishedAt, "2026-07-20T00:00:00.000Z");
   assert.match(entries[1].title, /older model update/i);
+});
+
+test("SiC dated-index collector keeps structured material for domestic editorial", () => {
+  const source: SicSource = {
+    ...rssSource,
+    id: "release-notes",
+    kind: "official_dated_index",
+    homeUrl: "https://example.com/releases",
+    endpoint: "https://example.com/releases",
+  };
+  const entries = sicCollectorTestUtils.datedIndexEntries(source, `
+    <h2>July 22, 2026</h2>
+    <p>First paragraph.</p>
+    <p>Second paragraph.</p>
+    <ul><li>First change</li><li>Second change</li></ul>
+  `);
+  assert.equal(
+    entries[0].sourceMaterial,
+    "First paragraph.\n\nSecond paragraph.\n\n- First change\n- Second change",
+  );
 });
 
 test("Hugging Face weekly collection uses the official API with an ISO week", () => {
@@ -187,7 +334,9 @@ test("arXiv metadata replaces discovery metadata while preserving the weekly ran
       <entry>
         <id>http://arxiv.org/abs/2607.12345v2</id>
         <title>Verified Frontier Paper</title>
-        <summary>Verified abstract from arXiv.</summary>
+        <summary>First abstract paragraph.
+
+Second abstract paragraph.</summary>
         <published>2026-07-22T00:00:00Z</published>
       </entry>
     </feed>
@@ -197,6 +346,8 @@ test("arXiv metadata replaces discovery metadata while preserving the weekly ran
   assert.equal(entries[0].url, "https://arxiv.org/abs/2607.12345");
   assert.equal(entries[0].discoveryUrl, "https://huggingface.co/papers/2607.12345");
   assert.equal(entries[0].title, "Verified Frontier Paper");
+  assert.equal(entries[0].summary, "First abstract paragraph. Second abstract paragraph.");
+  assert.equal(entries[0].sourceMaterial, "First abstract paragraph.\n\nSecond abstract paragraph.");
   assert.equal(entries[0].rankingWeek, "2026-W31");
   assert.equal(entries[0].weeklyRank, 3);
   assert.equal(entries[0].weeklyUpvotes, 42);

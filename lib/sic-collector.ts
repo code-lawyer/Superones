@@ -58,6 +58,50 @@ function text(value: unknown, limit: number) {
     .slice(0, limit);
 }
 
+function structuredText(value: unknown, limit: number) {
+  const source = String(value ?? "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/\r\n?/g, "\n");
+  if (!/<[^>]+>/.test(source)) {
+    return source
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+      .split("\n")
+      .map((lineValue) => lineValue.replace(/[ \t]+$/g, ""))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+      .slice(0, limit);
+  }
+  const block = "\uE000";
+  const line = "\uE001";
+  const inline = "\uE002";
+  return source
+    .replace(/<br\b[^>]*>/gi, line)
+    .replace(/<li\b[^>]*>/gi, `${line}- `)
+    .replace(/<\/li>/gi, "")
+    .replace(/<\/?(?:p|div|section|article|h[1-6]|ul|ol|pre|blockquote)\b[^>]*>/gi, block)
+    .replace(/<\/span>\s*<span\b[^>]*>/gi, inline)
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(new RegExp(`(.)${inline}(.)`, "g"), (_match, left: string, right: string) => (
+      /^[A-Za-z0-9]$/.test(left) && /^[A-Za-z0-9@#]$/.test(right)
+        ? `${left} ${right}`
+        : `${left}${right}`
+    ))
+    .replace(/\s+/g, " ")
+    .replace(new RegExp(` *${block}+ *`, "g"), "\n\n")
+    .replace(new RegExp(` *${line} *`, "g"), "\n")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, limit);
+}
+
 function validDate(value: unknown) {
   const source = String(value ?? "").trim();
   const normalized = /^\d{4}-\d{2}-\d{2}$/.test(source)
@@ -145,7 +189,7 @@ async function enrichItems(
     while (nextMaterial < pending.length) {
       const item = pending[nextMaterial];
       nextMaterial += 1;
-      materialById.set(item.id, text(item.sourceMaterial || item.summary, 12_000));
+      materialById.set(item.id, structuredText(item.sourceMaterial || item.summary, 12_000));
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, pending.length) }, materialWorker));
@@ -274,6 +318,11 @@ function tagValue(block: string, name: string) {
   return match ? text(match[1], 12_000) : "";
 }
 
+function structuredTagValue(block: string, name: string) {
+  const match = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"));
+  return match ? structuredText(match[1], 12_000) : "";
+}
+
 function atomLink(block: string) {
   const match = block.match(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/i);
   return match?.[1] ?? tagValue(block, "link");
@@ -290,14 +339,18 @@ function xmlEntries(source: SicSource, payload: string): Candidate[] {
     const url = allowedUrl(atomLink(block), source);
     const title = tagValue(block, "title");
     if (!url || !title) return [];
-    const sourceMaterial = tagValue(block, "content:encoded")
+    const summary = tagValue(block, "content:encoded")
       || tagValue(block, "description")
       || tagValue(block, "summary")
       || tagValue(block, "content");
+    const sourceMaterial = structuredTagValue(block, "content:encoded")
+      || structuredTagValue(block, "description")
+      || structuredTagValue(block, "summary")
+      || structuredTagValue(block, "content");
     return [{
       title,
       url,
-      summary: sourceMaterial,
+      summary,
       sourceMaterial,
       publishedAt: validDate(tagValue(block, "pubDate") || tagValue(block, "published") || tagValue(block, "updated")),
     }];
@@ -363,13 +416,16 @@ function datedIndexEntries(source: SicSource, payload: string): Candidate[] {
     if (!publishedAt) return [];
     const start = (heading.index ?? 0) + heading[0].length;
     const end = headings[index + 1]?.index ?? payload.length;
-    const summary = text(payload.slice(start, end), 1_400);
+    const rawMaterial = payload.slice(start, end);
+    const summary = text(rawMaterial, 1_400);
+    const sourceMaterial = structuredText(rawMaterial, 12_000);
     if (!summary) return [];
     const firstSentence = summary.split(/(?<=[。！？.!?])\s+/)[0];
     return [{
       title: text(firstSentence || `${source.name} ${headingText}`, 240),
       url: source.homeUrl,
       summary,
+      sourceMaterial,
       publishedAt,
     }];
   });
@@ -487,6 +543,7 @@ function arxivEntries(payload: string, discoveries: Map<string, HuggingFacePaper
     const id = arxivId(tagValue(block, "id"));
     const title = tagValue(block, "title");
     const summary = tagValue(block, "summary");
+    const sourceMaterial = structuredTagValue(block, "summary");
     const discovery = id ? discoveries.get(id) : undefined;
     if (!id || !title || !summary || !discovery) return [];
     return [{
@@ -495,7 +552,7 @@ function arxivEntries(payload: string, discoveries: Map<string, HuggingFacePaper
       url: `https://arxiv.org/abs/${id}`,
       title,
       summary,
-      sourceMaterial: summary,
+      sourceMaterial,
       publishedAt: validDate(tagValue(block, "published") || tagValue(block, "updated")),
       rankingWeek: discovery.rankingWeek,
       weeklyRank: discovery.weeklyRank,
@@ -789,7 +846,7 @@ function validateRawCollection(value: unknown, options: {
       publisher: source.publisher,
       title,
       summary: summary || source.rationale,
-      sourceMaterial: text(raw.sourceMaterial, 12_000) || undefined,
+      sourceMaterial: structuredText(raw.sourceMaterial, 12_000) || undefined,
       url,
       publishedAt: validDate(raw.publishedAt),
       collectedAt,

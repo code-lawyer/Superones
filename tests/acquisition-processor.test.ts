@@ -36,7 +36,7 @@ function mixedBatch(): AcquisitionBatch {
           sourceRole: SOURCE_ROLES[0],
           originalLanguage: "en",
           originalTitle: "A material event",
-          originalContent: "Original source material.",
+          originalContent: "First source paragraph.\n\nSecond source paragraph.\n\n- First fact\n- Second fact",
           contentCompleteness: "fulltext",
         },
       },
@@ -118,8 +118,12 @@ test("processor routes information and publications through domestic adapters", 
   assert.equal(sicResult.publications, 1);
   assert.equal(calls.length, 2);
   assert.equal(requireNoQuarantine, false);
-  const content = calls[0].value as { information: Array<{ originalTitle: string }> };
+  const content = calls[0].value as { information: Array<{ originalTitle: string; originalContent?: string }> };
   assert.equal(content.information[0].originalTitle, "A material event");
+  assert.equal(
+    content.information[0].originalContent,
+    "First source paragraph.\n\nSecond source paragraph.\n\n- First fact\n- Second fact",
+  );
   const publications = calls[1].value as {
     items: Array<{
       sourceMaterial?: string;

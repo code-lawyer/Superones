@@ -25,6 +25,13 @@ function validEnvironment() {
     ...validTestAlipayEnvironment(),
     VAULT2077_PUBLIC_ORIGIN: "https://superones.top",
     VAULT2077_ADMIN_ORIGIN: "https://admin.superones.top",
+    VAULT2077_RANGER_MEDIA_STORAGE: "oss",
+    VAULT2077_OSS_REGION: "oss-cn-shanghai",
+    VAULT2077_OSS_BUCKET: "vault2077-public-media",
+    VAULT2077_OSS_ACCESS_KEY_ID: "LTAI5tProductionMediaKey",
+    VAULT2077_OSS_ACCESS_KEY_SECRET: "production-media-secret-key",
+    VAULT2077_OSS_PUBLIC_ORIGIN: "https://media.superones.top",
+    VAULT2077_OSS_INTERNAL: "true",
     VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ current: `${secret}3` }),
     VAULT2077_PIPELINE_ACTIVE_KEY_ID: "current",
     VAULT2077_PIPELINE_WORKER_SECRET: `${secret}4`,
@@ -67,6 +74,26 @@ test("production configuration gate rejects invalid OPC Alipay Open Platform cre
   });
   assert.equal(report.ok, false);
   assert.ok(report.errors.some((issue) => issue.includes("支付宝网关")));
+});
+
+test("production configuration gate requires isolated OSS ranger media storage", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_RANGER_MEDIA_STORAGE: "local",
+    VAULT2077_OSS_PUBLIC_ORIGIN: "https://superones.top",
+    VAULT2077_OSS_ACCESS_KEY_SECRET: "change-me",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("RANGER_MEDIA_STORAGE")));
+  assert.ok(report.errors.some((issue) => issue.includes("独立媒体域名")));
+  assert.ok(report.errors.some((issue) => issue.includes("OSS_ACCESS_KEY_SECRET")));
+
+  const wrongMediaDomain = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_OSS_PUBLIC_ORIGIN: "https://media-alt.superones.top",
+  });
+  assert.equal(wrongMediaDomain.ok, false);
+  assert.ok(wrongMediaDomain.errors.some((issue) => issue.includes("已确认媒体域名")));
 });
 
 test("production configuration gate requires explicit feature switches and an ICP filing", () => {

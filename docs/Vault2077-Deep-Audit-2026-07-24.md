@@ -59,9 +59,9 @@ lane-kind 合同会在写入前拒绝不支持记录；生产 inbox 使用专用
 
 ### P0-4 后台应用安全合同已完成，网络验收待执行
 
-依据 ADR-0012，生产共享密码入口已移除，改为独立管理来源、身份网关签名 JWT、owner 白名单与 Passkey/MFA。应用会话使用 PostgreSQL 中可撤销的不透明令牌摘要，空闲 30 分钟、绝对 4 小时过期；OPC 发布和奖品状态变更要求最近 5 分钟再认证。后台写请求同时校验 JSON、自定义请求头、Origin/Referer 与 Fetch Metadata，并继续写入 append-only 审计表。
+依据 ADR-0012，生产共享密码和身份网关/OIDC 入口均已移除，改为独立管理来源上的项目内原生 Passkey。应用会话使用 PostgreSQL 中可撤销的不透明令牌摘要，空闲 30 分钟、绝对 4 小时过期；OPC 发布和奖品状态变更要求最近 5 分钟再认证。后台写请求同时校验 JSON、自定义请求头、Origin/Referer 与 Fetch Metadata，并继续写入 append-only 审计表。
 
-逐请求 nonce CSP、HSTS、MIME、frame、referrer、COOP/CORP 和 `/pipeline` 认证/noindex 已实现；仓库已提供精确 ingest/公开/管理 Nginx 与 Web/采集 worker/Frontier systemd 模板。剩余门禁是目标预发布环境中的真实 DNS、TLS、身份网关策略、转发头覆盖、源站防火墙、性能和绕过失败证据，不再是应用代码缺口。
+逐请求 nonce CSP、HSTS、MIME、frame、referrer、COOP/CORP 和 `/pipeline` 认证/noindex 已实现；仓库已提供精确 ingest/公开/管理 Nginx 与 Web/采集 worker/Frontier systemd 模板。剩余门禁是目标预发布环境中的真实 DNS、TLS、Passkey 认证器、转发头覆盖、源站防火墙、性能和绕过失败证据，不再是应用代码缺口。
 
 ## 3. 产品与领域模型差距
 
@@ -155,7 +155,7 @@ Gate A-C 的代码主体已完成，并补齐版本化密钥环、可靠投递�
 ## 6. 本轮验证
 
 - `npm run docs:check`、`npm run lint`、`ruff check collector` 与 `npm run typecheck`：以 2026-07-25 最终追踪矩阵为准。
-- `npm test`：138 项通过，覆盖可靠投递、签名轮换、敏感数据轮换、有界限流和代理部署策略。
+- 历史审计时 `npm test` 为 138 项；当前测试数量和结果以实现追踪矩阵及本次候选发布记录为准，不把该历史数字作为当前门禁。
 - PostgreSQL 17 迁移、幂等重跑、并发聚合、`SKIP LOCKED`、隔离、限速和不可变审计集成测试：通过。
 - `npm run build`：通过。
 - `npm run test:pipeline:e2e`：通过。
