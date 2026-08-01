@@ -23,7 +23,7 @@ export function HomeRefinedHero() {
             type="button"
             aria-expanded={manifestoOpen}
             aria-controls="home-refined-manifesto"
-            aria-label={manifestoOpen ? "收起避难所欢迎辞" : "展开避难所欢迎辞"}
+            aria-label={manifestoOpen ? "收起Vault2077欢迎辞" : "展开Vault2077欢迎辞"}
             onClick={() => setManifestoOpen((open) => !open)}
           >
             <span className="home-refined-hero__triangle" aria-hidden="true" />
@@ -39,7 +39,7 @@ export function HomeRefinedHero() {
         aria-hidden={!manifestoOpen}
       >
         <div>
-          <p className="mono">SHELTER WELCOME / 避难所欢迎辞</p>
+          <p className="mono">VAULT2077 WELCOME / Vault2077欢迎辞</p>
           <article className="home-refined-manifesto__article">
             <p className="home-refined-manifesto__salutation"><strong>致 步入荒野的你：</strong></p>
             <div className="home-refined-manifesto__body">
@@ -49,16 +49,16 @@ export function HomeRefinedHero() {
               <p><strong>超级个体</strong>和<strong>霸权公司</strong>，将是新时代的主角。</p>
               <p>陈旧的架构已经失效，但超级个体仍然需要某种形式的组织：</p>
               <p>发布和验收任务，撮合交易和协作，链接不同特长的超级个体，提供基础的标准化中后台服务。</p>
-              <p>这就是<strong>避难所计划</strong>：你可以专心于挥洒智慧，剩下的一切交给我们（Vault）。</p>
+              <p>这就是<strong>Vault2077</strong>：你可以专心于挥洒智慧，剩下的一切交给我们。</p>
               <p>如果你也受够了愚蠢，如果你也贪恋着自由，如果你也向往着荒野……</p>
-              <p>欢迎你，这里是<strong>避难所</strong>，这里是<strong>自由人的集合</strong>。</p>
+              <p>欢迎你，这里是<strong>Vault2077</strong>，这里是<strong>自由人的集合</strong>。</p>
               <p>一簇小小的篝火，一方简陋的营地，我们开始建设。</p>
             </div>
             {manifestoOpen ? (
               <button
                 className="home-refined-manifesto__close"
                 type="button"
-                aria-label="收起避难所欢迎辞"
+                aria-label="收起Vault2077欢迎辞"
                 onClick={closeManifesto}
               >
                 <span className="home-refined-hero__triangle" aria-hidden="true" />

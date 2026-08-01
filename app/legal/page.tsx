@@ -17,19 +17,12 @@ export default function LegalPage() {
           paragraphs: [
             `企业名称：${profile.operatorName}`,
             `统一社会信用代码：${profile.unifiedSocialCreditCode}`,
-            `企业类型：${profile.operatorType}`,
-            `法定代表人：${profile.legalRepresentative}`,
-            `住所：${profile.registeredAddress}`,
-            `注册资本：${profile.registeredCapital}`,
-            `实际签约与收款主体：${profile.operatorName}`,
           ],
         },
         {
           title: "网站与备案",
           paragraphs: [
-            `网站域名：${profile.publicDomain}`,
             `ICP备案号：${profile.icpNumber}`,
-            "营业执照电子亮照或国家企业信用信息公示系统链接将在正式上线前补充；依法需要取得专项行政许可的业务，只会在取得相应许可后开放。",
           ],
         },
         {
