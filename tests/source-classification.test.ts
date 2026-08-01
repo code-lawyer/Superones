@@ -98,3 +98,9 @@ test("video-only YouTube channels never enter the registry or runtime bundle", (
   assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "youtube"));
   assert.ok(bundle.pending.every((source: { channelType: string }) => source.channelType !== "youtube"));
 });
+
+test("source registry builder validates the raw audit root and has no unreachable YouTube branch", async () => {
+  const builder = await readFile(new URL("../scripts/build-source-registry.mjs", import.meta.url), "utf8");
+  assert.match(builder, /if \(!auditRootInput\?\.trim\(\)\)/);
+  assert.doesNotMatch(builder, /youtubeChannel\s*\?/);
+});

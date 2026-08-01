@@ -15,7 +15,7 @@ export function FeedInformationDetail({
 }) {
   const roadside = section === "roadside";
   const returnHref = section === "documents" ? "/sic#sic-group-documents" : roadside ? "/feed#roadside-stream" : "/feed#information-waterfall";
-  const sectionLabel = section === "documents" ? "Vault 文档" : roadside ? "Vault 路边社" : "Vault 资讯瀑布";
+  const sectionLabel = section === "documents" ? "SiC 档案" : roadside ? "Vault 路边社" : "Vault 资讯瀑布";
   const sourceUrl = item.originUrl ?? item.sourceUrl;
   const isX = item.originPlatform === "x";
   const community = item.publisherKind === "community_user" || item.publisherKind === "community";

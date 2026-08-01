@@ -19,6 +19,7 @@ import {
   queryOpcAlipayTrade,
 } from "@/lib/opc-payment-config";
 import { recordAuditEvent } from "@/lib/security-audit";
+import { withPersistenceTransaction } from "@/lib/state-document-store";
 
 export const runtime = "nodejs";
 
@@ -63,6 +64,14 @@ export async function POST(request: NextRequest) {
     if (body.action === "reconcile-opc-order") {
       attemptedAction = "admin.opc-order.reconcile";
       if (!hasRecentAdminReauthentication(access.session)) {
+        await recordAuditEvent({
+          actorHash,
+          action: attemptedAction,
+          targetType: attemptedTargetType,
+          targetId: attemptedTargetId,
+          result: "rejected",
+          reason: "recent-reauthentication-required",
+        });
         return authenticatedAdminJson(access, {
           error: "查询 OPC 订单付款状态前需要重新验证管理员身份。",
           code: "ADMIN_REAUTH_REQUIRED",
@@ -72,23 +81,43 @@ export async function POST(request: NextRequest) {
       const orderId = typeof body.orderId === "string" ? body.orderId : "";
       attemptedTargetId = orderId || "unknown";
       if (!orderId || body.confirm !== true) {
+        await recordAuditEvent({
+          actorHash,
+          action: attemptedAction,
+          targetType: attemptedTargetType,
+          targetId: attemptedTargetId,
+          result: "rejected",
+          reason: "invalid-or-unconfirmed-request",
+        });
         return authenticatedAdminJson(access, { error: "付款状态查询需要有效订单和明确确认。" }, { status: 400 });
       }
       const order = (await listAdminOpcOrders()).find((value) => value.id === orderId);
-      if (!order) return authenticatedAdminJson(access, { error: "OPC 订单不存在。" }, { status: 404 });
+      if (!order) {
+        await recordAuditEvent({
+          actorHash,
+          action: attemptedAction,
+          targetType: attemptedTargetType,
+          targetId: attemptedTargetId,
+          result: "rejected",
+          reason: "order-not-found",
+        });
+        return authenticatedAdminJson(access, { error: "OPC 订单不存在。" }, { status: 404 });
+      }
       const result = await queryOpcAlipayTrade(order.reference);
-      const updated = await recordOpcAlipayQuery(order.reference, result);
-      await recordAuditEvent({
-        actorHash,
-        action: "admin.opc-order.reconcile",
-        targetType: "opc-order",
-        targetId: orderId,
-        result: "success",
-        diff: {
-          reference: order.reference,
-          status: updated.status,
-          alipayTradeStatus: result.tradeStatus ?? "TRADE_NOT_EXIST",
-        },
+      await withPersistenceTransaction(async () => {
+        const updated = await recordOpcAlipayQuery(order.reference, result);
+        await recordAuditEvent({
+          actorHash,
+          action: "admin.opc-order.reconcile",
+          targetType: "opc-order",
+          targetId: orderId,
+          result: "success",
+          diff: {
+            reference: order.reference,
+            status: updated.status,
+            alipayTradeStatus: result.tradeStatus ?? "TRADE_NOT_EXIST",
+          },
+        });
       });
       return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
     }
@@ -96,6 +125,14 @@ export async function POST(request: NextRequest) {
     if (body.action === "update-opc-order") {
       attemptedAction = "admin.opc-order.update";
       if (!hasRecentAdminReauthentication(access.session)) {
+        await recordAuditEvent({
+          actorHash,
+          action: attemptedAction,
+          targetType: attemptedTargetType,
+          targetId: attemptedTargetId,
+          result: "rejected",
+          reason: "recent-reauthentication-required",
+        });
         return authenticatedAdminJson(access, {
           error: "更新 OPC 订单付款状态前需要重新验证管理员身份。",
           code: "ADMIN_REAUTH_REQUIRED",
@@ -116,14 +153,16 @@ export async function POST(request: NextRequest) {
         });
         return authenticatedAdminJson(access, { error: "更新 OPC 订单需要有效订单、目标状态和明确确认。" }, { status: 400 });
       }
-      const updated = await updateOpcOrderStatus(orderId, orderStatus);
-      await recordAuditEvent({
-        actorHash,
-        action: "admin.opc-order.update",
-        targetType: "opc-order",
-        targetId: orderId,
-        result: "success",
-        diff: { reference: updated.reference, status: updated.status },
+      await withPersistenceTransaction(async () => {
+        const updated = await updateOpcOrderStatus(orderId, orderStatus);
+        await recordAuditEvent({
+          actorHash,
+          action: "admin.opc-order.update",
+          targetType: "opc-order",
+          targetId: orderId,
+          result: "success",
+          diff: { reference: updated.reference, status: updated.status },
+        });
       });
       return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
     }

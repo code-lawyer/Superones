@@ -63,7 +63,3 @@ export function legacySourceStream(group: ContentGroup) {
 export function isEventInput(group: ContentGroup) {
   return group === "information";
 }
-
-export function isRoadside(input: LegacyContentRouting) {
-  return resolveContentGroup(input) === "roadside";
-}

@@ -6,6 +6,6 @@ proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $remote_addr;
 proxy_set_header Connection "";
 
-# Authentication is handled by the application's Alibaba Cloud IDaaS OIDC
-# authorization-code adapter. Never forward a client-supplied identity header.
+# Authentication is handled by the application's same-origin WebAuthn/Passkey
+# ceremony. Never forward a client-supplied identity assertion header.
 proxy_set_header X-Vault2077-Identity-Assertion "";

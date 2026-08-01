@@ -27,23 +27,19 @@
 .opc-service-browser__primary {
   display: flex;
   flex-direction: column;
-  padding: 36px clamp(18px, 2.2vw, 34px) 28px;
   --opc-primary-pad: clamp(18px, 2.1vw, 32px);
   padding: 58px var(--opc-primary-pad) 42px;
   background: var(--paper);
 }
 
 .opc-service-browser__secondary header > .mono {
-  margin-bottom: 36px;
   color: var(--ash);
   font-size: var(--type-label);
-  margin-bottom: 12px;
   margin-bottom: 40px;
   letter-spacing: .08em;
 }
 
 .opc-service-browser__primary nav {
-  border-top: 1px solid var(--carbon);
   display: grid;
   gap: 12px;
   margin-inline: calc(var(--opc-primary-pad) * -1);
@@ -52,12 +48,7 @@
 
 .opc-service-browser__primary nav button {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-  width: 100%;
-  min-height: 86px;
   align-content: center;
-  border: 0;
   border-bottom: 1px solid var(--rule);
   border-radius: 0;
   padding: 14px 0;
@@ -76,7 +67,6 @@
 }
 
 .opc-service-browser__primary nav button strong {
-  font-size: var(--type-body-large);
   font-weight: 600;
   font-size: clamp(17px, 1.35vw, 20px);
   line-height: 1.32;
@@ -84,7 +74,6 @@
 
 .opc-service-browser__primary nav button small {
   color: var(--ash);
-  font-size: var(--type-caption);
   max-width: 17em;
   font-size: var(--type-note);
   line-height: 1.55;
@@ -93,9 +82,6 @@
 .opc-service-browser__primary nav button:hover strong,
 .opc-service-browser__primary nav button:focus-visible strong,
 .opc-service-browser__primary nav button.is-active strong {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 6px;
   text-decoration: none;
 }
 
@@ -107,8 +93,6 @@
 
 .opc-service-browser__boundary {
   margin-top: auto;
-  border-top: 1px solid var(--carbon);
-  padding-top: 14px;
   border-top: 0;
   padding-top: 48px;
 }
@@ -120,15 +104,12 @@
 }
 
 .opc-service-browser__secondary {
-  --opc-secondary-pad: clamp(22px, 2.3vw, 38px);
-  padding: 36px 0 40px;
   --opc-secondary-pad: clamp(28px, 2.8vw, 44px);
   padding-top: 58px;
   background: var(--paper);
 }
 
 .opc-service-browser__secondary header {
-  margin-bottom: 40px;
   padding-inline: var(--opc-secondary-pad);
   margin-bottom: 48px;
 }
@@ -1181,8 +1162,8 @@
 
 .opc-fee-note > button {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--carbon);
   place-items: center;
   background: transparent;

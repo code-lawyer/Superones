@@ -81,7 +81,12 @@ try {
 
   await run(process.execPath, ["scripts/e2e-content-pipeline.mjs"], {
     cwd: process.cwd(),
-    env: { ...process.env, VAULT2077_E2E_ORIGIN: `http://127.0.0.1:${sitePort}`, VAULT2077_E2E_SECRET: secret },
+    env: {
+      ...process.env,
+      VAULT2077_E2E_ORIGIN: `http://127.0.0.1:${sitePort}`,
+      VAULT2077_E2E_SECRET: secret,
+      VAULT2077_E2E_DATA_DIR: path.join(dataRoot, "data"),
+    },
     stdio: "inherit",
   });
 } finally {

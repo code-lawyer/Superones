@@ -16,6 +16,7 @@ import {
   setPrizeDonationStatus,
 } from "@/lib/frontier-store";
 import { recordAuditEvent } from "@/lib/security-audit";
+import { withPersistenceTransaction } from "@/lib/state-document-store";
 
 export const runtime = "nodejs";
 
@@ -77,27 +78,38 @@ export async function POST(request: NextRequest) {
     if (body.action === "save-season-reward" || body.action === "publish-season-reward") {
       const season = currentSeason().code;
       targetId = season;
-      if (body.action === "save-season-reward") {
-        if (typeof body.officialReward !== "string") {
-          return authenticatedAdminJson(access, { error: "请填写本赛季真实官方奖励。" }, { status: 400 });
-        }
-        await saveFrontierSeasonRewardDraft(season, body.officialReward);
-      } else {
-        await publishFrontierSeasonReward(season);
+      if (body.action === "save-season-reward" && typeof body.officialReward !== "string") {
+        await recordAuditEvent({
+          actorHash,
+          action: "admin.frontier.save-season-reward",
+          targetType: "frontier-season",
+          targetId: season,
+          result: "rejected",
+          reason: "official-reward-required",
+        });
+        return authenticatedAdminJson(access, { error: "请填写本赛季真实官方奖励。" }, { status: 400 });
       }
-      const seasonConfiguration = await getFrontierSeasonConfiguration(season);
-      await recordAuditEvent({
-        actorHash,
-        action: `admin.frontier.${body.action}`,
-        targetType: "frontier-season",
-        targetId: season,
-        result: "success",
-        diff: {
-          status: seasonConfiguration.status,
-          officialReward: seasonConfiguration.officialReward,
-          rewardProvider: seasonConfiguration.rewardProvider,
-          rewardProcessOpenWithinDays: seasonConfiguration.rewardProcessOpenWithinDays,
-        },
+      const seasonConfiguration = await withPersistenceTransaction(async () => {
+        if (body.action === "save-season-reward") {
+          await saveFrontierSeasonRewardDraft(season, body.officialReward as string);
+        } else {
+          await publishFrontierSeasonReward(season);
+        }
+        const updated = await getFrontierSeasonConfiguration(season);
+        await recordAuditEvent({
+          actorHash,
+          action: `admin.frontier.${body.action}`,
+          targetType: "frontier-season",
+          targetId: season,
+          result: "success",
+          diff: {
+            status: updated.status,
+            officialReward: updated.officialReward,
+            rewardProvider: updated.rewardProvider,
+            rewardProcessOpenWithinDays: updated.rewardProcessOpenWithinDays,
+          },
+        });
+        return updated;
       });
       return authenticatedAdminJson(access, {
         submissions: await listAdminSubmissions(),
@@ -107,14 +119,16 @@ export async function POST(request: NextRequest) {
     }
     if (changesDonation && typeof body.donationId === "string") {
       const statusAction = body.action === "confirm-donation" ? "confirm" : body.action === "reject-donation" ? "reject" : "withdraw";
-      await setPrizeDonationStatus(body.donationId, statusAction);
-      await recordAuditEvent({
-        actorHash,
-        action: `admin.frontier.${body.action}`,
-        targetType: "prize-donation",
-        targetId: body.donationId,
-        result: "success",
-        diff: { statusAction },
+      await withPersistenceTransaction(async () => {
+        await setPrizeDonationStatus(body.donationId as string, statusAction);
+        await recordAuditEvent({
+          actorHash,
+          action: `admin.frontier.${body.action}`,
+          targetType: "prize-donation",
+          targetId: body.donationId as string,
+          result: "success",
+          diff: { statusAction },
+        });
       });
       return authenticatedAdminJson(access, {
         submissions: await listAdminSubmissions(),

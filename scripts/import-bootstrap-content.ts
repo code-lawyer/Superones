@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { replaceStoredContent } from "../lib/content-store.ts";
+import { getStoredContent, replaceStoredContent } from "../lib/content-store.ts";
 import {
   persistDirectRankingBoards,
   type DirectRankingBoard,
@@ -16,6 +16,7 @@ import type {
   InformationItem,
   TrendProject,
 } from "../lib/types.ts";
+import { mergeBootstrapContentSeed } from "./bootstrap-manifest.ts";
 
 type Manifest = {
   version: 1;
@@ -28,7 +29,7 @@ function hash(value: string) {
 
 const confirmed = process.argv.includes("--confirm");
 if (!confirmed) {
-  throw new Error("Bootstrap import replaces current public content. Re-run with --confirm.");
+  throw new Error("Bootstrap import adds verified missing seed content. Re-run with --confirm.");
 }
 const directory = path.resolve("data", "bootstrap");
 const manifest = JSON.parse(await readFile(path.join(directory, "manifest.json"), "utf8")) as Manifest;
@@ -57,13 +58,22 @@ const sic = await verifiedJson<{
 }>("sic-content-store.seed.json");
 const rankings = await verifiedJson<{ boards: DirectRankingBoard[] }>("direct-rankings.seed.json");
 
+const current = await getStoredContent();
+const mergedContent = mergeBootstrapContentSeed({
+  updatedAt: current.state.updatedAt,
+  sourceCount: current.state.sourceCount,
+  events: current.events,
+  information: current.information,
+  projects: current.projects,
+}, content);
+
 await replaceStoredContent({
-  events: content.events,
-  information: content.information,
-  projects: content.projects,
+  events: mergedContent.events,
+  information: mergedContent.information,
+  projects: mergedContent.projects,
   quarantine: [],
-  sourceCount: content.sourceCount,
-  updatedAt: content.updatedAt ?? undefined,
+  sourceCount: mergedContent.sourceCount,
+  updatedAt: mergedContent.updatedAt ?? undefined,
 });
 await mergeSicStoredContent({
   items: sic.items,
@@ -73,6 +83,7 @@ await mergeSicStoredContent({
 await persistDirectRankingBoards(rankings.boards);
 console.log(JSON.stringify({
   ok: true,
+  mode: "merge-missing",
   information: content.information.length,
   events: content.events.length,
   sic: sic.items.length,

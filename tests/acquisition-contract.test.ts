@@ -98,3 +98,9 @@ test("accepts bootstrap batches and defaults legacy batches to incremental", () 
   const { runMode: _legacyRunMode, ...legacy } = batch();
   assert.equal(validateAcquisitionBatch(legacy).runMode, "incremental");
 });
+
+test("rejects the retired statements transport lane", () => {
+  const value = batch();
+  value.lane = "statements";
+  assert.throws(() => validateAcquisitionBatch(value), /lane 无效/);
+});

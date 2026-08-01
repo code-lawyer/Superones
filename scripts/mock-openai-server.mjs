@@ -38,7 +38,14 @@ function responseFor(messages) {
   }
   if (system.includes("event_classification")) return { disposition: "independent" };
   if (system.includes("repository_editorial")) return { description: "测试项目说明", fit: "适合用于验证内容处理闭环。", category: "开发工具" };
-  return { title: "测试事件", judgment: "多源信息形成事件", summary: "测试事件综合摘要。", significance: "验证事件编排链路。", entities: ["Vault2077"], category: "模型与产品" };
+  return {
+    title: "测试事件",
+    judgment: "多源信息共同指向同一变化 [1][2]",
+    summary: "两条独立测试资料共同构成事件证据链 [1][2]。",
+    significance: "该事件验证多源引用、编排与发布链路 [1][2]。",
+    entities: ["Vault2077"],
+    category: "模型与产品",
+  };
 }
 
 createServer((request, response) => {

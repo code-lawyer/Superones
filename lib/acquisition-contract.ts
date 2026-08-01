@@ -1,7 +1,7 @@
 export { payloadHash, signingInput } from "./batch-signing.ts";
 
 export const ACQUISITION_BATCH_VERSION = 1 as const;
-export const ACQUISITION_LANES = ["information", "roadside", "statements", "sic", "rankings"] as const;
+export const ACQUISITION_LANES = ["information", "roadside", "sic", "rankings"] as const;
 export const ACQUISITION_RUN_MODES = ["incremental", "bootstrap"] as const;
 export const MAX_ACQUISITION_BATCH_BYTES = 8_000_000;
 export const MAX_ACQUISITION_RECORDS = 500;
@@ -269,7 +269,7 @@ export function assertAcquisitionLaneKinds(
   lane: AcquisitionLane,
   records: AcquisitionRecord[],
 ) {
-  const allowed = lane === "information" || lane === "roadside" || lane === "statements"
+  const allowed = lane === "information" || lane === "roadside"
     ? new Set<AcquisitionRecordKind>(["information"])
     : lane === "sic"
       ? new Set<AcquisitionRecordKind>(["publication", "entity_profile"])

@@ -69,19 +69,6 @@ async function readBoundedBody(response: Response, maxBytes: number) {
   );
 }
 
-export async function readJsonRequestBounded<T>(request: Request, maxBytes: number): Promise<T> {
-  const source = await readBoundedStream(
-    request.body,
-    Number(request.headers.get("content-length")),
-    maxBytes,
-  );
-  try {
-    return JSON.parse(source) as T;
-  } catch {
-    throw new Error("请求体不是有效 JSON。");
-  }
-}
-
 export async function fetchTextBounded(
   url: string,
   init: RequestInit = {},

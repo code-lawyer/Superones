@@ -463,6 +463,16 @@ body .sic-ranking-grid--five .sic-board--position-4 {
   margin-top: clamp(82px, 8vw, 124px);
 }
 
+.sic-data-status {
+  margin: 0 0 28px;
+  border-left: 4px solid var(--carbon);
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--carbon) 7%, transparent);
+  color: var(--graphite);
+  font-size: var(--type-note);
+  line-height: 1.65;
+}
+
 .sic-magazine__header,
 .sic-ranking-rail__header {
   min-height: 238px;

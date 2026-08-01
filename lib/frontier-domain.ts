@@ -63,15 +63,6 @@ export function seasonForDate(value: Date = new Date()): FrontierSeason {
   return seasonFromCode(`${year}-Q${quarter}`);
 }
 
-export function previousSeason(value: Date = new Date()): FrontierSeason {
-  const current = seasonForDate(value);
-  const match = /^(\d{4})-Q([1-4])$/.exec(current.code);
-  if (!match) throw new Error("当前赛季代码无效。");
-  const year = Number(match[1]);
-  const quarter = Number(match[2]);
-  return seasonFromCode(quarter === 1 ? `${year - 1}-Q4` : `${year}-Q${quarter - 1}`);
-}
-
 export function nextSeason(code: string): FrontierSeason {
   const match = /^(\d{4})-Q([1-4])$/.exec(code);
   if (!match) throw new Error("赛季代码无效。");

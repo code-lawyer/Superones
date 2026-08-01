@@ -52,6 +52,9 @@ test("full repository checks run outside collection jobs", () => {
   assert.match(qualityWorkflow, /npm run lint/);
   assert.match(qualityWorkflow, /npm run typecheck/);
   assert.match(qualityWorkflow, /npm test/);
+  assert.match(qualityWorkflow, /npm run build/);
+  assert.match(qualityWorkflow, /run-acquisition-inbox-e2e\.mjs/);
+  assert.match(qualityWorkflow, /run-content-pipeline-e2e\.mjs/);
   assert.match(qualityWorkflow, /ruff check collector/);
   assert.match(qualityWorkflow, /unittest discover/);
 });

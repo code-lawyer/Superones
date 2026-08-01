@@ -17,6 +17,7 @@ import {
 } from "@/lib/managed-service-catalog";
 import { recordAuditEvent } from "@/lib/security-audit";
 import { publicRangerMediaOrigin } from "@/lib/ranger-avatar-storage";
+import { withPersistenceTransaction } from "@/lib/state-document-store";
 
 export const runtime = "nodejs";
 
@@ -92,23 +93,25 @@ export async function POST(request: NextRequest) {
       return authenticatedAdminJson(access, { error: "OPC 菜单写操作需要有效版本和明确二次确认。" }, { status: 400 });
     }
 
-    const result = action === "publish"
-      ? await publishServiceCatalog(body.catalog, Number(body.expectedRevision))
-      : await saveServiceCatalogDraft(body.catalog, Number(body.expectedRevision));
+    await withPersistenceTransaction(async () => {
+      const updated = action === "publish"
+        ? await publishServiceCatalog(body.catalog, Number(body.expectedRevision))
+        : await saveServiceCatalogDraft(body.catalog, Number(body.expectedRevision));
+      await recordAuditEvent({
+        actorHash,
+        action: `admin.opc.${action}`,
+        targetType: "opc-service-catalog",
+        targetId: "current",
+        result: "success",
+        diff: {
+          revision: updated.revision,
+          ...catalogCounts(body.catalog),
+        },
+      });
+    });
     if (action === "publish") {
       revalidateTag(PUBLISHED_SERVICE_CATALOG_CACHE_TAG, { expire: 0 });
     }
-    await recordAuditEvent({
-      actorHash,
-      action: `admin.opc.${action}`,
-      targetType: "opc-service-catalog",
-      targetId: "current",
-      result: "success",
-      diff: {
-        revision: result.revision,
-        ...catalogCounts(body.catalog),
-      },
-    });
     return authenticatedAdminJson(access, {
       catalog: {
         ...await readManagedServiceCatalog(),

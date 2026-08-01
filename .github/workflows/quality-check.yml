@@ -33,6 +33,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+      - run: node scripts/run-acquisition-inbox-e2e.mjs
+      - run: node scripts/run-content-pipeline-e2e.mjs
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

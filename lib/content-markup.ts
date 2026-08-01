@@ -4,14 +4,6 @@ export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 const MARKDOWN_BLOCK = /(^|\n)\s*(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+|```|>\s+)/m;
 const MARKDOWN_INLINE = /(?:\[[^\]]+\]\(https?:\/\/[^)]+\)|\*\*[^*]+\*\*|`[^`\n]+`)/;
 
-export function normalizeInlineText(value: string, limit: number) {
-  return value
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, limit);
-}
-
 export function normalizeStructuredContent(value: string, limit: number) {
   const normalized = value
     .replace(/\r\n?/g, "\n")

@@ -889,18 +889,6 @@ function validateRawCollection(value: unknown, options: {
   };
 }
 
-export async function ingestSicRawContent(value: unknown, _fetcher: Fetcher = fetch) {
-  const packet = validateRawCollection(value, { enforceAge: true, requireCompleteReports: true });
-  const enriched = await enrichItems(packet.items);
-  const items = enriched.map(({ sourceMaterial: _sourceMaterial, ...item }) => item);
-  return mergeSicStoredContent({
-    items,
-    reports: packet.reports,
-    updatedAt: packet.collectedAt,
-    activeSourceIds: listCollectableSicSources().map((source) => source.id),
-  });
-}
-
 export async function ingestSicAcquisitionContent(value: unknown, _fetcher: Fetcher) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
   const enriched = await enrichItems(packet.items);
@@ -926,10 +914,6 @@ export async function ingestSicAcquisitionContent(value: unknown, _fetcher: Fetc
     snapshotId: packet.snapshotId,
     activeSourceIds: listCollectableSicSources().map((source) => source.id),
   });
-}
-
-export async function refreshSicContent(fetcher: Fetcher = fetch) {
-  return ingestSicRawContent(await collectSicRawContent(fetcher), fetcher);
 }
 
 export const sicCollectorTestUtils = {

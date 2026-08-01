@@ -17,6 +17,7 @@ const STATEMENT_LIMIT = 5;
 
 type FeedSearchParams = Record<string, string | string[] | undefined>;
 type FeedState = {
+  eventLimit: number;
   waterfallLimit: number;
   roadsideLimit: number;
 };
@@ -33,16 +34,22 @@ function positiveLimit(value: string | undefined, fallback: number) {
 function feedHref(state: FeedState, override: Partial<FeedState>) {
   const next = { ...state, ...override };
   const query = new URLSearchParams();
+  if (next.eventLimit > EVENT_LIMIT) query.set("events", String(next.eventLimit));
   if (next.waterfallLimit > WATERFALL_LIMIT) query.set("waterfall", String(next.waterfallLimit));
   if (next.roadsideLimit > STATEMENT_LIMIT) query.set("roadside", String(next.roadsideLimit));
   const suffix = query.toString();
-  const anchor = override.roadsideLimit ? "roadside-stream" : "information-waterfall";
+  const anchor = override.eventLimit
+    ? "event-ledger"
+    : override.roadsideLimit
+      ? "roadside-stream"
+      : "information-waterfall";
   return `${suffix ? `/feed?${suffix}` : "/feed"}#${anchor}`;
 }
 
 export default async function FeedPage({ searchParams }: { searchParams: Promise<FeedSearchParams> }) {
   const [content, params] = await Promise.all([getPublicContent(), searchParams]);
   const state: FeedState = {
+    eventLimit: positiveLimit(valueOf(params.events), EVENT_LIMIT),
     waterfallLimit: positiveLimit(valueOf(params.waterfall), WATERFALL_LIMIT),
     roadsideLimit: positiveLimit(valueOf(params.roadside ?? params.statements), STATEMENT_LIMIT),
   };
@@ -58,7 +65,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       (item.contentGroup ?? item.sourceStream) === "roadside" || item.sourceStream === "statements"
     ))
     .sort(compareInformationNewest);
-  const visibleEvents = eventItems.slice(0, EVENT_LIMIT);
+  const visibleEvents = eventItems.slice(0, state.eventLimit);
   const visibleInformation = informationItems.slice(0, state.waterfallLimit);
   const visibleRoadside = roadsideItems.slice(0, state.roadsideLimit);
   const updatedAt = content.state.updatedAt;
@@ -89,6 +96,12 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             </header>
             <EventList items={visibleEvents} />
             {visibleEvents.length === 0 ? <p className="feed-empty">暂无事件</p> : null}
+            {visibleEvents.length < eventItems.length ? (
+              <Link className="feed-more" href={feedHref(state, { eventLimit: state.eventLimit + EVENT_LIMIT })}>
+                <span>展开更多事件</span>
+                <span className="mono">{visibleEvents.length} / {eventItems.length}</span>
+              </Link>
+            ) : null}
           </section>
 
           <aside className="feed-column feed-column--streams" aria-label="原始信息流">

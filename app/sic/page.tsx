@@ -17,14 +17,25 @@ export const metadata: Metadata = { title: "SiC 学院" };
 export const dynamic = "force-dynamic";
 
 export default async function SicPage() {
-  const [directBoards, storedSicContent, publicContent] = await Promise.all([
-    getCachedDirectRankingBoards().catch(() => []),
-    getCachedSicContent().catch(() => ({
-      groups: { papers: [], documents: [], courses: [], podcasts: [] },
-      state: { updatedAt: null, itemCount: 0, sourceCount: 0 },
-    })),
+  const [directBoardsResult, storedSicResult, publicContent] = await Promise.all([
+    getCachedDirectRankingBoards().then(
+      (value) => ({ value, unavailable: false }),
+      () => ({ value: [], unavailable: true }),
+    ),
+    getCachedSicContent().then(
+      (value) => ({ value, unavailable: false }),
+      () => ({
+        value: {
+          groups: { papers: [], documents: [], courses: [], podcasts: [] },
+          state: { updatedAt: null, itemCount: 0, sourceCount: 0 },
+        },
+        unavailable: true,
+      }),
+    ),
     getCachedPublicContent(),
   ]);
+  const directBoards = directBoardsResult.value;
+  const storedSicContent = storedSicResult.value;
   const sicContent = addPublishedDocuments(storedSicContent, publicContent.information);
   const boards: SicBoard[] = directBoards.map((board) => ({
     id: board.id.replace(/:/g, "-"),
@@ -59,9 +70,9 @@ export default async function SicPage() {
       </nav>
       <section className="shell sic-stage" aria-label="SiC 技术阅读与趋势榜">
         <div className="sic-stage__columns">
-          <SicContentGroups groups={sicContentGroups} content={sicContent.groups} />
+          <SicContentGroups groups={sicContentGroups} content={sicContent.groups} unavailable={storedSicResult.unavailable} />
           <aside className="sic-stage__rail" aria-label="技术趋势榜单">
-            <SicRankings boards={boards} />
+            <SicRankings boards={boards} unavailable={directBoardsResult.unavailable} />
           </aside>
         </div>
       </section>

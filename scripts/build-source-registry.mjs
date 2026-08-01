@@ -8,8 +8,9 @@ for (let index = 2; index < process.argv.length; index += 2) {
   argumentsMap.set(process.argv[index], process.argv[index + 1]);
 }
 
-const auditRoot = resolve(argumentsMap.get("--audit-root") ?? process.env.VAULT2077_SOURCE_AUDIT_ROOT ?? "");
-if (!auditRoot) throw new Error("Pass --audit-root or VAULT2077_SOURCE_AUDIT_ROOT.");
+const auditRootInput = argumentsMap.get("--audit-root") ?? process.env.VAULT2077_SOURCE_AUDIT_ROOT;
+if (!auditRootInput?.trim()) throw new Error("Pass --audit-root or VAULT2077_SOURCE_AUDIT_ROOT.");
+const auditRoot = resolve(auditRootInput);
 
 const outputPath = resolve(argumentsMap.get("--output") ?? "config/source-registry.json");
 const csvPath = resolve(argumentsMap.get("--csv") ?? "docs/Vault2077-Source-Registry.csv");
@@ -147,22 +148,19 @@ function parseOpml(xml) {
 function rssCandidate({ title, url, family, repository, path, publisherRole = "媒体", homeUrl, capability }) {
   const parsed = new URL(url);
   const xHandle = family === "x" ? title.match(/\(@([^\)]+)\)/)?.[1] : null;
-  const youtubeChannel = parsed.hostname.includes("youtube.com") ? parsed.searchParams.get("channel_id") : null;
-  if (youtubeChannel) return;
+  if (parsed.hostname.includes("youtube.com") && parsed.searchParams.get("channel_id")) return;
   const identity = xHandle
     ? `x:${xHandle.toLowerCase()}`
-    : youtubeChannel
-      ? `youtube:${youtubeChannel}`
-      : `feed:${normalizeUrl(url)}`;
+    : `feed:${normalizeUrl(url)}`;
   const proxyHosts = new Set(["api.xgo.ing", "rsshub.bestblogs.dev", "wechat2rss.bestblogs.dev", "pod2txt.vercel.app"]);
   addChannel({
     identity,
     publisherName: title.replace(/\(@[^\)]+\)$/, "").trim(),
     publisherRole: xHandle ? "评论" : publisherRole,
-    channelType: xHandle ? "x" : youtubeChannel ? "youtube" : family,
-    channelIdentifier: xHandle ?? youtubeChannel ?? normalizeUrl(url),
+    channelType: xHandle ? "x" : family,
+    channelIdentifier: xHandle ?? normalizeUrl(url),
     homeUrl: xHandle ? `https://x.com/${xHandle}` : nonVideoHomeUrl(homeUrl, url),
-    contentCapability: capability ?? (xHandle ? "excerpt" : youtubeChannel ? "metadata" : "feed-content"),
+    contentCapability: capability ?? (xHandle ? "excerpt" : "feed-content"),
     endpoint: {
       url,
       connectorType: "rss",

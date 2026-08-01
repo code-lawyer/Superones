@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const content = await getPublicContent();
   const item = content.information.find((entry) => matchesFeedSlug(entry.slug, slug));
-  return { title: item?.translatedTitle ?? "文档记录" };
+  return { title: item?.translatedTitle ?? "档案记录" };
 }
 
 export default async function DocumentDetailPage({ params }: { params: Promise<{ slug: string }> }) {

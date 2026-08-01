@@ -18,7 +18,9 @@ sudo systemctl enable --now vault2077-web.service
 sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-frontier-tick.timer vault2077-ranger-media-cleanup.timer
 ```
 
-部署前必须把模板中的用户、目录、npm 路径和环境文件改成目标服务器实际值。环境文件权限应为 `0600`，归 `root` 所有；应用用户只通过 systemd 读取，不得把密钥写进仓库。
+模板默认把受控 Node.js 运行时固定在 `/opt/node`，并使用 `/opt/node/bin/npm`；完整安装和校验方法见 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`。若采用发行版软件包，必须同步修改四个 service 的 `PATH` 与 npm 绝对路径，再运行 `systemd-analyze verify`。部署前还必须核对用户、目录和环境文件。环境文件权限应为 `0600`，归 `root` 所有；应用用户只通过 systemd 读取，不得把密钥写进仓库。
+
+生产数据库是外部阿里云 RDS，因此 unit 只等待 `network-online.target`，不依赖本机 `postgresql.service`。若迁移到其他外部数据库，同样不得为了满足 unit 依赖在应用机安装空的 PostgreSQL 服务。
 
 验收至少包括：
 

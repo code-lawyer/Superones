@@ -9,7 +9,6 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { adminActorHash } from "./admin-auth.ts";
 import { passkeyAdminIdentity } from "./admin-identity.ts";
 import {
   completeAdminPasskeyAuthentication,
@@ -151,8 +150,4 @@ export async function finishAdminPasskeyAuthentication(input: {
     actorHash: input.actorHash,
   });
   return passkeyAdminIdentity();
-}
-
-export function passkeyOwnerActorHash() {
-  return adminActorHash(passkeyAdminIdentity().subject);
 }

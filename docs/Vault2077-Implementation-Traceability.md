@@ -97,9 +97,9 @@ updated: 2026-07-31
 | 游骑兵头像对象存储 | partial | ADR-0016 的 OSS/本地适配器、320/800 WebP、受保护 multipart 上传、发布前 HEAD、独立媒体域名、7/30 天引用感知清理，以及授权撤回后的当前对象、历史 versionId 和删除标记永久删除命令已实现；真实 Bucket/CNAME/RAM 联调、定时任务和版本化删除演练仍待验收 |
 | 来源修订白名单 | done | 接收端只接受部署修订和显式灰度重叠修订 |
 | inbox 幂等与重放防护 | done | 接收代码与 E2E 存在 |
-| 批次写入原子性 | partial | 不支持的记录已在写入前拒绝；跨存储写入仍无事务，运行失败可能半提交 |
+| 批次写入原子性 | done | PostgreSQL 模式下采集批次、后台 OPC/Frontier/订单业务写入与对应成功审计均使用同一事务；审计失败会回滚业务写入；文件预览存储不作为生产原子性保证 |
 | worker 重试/隔离 | done | retryable/quarantined、最大尝试、租约恢复和隔离测试已实现 |
-| 后台身份入口 | done | 生产只接受独立管理来源上的网关签名 JWT，并校验签名、发行者、受众、时效和 owner 邮箱白名单；本地 Argon2id/开发密码适配器在生产关闭 |
+| 后台身份入口 | done | 生产只接受独立 HTTPS 管理来源上的原生 WebAuthn/Passkey，校验 RP ID、来源、挑战、签名、用户验证和计数器后创建可撤销服务端会话；本地开发密码适配器在生产关闭 |
 | 后台会话与再认证 | done | PostgreSQL 只保存不透明令牌摘要，支持单会话撤销、30 分钟空闲和 4 小时绝对过期；OPC 发布和奖品状态操作要求最近 5 分钟再认证 |
 | 不可变审计日志 | done | 后台写操作、登录与 GitHub 请求写入 append-only 审计表；更新/删除由触发器拒绝 |
 | 安全响应头 | done | 逐请求 nonce CSP、HSTS、nosniff、frame/referrer/permissions、COOP/CORP 已配置；生产脚本策略不再使用 `unsafe-inline` |
@@ -132,7 +132,7 @@ updated: 2026-07-31
 
 ## 5. 推荐推进顺序
 
-1. 在阿里云同 VPC RDS 执行迁移，启用 TLS、自动/日志备份、PITR、删除保护和监控，完成隔离恢复演练。
+1. 确认阿里云 RDS 不是不支持日志备份的基础系列；在同 VPC、支持 PITR 的 RDS 执行迁移，启用 TLS、自动/日志备份、PITR、删除保护和监控，完成隔离恢复演练。
 2. 安装 Nginx、Web、采集 worker 与 Frontier timer，接入退出码/新鲜度/积压告警，验证公网内部路由、伪造头和服务器 IP 绕过失败。
 3. 演练 GitHub 投递瞬时失败、schedule 漏跑补跑、管线签名轮换和敏感数据密钥轮换。
 4. 用目标 Vault/SiC 提供方做容量、预算耗尽、主备切换和持续积压测试，保存版本审计证据。

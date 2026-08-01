@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault2077 Frontier daytime observation and settlement
-After=network-online.target postgresql.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]
@@ -10,10 +10,11 @@ Group=vault2077
 WorkingDirectory=/srv/vault2077/current
 EnvironmentFile=/etc/vault2077/production.env
 Environment=NODE_ENV=production
+Environment=PATH=/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 Environment=NODE_OPTIONS=--max-old-space-size=384
 Nice=5
 CPUWeight=50
-ExecStart=/usr/bin/npm run frontier:tick
+ExecStart=/opt/node/bin/npm run frontier:tick
 TimeoutStartSec=3300
 UMask=0077
 NoNewPrivileges=true

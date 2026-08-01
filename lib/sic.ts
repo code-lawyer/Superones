@@ -21,7 +21,7 @@ export type SicBoard = {
 
 export type SicContentGroup = {
   id: "papers" | "documents" | "courses" | "podcasts";
-  title: "论文" | "文档" | "课程" | "播客";
+  title: "论文" | "档案" | "课程" | "播客";
   description: string;
   emptyMessage: string;
 };
@@ -35,8 +35,8 @@ export const sicContentGroups: SicContentGroup[] = [
   },
   {
     id: "documents",
-    title: "文档",
-    description: "只保留技术机构的正式公开发布：研究、工程、展望与组织新闻。",
+    title: "档案",
+    description: "只保留技术机构的正式研究、工程、技术报告与前瞻材料；机构新闻归入 Vault 资讯流。",
     emptyMessage: "内容正在准备中。",
   },
   {

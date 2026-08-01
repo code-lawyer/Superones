@@ -116,8 +116,10 @@ function BoardCard({ board, className = "", header, tabPanel }: BoardCardProps) 
 
 export function SicRankings({
   boards,
+  unavailable = false,
 }: {
   boards: SicBoard[];
+  unavailable?: boolean;
 }) {
   return (
     <div className="sic-ranking-rail" id="sic-rankings">
@@ -125,6 +127,9 @@ export function SicRankings({
         <p className="eyebrow mono">LIVE INDEX / 实时坐标</p>
         <h2>趋势榜</h2>
       </header>
+      {unavailable ? (
+        <p className="sic-data-status" role="status">趋势榜读取失败；没有把故障伪装成空榜，请稍后重试。</p>
+      ) : null}
       <div className="sic-ranking-stack">
         {boards.map((board) => <BoardCard board={board} key={board.id} />)}
       </div>

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { EventRecord, InformationItem, TrendProject } from "../lib/types.ts";
 
 export const BOOTSTRAP_SEED_FILES = [
   "content-store.seed.json",
@@ -25,6 +26,38 @@ export type BootstrapManifest = {
 
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+export type BootstrapContentSeed = {
+  updatedAt: string | null;
+  sourceCount: number;
+  events: EventRecord[];
+  information: InformationItem[];
+  projects: TrendProject[];
+};
+
+function latestTimestamp(left: string | null, right: string | null) {
+  if (!left) return right;
+  if (!right) return left;
+  return Date.parse(left) >= Date.parse(right) ? left : right;
+}
+
+export function mergeBootstrapContentSeed(
+  current: BootstrapContentSeed,
+  seed: BootstrapContentSeed,
+): BootstrapContentSeed {
+  const projects = new Map<string, TrendProject>();
+  for (const project of [...current.projects, ...seed.projects]) {
+    const key = `${project.owner.toLowerCase()}/${project.repo.toLowerCase()}`;
+    if (!projects.has(key)) projects.set(key, project);
+  }
+  return {
+    updatedAt: latestTimestamp(current.updatedAt, seed.updatedAt),
+    sourceCount: Math.max(current.sourceCount, seed.sourceCount),
+    events: [...current.events, ...seed.events],
+    information: [...current.information, ...seed.information],
+    projects: [...projects.values()],
+  };
 }
 
 function array(value: unknown, label: string) {

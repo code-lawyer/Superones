@@ -3,6 +3,8 @@ import test from "node:test";
 import { addPublishedDocuments, latestSicContentPerSource, latestSicPapers } from "../lib/sic-content.ts";
 import type { SicContentItem } from "../lib/sic-content-types.ts";
 import type { InformationItem } from "../lib/types.ts";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 function item(sourceId: string, publishedAt: string, title: string): SicContentItem {
   return {
@@ -27,6 +29,19 @@ test("SiC reading groups keep only the newest update from each fixed source", ()
   ]);
 
   assert.deepEqual(selected.map((entry) => entry.title), ["latest lesson", "latest lecture"]);
+});
+
+test("SiC page distinguishes data failures from legitimate empty results", async () => {
+  const [page, groups, rankings] = await Promise.all([
+    readFile(path.join(process.cwd(), "app", "sic", "page.tsx"), "utf8"),
+    readFile(path.join(process.cwd(), "components", "sic-content-groups.tsx"), "utf8"),
+    readFile(path.join(process.cwd(), "components", "sic-rankings.tsx"), "utf8"),
+  ]);
+  assert.match(page, /unavailable: true/);
+  assert.match(page, /storedSicResult\.unavailable/);
+  assert.match(page, /directBoardsResult\.unavailable/);
+  assert.match(groups, /固定来源读取失败/);
+  assert.match(rankings, /没有把故障伪装成空榜/);
 });
 
 test("SiC papers keep every item in the current weekly snapshot", () => {

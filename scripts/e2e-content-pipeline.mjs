@@ -1,18 +1,26 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 const origin = (process.env.VAULT2077_E2E_ORIGIN ?? "http://127.0.0.1:3021").replace(/\/+$/, "");
 const secret = process.env.VAULT2077_E2E_SECRET ?? "vault2077-e2e-shared-secret-32-bytes";
 const now = new Date();
 const iso = now.toISOString();
 const batchId = `vault2077-e2e-${Date.now()}`;
+const sourceBundle = JSON.parse(await readFile(path.join(process.cwd(), "config", "source-bundle.json"), "utf8"));
+const sourceIds = sourceBundle.sources
+  .filter((source) => source.contentGroup === "information")
+  .slice(0, 3)
+  .map((source) => source.id);
+assert.equal(sourceIds.length, 3, "E2E requires three deployed information sources");
 
-function information(index, sourceRole, publisher, ownerEntity) {
+function information(index, sourceRole, publisher, ownerEntity, sourceChannelId) {
   const originalTitle = `[event] Source ${index} reports the same material change`;
   const originalContent = `Original English source ${index}. This text must remain available after domestic translation.`;
   return {
     idempotencyKey: `${batchId}-item-${index}`,
-    sourceChannelId: `e2e-source-${index}`,
+    sourceChannelId,
     discoveryPath: `rss:https://example.com/feed-${index}.xml`,
     originalPublisher: publisher,
     ownerEntity,
@@ -32,9 +40,9 @@ function information(index, sourceRole, publisher, ownerEntity) {
 }
 
 const informationItems = [
-  information(1, "官方", "Example AI", "organization:example-ai"),
-  information(2, "媒体", "Example Research", "media:example-research"),
-  information(3, "媒体", "Example Review", "media:example-review"),
+  information(1, "官方", "Example AI", "organization:example-ai", sourceIds[0]),
+  information(2, "媒体", "Example Research", "media:example-research", sourceIds[1]),
+  information(3, "媒体", "Example Review", "media:example-review", sourceIds[2]),
 ];
 const packet = {
   schemaVersion: 1,
@@ -125,6 +133,14 @@ const processBody = await processed.text();
 assert.equal(processed.status, 200, `worker must process the queue: ${processBody}`);
 const result = JSON.parse(processBody);
 assert.ok(result.processed.some((item) => item.batchId === batchId && item.result.information >= 3));
+const dataRoot = process.env.VAULT2077_E2E_DATA_DIR;
+assert.ok(dataRoot, "runner must expose the isolated E2E data directory");
+const stored = JSON.parse(await readFile(path.join(dataRoot, "content-store.json"), "utf8"));
+assert.ok(
+  stored.information.some((item) => item.translatedTitle.startsWith("中译：[event] Source")),
+  `translated information was not persisted: ${JSON.stringify({ titles: stored.information.map((item) => item.translatedTitle), quarantine: stored.quarantine })}`,
+);
+assert.ok(stored.events.some((event) => event.title === "测试事件"), `event was not persisted: ${JSON.stringify(stored.quarantine)}`);
 
 async function waitForPublishedFeed() {
   const deadline = Date.now() + 35_000;
@@ -141,7 +157,7 @@ async function waitForPublishedFeed() {
     ) return;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  assert.fail(`published feed did not become visible (status ${lastStatus}): ${lastHtml.slice(0, 500)}`);
+  assert.fail(`published feed did not become visible (status ${lastStatus}, event=${/测试事件/.test(lastHtml)}, information=${/中译：\[event\] Source/.test(lastHtml)}): ${lastHtml.slice(0, 500)}`);
 }
 
 await waitForPublishedFeed();

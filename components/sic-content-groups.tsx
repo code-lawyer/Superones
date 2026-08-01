@@ -19,10 +19,21 @@ function displayDate(item: SicContentItem) {
   return `${value("year")}.${value("month")}.${value("day")}`;
 }
 
-export function SicContentGroups({ groups, content }: { groups: SicContentGroup[]; content: SicContentByGroup }) {
+export function SicContentGroups({
+  groups,
+  content,
+  unavailable = false,
+}: {
+  groups: SicContentGroup[];
+  content: SicContentByGroup;
+  unavailable?: boolean;
+}) {
   const [activeItem, setActiveItem] = useState<string | null>(null);
   return (
     <section className="sic-magazine" aria-label="固定来源阅读">
+      {unavailable ? (
+        <p className="sic-data-status" role="status">固定来源读取失败；当前没有可安全展示的缓存，请稍后重试。</p>
+      ) : null}
       {groups.map((group, groupIndex) => {
         const items = content[group.id].slice(0, 6);
         return (
@@ -87,7 +98,7 @@ export function SicContentGroups({ groups, content }: { groups: SicContentGroup[
                   );
                 })}
               </ol>
-            ) : <p className="sic-magazine__empty mono">{group.emptyMessage}</p>}
+            ) : <p className="sic-magazine__empty mono">{unavailable ? "读取失败 / 暂无可用缓存" : group.emptyMessage}</p>}
           </section>
         );
       })}

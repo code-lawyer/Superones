@@ -87,3 +87,10 @@ test("legacy roadside detail URLs return to the feed modal instead of a document
   assert.doesNotMatch(roadsideRoute, /FeedInformationDetail/);
   assert.match(roadsideRoute, /redirect\(`\/feed\?roadsideItem=/);
 });
+
+test("event ledger has independent progressive pagination", () => {
+  assert.match(feedPage, /eventLimit:\s*positiveLimit\(valueOf\(params\.events\), EVENT_LIMIT\)/);
+  assert.match(feedPage, /slice\(0, state\.eventLimit\)/);
+  assert.match(feedPage, /feedHref\(state, \{ eventLimit: state\.eventLimit \+ EVENT_LIMIT \}\)/);
+  assert.match(feedPage, /展开更多事件/);
+});
