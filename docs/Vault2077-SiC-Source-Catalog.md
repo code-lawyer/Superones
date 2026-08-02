@@ -1,12 +1,12 @@
 ---
 type: source-catalog
 status: active
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Vault2077 SiC 来源目录
 
-本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 34 个来源：22 个 approved、11 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
+本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 38 个来源：26 个 approved、11 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
 
 ## 准入规则
 
@@ -35,7 +35,9 @@ updated: 2026-07-31
 | --- | --- | --- |
 | Google Research Blog | approved | [官方页面](https://research.google/blog/) |
 | Google DeepMind Blog | approved | [官方页面](https://deepmind.google/blog/) |
-| Anthropic Research | approved | [官方页面](https://www.anthropic.com/research) |
+| Anthropic Research | retired | [官方页面](https://www.anthropic.com/research) |
+| Anthropic Engineering | approved | [官方页面](https://www.anthropic.com/engineering) |
+| Claude Blog | approved | [官方页面](https://claude.com/blog) |
 | Meta Engineering | approved | [官方页面](https://engineering.fb.com/) |
 | Microsoft Research | approved | [官方页面](https://www.microsoft.com/en-us/research/) |
 | NVIDIA Developer Blog | approved | [官方页面](https://developer.nvidia.com/blog/) |
@@ -77,6 +79,12 @@ OpenAI News 与 Anthropic News 已迁入 `config/institutional-news-registry.jso
 | No Priors | approved | [官方页面](https://www.nopriors.com/) |
 | Training Data | approved | [官方页面](https://trainingdata.libsyn.com/) |
 | Unsupervised Learning | approved | [官方页面](https://danielmiessler.com/podcast/) |
+| The MAD Podcast with Matt Turck | approved | [官方频道](https://www.youtube.com/@DataDrivenNYC/videos) |
+| AI & I by Every | approved | [官方播放列表](https://www.youtube.com/playlist?list=PLuMcoKK9mKgHtW_o9h5sGO2vXrffKHwJL) |
+
+Anthropic Engineering、Claude Blog、Latent Space、No Priors、Training Data、Unsupervised Learning、The MAD Podcast 与 AI & I 是由 Follow Builders 来源策略确认的 SiC 来源。运行时直接读取各自官方 sitemap/RSS，不依赖 Follow Builders 中央 feed；这些来源均为 `failureMode=isolated`，单源不可用时只报告和保留上一成功快照，不阻断其他来源或 workflow。
+
+Claude Blog 还执行注册表中的确定性标题排除规则：`Introducing` / `Announcing` 开头以及上市、定价、促销、合作类短期公告不进入 SiC；具有长期产品、工程或方法价值的文章仍按官方 sitemap 接入。
 
 ## 变更规则
 

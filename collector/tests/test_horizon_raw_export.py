@@ -1,14 +1,19 @@
 import asyncio
+import json
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
 
 from collector.horizon_raw_export import (
+    SUPPORTED_RUNTIME_CONNECTORS,
+    collect_batch,
     collect_one,
     repair_utf8_mojibake,
     selected_sources,
+    validate_runtime_connectors,
 )
 
 
@@ -122,6 +127,19 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict("os.environ", {"VAULT2077_SOURCE_IDS": "source-two"}):
             self.assertEqual(selected_sources(sources), [{"id": "source-two"}])
 
+    def test_approved_bundle_has_an_implemented_runtime_connector_for_every_source(self):
+        bundle_path = Path(__file__).resolve().parents[2] / "config" / "source-bundle.json"
+        sources = json.loads(bundle_path.read_text(encoding="utf-8"))["sources"]
+        self.assertEqual(
+            {source["connector"] for source in sources} - SUPPORTED_RUNTIME_CONNECTORS,
+            set(),
+        )
+        validate_runtime_connectors(sources)
+
+    def test_runtime_connector_validation_rejects_shotgun_configuration(self):
+        with self.assertRaisesRegex(ValueError, "unsupported runtime connectors: unknown"):
+            validate_runtime_connectors([{"id": "future-source", "connector": "unknown"}])
+
     def test_repair_utf8_mojibake_preserves_readable_original_text(self):
         self.assertEqual(repair_utf8_mojibake("Weâ€™re shipping an update"), "We’re shipping an update")
         self.assertEqual(repair_utf8_mojibake("Already readable text €100"), "Already readable text €100")
@@ -150,6 +168,42 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(information, [])
         self.assertEqual(outcome.status, "failure")
         self.assertIn("HTTP 503", outcome.error)
+
+    async def test_follow_builders_failure_does_not_stop_an_independent_source(self):
+        follow_builders = {
+            "id": "source-follow-builders-x-swyx",
+            "name": "Swyx",
+            "connector": "follow-builders-x",
+            "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+        }
+        independent = {
+            "id": "source-follow-builders-x-independent",
+            "name": "Independent source",
+            "connector": "follow-builders-x",
+            "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+        }
+        accepted = {"sourceId": independent["id"], "originalUrl": "https://independent.example.test/article"}
+
+        def native_collector(source, _start, _end):
+            if source["id"] == follow_builders["id"]:
+                raise RuntimeError("Follow Builders unavailable")
+            return [accepted], []
+
+        start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
+        with patch("collector.horizon_raw_export.collect_source", side_effect=native_collector):
+            result = await collect_batch([follow_builders, independent], start, end)
+
+        self.assertEqual(result.information, [accepted])
+        self.assertEqual(
+            [(outcome.source_id, outcome.status) for outcome in result.outcomes],
+            [
+                (follow_builders["id"], "failure"),
+                (independent["id"], "success"),
+            ],
+        )
+        self.assertEqual(result.outcomes[0].adapter, "unavailable")
+        self.assertIn("Follow Builders unavailable", result.outcomes[0].error)
 
     async def test_horizon_rss_retries_a_transient_upstream_failure(self):
         source = {

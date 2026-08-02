@@ -6,7 +6,7 @@ updated: 2026-07-24
 
 # Vault2077：Glance 信源吸收审计
 
-> 当前决策（ADR-0008）：本文的来源吸收证据继续保留，但“HN/Lobsters 只作发现层”的建议已废止。两者现在是社区条目、排序和讨论入口的一手来源，外链不递归抓取。
+> 当前决策（ADR-0017）：本文的来源吸收证据继续保留，但 Hacker News/Lobsters 已退出运行时；表内 active 状态只代表审计时快照，不代表现行准入。
 
 > 审计对象：`glanceapp/glance` 固定提交 [`91324e8de762702e97b0ac5c8e36271d644d8642`](https://github.com/glanceapp/glance/tree/91324e8de762702e97b0ac5c8e36271d644d8642)
 > 本地对照：`config/source-registry.json`（475 个逻辑信源、486 个端点）与 `config/source-bundle.json`（201 active、255 pending）

@@ -47,13 +47,14 @@ test("runtime bundle uses deterministic content groups and excludes misplaced so
   assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "podcast"));
   assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "information").length, 17);
   assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "documents").length, 0);
-  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "roadside").length, 37);
+  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "roadside").length, 56);
   assert.ok(bundle.sources
     .filter((source: { channelType: string }) => source.channelType === "community")
     .every((source: { provenanceRole: string; provenanceStatus: string }) => (
       source.provenanceRole === "canonical" && source.provenanceStatus === "verified"
     )));
   assert.ok(bundle.pending.some((source: { reason: string }) => source.reason === "institutional_source_requires_curated_single_destination"));
+  assert.ok(bundle.sources.every((source: { name: string }) => !["Hacker News", "Lobsters"].includes(source.name)));
 });
 
 test("approved institutional news and SiC documents have one production destination", () => {

@@ -470,6 +470,12 @@ function selectCandidates(
     .map(({ candidate }) => candidate);
 }
 
+function candidatePassesAdmission(source: SicSource, candidate: Pick<Candidate, "title">) {
+  return !(source.excludedTitlePatterns ?? []).some((pattern) => (
+    new RegExp(pattern, "iu").test(candidate.title)
+  ));
+}
+
 function arxivId(value: unknown) {
   const match = String(value ?? "").match(/(?:arxiv\.org\/abs\/)?(\d{4}\.\d{4,5})(?:v\d+)?/i);
   return match?.[1] ?? null;
@@ -712,9 +718,10 @@ async function collectSource(
   } else {
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
+  const admittedCandidates = candidates.filter((candidate) => candidatePassesAdmission(source, candidate));
   const selectedCandidates = source.id === "hugging-face-daily-papers"
-    ? dedupe(candidates)
-    : selectCandidates(candidates, windowFrom, runMode);
+    ? dedupe(admittedCandidates)
+    : selectCandidates(admittedCandidates, windowFrom, runMode);
   const items: SicRawContentItem[] = selectedCandidates.map((candidate) => ({
     id: createHash("sha256").update(candidate.canonicalId ?? `${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
@@ -926,6 +933,7 @@ export const sicCollectorTestUtils = {
   arxivEntries,
   rankHuggingFacePaperRecords,
   selectCandidates,
+  candidatePassesAdmission,
   isoWeek,
   huggingFaceWeeklyEndpoint,
 };

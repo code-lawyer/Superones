@@ -35,6 +35,8 @@ from collector.feed_collector import (
     validate_public_https_url,
 )
 
+SUPPORTED_RUNTIME_CONNECTORS = frozenset({"rss", "github-releases", "follow-builders-x"})
+
 HORIZON_ROOT = Path(__file__).resolve().parent / "vendor" / "horizon"
 if not HORIZON_ROOT.is_dir():
     raise RuntimeError("Horizon submodule is missing. Run: git submodule update --init --recursive")
@@ -146,6 +148,17 @@ def selected_sources(sources: list[dict]) -> list[dict]:
     return [source for source in sources if not requested or source.get("id") in requested]
 
 
+def validate_runtime_connectors(sources: list[dict]) -> None:
+    """Fail before collection when the approved bundle names an unimplemented adapter."""
+    unsupported = sorted({
+        str(source.get("connector") or "<missing>")
+        for source in sources
+        if source.get("connector") not in SUPPORTED_RUNTIME_CONNECTORS
+    })
+    if unsupported:
+        raise ValueError(f"Approved source bundle contains unsupported runtime connectors: {', '.join(unsupported)}")
+
+
 def approved_transport_origins(source: dict) -> set[str]:
     origins = set(source.get("allowedRedirectOrigins") or [])
     endpoint = source.get("endpoint")
@@ -192,6 +205,8 @@ def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict],
 async def collect_one(source: dict, since: datetime, until: datetime, client: httpx.AsyncClient, semaphore: asyncio.Semaphore) -> tuple[list[dict], SourceOutcome]:
     started = time.perf_counter()
     try:
+        # Legacy direct-call adapters remain for fixture compatibility. The
+        # approved runtime bundle rejects both connectors before collection.
         if source.get("connector") == "hackernews":
             async with semaphore:
                 records, candidates = await asyncio.to_thread(collect_hackernews, source, since, until)
@@ -206,7 +221,7 @@ async def collect_one(source: dict, since: datetime, until: datetime, client: ht
                 raise RuntimeError("Lobsters must not emit discovery candidates.")
             outcome = SourceOutcome(source["id"], source["name"], "vault-lobsters-community", "success" if records else "empty", len(records), len(records), 0, round((time.perf_counter() - started) * 1000))
             return records, outcome
-        if source.get("connector") in {"sitemap", "dated-index"}:
+        if source.get("connector") == "follow-builders-x":
             async with semaphore:
                 records, candidates = await asyncio.to_thread(collect_source, source, since, until)
             if candidates:
@@ -237,6 +252,7 @@ async def collect_batch(
     until: datetime,
 ) -> CollectionResult:
     """Deep collection module interface: one approved bundle in, raw evidence out."""
+    validate_runtime_connectors(sources)
     semaphore = asyncio.Semaphore(max(1, min(WORKERS, int(os.environ.get("VAULT2077_HORIZON_CONCURRENCY", str(WORKERS))))))
     timeout = httpx.Timeout(float(os.environ.get("VAULT2077_SOURCE_TIMEOUT_SECONDS", "20")))
     limits = httpx.Limits(max_connections=WORKERS, max_keepalive_connections=WORKERS)

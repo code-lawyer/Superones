@@ -80,6 +80,11 @@ const statementMethods: Record<string, MethodDefinition> = {
     label: "X 账号 / RSS 转接",
     description: "根源平台是 X；RSS 只是境外采集的传输方式。账号按标准化 handle 去重，只保留权威政策明确准入的来源。",
   },
+  "follow-builders-x": {
+    id: "follow-builders-x",
+    label: "Follow Builders / X 补充",
+    description: "读取经本地白名单约束和账号去重的 Follow Builders X 日快照；该适配器失败只报告，不阻断其他来源。",
+  },
 };
 
 const authorityTierLabels: Record<string, string> = {

@@ -6,7 +6,7 @@ updated: 2026-07-24
 
 # Vault2077 当前信源清单与无浏览器采集审计
 
-> 当前决策（ADR-0008）：本文的“当前”是 2026-07-22 审计快照，不是现行运行计数。现行 bundle 已把机构新闻与 SiC 深度档案拆为单一主去向，并把 Hacker News/Lobsters 定义为不递归外链的社区原生来源。
+> 当前决策（ADR-0017）：本文的“当前”是 2026-07-22 审计快照，不是现行运行计数。现行 bundle 已下架 Hacker News/Lobsters，并以去重后的 Follow Builders 自然人 X 来源补充 roadside；其余获准来源按官方入口进入 SiC。
 
 > 审计快照：`config/source-registry.json`（475 个逻辑信源、486 个候选端点）与当前 `config/source-bundle.json`。本文统计的是当前文件状态，不代表未来准入数量。
 

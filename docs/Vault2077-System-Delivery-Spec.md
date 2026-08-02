@@ -28,7 +28,7 @@ updated: 2026-07-31
 | 通道 | 基准节奏（北京时间） | 重叠窗口 | 境内编辑处理 | 职责 |
 | --- | --- | --- | --- | --- |
 | `information` | 08:05–22:05，每两小时 | 24h | 是 | 正式资讯 |
-| `roadside` | 08:55–22:55，每两小时 | 24h | 是 | 个人/社区发布 |
+| `roadside` | 08:55–22:55，每两小时 | 24h | 是 | 个人发布与去重 X 补充 |
 | `sic` | 每日 `08:25` | 24h；周论文读取本周全集 | 是 | SiC 内容组 |
 | `rankings` | `08:35/12:35/16:35/20:35` | 按提供方/任务 | 否 | 平台原生榜与 Frontier 回退任务 |
 
@@ -42,7 +42,8 @@ updated: 2026-07-31
 - information、roadside、sic 产生内容记录；rankings 只产生平台顺序、公开仓库观察和公开任务结果。
 - `institutional-news-registry.json` 只批准机构新闻入口；`sic-source-registry.json` 的 documents 只批准深度材料入口。同一 endpoint 或同一原始发布不得同时进入两个生产通道。
 - 宽泛机构 Feed 无法用固定入口稳定区分新闻与深度材料时保持待审，不在境内用 LLM 补救来源路由。
-- Hacker News 与 Lobsters 产出 canonical 社区条目，canonical URL 为社区讨论页；外链只存为 `externalUrl`，不得递归请求或晋升为原站正文。
+- Hacker News 与 Lobsters 不进入运行时 bundle。Follow Builders 只接入经人物白名单批准且与现有 X 来源去重后的帖子；canonical URL、作者和原始时间必须回到人物的原始 X 条目。
+- Follow Builders 发现的博客与播客使用各自官方 sitemap/RSS 进入 SiC。所有相关来源标记为 `isolated`：不可用时生成来源报告并保留上一成功快照，但不阻断其他来源或统一采集 workflow。
 - 经 GitHub 官方 REST API 获取的 OpenGithubs 日/周/月聚合榜、Hugging Face Trending 与 OpenRouter `top-weekly` 保持提供方顺序。
 - Hugging Face Weekly Papers 属于内容组而不是平台榜：境外侧传递 `rankingWeek`、`weeklyRank`、`weeklyUpvotes`，境内侧必须保留这些字段并完成 `sic_editorial` 中文处理后发布。
 - 不采集 MCP 排名，不计算本地增长榜。

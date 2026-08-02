@@ -38,6 +38,8 @@ MAX_UPSTREAM_BYTES = int(os.environ.get("VAULT2077_MAX_UPSTREAM_BYTES", "8000000
 
 _host_lock = Lock()
 _host_semaphores: dict[str, BoundedSemaphore] = {}
+_follow_builders_lock = Lock()
+_follow_builders_feed_cache: dict[str, tuple[str, object]] = {}
 
 
 class _TextExtractor(HTMLParser):
@@ -179,6 +181,23 @@ def source_role(source: dict) -> str:
     return "研究"
 
 
+def normalize_x_handle(value) -> str:
+    return str(value or "").lstrip("@").lower()
+
+
+def parse_x_status_identity(value: str) -> tuple[str, str]:
+    parsed = urlparse(value)
+    parts = [part for part in parsed.path.split("/") if part]
+    if (
+        (parsed.hostname or "").lower() not in {"x.com", "www.x.com", "twitter.com", "www.twitter.com"}
+        or len(parts) < 3
+        or parts[1] != "status"
+        or not parts[2].isdigit()
+    ):
+        raise ValueError(f"X source returned an item without a canonical status URL: {value}")
+    return normalize_x_handle(parts[0]), parts[2]
+
+
 def provenance(source: dict, original_url: str) -> dict:
     source_stream = source.get("sourceStream") or ("roadside" if source.get("channelType") == "x" else "information")
     origin_platform = source.get("originPlatform") or ("x" if source.get("channelType") == "x" else "web")
@@ -193,19 +212,14 @@ def provenance(source: dict, original_url: str) -> dict:
     }
     if origin_platform != "x":
         return result
-    parsed = urlparse(original_url)
-    host = (parsed.hostname or "").lower()
-    parts = [part for part in parsed.path.split("/") if part]
-    if host not in {"x.com", "www.x.com", "twitter.com", "www.twitter.com"} or len(parts) < 3 or parts[1] != "status" or not parts[2].isdigit():
-        raise ValueError(f"X source returned an item without a canonical status URL: {original_url}")
-    expected_handle = str(source.get("channelIdentifier") or "").lstrip("@").lower()
-    actual_handle = parts[0].lstrip("@").lower()
+    actual_handle, post_id = parse_x_status_identity(original_url)
+    expected_handle = normalize_x_handle(source.get("channelIdentifier"))
     if not expected_handle or actual_handle != expected_handle:
         raise ValueError(f"X item account @{actual_handle} does not match registered account @{expected_handle}.")
     result.update({
         "originAccount": expected_handle,
-        "originContentId": f"x:status:{parts[2]}",
-        "originUrl": f"https://x.com/{actual_handle}/status/{parts[2]}",
+        "originContentId": f"x:status:{post_id}",
+        "originUrl": f"https://x.com/{actual_handle}/status/{post_id}",
         "originResolution": "verified",
     })
     return result
@@ -320,6 +334,127 @@ def fetch_bytes(url: str, accept: str = "application/json", attempts: int = 3) -
 
 def fetch_json(url: str):
     return json.loads(fetch_bytes(url).decode("utf-8"))
+
+
+def _follow_builders_payload(source: dict, end: datetime) -> dict:
+    """Fetch and validate the shared feed once without leaking it into callers."""
+    endpoint = str(source.get("endpoint") or "")
+    with _follow_builders_lock:
+        cached = _follow_builders_feed_cache.get(endpoint)
+        if cached is None:
+            try:
+                cached = ("ok", fetch_json(endpoint))
+            except Exception as error:
+                cached = ("error", as_text(error, 500))
+            _follow_builders_feed_cache[endpoint] = cached
+    status, value = cached
+    if status == "error":
+        raise RuntimeError(f"Follow Builders feed unavailable: {value}")
+    if not isinstance(value, dict):
+        raise ValueError("Follow Builders feed must be a JSON object.")
+
+    generated_at = parse_time(value.get("generatedAt"))
+    stale_after = int(source.get("staleAfterHours") or 36)
+    if generated_at is None:
+        raise ValueError("Follow Builders feed is missing generatedAt.")
+    if generated_at < end - timedelta(hours=stale_after):
+        raise ValueError(f"Follow Builders feed is older than {stale_after} hours.")
+    if generated_at > end + timedelta(hours=2):
+        raise ValueError("Follow Builders feed generatedAt is unexpectedly in the future.")
+    if value.get("lookbackHours") != 24:
+        raise ValueError("Follow Builders X feed must use a 24-hour lookback.")
+
+    accounts = value.get("x")
+    max_accounts = int(source.get("maxAccounts") or 26)
+    max_items_per_account = int(source.get("maxItemsPerAccount") or 3)
+    max_items_per_feed = int(source.get("maxItemsPerFeed") or 78)
+    if not isinstance(accounts, list) or len(accounts) > max_accounts:
+        raise ValueError("Follow Builders feed exceeds the approved account limit.")
+    seen_handles: set[str] = set()
+    total_items = 0
+    for account in accounts:
+        if not isinstance(account, dict):
+            raise ValueError("Follow Builders feed contains an invalid account entry.")
+        handle = str(account.get("handle") or "").lstrip("@").lower()
+        tweets = account.get("tweets")
+        if not handle or handle in seen_handles or not isinstance(tweets, list):
+            raise ValueError("Follow Builders feed contains duplicate or malformed accounts.")
+        if len(tweets) > max_items_per_account:
+            raise ValueError("Follow Builders feed exceeds the per-account item limit.")
+        seen_handles.add(handle)
+        total_items += len(tweets)
+    if total_items > max_items_per_feed:
+        raise ValueError("Follow Builders feed exceeds the approved daily item limit.")
+    errors = value.get("errors") or []
+    if (
+        not isinstance(errors, list)
+        or len(errors) > max_accounts
+        or any(not isinstance(error, str) or not error.strip() or len(error) > 500 for error in errors)
+    ):
+        raise ValueError("Follow Builders feed contains an invalid errors list.")
+    return value
+
+
+def collect_follow_builders_x(source: dict, start: datetime, end: datetime) -> list[dict]:
+    payload = _follow_builders_payload(source, end)
+    expected_handle = normalize_x_handle(source.get("channelIdentifier"))
+    account = next((item for item in payload["x"] if normalize_x_handle(item.get("handle")) == expected_handle), None)
+    if account is None:
+        upstream_errors = payload.get("errors") or []
+        if upstream_errors:
+            summary = "; ".join(upstream_errors)[:500]
+            raise RuntimeError(
+                f"Follow Builders omitted registered account @{expected_handle} while reporting upstream errors: {summary}",
+            )
+        return []
+
+    results = []
+    for post in account["tweets"]:
+        if not isinstance(post, dict):
+            raise ValueError(f"Follow Builders account @{expected_handle} contains an invalid post.")
+        post_id = str(post.get("id") or "")
+        original_url = str(post.get("url") or "")
+        published_at = str(post.get("createdAt") or "")
+        published_time = parse_time(published_at)
+        content = as_structured_text(post.get("text"), 48000)
+        try:
+            actual_handle, actual_post_id = parse_x_status_identity(original_url)
+        except ValueError as error:
+            raise ValueError(
+                f"Follow Builders account @{expected_handle} returned a post with invalid identity.",
+            ) from error
+        if (
+            not post_id.isdigit()
+            or actual_handle != expected_handle
+            or actual_post_id != post_id
+            or published_time is None
+            or not content
+        ):
+            raise ValueError(
+                f"Follow Builders account @{expected_handle} returned a post with invalid identity or publication time.",
+            )
+        if not start < published_time <= end:
+            continue
+        item = document(
+            source,
+            original_url,
+            as_text(content.splitlines()[0], 500),
+            content,
+            published_at,
+            source.get("name", ""),
+            {
+                "discoveryPath": f"follow-builders:x:{post_id}",
+                "originalPublisher": source.get("name"),
+                "publisherKind": "person",
+                "contentGroup": "roadside",
+                "itemKind": "personal_post",
+                "provenanceRole": "canonical",
+                "provenanceStatus": "verified",
+            },
+        )
+        if item:
+            results.append(item)
+    return results
 
 
 def source_url_allowed(source: dict, url: str) -> bool:
@@ -577,6 +712,8 @@ def collect_source(source: dict, start: datetime, end: datetime) -> tuple[list[d
     with semaphore:
         if source.get("connector") == "rss":
             return collect_rss(source, start, end), []
+        if source.get("connector") == "follow-builders-x":
+            return collect_follow_builders_x(source, start, end), []
         if source.get("connector") == "hackernews":
             return collect_hackernews(source, start, end)
         if source.get("connector") == "json" and source.get("channelIdentifier") == "lobsters":

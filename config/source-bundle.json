@@ -1,19 +1,22 @@
 {
   "version": 1,
-  "revision": "source-bundle-adb4a7d346dad46c",
-  "generatedAt": "2026-07-30T12:47:50.955Z",
+  "revision": "source-bundle-a0af20b1cb4d382e",
+  "generatedAt": "2026-08-02T01:49:00.075Z",
   "registryGeneratedAt": "2026-07-22T14:02:45.177Z",
   "registryAuditedAt": "2026-07-22T15:51:02.486Z",
-  "policy": "Approved news publications, official newsrooms and project releases enter information. Verified people, personal blogs and approved community-native platforms enter roadside. Approved deep research and engineering publications enter SiC documents and never duplicate into information. Hacker News and Lobsters are canonical only for their own community submissions; their external links are never recursively fetched. Podcasts run in the SiC lane. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
+  "policy": "Approved news publications, official newsrooms and project releases enter information. Verified people and personal blogs enter roadside. Follow Builders contributes a deduplicated, person-only X supplement through an isolated adapter; its institutional X accounts are excluded. Hacker News and Lobsters are retired. Approved deep research, engineering publications, and podcasts enter SiC and never duplicate into information or roadside. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
   "counts": {
-    "active": 54,
+    "active": 73,
     "pending": 396,
     "rss": 41,
-    "structured": 13,
+    "structured": 32,
     "information": 17,
     "documents": 0,
-    "roadside": 37,
-    "statements": 34,
+    "roadside": 56,
+    "statements": 55,
+    "followBuildersX": 21,
+    "followBuildersXDuplicates": 3,
+    "followBuildersXExcluded": 2,
     "xCandidates": 179,
     "xRunnableCandidates": 160,
     "xExcludedFromRuntime": 126,
@@ -273,107 +276,6 @@
         "format": "feed",
         "entryCount": 30,
         "observedTitle": "Simon Willison's Weblog"
-      }
-    },
-    {
-      "id": "source-c0499a0dc713d290",
-      "identity": "community:hacker-news",
-      "name": "Hacker News",
-      "role": "评论",
-      "ownerEntity": "community:hacker-news",
-      "publisherKind": "community",
-      "evidenceNature": "social_community",
-      "classificationConfidence": "high",
-      "classificationSource": "channel_type_rule:community",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "unknown",
-      "channelType": "community",
-      "channelIdentifier": "hacker-news",
-      "homeUrl": "https://news.ycombinator.com/",
-      "evidenceEligible": true,
-      "contentCapability": "metadata",
-      "discoveredFrom": [
-        {
-          "repository": "glanceapp/glance",
-          "path": "docs/glance.yml",
-          "upstreamValue": "hacker-news"
-        },
-        {
-          "repository": "Thysrael/Horizon",
-          "path": "data/config.example.json",
-          "upstreamValue": "hackernews"
-        }
-      ],
-      "sourceStream": "roadside",
-      "contentGroup": "roadside",
-      "itemKind": "community_topic",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://hacker-news.firebaseio.com/v0/topstories.json",
-      "connector": "hackernews",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:09:39.356Z",
-        "httpStatus": 200,
-        "finalUrl": "https://hacker-news.firebaseio.com/v0/topstories.json",
-        "contentType": "application/json; charset=utf-8",
-        "latencyMs": 1393,
-        "bytesInspected": 4501,
-        "valid": true,
-        "format": "json",
-        "entryCount": 500
-      }
-    },
-    {
-      "id": "source-e2b143a3d7b1efdc",
-      "identity": "community:lobsters",
-      "name": "Lobsters",
-      "role": "评论",
-      "ownerEntity": "community:lobsters",
-      "publisherKind": "community",
-      "evidenceNature": "social_community",
-      "classificationConfidence": "high",
-      "classificationSource": "channel_type_rule:community",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "unknown",
-      "channelType": "community",
-      "channelIdentifier": "lobsters",
-      "homeUrl": "https://lobste.rs/",
-      "evidenceEligible": true,
-      "contentCapability": "metadata",
-      "discoveredFrom": [
-        {
-          "repository": "glanceapp/glance",
-          "path": "docs/glance.yml",
-          "upstreamValue": "lobsters"
-        }
-      ],
-      "sourceStream": "roadside",
-      "contentGroup": "roadside",
-      "itemKind": "community_topic",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://lobste.rs/hottest.json",
-      "connector": "json",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:22.776Z",
-        "httpStatus": 206,
-        "finalUrl": "https://lobste.rs/hottest.json",
-        "contentType": "application/json",
-        "latencyMs": 2230,
-        "bytesInspected": 13469,
-        "valid": true,
-        "format": "json",
-        "entryCount": 25
       }
     },
     {
@@ -946,7 +848,7 @@
       "aggregator": "rsshub.bestblogs.dev",
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-07-30T12:47:50.942Z",
+        "checkedAt": "2026-08-02T01:49:00.064Z",
         "finalUrl": "https://rsshub.bestblogs.dev/anthropic/news"
       }
     },
@@ -987,9 +889,49 @@
       "aggregator": null,
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-07-30T12:47:50.942Z",
+        "checkedAt": "2026-08-02T01:49:00.063Z",
         "finalUrl": "https://openai.com/news/rss.xml"
       }
+    },
+    {
+      "id": "source-follow-builders-x-levie",
+      "identity": "x:levie",
+      "name": "Aaron Levie",
+      "role": "评论",
+      "ownerEntity": "person:levie",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "levie",
+      "homeUrl": "https://x.com/levie",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     },
     {
       "id": "source-c959be7f5c794f74",
@@ -1039,6 +981,166 @@
         "entryCount": 15,
         "observedTitle": "Adam D'Angelo(@adamdangelo)"
       }
+    },
+    {
+      "id": "source-follow-builders-x-adityaag",
+      "identity": "x:adityaag",
+      "name": "Aditya Agarwal",
+      "role": "评论",
+      "ownerEntity": "person:adityaag",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "adityaag",
+      "homeUrl": "https://x.com/adityaag",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-alexalbert__",
+      "identity": "x:alexalbert__",
+      "name": "Alex Albert",
+      "role": "评论",
+      "ownerEntity": "person:alexalbert__",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "alexalbert__",
+      "homeUrl": "https://x.com/alexalbert__",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-amandaaskell",
+      "identity": "x:amandaaskell",
+      "name": "Amanda Askell",
+      "role": "评论",
+      "ownerEntity": "person:amandaaskell",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "AmandaAskell",
+      "homeUrl": "https://x.com/AmandaAskell",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-amasad",
+      "identity": "x:amasad",
+      "name": "Amjad Masad",
+      "role": "评论",
+      "ownerEntity": "person:amasad",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "amasad",
+      "homeUrl": "https://x.com/amasad",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     },
     {
       "id": "source-7b86c9ed2dc9125e",
@@ -1296,6 +1398,86 @@
       }
     },
     {
+      "id": "source-follow-builders-x-bcherny",
+      "identity": "x:bcherny",
+      "name": "Boris Cherny",
+      "role": "评论",
+      "ownerEntity": "person:bcherny",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "bcherny",
+      "homeUrl": "https://x.com/bcherny",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-_catwu",
+      "identity": "x:_catwu",
+      "name": "Cat Wu",
+      "role": "评论",
+      "ownerEntity": "person:_catwu",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "_catwu",
+      "homeUrl": "https://x.com/_catwu",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
       "id": "source-46a5ebfeac816d28",
       "identity": "x:clementdelangue",
       "name": "clem 🤗",
@@ -1343,6 +1525,46 @@
         "entryCount": 50,
         "observedTitle": "clem &#x1f917;(@ClementDelangue)"
       }
+    },
+    {
+      "id": "source-follow-builders-x-danshipper",
+      "identity": "x:danshipper",
+      "name": "Dan Shipper",
+      "role": "评论",
+      "ownerEntity": "person:danshipper",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "danshipper",
+      "homeUrl": "https://x.com/danshipper",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     },
     {
       "id": "source-0908c1afdb259ab0",
@@ -1490,6 +1712,46 @@
         "entryCount": 44,
         "observedTitle": "Fei-Fei Li(@drfeifei)"
       }
+    },
+    {
+      "id": "source-follow-builders-x-garrytan",
+      "identity": "x:garrytan",
+      "name": "Garry Tan",
+      "role": "评论",
+      "ownerEntity": "person:garrytan",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "garrytan",
+      "homeUrl": "https://x.com/garrytan",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     },
     {
       "id": "source-d697cc74173ab061",
@@ -1987,6 +2249,46 @@
       }
     },
     {
+      "id": "source-follow-builders-x-joshwoodward",
+      "identity": "x:joshwoodward",
+      "name": "Josh Woodward",
+      "role": "评论",
+      "ownerEntity": "person:joshwoodward",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "joshwoodward",
+      "homeUrl": "https://x.com/joshwoodward",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
       "id": "source-0ee145e9f24cc185",
       "identity": "x:justinlin610",
       "name": "Junyang Lin",
@@ -2134,6 +2436,46 @@
       }
     },
     {
+      "id": "source-follow-builders-x-realmadhuguru",
+      "identity": "x:realmadhuguru",
+      "name": "Madhu Guru",
+      "role": "评论",
+      "ownerEntity": "person:realmadhuguru",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "realmadhuguru",
+      "homeUrl": "https://x.com/realmadhuguru",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
       "id": "source-d80643692d228dfb",
       "identity": "x:martinfowler",
       "name": "Martin Fowler",
@@ -2181,6 +2523,46 @@
         "entryCount": 50,
         "observedTitle": "Martin Fowler(@martinfowler)"
       }
+    },
+    {
+      "id": "source-follow-builders-x-mattturck",
+      "identity": "x:mattturck",
+      "name": "Matt Turck",
+      "role": "评论",
+      "ownerEntity": "person:mattturck",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "mattturck",
+      "homeUrl": "https://x.com/mattturck",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     },
     {
       "id": "source-08f45c24d1c02c19",
@@ -2281,6 +2663,86 @@
       }
     },
     {
+      "id": "source-follow-builders-x-thenanyu",
+      "identity": "x:thenanyu",
+      "name": "Nan Yu",
+      "role": "评论",
+      "ownerEntity": "person:thenanyu",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "thenanyu",
+      "homeUrl": "https://x.com/thenanyu",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-nikunj",
+      "identity": "x:nikunj",
+      "name": "Nikunj Kothari",
+      "role": "评论",
+      "ownerEntity": "person:nikunj",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "nikunj",
+      "homeUrl": "https://x.com/nikunj",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
       "id": "source-acd96b397e395533",
       "identity": "x:paulg",
       "name": "Paul Graham",
@@ -2330,6 +2792,86 @@
       }
     },
     {
+      "id": "source-follow-builders-x-steipete",
+      "identity": "x:steipete",
+      "name": "Peter Steinberger",
+      "role": "评论",
+      "ownerEntity": "person:steipete",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "steipete",
+      "homeUrl": "https://x.com/steipete",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-petergyang",
+      "identity": "x:petergyang",
+      "name": "Peter Yang",
+      "role": "评论",
+      "ownerEntity": "person:petergyang",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "petergyang",
+      "homeUrl": "https://x.com/petergyang",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
       "id": "source-fe196d828bd9d1e1",
       "identity": "x:richardsocher",
       "name": "Richard Socher",
@@ -2377,6 +2919,46 @@
         "entryCount": 40,
         "observedTitle": "Richard Socher(@RichardSocher)"
       }
+    },
+    {
+      "id": "source-follow-builders-x-ryolu_",
+      "identity": "x:ryolu_",
+      "name": "Ryo Lu",
+      "role": "评论",
+      "ownerEntity": "person:ryolu_",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "ryolu_",
+      "homeUrl": "https://x.com/ryolu_",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     },
     {
       "id": "source-633d71bd1fdf1f3e",
@@ -2580,6 +3162,126 @@
       }
     },
     {
+      "id": "source-follow-builders-x-swyx",
+      "identity": "x:swyx",
+      "name": "Swyx",
+      "role": "评论",
+      "ownerEntity": "person:swyx",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "swyx",
+      "homeUrl": "https://x.com/swyx",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-trq212",
+      "identity": "x:trq212",
+      "name": "Thariq",
+      "role": "评论",
+      "ownerEntity": "person:trq212",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "trq212",
+      "homeUrl": "https://x.com/trq212",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
+      "id": "source-follow-builders-x-thsottiaux",
+      "identity": "x:thsottiaux",
+      "name": "Thibault Sottiaux",
+      "role": "评论",
+      "ownerEntity": "person:thsottiaux",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "thsottiaux",
+      "homeUrl": "https://x.com/thsottiaux",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
+    },
+    {
       "id": "source-b35c6402b557c10d",
       "identity": "x:thom_wolf",
       "name": "Thomas Wolf",
@@ -2681,6 +3383,46 @@
         "entryCount": 50,
         "observedTitle": "Yann LeCun(@ylecun)"
       }
+    },
+    {
+      "id": "source-follow-builders-x-zarazhangrui",
+      "identity": "x:zarazhangrui",
+      "name": "Zara Zhang",
+      "role": "评论",
+      "ownerEntity": "person:zarazhangrui",
+      "publisherKind": "person",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_follow_builders_registry",
+      "language": "en",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "x",
+      "channelIdentifier": "zarazhangrui",
+      "homeUrl": "https://x.com/zarazhangrui",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "zarazhangrui/follow-builders",
+          "path": "config/default-sources.json"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "personal_post",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "x",
+      "authorityTier": "editorial_voice",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "connector": "follow-builders-x",
+      "aggregator": "zarazhangrui/follow-builders",
+      "failureMode": "isolated",
+      "staleAfterHours": 36,
+      "maxAccounts": 26,
+      "maxItemsPerAccount": 3,
+      "maxItemsPerFeed": 78
     }
   ],
   "pending": [
@@ -9686,7 +10428,7 @@
           }
         }
       ],
-      "reason": "unverified_direct_publisher_origin"
+      "reason": "retired_by_follow_builders_source_strategy"
     },
     {
       "id": "source-abf5dfe694366b60",
@@ -11957,6 +12699,117 @@
       "reason": "mainland_origin_platform"
     },
     {
+      "id": "source-c0499a0dc713d290",
+      "identity": "community:hacker-news",
+      "name": "Hacker News",
+      "role": "评论",
+      "ownerEntity": "community:hacker-news",
+      "publisherKind": "community",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "channel_type_rule:community",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "community",
+      "channelIdentifier": "hacker-news",
+      "homeUrl": "https://news.ycombinator.com/",
+      "evidenceEligible": true,
+      "contentCapability": "metadata",
+      "discoveredFrom": [
+        {
+          "repository": "glanceapp/glance",
+          "path": "docs/glance.yml",
+          "upstreamValue": "hacker-news"
+        },
+        {
+          "repository": "Thysrael/Horizon",
+          "path": "data/config.example.json",
+          "upstreamValue": "hackernews"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "community_topic",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://hacker-news.firebaseio.com/v0/topstories.json",
+          "connector": "hackernews",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:09:39.356Z",
+            "httpStatus": 200,
+            "finalUrl": "https://hacker-news.firebaseio.com/v0/topstories.json",
+            "contentType": "application/json; charset=utf-8",
+            "latencyMs": 1393,
+            "bytesInspected": 4501,
+            "valid": true,
+            "format": "json",
+            "entryCount": 500
+          }
+        }
+      ],
+      "reason": "retired_by_follow_builders_source_strategy"
+    },
+    {
+      "id": "source-e2b143a3d7b1efdc",
+      "identity": "community:lobsters",
+      "name": "Lobsters",
+      "role": "评论",
+      "ownerEntity": "community:lobsters",
+      "publisherKind": "community",
+      "evidenceNature": "social_community",
+      "classificationConfidence": "high",
+      "classificationSource": "channel_type_rule:community",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "unknown",
+      "channelType": "community",
+      "channelIdentifier": "lobsters",
+      "homeUrl": "https://lobste.rs/",
+      "evidenceEligible": true,
+      "contentCapability": "metadata",
+      "discoveredFrom": [
+        {
+          "repository": "glanceapp/glance",
+          "path": "docs/glance.yml",
+          "upstreamValue": "lobsters"
+        }
+      ],
+      "sourceStream": "roadside",
+      "contentGroup": "roadside",
+      "itemKind": "community_topic",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://lobste.rs/hottest.json",
+          "connector": "json",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:22.776Z",
+            "httpStatus": 206,
+            "finalUrl": "https://lobste.rs/hottest.json",
+            "contentType": "application/json",
+            "latencyMs": 2230,
+            "bytesInspected": 13469,
+            "valid": true,
+            "format": "json",
+            "entryCount": 25
+          }
+        }
+      ],
+      "reason": "retired_by_follow_builders_source_strategy"
+    },
+    {
       "id": "source-562ec92b9744bbe9",
       "identity": "github-trending:cloudflare-config",
       "name": "GitHub Trending",
@@ -13052,112 +13905,6 @@
         }
       ],
       "reason": "no_verified_usable_endpoint"
-    },
-    {
-      "id": "source-bd08b78e6671e68f",
-      "identity": "web:https://www.anthropic.com/engineering",
-      "name": "Anthropic Engineering",
-      "role": "官方",
-      "ownerEntity": "entity:anthropic",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:anthropic",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "https://www.anthropic.com/engineering",
-      "homeUrl": "https://www.anthropic.com/engineering",
-      "evidenceEligible": true,
-      "contentCapability": "fulltext",
-      "discoveredFrom": [
-        {
-          "repository": "zarazhangrui/follow-builders",
-          "path": "config/default-sources.json",
-          "upstreamValue": "https://www.anthropic.com/engineering"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "information",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoints": [
-        {
-          "url": "https://www.anthropic.com/engineering",
-          "connector": "html-index",
-          "requiresAuth": false,
-          "validation": {
-            "status": "usable",
-            "checkedAt": "2026-07-22T14:04:51.936Z",
-            "httpStatus": 200,
-            "finalUrl": "https://www.anthropic.com/engineering",
-            "contentType": "text/html; charset=utf-8",
-            "latencyMs": 1208,
-            "bytesInspected": 145898,
-            "valid": true,
-            "format": "html",
-            "observedTitle": "Engineering \\ Anthropic"
-          }
-        }
-      ],
-      "reason": "institutional_source_requires_curated_single_destination"
-    },
-    {
-      "id": "source-288c89407fd402fa",
-      "identity": "web:https://claude.com/blog",
-      "name": "Claude Blog",
-      "role": "官方",
-      "ownerEntity": "entity:anthropic",
-      "publisherKind": "organization",
-      "evidenceNature": "primary",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:anthropic",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "official-blog",
-      "channelIdentifier": "https://claude.com/blog",
-      "homeUrl": "https://claude.com/blog",
-      "evidenceEligible": true,
-      "contentCapability": "fulltext",
-      "discoveredFrom": [
-        {
-          "repository": "zarazhangrui/follow-builders",
-          "path": "config/default-sources.json",
-          "upstreamValue": "https://claude.com/blog"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "information",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoints": [
-        {
-          "url": "https://claude.com/blog",
-          "connector": "html-index",
-          "requiresAuth": false,
-          "validation": {
-            "status": "usable",
-            "checkedAt": "2026-07-22T14:04:51.597Z",
-            "httpStatus": 200,
-            "finalUrl": "https://claude.com/blog",
-            "contentType": "text/html; charset=utf-8",
-            "latencyMs": 869,
-            "bytesInspected": 262144,
-            "valid": true,
-            "format": "html",
-            "observedTitle": "Blog | Claude by Anthropic"
-          }
-        }
-      ],
-      "reason": "institutional_source_requires_curated_single_destination"
     },
     {
       "id": "source-f5c7923e3d60e2eb",

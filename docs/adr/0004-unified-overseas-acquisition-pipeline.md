@@ -2,7 +2,7 @@
 type: adr
 status: amended
 updated: 2026-07-25
-amended-by: ADR-0005, ADR-0007, ADR-0008, ADR-0009, ADR-0013
+amended-by: ADR-0005, ADR-0007, ADR-0008, ADR-0009, ADR-0013, ADR-0017
 ---
 
 # 统一境外公开数据采集
@@ -16,3 +16,5 @@ ADR-0008 进一步规定内容单一主去向，以及社区原生来源不递�
 ADR-0009 进一步区分采集通道与频道编辑配置：information、roadside 和 Vault 事件编排共享 `vault_editorial`，SiC 使用独立 `sic_editorial`；统一采集不等于所有内容共用一个处理提供方或一条处理队列。
 
 ADR-0013 将交付进一步收敛为“境外采集并可靠投递、境内独立 worker 消费”。境外 workflow 不得触发或等待境内编辑处理。
+
+ADR-0017 下架 Hacker News/Lobsters，引入经人物去重的 Follow Builders X 补充与 SiC 官方入口，并允许这些显式隔离的补充来源失败时不阻断统一 workflow。

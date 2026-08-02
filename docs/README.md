@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Vault2077 文档权威索引
@@ -48,12 +48,14 @@ updated: 2026-07-31
 - [ADR-0014：OPC 无账号订单与支付宝服务器到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
 - [ADR-0015：当前快照、永久事件证据与自动编辑边界](adr/0015-current-snapshots-and-automated-editorial.md)
 - [ADR-0016：游骑兵公开头像媒体存储](adr/0016-ranger-avatar-media-storage.md)
+- [ADR-0017：Follow Builders 补充来源与隔离失败策略](adr/0017-follow-builders-supplement-and-isolated-failure.md)
 
 ## 当前运行文档
 
 - [阿里云中国大陆生产部署与迁移 Handoff](Vault2077-Aliyun-Mainland-Production-Handoff.md)
 - [生产部署执行方案](../Vault2077-Production-Deployment-Plan-2026-07-31.md)
 - [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
+- [GitHub Actions 向阿里云生产环境投递操作手册](Vault2077-GitHub-Actions-Aliyun-Delivery-Operations-Manual.md)
 - [部署配置手册](Vault2077-Deployment-Configuration-Manual.md)
 - [阿里云轻量服务器与历史后台身份决策](Vault2077-Aliyun-Identity-Gateway-Decision.md)：保留已退役 OIDC 方案的历史背景，当前实现见 ADR-0012。
 - [OPC 服务目录后台操作手册](Vault2077-OPC-Admin-Manual.md)
@@ -74,7 +76,7 @@ updated: 2026-07-31
 - OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)、[上海起步审批与备案适用范围审计](Vault2077-OPC-Shanghai-Startup-Approvals-Scope-Audit.md)
 - 媒体存储：[游骑兵头像存储决策](Vault2077-Ranger-Avatar-Storage-Decision-2026-07-31.md)
 - 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)
-- 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)、[Akta News Signals 信源审计](Vault2077-Akta-Source-Audit.md)、[Horizon 信息源审计](Vault2077-Horizon-Source-Audit.md)、[TrendRadar 信源与管线审查](Vault2077-TrendRadar-Source-Audit.md)
+- 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)、[Akta News Signals 信源审计](Vault2077-Akta-Source-Audit.md)、[Horizon 信息源审计](Vault2077-Horizon-Source-Audit.md)、[TrendRadar 信源与管线审查](Vault2077-TrendRadar-Source-Audit.md)、[Follow Builders 替换 HN/Lobsters 可行性研究](Vault2077-Follow-Builders-Roadside-Replacement-Research.md)
 - SiC 调研：[Source Candidates Batch 1](Vault2077-SiC-Source-Candidates-Batch-1.md)、[Official Sources Research](Vault2077-SiC-Official-Sources-Research.md)、[Papers and Official Archives Research](Vault2077-SiC-Papers-and-Official-Archives-Research.md)、[Frontier AI Resource Audit](Vault2077-SiC-Frontier-AI-Resource-Audit.md)、[GitHub Trending API Research](Vault2077-SiC-GitHub-Trending-API-Research.md)、[Hugging Face Ranking Research](Vault2077-SiC-Hugging-Face-Weekly-Model-Ranking-Research.md)、[OpenRouter Ranking Research](Vault2077-SiC-OpenRouter-Model-Ranking-Research.md)、[Skill Market Research](Vault2077-Skill-Market-Integration-Research.md)、[`dukelyuu/skills-marketplace` Skill 收集机制研究](Vault2077-Skills-Marketplace-Collection-Research.md)、[Skill 推荐、热门榜与聚合源替代方案研究](Vault2077-Skill-Aggregator-Alternatives-Research.md)、[Code Agent Skill 市场 API 调研](Vault2077-Code-Agent-Skill-Market-API-Research.md)、[`anbeime/skill` 源码研究](anbeime-skill-research.md)、[VoltAgent 与 OpenAI Skill 来源研究](Vault2077-VoltAgent-OpenAI-Skill-Sources-Research.md)、[Skill 精选首批来源与候选证据](Vault2077-Skill-Collection-Source-Evidence.md)
 
 ## 历史产品提案

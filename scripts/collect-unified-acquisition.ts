@@ -21,6 +21,7 @@ import {
 } from "../lib/acquisition-contract.ts";
 import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
 import { deliverAcquisitionBatch } from "../lib/acquisition-delivery.ts";
+import { evaluateAcquisitionFailures, type AcquisitionFailureMode } from "../lib/acquisition-failure-policy.ts";
 import { pipelineSigningKeyring } from "../lib/secret-keyring.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
 
@@ -318,6 +319,7 @@ const [sourceBundle, sicRegistry] = await Promise.all([
       sourceStream?: "information" | "roadside" | "statements";
       contentGroup?: "information" | "roadside" | "documents";
       originPlatform?: "web" | "x";
+      failureMode?: AcquisitionFailureMode;
     }>;
   }>(sourceBundlePath),
   readJson<{
@@ -327,6 +329,7 @@ const [sourceBundle, sicRegistry] = await Promise.all([
       name: string;
       group: string;
       kind: string;
+      failureMode?: AcquisitionFailureMode;
     }>;
   }>(sicRegistryPath),
 ]);
@@ -445,6 +448,11 @@ for (const batch of batches) {
 const sourceReports = batches.flatMap((batch) => batch.sourceReports);
 const sourceBundleById = new Map(sourceBundle.sources.map((source) => [source.id, source]));
 const sicSourceById = new Map(sicRegistry.sources.map((source) => [source.id, source]));
+const failureModeBySource = new Map<string, AcquisitionFailureMode>([
+  ...sourceBundle.sources.map((source) => [source.id, source.failureMode ?? "blocking"] as const),
+  ...sicRegistry.sources.map((source) => [source.id, source.failureMode ?? "blocking"] as const),
+]);
+const failureEvaluation = evaluateAcquisitionFailures(sourceReports, failureModeBySource);
 const vaultOutcomeById = new Map((vault?.report.outcomes ?? []).map((outcome) => [
   outcome.sourceId ?? outcome.source_id ?? "",
   outcome,
@@ -501,6 +509,10 @@ const detailedSourceReports = [...consolidatedReports.values()]
       connector: vaultSource?.connector ?? sicSource?.kind ?? item.adapter,
       originPlatform: vaultSource?.originPlatform ?? (section === "roadside" ? "x" : "web"),
       registered: !synthetic,
+      failureMode: failureModeBySource.get(item.sourceId) ?? "blocking",
+      workflowImpact: item.status === "failed"
+        ? failureModeBySource.get(item.sourceId) === "isolated" ? "reported_only" : "fails_workflow"
+        : "none",
       durationMs: vaultOutcomeById.get(item.sourceId)?.duration_ms ?? null,
     };
   })
@@ -542,6 +554,7 @@ const report = {
     ]),
   ),
   sourceReports: detailedSourceReports,
+  failurePolicy: failureEvaluation,
   collectionLimits: {
     lookbackHours,
     maxItemsPerSource: runMode === "bootstrap" && lane === "sic" ? 1 : null,
@@ -557,7 +570,9 @@ const report = {
 };
 await writeFile(path.join(outputRoot, "acquisition-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report));
-if (sourceReports.some((item) => item.status === "failed")) {
-  console.error("一个或多个已批准来源抓取失败；请检查 acquisition-report.json。");
+if (failureEvaluation.shouldFailWorkflow) {
+  console.error(`阻断型来源抓取失败：${failureEvaluation.blockingSourceIds.join(", ")}；请检查 acquisition-report.json。`);
   process.exitCode = 1;
+} else if (failureEvaluation.isolatedSourceIds.length > 0) {
+  console.warn(`隔离型补充来源抓取失败但 workflow 继续：${failureEvaluation.isolatedSourceIds.join(", ")}。`);
 }

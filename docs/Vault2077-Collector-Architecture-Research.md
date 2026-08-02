@@ -6,7 +6,7 @@ updated: 2026-07-24
 
 # Vault2077 境外采集架构研究：TrendRadar 与 Horizon
 
-> 当前决策（ADR-0008）：本文保留对候选架构的历史分析；其中把 Hacker News 等社区源当作外链发现路径的方案已废止。生产以社区讨论页作为 canonical 记录，不递归抓取外链。
+> 当前决策（ADR-0017）：本文保留对候选架构的历史分析；Hacker News/Lobsters 已退出运行时。生产使用去重后的 Follow Builders 自然人 X 补充 roadside，其他获准来源按官方入口进入 SiC。
 
 > 研究日期：2026-07-22
 > 核查范围：仅使用两个项目的官方 GitHub 仓库、源代码、配置、工作流和许可证。

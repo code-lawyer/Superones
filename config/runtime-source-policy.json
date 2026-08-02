@@ -2,6 +2,21 @@
   "version": 1,
   "excluded": [
     {
+      "id": "source-1b82e976c3e758ea",
+      "reason": "retired_by_follow_builders_source_strategy",
+      "note": "Hacker News RSS is retired together with the community API source. Follow Builders supplies a bounded, curated X supplement instead of a community discovery stream."
+    },
+    {
+      "id": "source-c0499a0dc713d290",
+      "reason": "retired_by_follow_builders_source_strategy",
+      "note": "Hacker News community collection is intentionally retired. Restore only through a new source-governance decision."
+    },
+    {
+      "id": "source-e2b143a3d7b1efdc",
+      "reason": "retired_by_follow_builders_source_strategy",
+      "note": "Lobsters community collection is intentionally retired. Restore only through a new source-governance decision."
+    },
+    {
       "id": "source-90b028b6f17d93e0",
       "reason": "upstream_blocks_unattended_github_actions",
       "note": "Docker's official RSS endpoint returned HTTP 403 after all retry attempts in repeated GitHub Actions runs. Keep the channel in the registry, but do not claim it is a healthy active source until Docker exposes a stable unattended machine-readable endpoint."

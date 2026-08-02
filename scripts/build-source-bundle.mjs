@@ -11,10 +11,12 @@ const outputPath = resolve(options.get("--output") ?? "config/source-bundle.json
 const runtimePolicyPath = resolve(options.get("--runtime-policy") ?? "config/runtime-source-policy.json");
 const sicRegistryPath = resolve(options.get("--sic-registry") ?? "config/sic-source-registry.json");
 const institutionalNewsRegistryPath = resolve(options.get("--institutional-news-registry") ?? "config/institutional-news-registry.json");
+const followBuildersRegistryPath = resolve(options.get("--follow-builders-registry") ?? "config/follow-builders-source-registry.json");
 const registry = JSON.parse(await readFile(registryPath, "utf8"));
 const runtimePolicy = JSON.parse(await readFile(runtimePolicyPath, "utf8"));
 const sicRegistry = JSON.parse(await readFile(sicRegistryPath, "utf8"));
 const institutionalNewsRegistry = JSON.parse(await readFile(institutionalNewsRegistryPath, "utf8"));
+const followBuildersRegistry = JSON.parse(await readFile(followBuildersRegistryPath, "utf8"));
 if (runtimePolicy.version !== 1 || !Array.isArray(runtimePolicy.excluded)) {
   throw new Error("Runtime source policy must contain a version 1 excluded list.");
 }
@@ -63,6 +65,7 @@ const collectorSupport = new Set([
   "json",
   "sitemap",
   "dated-index",
+  "follow-builders-x",
 ]);
 const unstructuredHtmlConnectors = new Set([
   "html-index",
@@ -383,6 +386,97 @@ for (const source of institutionalNewsRegistry.sources.filter((item) => item.sta
   sources.push(curated);
 }
 
+if (
+  !followBuildersRegistry
+  || followBuildersRegistry.version !== 1
+  || !Array.isArray(followBuildersRegistry.accounts)
+  || followBuildersRegistry.failureMode !== "isolated"
+  || !String(followBuildersRegistry.upstream?.feedUrl ?? "").startsWith("https://raw.githubusercontent.com/")
+) {
+  throw new Error("Follow Builders registry must contain a version 1 account list, isolated failure mode, and an HTTPS raw feed URL.");
+}
+if (
+  !Number.isInteger(followBuildersRegistry.staleAfterHours)
+  || followBuildersRegistry.staleAfterHours < 24
+  || followBuildersRegistry.staleAfterHours > 72
+  || followBuildersRegistry.maxAccounts !== followBuildersRegistry.accounts.length
+  || !Number.isInteger(followBuildersRegistry.maxItemsPerAccount)
+  || followBuildersRegistry.maxItemsPerAccount < 1
+  || followBuildersRegistry.maxItemsPerAccount > 3
+  || followBuildersRegistry.maxItemsPerFeed !== followBuildersRegistry.maxAccounts * followBuildersRegistry.maxItemsPerAccount
+) {
+  throw new Error("Follow Builders registry limits are invalid.");
+}
+const followBuildersHandles = new Set();
+for (const account of followBuildersRegistry.accounts) {
+  const handle = normalizeXHandle(account.handle);
+  if (
+    !handle
+    || followBuildersHandles.has(handle)
+    || !["approved", "excluded"].includes(account.status)
+    || !["person", "organization"].includes(account.publisherKind)
+    || (account.status === "approved" && account.publisherKind !== "person")
+    || (account.status === "excluded" && !String(account.reason ?? "").trim())
+  ) {
+    throw new Error("Follow Builders accounts require unique handles, explicit status, and person-only roadside approval.");
+  }
+  followBuildersHandles.add(handle);
+}
+
+const activeXHandles = new Set(sources
+  .filter((source) => source.originPlatform === "x")
+  .map((source) => normalizeXHandle(source.channelIdentifier)));
+let followBuildersDuplicates = 0;
+let followBuildersAdded = 0;
+for (const account of followBuildersRegistry.accounts.filter((item) => item.status === "approved")) {
+  const handle = normalizeXHandle(account.handle);
+  if (activeXHandles.has(handle)) {
+    followBuildersDuplicates += 1;
+    continue;
+  }
+  const idHandle = handle.replace(/[^a-z0-9_]+/g, "-");
+  sources.push({
+    id: `source-follow-builders-x-${idHandle}`,
+    identity: `x:${handle}`,
+    name: account.name,
+    role: "评论",
+    ownerEntity: `person:${idHandle}`,
+    publisherKind: "person",
+    evidenceNature: "social_community",
+    classificationConfidence: "high",
+    classificationSource: "curated_follow_builders_registry",
+    language: "en",
+    primaryLanguage: "en",
+    geography: "unknown",
+    channelType: "x",
+    channelIdentifier: account.handle,
+    homeUrl: `https://x.com/${account.handle}`,
+    evidenceEligible: true,
+    contentCapability: "feed-content",
+    discoveredFrom: [{
+      repository: followBuildersRegistry.upstream.repository,
+      path: followBuildersRegistry.upstream.sourcePath,
+    }],
+    sourceStream: "roadside",
+    contentGroup: "roadside",
+    itemKind: "personal_post",
+    provenanceRole: "canonical",
+    provenanceStatus: "verified",
+    originPlatform: "x",
+    authorityTier: "editorial_voice",
+    endpoint: followBuildersRegistry.upstream.feedUrl,
+    connector: "follow-builders-x",
+    aggregator: "zarazhangrui/follow-builders",
+    failureMode: "isolated",
+    staleAfterHours: followBuildersRegistry.staleAfterHours,
+    maxAccounts: followBuildersRegistry.maxAccounts,
+    maxItemsPerAccount: followBuildersRegistry.maxItemsPerAccount,
+    maxItemsPerFeed: followBuildersRegistry.maxItemsPerFeed,
+  });
+  activeXHandles.add(handle);
+  followBuildersAdded += 1;
+}
+
 sources.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
 pending.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
 const bundleRevision = createHash("sha256")
@@ -391,6 +485,7 @@ const bundleRevision = createHash("sha256")
     runtimePolicy,
     institutionalNewsRegistryVersion: institutionalNewsRegistry.version,
     sicRegistryVersion: sicRegistry.version,
+    followBuildersRegistry,
     sicDocumentSources: approvedSicDocuments.map(({ id, status, endpoint, admissionRule }) => ({
       id,
       status,
@@ -398,7 +493,7 @@ const bundleRevision = createHash("sha256")
       admissionRule,
     })),
     repositories: registry.repositories.map(({ name, commit }) => ({ name, commit })),
-    sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature, contentGroup, itemKind, provenanceRole, provenanceStatus, pathPrefix }) => ({
+    sources: sources.map(({ id, endpoint, connector, ownerEntity, publisherKind, evidenceNature, contentGroup, itemKind, provenanceRole, provenanceStatus, pathPrefix, failureMode }) => ({
       id,
       endpoint,
       connector,
@@ -410,6 +505,7 @@ const bundleRevision = createHash("sha256")
       provenanceRole,
       provenanceStatus,
       pathPrefix,
+      failureMode,
     })),
   }))
   .digest("hex")
@@ -421,7 +517,7 @@ const bundle = {
   generatedAt: new Date().toISOString(),
   registryGeneratedAt: registry.generatedAt,
   registryAuditedAt: registry.audit?.checkedAt ?? null,
-  policy: "Approved news publications, official newsrooms and project releases enter information. Verified people, personal blogs and approved community-native platforms enter roadside. Approved deep research and engineering publications enter SiC documents and never duplicate into information. Hacker News and Lobsters are canonical only for their own community submissions; their external links are never recursively fetched. Podcasts run in the SiC lane. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
+  policy: "Approved news publications, official newsrooms and project releases enter information. Verified people and personal blogs enter roadside. Follow Builders contributes a deduplicated, person-only X supplement through an isolated adapter; its institutional X accounts are excluded. Hacker News and Lobsters are retired. Approved deep research, engineering publications, and podcasts enter SiC and never duplicate into information or roadside. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
   counts: {
     active: sources.length,
     pending: pending.length,
@@ -431,6 +527,9 @@ const bundle = {
     documents: sources.filter((source) => source.contentGroup === "documents").length,
     roadside: sources.filter((source) => source.sourceStream === "roadside").length,
     statements: sources.filter((source) => source.sourceStream === "roadside" && source.originPlatform === "x").length,
+    followBuildersX: followBuildersAdded,
+    followBuildersXDuplicates: followBuildersDuplicates,
+    followBuildersXExcluded: followBuildersRegistry.accounts.filter((account) => account.status === "excluded").length,
     xCandidates: registry.channels.filter((channel) => channel.channelType === "x").length,
     xRunnableCandidates: registry.channels.filter((channel) => (
       channel.channelType === "x"

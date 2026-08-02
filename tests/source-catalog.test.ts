@@ -19,13 +19,13 @@ test("source catalog mirrors every active acquisition registry", () => {
   const result = catalog();
   const counts = Object.fromEntries(result.sections.map((section) => [section.id, sourceCount(section)]));
 
-  assert.equal(result.total, 81);
+  assert.equal(result.total, 104);
   assert.deepEqual(counts, {
     "information-flow": 17,
-    roadside: 37,
-    documents: 8,
+    roadside: 56,
+    documents: 10,
     papers: 1,
-    podcasts: 7,
+    podcasts: 9,
     courses: 6,
     "sic-rankings": 5,
   });
@@ -57,7 +57,8 @@ test("source catalog keeps collection methods grouped and source identities uniq
 
   assert.equal(information?.methods.find((method) => method.id === "rss-atom")?.sources.length, 6);
   assert.equal(roadside?.methods.find((method) => method.id === "x-rss-relay")?.sources.length, 34);
-  assert.equal(podcasts && sourceCount(podcasts), 7);
+  assert.equal(roadside?.methods.find((method) => method.id === "follow-builders-x")?.sources.length, 21);
+  assert.equal(podcasts && sourceCount(podcasts), 9);
 
   for (const source of sources) {
     assert.ok(source.destinationHref.startsWith("/"));

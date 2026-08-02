@@ -6,6 +6,7 @@ from unittest.mock import patch
 from collector.feed_collector import (
     build_packets,
     collect_dated_index,
+    collect_follow_builders_x,
     collect_generic,
     collect_github,
     collect_sitemap,
@@ -240,6 +241,163 @@ class CollectorContractTests(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             document(source, "https://x.com/different/status/123456789", "Wrong account")
+
+    def test_follow_builders_x_is_flattened_per_registered_person_and_fetched_once(self):
+        endpoint = "https://raw.githubusercontent.com/zarazhangrui/follow-builders/test/feed-x.json"
+        base_source = {
+            "id": "source-follow-builders-x-swyx",
+            "name": "Swyx",
+            "channelType": "x",
+            "channelIdentifier": "swyx",
+            "sourceStream": "roadside",
+            "contentGroup": "roadside",
+            "originPlatform": "x",
+            "connector": "follow-builders-x",
+            "aggregator": "zarazhangrui/follow-builders",
+            "endpoint": endpoint,
+            "contentCapability": "feed-content",
+            "evidenceNature": "social_community",
+            "publisherKind": "person",
+            "staleAfterHours": 36,
+            "maxAccounts": 26,
+            "maxItemsPerAccount": 3,
+            "maxItemsPerFeed": 78,
+        }
+        payload = {
+            "generatedAt": "2026-08-01T07:07:44Z",
+            "lookbackHours": 24,
+            "x": [
+                {
+                    "name": "Swyx",
+                    "handle": "swyx",
+                    "tweets": [{
+                        "id": "2083439562437673053",
+                        "text": "A bounded supplement.",
+                        "createdAt": "2026-08-01T06:27:54Z",
+                        "url": "https://x.com/swyx/status/2083439562437673053",
+                    }],
+                },
+                {
+                    "name": "Nan Yu",
+                    "handle": "thenanyu",
+                    "tweets": [{
+                        "id": "2083340761488126101",
+                        "text": "Another source remains independent.",
+                        "createdAt": "2026-08-01T05:55:18Z",
+                        "url": "https://x.com/thenanyu/status/2083340761488126101",
+                    }],
+                },
+            ],
+        }
+        start = datetime(2026, 7, 31, 8, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, 8, tzinfo=timezone.utc)
+
+        with patch("collector.feed_collector.fetch_json", return_value=payload) as fetch:
+            first = collect_follow_builders_x(base_source, start, end)
+            second = collect_follow_builders_x({
+                **base_source,
+                "id": "source-follow-builders-x-thenanyu",
+                "name": "Nan Yu",
+                "channelIdentifier": "thenanyu",
+            }, start, end)
+
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual([item["originAccount"] for item in first + second], ["swyx", "thenanyu"])
+        self.assertEqual(first[0]["sourceChannelId"], "source-follow-builders-x-swyx")
+        self.assertEqual(first[0]["transportKind"], "follow-builders-x")
+        self.assertEqual(first[0]["transportProvider"], "zarazhangrui/follow-builders")
+        self.assertEqual(first[0]["discoveryPath"], "follow-builders:x:2083439562437673053")
+
+    def test_follow_builders_rejects_stale_or_oversized_feeds(self):
+        source = {
+            "id": "source-follow-builders-x-swyx",
+            "name": "Swyx",
+            "channelType": "x",
+            "channelIdentifier": "swyx",
+            "sourceStream": "roadside",
+            "originPlatform": "x",
+            "connector": "follow-builders-x",
+            "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/stale/feed-x.json",
+            "staleAfterHours": 36,
+            "maxAccounts": 26,
+            "maxItemsPerAccount": 3,
+            "maxItemsPerFeed": 78,
+        }
+        payload = {"generatedAt": "2026-07-29T00:00:00Z", "lookbackHours": 24, "x": []}
+        start = datetime(2026, 7, 31, 8, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, 8, tzinfo=timezone.utc)
+
+        with patch("collector.feed_collector.fetch_json", return_value=payload):
+            with self.assertRaisesRegex(ValueError, "older than 36 hours"):
+                collect_follow_builders_x(source, start, end)
+
+    def test_follow_builders_distinguishes_no_posts_from_partial_upstream_failure(self):
+        source = {
+            "id": "source-follow-builders-x-swyx",
+            "name": "Swyx",
+            "channelType": "x",
+            "channelIdentifier": "swyx",
+            "sourceStream": "roadside",
+            "originPlatform": "x",
+            "connector": "follow-builders-x",
+            "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/errors/feed-x.json",
+            "staleAfterHours": 36,
+            "maxAccounts": 26,
+            "maxItemsPerAccount": 3,
+            "maxItemsPerFeed": 78,
+        }
+        start = datetime(2026, 7, 31, 8, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, 8, tzinfo=timezone.utc)
+        partial = {
+            "generatedAt": "2026-08-01T07:07:44Z",
+            "lookbackHours": 24,
+            "x": [],
+            "errors": ["X API: Rate limited, skipping remaining accounts"],
+        }
+
+        with patch("collector.feed_collector.fetch_json", return_value=partial):
+            with self.assertRaisesRegex(RuntimeError, "omitted registered account @swyx"):
+                collect_follow_builders_x(source, start, end)
+
+        no_posts_source = {**source, "endpoint": source["endpoint"].replace("errors", "no-posts")}
+        no_posts = {"generatedAt": partial["generatedAt"], "lookbackHours": 24, "x": [], "stats": {"xBuilders": 0, "totalTweets": 0}}
+        with patch("collector.feed_collector.fetch_json", return_value=no_posts):
+            self.assertEqual(collect_follow_builders_x(no_posts_source, start, end), [])
+
+    def test_follow_builders_rejects_an_invalid_post_timestamp(self):
+        source = {
+            "id": "source-follow-builders-x-swyx",
+            "name": "Swyx",
+            "channelType": "x",
+            "channelIdentifier": "swyx",
+            "sourceStream": "roadside",
+            "originPlatform": "x",
+            "connector": "follow-builders-x",
+            "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/invalid-time/feed-x.json",
+            "staleAfterHours": 36,
+            "maxAccounts": 26,
+            "maxItemsPerAccount": 3,
+            "maxItemsPerFeed": 78,
+        }
+        payload = {
+            "generatedAt": "2026-08-01T07:07:44Z",
+            "lookbackHours": 24,
+            "x": [{
+                "handle": "swyx",
+                "tweets": [{
+                    "id": "2083439562437673053",
+                    "text": "A post without a valid publication time.",
+                    "createdAt": "not-a-time",
+                    "url": "https://x.com/swyx/status/2083439562437673053",
+                }],
+            }],
+        }
+        start = datetime(2026, 7, 31, 8, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, 8, tzinfo=timezone.utc)
+
+        with patch("collector.feed_collector.fetch_json", return_value=payload):
+            with self.assertRaisesRegex(ValueError, "invalid identity"):
+                collect_follow_builders_x(source, start, end)
 
     def test_upstream_network_gate_rejects_non_https_and_private_hosts(self):
         with self.assertRaises(ValueError):

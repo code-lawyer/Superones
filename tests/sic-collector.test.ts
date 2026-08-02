@@ -196,6 +196,31 @@ test("SiC sitemap collector stays inside the approved publication path", () => {
   assert.deepEqual(entries.map((entry) => entry.url), ["https://example.com/news/official-update"]);
 });
 
+test("SiC source admission rejects configured marketing announcements", () => {
+  const source: SicSource = {
+    ...rssSource,
+    id: "claude-blog",
+    kind: "official_sitemap",
+    excludedTitlePatterns: [
+      "^(introducing|announcing)\\b",
+      "\\b(now available|launch(?:es|ed|ing)?|pricing|promotion|partnership)\\b",
+    ],
+  };
+
+  assert.equal(
+    sicCollectorTestUtils.candidatePassesAdmission(source, {
+      title: "Introducing Claude Enterprise",
+    }),
+    false,
+  );
+  assert.equal(
+    sicCollectorTestUtils.candidatePassesAdmission(source, {
+      title: "Building reliable agents with long-running context",
+    }),
+    true,
+  );
+});
+
 test("SiC dated-index collector accepts structured official entries", () => {
   const entries = sicCollectorTestUtils.jsonLdEntries(rssSource, `
     <script type="application/ld+json">{"@graph":[{"@type":"NewsArticle","headline":"Release notes","url":"https://example.com/news/release-notes","description":"New API capability","datePublished":"2026-07-19"}]}</script>

@@ -28,9 +28,11 @@ export type SicSource = {
     | "official_api"
     | "official_repository"
     | "hosted_podcast";
+  failureMode?: "blocking" | "isolated";
   homeUrl: string;
   endpoint: string;
   allowedRedirectOrigins?: string[];
+  excludedTitlePatterns?: string[];
   admissionRule: string;
   rationale: string;
 };
@@ -39,6 +41,7 @@ function assertSource(source: SicSource) {
   if (!SIC_SOURCE_GROUPS.includes(source.group)) throw new Error(`SiC 来源 ${source.id} 的内容组无效。`);
   if (!SIC_SOURCE_STATUSES.includes(source.status)) throw new Error(`SiC 来源 ${source.id} 的审批状态无效。`);
   if (source.status === "retired" && !source.statusReason?.trim()) throw new Error(`SiC 来源 ${source.id} 缺少退役原因。`);
+  if (source.failureMode && !["blocking", "isolated"].includes(source.failureMode)) throw new Error(`SiC 来源 ${source.id} 的失败策略无效。`);
   for (const field of [source.id, source.name, source.publisher, source.homeUrl, source.endpoint, source.admissionRule, source.rationale]) {
     if (!field.trim()) throw new Error("SiC 来源缺少必填字段。");
   }
@@ -46,6 +49,14 @@ function assertSource(source: SicSource) {
   for (const origin of source.allowedRedirectOrigins ?? []) {
     const parsed = new URL(origin);
     if (parsed.protocol !== "https:" || parsed.origin !== origin) throw new Error(`SiC 来源 ${source.id} 的跳转域名无效。`);
+  }
+  for (const pattern of source.excludedTitlePatterns ?? []) {
+    if (!pattern.trim() || pattern.length > 240) throw new Error(`SiC 来源 ${source.id} 的标题排除规则无效。`);
+    try {
+      new RegExp(pattern, "iu");
+    } catch {
+      throw new Error(`SiC 来源 ${source.id} 的标题排除规则不是有效正则表达式。`);
+    }
   }
   return source;
 }
