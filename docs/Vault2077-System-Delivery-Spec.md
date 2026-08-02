@@ -62,7 +62,7 @@ updated: 2026-07-31
 
 ## 3. 交付协议
 
-### 3.1 `AcquisitionBatch v1`
+### 3.1 `AcquisitionBatch v2`
 
 统一批次至少包含：
 
@@ -75,6 +75,9 @@ updated: 2026-07-31
 - `generatedAt`
 - `records`
 - `sourceReports`
+- `sourceRegistry`（该 lane 的最小来源快照：来源 ID、adapter 与快照 schema）
+
+`v2` 的来源快照属于已签名批次正文。接收端按快照 schema、lane、来源报告覆盖关系和 adapter 能力校验，而不要求境内外 `sourceBundleRevision` 完全相同。因此，在使用已支持 adapter 的前提下，增加、删除或改名来源不要求重新部署境内项目。新增 adapter、变更记录 schema 或来源快照 schema 仍属于代码合同变化，必须先部署兼容实现。接收端继续兼容旧 `v1` 批次；旧批次没有来源快照，仍按显式来源修订白名单进行滚动升级门禁。
 
 record kind 只允许当前注册表批准的类型，例如 `information`、`publication`、`entity_profile`、`repository_observation`、`ranking_observation`。每条记录保留稳定来源 ID、原始 URL、原始发布时间、内容散列和来源特定字段；社区条目可额外携带经 HTTPS 校验的 `externalUrl`，但该字段不改变 canonical 来源身份。
 
@@ -87,7 +90,7 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 - 时间戳允许窗口；
 - `batchId` 幂等；
 - `scheduleId` 和 lane 合法；
-- `sourceBundleRevision` 在部署白名单内；
+- `v2 sourceRegistry` 的 schema、lane、来源报告映射和 adapter 均受支持；旧 `v1 sourceBundleRevision` 在兼容白名单内；
 - 请求大小、记录数量、URL 与字段长度限制。
 
 验证失败不得写入正式 inbox。接收成功只表示批次已持久化，必须立即返回，不得在该请求内调用编辑模型。境外 workflow 对网络错误、`408/425/429` 和 `5xx` 使用同一 `batchId`、同一正文做有界指数退避；`401/409` 等确定性错误不得盲目重试。
@@ -102,7 +105,7 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 `received → processing → processed`
 
-失败进入 `retryable` 或 `quarantined`；瞬时失败最多六次指数退避，schema 不支持、来源修订未知或内容违反硬约束时直接隔离。领取必须生成 claim token，完成或失败确认必须匹配 token，防止租约过期的旧 worker 迟到写状态。成功批次保留 30 天、隔离批次保留 180 天后自动清理。
+失败进入 `retryable` 或 `quarantined`；瞬时失败最多六次指数退避，schema/adapter 不支持、旧 `v1` 来源修订未知或内容违反硬约束时直接隔离。领取必须生成 claim token，完成或失败确认必须匹配 token，防止租约过期的旧 worker 迟到写状态。成功批次保留 30 天、隔离批次保留 180 天后自动清理。
 
 同一时刻生产环境只允许一个发布写者处理 inbox。systemd 不并发启动同一 oneshot；PostgreSQL `SKIP LOCKED` 仍作为租约与恢复保护。worker 在发布完成后原子提交业务写模型与批次状态，防止页面看见半批结果。
 

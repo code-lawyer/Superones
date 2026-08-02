@@ -69,7 +69,7 @@ Frontier 生产开放配置：
 | `VAULT2077_REQUIRE_DOMESTIC_DELIVERY` | 采集侧 | 生产计划任务必须为 `true` |
 | `VAULT2077_SOURCE_BUNDLE_FILE` | 两侧 | 来源 bundle |
 | `VAULT2077_SOURCE_BUNDLE_REVISION` | 境内 | 紧急显式修订 |
-| `VAULT2077_ALLOWED_SOURCE_REVISIONS` | 境内 | 灰度期逗号分隔允许修订 |
+| `VAULT2077_ALLOWED_SOURCE_REVISIONS` | 境内 | 仅兼容旧 `AcquisitionBatch v1`：灰度期逗号分隔允许修订；`v2` 不要求来源 revision 完全一致 |
 | `VAULT2077_ACQUISITION_RUN_MODE` | 采集侧 | `incremental` 或一次性 `bootstrap` |
 | `VAULT2077_ACQUISITION_MAX_ATTEMPTS` | 境内 | 进入 quarantine 前的处理上限，默认 6 |
 | `VAULT2077_ACQUISITION_RETRY_BASE_MS` | 境内 | worker 指数退避基数，默认 300000ms，单次最多 6 小时 |
@@ -100,7 +100,7 @@ Frontier 生产开放配置：
 | `vault_editorial` | information、roadside、Vault 事件编排 | 主提供方、受控备用、队列、并发、超时、熔断 |
 | `sic_editorial` | sic 内容 | 主提供方、受控备用、队列、并发、超时、熔断 |
 
-两个配置都只在境内持有凭证，均须记录提供方、模型、提示和处理版本。请求额度设为 `unlimited`，但仍使用有界并发、超时、连续三次瞬时失败后 60 秒熔断及 inbox 指数退避。两个提供方均失败时，失败条目进入重试或隔离，同批正常条目继续发布；不得把未经处理的数据伪装成已发布。rankings 以及 Frontier 的确定性核验、观察、排名和结算不得使用编辑模型。
+两个配置都只在境内持有凭证，均须记录提供方、模型、提示和处理版本。生产基线为 `vault_editorial=300`、`sic_editorial=200`，也可显式设为 `unlimited`；无论哪种额度都必须使用有界并发、超时、连续三次瞬时失败后 60 秒熔断及 inbox 指数退避。DNS、TLS、HTTP、额度耗尽或模型响应协议错误属于编辑基础设施故障：整个数据库事务回滚，批次进入 `retryable`，不得被内容隔离误标为 `processed`。只有已经得到模型 JSON 后的确定性单条 Schema/内容校验失败才隔离该条并允许同批合格记录发布。rankings 以及 Frontier 的确定性核验、观察、排名和结算不得使用编辑模型。
 
 变量分别使用 `VAULT2077_VAULT_LLM_*` 与 `VAULT2077_SIC_LLM_*` 前缀；主配置包含 `BASE_URL`、`API_KEY`、`MODEL`、`TIMEOUT_MS`、`CONCURRENCY`、`BATCH_ITEMS`，可选的 `MAX_REQUESTS_PER_RUN` 缺省或设为 `unlimited` 表示无限额度。受控备用使用各自的 `FALLBACK_BASE_URL`、`FALLBACK_API_KEY`、`FALLBACK_MODEL` 与 `FALLBACK_TIMEOUT_MS`。旧 `VAULT2077_LLM_*` 只作为非生产迁移期本地预览兼容层，生产会拒绝只提供旧配置。
 
@@ -194,7 +194,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 2. 安全组仅允许公网 `80/443`，SSH 只允许受控运维来源；RDS 只允许应用安全组访问。Node 只监听 `127.0.0.1:3000`。
 3. 通过 SSH 生成一次性 Passkey 注册令牌，在管理域名为唯一 owner 注册至少一个凭证并离线保存恢复码；确认公开域名和 Node 端口都不能进入后台。
 4. 生成彼此独立的高熵秘密与两个版本化密钥环；把采集签名密钥环、活动 ID 和 Frontier 公开任务只读密钥配置到 GitHub Secrets，把完整验签密钥环配置在境内。不得复制 worker、LLM、后台或用户数据秘密到 GitHub。
-5. 注入 PostgreSQL、OSS、Passkey、管线、模型与功能开关的最终生产变量，运行 `npm run deploy:check`，再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
+5. 注入 PostgreSQL、OSS、Passkey、管线、模型与功能开关的最终生产变量，先运行 `npm run deploy:check`，再运行会实际调用全部已配置主/备用模型的 `npm run deploy:verify-editorial`；两者全绿后再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
 6. 运行 PostgreSQL 迁移，确认健康检查识别最新迁移；创建自动备份后执行一次隔离恢复演练。
 7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer` 与 `vault2077-frontier-tick.timer`；执行 `nginx -t`、`systemd-analyze verify` 并接入失败告警。
 8. 部署应用但暂不开放内容频道；执行一次性 bootstrap，把 SiC 每个 approved 来源的最近一条合格内容与 Vault 最近 30 天真实内容写入生产事实源。

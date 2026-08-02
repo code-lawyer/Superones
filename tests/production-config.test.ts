@@ -159,6 +159,15 @@ test("production configuration gate warns when both editorial channels share a p
   assert.ok(report.warnings.some((issue) => issue.includes("故障隔离")));
 });
 
+test("production configuration gate rejects the known invalid MiMo API hostname", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_SIC_LLM_BASE_URL: "https://api.mimo.com/v1",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("api.xiaomimimo.com")));
+});
+
 test("production configuration gate rejects shared host and local password adapters", () => {
   const report = validateProductionConfiguration({
     ...validEnvironment(),

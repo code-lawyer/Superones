@@ -79,6 +79,9 @@ test("systemd templates bound Node heaps and deprioritize background work", () =
     assert.match(backgroundService, /^Nice=5$/m);
     assert.match(backgroundService, /^CPUWeight=50$/m);
   }
+  for (const service of [webService, workerService, frontierService, rangerMediaCleanupService]) {
+    assert.match(service, /^RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK$/m);
+  }
 });
 
 test("the sticky site header avoids continuous backdrop recompositing", () => {

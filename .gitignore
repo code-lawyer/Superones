@@ -34,7 +34,14 @@ collector/.venv/
 __pycache__/
 *.py[cod]
 
+# Production deployment credentials and locally assembled release archives
+MIMO.pem
+.ssh-key
+certs/
+vault2077-deploy*.tar.gz
+
 # Local agent and design-tool runtime state
 .agents/
 .codex/
 .impeccable/config.local.json
+.impeccable/critique/

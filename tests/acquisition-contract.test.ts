@@ -55,6 +55,54 @@ test("validates and normalizes a unified acquisition batch", () => {
   assert.equal(result.collectedAt, "2026-07-24T01:01:00.000Z");
 });
 
+test("v2 carries a signed lane registry snapshot independent of the domestic bundle", () => {
+  const legacy = batch();
+  const value = {
+    ...legacy,
+    schemaVersion: 2,
+    sourceRegistry: {
+      schemaVersion: 1,
+      revision: legacy.registryRevision,
+      lane: legacy.lane,
+      sources: [{ sourceId: "arxiv:cs-ai", adapter: "official_api" }],
+    },
+    sourceReports: [{ ...legacy.sourceReports[0], adapter: "official_api" }],
+  };
+  const result = validateAcquisitionBatch(value);
+  assert.equal(result.schemaVersion, 2);
+  assert.equal(result.sourceRegistry?.revision, legacy.registryRevision);
+  assert.deepEqual(result.sourceRegistry?.sources, [
+    { sourceId: "arxiv:cs-ai", adapter: "official_api" },
+  ]);
+});
+
+test("v2 rejects a source report that is not covered by its signed snapshot", () => {
+  const legacy = batch();
+  const value = {
+    ...legacy,
+    schemaVersion: 2,
+    sourceRegistry: {
+      schemaVersion: 1,
+      revision: legacy.registryRevision,
+      lane: legacy.lane,
+      sources: [{ sourceId: "another-source", adapter: "official_api" }],
+    },
+  };
+  assert.throws(
+    () => validateAcquisitionBatch(value),
+    (error) => error instanceof AcquisitionContractError && error.code === "SOURCE_NOT_IN_REGISTRY",
+  );
+});
+
+test("rejects record schema versions that require an undeployed processor", () => {
+  const value = batch();
+  value.records[0].schemaVersion = 2;
+  assert.throws(
+    () => validateAcquisitionBatch(value),
+    (error) => error instanceof AcquisitionContractError && error.code === "UNSUPPORTED_RECORD_VERSION",
+  );
+});
+
 test("requires every record source to have an exact source report count", () => {
   const value = batch();
   value.sourceReports[0].recordCount = 0;

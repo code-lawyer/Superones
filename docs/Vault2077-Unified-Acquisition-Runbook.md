@@ -106,9 +106,9 @@ GitHub Actions 不配置 worker 或 LLM 密钥。境内侧至少配置完整验�
 - `sic_editorial`：只处理 sic 内容；
 - `rankings`：不得使用编辑模型。
 
-每个编辑配置分别设置主处理提供方、受控备用、队列并发、超时与熔断阈值。模型请求额度为无限，但无限额度不等于无限并发：批次按固定时刻错峰进入 inbox，境内 systemd worker 再按配置的有界并发消费；不得把一个批次内的全部记录同时发起模型请求。密钥不得进入仓库、日志或 artifact。
+每个编辑配置分别设置主处理提供方、受控备用、队列并发、超时与熔断阈值。生产基线每轮请求数为 Vault 300、SiC 200，也可显式设为 `unlimited`；额度不等于并发，批次仍按固定时刻错峰进入 inbox，境内 systemd worker 再按配置的有界并发消费。不得把一个批次内的全部记录同时发起模型请求。密钥不得进入仓库、日志或 artifact。
 
-当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和熔断状态；请求预算默认 `unlimited`，生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 通过 `SKIP LOCKED` 和 claim token 领取不同批次，失败最多六次指数退避。生产 PostgreSQL 模式下，业务写模型与 inbox 完成状态在同一数据库事务中原子提交；任一步失败都会整体回滚，稳定批次 ID、单调快照时间与 claim token 继续保证重试幂等。文件模式只用于本地开发，不提供跨文档事务保证。正式开放前仍须用目标提供方完成容量、切换和长时间积压演练，并保存提供方/模型/Schema 版本审计证据。
+当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和熔断状态；生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 通过 `SKIP LOCKED` 和 claim token 领取不同批次，失败最多六次指数退避。生产 PostgreSQL 模式下，业务写模型与 inbox 完成状态在同一数据库事务中原子提交；模型未配置、DNS/TLS/HTTP 请求失败、额度耗尽或非合规 JSON 会冒泡为编辑基础设施故障，使事务整体回滚且 inbox 标记为 `retryable`。确定性单条内容校验失败才进入内容 quarantine，并允许同批合格记录提交。稳定批次 ID、单调快照时间与 claim token 保证重试幂等；文件模式只用于本地开发，不提供跨文档事务保证。
 
 Frontier 境内侧另配置只读 GitHub 服务端凭证和 tick 鉴权。交互式核验先写报名再尝试短时直读；失败必须保持待验证并写公开回退任务。北京时间 08:45–22:45 每两小时观察一次当前已验证仓库，保存最近成功时间、限流信息和失败分类；页面不触发 GitHub 请求。
 
@@ -141,7 +141,8 @@ bootstrap 还必须证明每个 approved SiC 来源存在最近一条合格记�
 - 签名/重放拒绝：核对密钥、原始请求体、时间戳、`batchId` 与时钟，不得放宽验证。
 - 跨境投递失败：确认四次重试使用同一 `batchId` 和正文；检查 DNS/TLS/Nginx 接收日志后用 `workflow_dispatch` 以新 schedule ID 补跑，不得人工改写 artifact 再发送。
 - GitHub 定时漏跑：以境内新鲜度告警为准，人工触发对应 lane；GitHub schedule 不是可靠业务时钟。
-- 未知来源修订：隔离批次，先审核并部署注册表，再重放。
+- 来源清单变动：`AcquisitionBatch v2` 会携带已签名的最小来源快照；只要来源使用境内已支持的 adapter，增加、删除或改名来源不要求境内部署同一份 bundle。旧 `v1` 批次出现 `UNKNOWN_REGISTRY_REVISION` 时，仍须通过旧修订白名单或部署对应版本后重放。
+- 来源协议不兼容：出现 `UNSUPPORTED_SOURCE_ADAPTER`、`UNSUPPORTED_SOURCE_REGISTRY_VERSION` 或其他 schema 409 时隔离批次，先审核并部署新的 adapter/合同实现，再重放；不得通过放宽校验绕过。
 - 主路由冲突：若同一 endpoint 或同一原始 URL 同时出现在机构新闻与 SiC 档案来源中，阻止部署来源 bundle，先修注册表。
 - 单一来源失败：允许其他来源继续，但按新鲜度告警，不得虚构数据补齐。普通来源失败仍使 workflow 失败关闭；只有注册表显式声明 `failureMode=isolated` 的补充来源仅报告、不改变 workflow 成功状态。
 - 处理失败：保留 inbox，以同一 `batchId` 幂等重试，不重新采集制造重复批次。
@@ -170,4 +171,4 @@ npm run content:migrate-markup -- data/content-store.json data/bootstrap/content
 
 监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、Vault/SiC 新鲜度、平台榜 stale、Frontier 回退积压和两套编辑配置。返回 `503` 表示至少一项 degraded；告警平台还必须采集两个 systemd timer 的最近成功与失败退出码，不能只以 Web 进程存活代替业务健康。
 
-部署前先在最终生产环境变量下运行 `npm run deploy:check`。该门禁拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、任何已退役 OIDC 配置、旧共享模型配置、缺失的独立处理密钥和不完整的两套编辑配置；warning 必须在发布记录中解释。
+部署前先在最终生产环境变量下运行 `npm run deploy:check`，然后运行 `npm run deploy:verify-editorial`。前者拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、任何已退役 OIDC 配置、旧共享模型配置、错误的 MiMo 域名、缺失的独立处理密钥和不完整的两套编辑配置；后者向两套配置的每条主/备用线路发送最小真实 JSON 探针，验证 DNS、TLS、凭证、模型名与响应协议。任一失败都不得启用 worker timer；warning 必须在发布记录中解释。

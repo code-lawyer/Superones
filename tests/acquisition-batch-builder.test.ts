@@ -65,6 +65,11 @@ test("Vault adapter preserves success, empty, and failed source reports", () => 
     ]),
   });
   assert.equal(batches.length, 1);
+  assert.equal(batches[0].schemaVersion, 2);
+  assert.deepEqual(
+    batches[0].sourceRegistry?.sources.map((source) => source.sourceId),
+    ["source-one", "source-three", "source-two"],
+  );
   assert.equal(batches[0].records.length, 1);
   assert.deepEqual(
     Object.fromEntries(batches[0].sourceReports.map((report) => [report.sourceId, report.status])),

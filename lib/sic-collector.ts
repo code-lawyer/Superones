@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { isEditorialInfrastructureError } from "./editorial-failure.ts";
 import {
   createEditorialProfileClient,
   loadEditorialProfileConfig,
@@ -179,7 +180,7 @@ async function enrichItems(
   try {
     client = createEditorialProfileClient(loadEditorialProfileConfig("sic_editorial"));
   } catch (error) {
-    if (options.requireCompleteEditorial) throw error;
+    if (options.requireCompleteEditorial || isEditorialInfrastructureError(error)) throw error;
     return retained;
   }
 
@@ -216,7 +217,8 @@ async function enrichItems(
     });
     try {
       return await complete();
-    } catch {
+    } catch (error) {
+      if (isEditorialInfrastructureError(error)) throw error;
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       return complete();
     }
@@ -232,6 +234,7 @@ async function enrichItems(
       if (missing.length === 0) return results;
       if (missing.length < batch.length) return [...results, ...await recoverEditorialBatch(missing)];
     } catch (error) {
+      if (isEditorialInfrastructureError(error)) throw error;
       if (batch.length === 1) {
         console.error("SiC 编辑降级到单条后仍失败。", {
           id: batch[0].id,
@@ -896,7 +899,11 @@ function validateRawCollection(value: unknown, options: {
   };
 }
 
-export async function ingestSicAcquisitionContent(value: unknown, _fetcher: Fetcher) {
+export async function ingestSicAcquisitionContent(
+  value: unknown,
+  _fetcher: Fetcher,
+  options: { activeSourceIds?: string[] } = {},
+) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
   const enriched = await enrichItems(packet.items);
   const items = enriched
@@ -919,7 +926,7 @@ export async function ingestSicAcquisitionContent(value: unknown, _fetcher: Fetc
     reports,
     updatedAt: packet.collectedAt,
     snapshotId: packet.snapshotId,
-    activeSourceIds: listCollectableSicSources().map((source) => source.id),
+    activeSourceIds: options.activeSourceIds ?? listCollectableSicSources().map((source) => source.id),
   });
 }
 

@@ -6,6 +6,10 @@ import path from "node:path";
 import sourceBundle from "../config/source-bundle.json" with { type: "json" };
 import sicRegistry from "../config/sic-source-registry.json" with { type: "json" };
 import {
+  AcquisitionSourceRegistryError,
+  assertAcquisitionSourceRegistryCompatibility,
+} from "./acquisition-source-registry.ts";
+import {
   AcquisitionContractError,
   MAX_ACQUISITION_BATCH_BYTES,
   payloadHash,
@@ -116,6 +120,7 @@ export type AcquisitionReceiverOptions = {
   maxAttempts?: number;
   retryBaseMs?: number;
   allowedRegistryRevisions?: ReadonlySet<string>;
+  supportedSourceAdapters?: ReadonlySet<string>;
 };
 
 type PostgresAcquisitionReceiverOptions = Omit<AcquisitionReceiverOptions, "inboxDirectory">;
@@ -229,11 +234,37 @@ function parseBatch(rawPayload: string, headerBatchId: string) {
   } catch (error) {
     if (error instanceof AcquisitionContractError) {
       const tooLarge = error.code === "BATCH_TOO_LARGE" || error.code === "RECORD_PAYLOAD_TOO_LARGE";
+      const incompatible = [
+        "UNSUPPORTED_VERSION",
+        "UNSUPPORTED_RECORD_VERSION",
+        "UNSUPPORTED_SOURCE_REGISTRY_VERSION",
+      ].includes(error.code);
       throw new AcquisitionReceiveError(
         error.message,
         error.code,
-        tooLarge ? 413 : 400,
+        tooLarge ? 413 : incompatible ? 409 : 400,
       );
+    }
+    throw error;
+  }
+}
+
+function assertRegistryCompatibility(
+  batch: AcquisitionBatch,
+  options: Pick<AcquisitionReceiverOptions, "allowedRegistryRevisions" | "supportedSourceAdapters">,
+) {
+  try {
+    assertAcquisitionSourceRegistryCompatibility({
+      batchSchemaVersion: batch.schemaVersion,
+      registryRevision: batch.registryRevision,
+      sourceRegistry: batch.sourceRegistry,
+    }, {
+      legacyAllowedRegistryRevisions: options.allowedRegistryRevisions,
+      supportedAdapters: options.supportedSourceAdapters,
+    });
+  } catch (error) {
+    if (error instanceof AcquisitionSourceRegistryError) {
+      throw new AcquisitionReceiveError(error.message, error.code, 409);
     }
     throw error;
   }
@@ -329,16 +360,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
       throw new AcquisitionReceiveError("采集签名无效。", "INVALID_SIGNATURE", 401);
     }
     const batch = parseBatch(submission.rawPayload, submission.batchId);
-    if (
-      options.allowedRegistryRevisions
-      && !options.allowedRegistryRevisions.has(batch.registryRevision)
-    ) {
-      throw new AcquisitionReceiveError(
-        `来源修订 ${batch.registryRevision} 未部署。`,
-        "UNKNOWN_REGISTRY_REVISION",
-        409,
-      );
-    }
+    assertRegistryCompatibility(batch, options);
     const kinds = countKinds(batch);
 
     return serialized(async () => {
@@ -595,13 +617,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
       throw new AcquisitionReceiveError("采集签名无效。", "INVALID_SIGNATURE", 401);
     }
     const batch = parseBatch(submission.rawPayload, submission.batchId);
-    if (options.allowedRegistryRevisions && !options.allowedRegistryRevisions.has(batch.registryRevision)) {
-      throw new AcquisitionReceiveError(
-        `来源修订 ${batch.registryRevision} 未部署。`,
-        "UNKNOWN_REGISTRY_REVISION",
-        409,
-      );
-    }
+    assertRegistryCompatibility(batch, options);
     const kinds = countKinds(batch);
     const receivedAt = now.toISOString();
     const inserted = await configuredPostgresPool().query(

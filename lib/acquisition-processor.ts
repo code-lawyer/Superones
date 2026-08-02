@@ -1,6 +1,7 @@
 import "server-only";
 
 import sourceBundle from "../config/source-bundle.json" with { type: "json" };
+import { acquisitionSourceIds } from "./acquisition-source-registry.ts";
 import {
   validateContentBatch,
   type InformationEnvelope,
@@ -221,6 +222,18 @@ const blockedDomesticFetch: typeof fetch = async () => {
 
 const DIRECT_PROVIDERS = new Set<DirectRankingProvider>(["github", "hugging_face", "openrouter"]);
 
+function legacyActiveSourceIds(lane: "information" | "roadside") {
+  return sourceBundle.sources
+    .filter((source) => {
+      const sourceLane = source.contentGroup === "roadside"
+        || ["roadside", "statements"].includes(source.sourceStream ?? "")
+        ? "roadside"
+        : "information";
+      return sourceLane === lane;
+    })
+    .map((source) => source.id);
+}
+
 type RecordAdaptation<T> = {
   values: T[];
   failedRecordIdsBySource: Map<string, Set<string>>;
@@ -349,7 +362,11 @@ export function createAcquisitionBatchProcessor(input: {
     bodyHash: string,
     options?: Parameters<typeof processInboundContent>[2],
   ) => Promise<unknown>;
-  processPublications?: (value: unknown, fetcher: typeof fetch) => Promise<unknown>;
+  processPublications?: (
+    value: unknown,
+    fetcher: typeof fetch,
+    options?: { activeSourceIds?: string[] },
+  ) => Promise<unknown>;
   persistDirectRankings?: typeof persistDirectRankingBoards;
   recordFrontierSnapshots?: typeof recordStarSnapshots;
   applyFrontierVerification?: typeof applyFrontierVerificationObservation;
@@ -406,9 +423,9 @@ export function createAcquisitionBatchProcessor(input: {
         snapshot: {
           runId: batch.runId,
           collectedAt: batch.collectedAt,
-          activeSourceIds: sourceBundle.sources
-            .filter((source) => source.contentGroup === "information" || source.contentGroup === "roadside")
-            .map((source) => source.id),
+          activeSourceIds: batch.sourceRegistry
+            ? acquisitionSourceIds(batch.sourceRegistry)
+            : legacyActiveSourceIds(batch.lane),
           sourceReports: sourceReports.map((report) => ({
             sourceId: report.sourceId,
             status: report.status,
@@ -431,7 +448,11 @@ export function createAcquisitionBatchProcessor(input: {
         items: adapted.values,
         reports: sourceReports.map((report) => publicationReport(report, batch.collectedAt)),
       };
-      await processPublications(packet, blockedDomesticFetch);
+      await processPublications(packet, blockedDomesticFetch, {
+        activeSourceIds: batch.sourceRegistry
+          ? acquisitionSourceIds(batch.sourceRegistry)
+          : undefined,
+      });
       processedPublications = adapted.values.length;
     }
 

@@ -23,6 +23,10 @@ import { PRODUCTION_ADMIN_EMAIL } from "./admin-profile.ts";
 import { configuredAdminOrigin } from "./admin-request-security.ts";
 import { withPersistenceTransaction } from "./state-document-store.ts";
 
+// Let the browser negotiate a platform or security-key PIN. Verification stays
+// fail-closed below by requiring the authenticator's signed UV flag.
+const PASSKEY_BROWSER_USER_VERIFICATION = "preferred" as const;
+
 function passkeyConfiguration() {
   const origin = configuredAdminOrigin() || "http://localhost:3000";
   const url = new URL(origin);
@@ -52,7 +56,7 @@ export async function beginAdminPasskeyRegistration(input: {
     })),
     authenticatorSelection: {
       residentKey: "required",
-      userVerification: "required",
+      userVerification: PASSKEY_BROWSER_USER_VERIFICATION,
     },
   });
   const ceremony = await createAdminPasskeyCeremony({
@@ -78,9 +82,11 @@ export async function finishAdminPasskeyRegistration(input: {
     expectedOrigin: origin,
     expectedRPID: rpID,
     requireUserPresence: true,
-    requireUserVerification: true,
+    requireUserVerification: false,
   });
-  if (!verification.verified) throw new Error("Passkey 注册证明校验失败。");
+  if (!verification.verified || !verification.registrationInfo.userVerified) {
+    throw new Error("Passkey 注册必须完成设备 PIN 或生物识别验证。");
+  }
   return withPersistenceTransaction(async () => {
     return completeAdminPasskeyRegistration({
       ceremonyId: ceremony.id,
@@ -102,7 +108,7 @@ export async function beginAdminPasskeyAuthentication(input: {
   const options = await generateAuthenticationOptions({
     rpID,
     timeout: 5 * 60 * 1000,
-    userVerification: "required",
+    userVerification: PASSKEY_BROWSER_USER_VERIFICATION,
     allowCredentials: credentials.map((credential) => ({
       id: credential.credentialId,
       transports: credential.transports,
@@ -136,10 +142,10 @@ export async function finishAdminPasskeyAuthentication(input: {
     expectedOrigin: origin,
     expectedRPID: rpID,
     credential,
-    requireUserVerification: true,
+    requireUserVerification: false,
   });
   if (!verification.verified || !verification.authenticationInfo.userVerified) {
-    throw new Error("Passkey 身份校验失败。");
+    throw new Error("Passkey 登录必须完成设备 PIN 或生物识别验证。");
   }
   await completeAdminPasskeyAuthentication({
     ceremonyId: ceremony.id,

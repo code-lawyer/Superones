@@ -1,7 +1,7 @@
 ---
 type: adr
 status: accepted
-updated: 2026-07-31
+updated: 2026-08-02
 ---
 
 # ADR-0012：生产后台采用原生 Passkey 与可撤销应用会话
@@ -10,7 +10,7 @@ updated: 2026-07-31
 
 生产后台使用独立管理来源 `https://admin.superones.top`，通过项目内 WebAuthn/Passkey 验证固定唯一管理员 `lanzhouda@163.com`。公开域名不提供管理路由，Node 源站端口不对公网开放。
 
-浏览器在管理来源上完成 resident credential 与用户验证。应用以管理域名为 RP ID，校验一次性挑战、来源、RP ID、签名和认证器计数器；校验通过后创建保存在 PostgreSQL 中的随机不透明应用会话。Passkey 私钥不进入服务器。
+浏览器在管理来源上完成 resident credential 与用户验证。为兼容真实平台与安全钥匙的 PIN 协商，浏览器 ceremony 请求 `userVerification=preferred`；应用仍从签名 authenticator data 强制确认 UV 标志，只接受实际完成 PIN 或生物识别的注册、登录与再认证。应用以管理域名为 RP ID，校验一次性挑战、来源、RP ID、签名和认证器计数器；校验通过后创建保存在 PostgreSQL 中的随机不透明应用会话。Passkey 私钥不进入服务器。
 
 本地开发使用密码适配器；开发密码在生产永远不接受。生产不配置 OIDC，不建立共享密码登录，也不引入外部身份供应商。
 

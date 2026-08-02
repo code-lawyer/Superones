@@ -30,6 +30,7 @@ test("production admin exposes native Passkey flows and no retired OIDC routes",
   const browserReauthentication = await readFile(new URL("../lib/admin-passkey-browser.ts", import.meta.url), "utf8");
   const opcEditor = await readFile(new URL("../components/admin-opc-catalog-editor.tsx", import.meta.url), "utf8");
   const enrollmentScript = await readFile(new URL("../scripts/create-admin-passkey-enrollment.ts", import.meta.url), "utf8");
+  const passkeyService = await readFile(new URL("../lib/admin-passkey.ts", import.meta.url), "utf8");
   assert.match(identity, /"passkey" \| "local-password"/);
   assert.doesNotMatch(identity, /OIDC|oidc|jose/);
   assert.doesNotMatch(frontierAdmin, /refresh-stars|updateSubmissionStars|inspectGitHubRepository/);
@@ -45,6 +46,11 @@ test("production admin exposes native Passkey flows and no retired OIDC routes",
   assert.match(browserReauthentication, /startAuthentication/);
   assert.match(opcEditor, /reauthenticateAdminWithPasskey/);
   assert.doesNotMatch(opcEditor, /\boidc\b|IDaaS/);
+  assert.equal([...passkeyService.matchAll(/userVerification: PASSKEY_BROWSER_USER_VERIFICATION/g)].length, 2);
+  assert.equal([...passkeyService.matchAll(/requireUserVerification: false/g)].length, 2);
+  assert.match(passkeyService, /registrationInfo\.userVerified/);
+  assert.match(passkeyService, /authenticationInfo\.userVerified/);
+  assert.doesNotMatch(passkeyService, /requireUserVerification: true/);
 });
 
 test("rejected Passkey proofs are written as sanitized security audit events", async () => {

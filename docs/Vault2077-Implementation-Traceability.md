@@ -24,9 +24,9 @@ updated: 2026-07-31
 | 运营后台 | partial | 原生 Passkey 的引导、注册、登录、五分钟再认证、恢复与撤销，以及 PostgreSQL 可撤销会话、同源写请求防护、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；资讯、事件、SiC、榜单与逐条纠错处置均不进入后台；真实认证器、TLS 与防火墙绕过测试仍待目标环境验收 |
 | 统一采集批次/inbox | done | 四 lane、带 key ID 的签名密钥环、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
 | 四采集通道 | done | `collect-content.yml` 按白天低频节奏支持四通道；采集 job 与 PR/push/每日质量门禁已拆分，Node 模块独占签名和有界重试 |
-| 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；待阿里云目标服务器安装、退出码告警和积压恢复演练 |
+| 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；编辑基础设施故障会回滚并自动重试，四个 Node service 已允许运行时所需 `AF_NETLINK`；待重部署后的退出码告警和积压恢复演练 |
 | 上线基线与初始化回填 | partial | 显式 bootstrap、SiC 每 approved 来源最近一条、Vault 30 天窗口、有界批次和同合同幂等已实现；尚未在生产修订执行并保存逐来源证据 |
-| 频道编辑配置 | partial | 双配置路由、独立并发/批量/超时/熔断、无限额度、主/受控备用与生产拒绝旧全局配置已实现；目标提供方容量、长积压和切换审计演练未完成 |
+| 频道编辑配置 | partial | 双配置路由、独立并发/批量/超时/熔断、主/受控备用、300/200 生产预算基线及真实部署探针已实现；配置门禁拒绝错误 MiMo 域名，基础设施故障不会再误标 processed；待重部署后保存真实提供方探针、容量、长积压和切换审计证据 |
 | 内容单一主路由 | done | HN/Lobsters 已退出运行时；Follow Builders 去重人物 X 进入 roadside，其发现的博客/播客经官方入口进入 SiC；相关来源失败隔离且不阻断 workflow |
 | 单一境外采集 workflow | done | 采集只使用 `collect-content.yml`，四 lane 共用一个合同和接收端；另有独立 `quality-check.yml` 负责 PR、main push 与每日质量门禁；采集 workflow 不持有 worker/LLM 密钥、不调用境内处理 |
 | Frontier GitHub 混合访问 | partial | 境内短超时、有界并发、持久化限速、缓存/条件请求、审计和公开任务回退代码已闭环；尚缺生产凭证与真实故障演练 |
@@ -95,7 +95,7 @@ updated: 2026-07-31
 | PostgreSQL 生产写模型 | partial | 6 个版本迁移、单调快照、claim token/退避、专用 inbox/审计/限速/后台会话表及 PostgreSQL 17 集成测试已实现；缺目标数据库备份恢复与容量测试 |
 | Redis 可选 | done | 当前未强制引入 |
 | 游骑兵头像对象存储 | partial | ADR-0016 的 OSS/本地适配器、320/800 WebP、受保护 multipart 上传、发布前 HEAD、独立媒体域名、7/30 天引用感知清理，以及授权撤回后的当前对象、历史 versionId 和删除标记永久删除命令已实现；真实 Bucket/CNAME/RAM 联调、定时任务和版本化删除演练仍待验收 |
-| 来源修订白名单 | done | 接收端只接受部署修订和显式灰度重叠修订 |
+| 来源清单兼容门禁 | done | `AcquisitionBatch v2` 携带已签名的 lane 来源快照；接收端校验快照 schema、来源映射和 adapter 能力，不要求 revision 完全一致；旧 `v1` 继续使用显式修订白名单 |
 | inbox 幂等与重放防护 | done | 接收代码与 E2E 存在 |
 | 批次写入原子性 | done | PostgreSQL 模式下采集批次、后台 OPC/Frontier/订单业务写入与对应成功审计均使用同一事务；审计失败会回滚业务写入；文件预览存储不作为生产原子性保证 |
 | worker 重试/隔离 | done | retryable/quarantined、最大尝试、租约恢复和隔离测试已实现 |

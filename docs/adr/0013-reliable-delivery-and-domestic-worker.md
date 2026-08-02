@@ -1,7 +1,7 @@
 ---
 type: adr
 status: accepted
-updated: 2026-07-25
+updated: 2026-08-02
 amended-by: ADR-0015
 ---
 
@@ -18,6 +18,7 @@ amended-by: ADR-0015
 5. 境内 `vault2077-acquisition-worker.timer` 每五分钟消费 inbox。领取使用 claim token；处理失败最多六次指数退避后进入 `quarantined`，不要求境外重新采集。成功记录保留 30 天，隔离记录保留 180 天后自动清理。
 6. `/api/internal/acquisition/process` 只保留给回环环境的本地演练和紧急人工诊断，不是公网生产接口。
 7. 公网反向代理在内部命名空间只开放精确的 `POST /api/internal/acquisition` 与只读 `GET /api/internal/frontier/tasks`。前者执行边缘限速后接收签名批次；后者用独立只读密钥返回已脱敏公开任务。其余 `/api/internal/*` 全部拒绝。
+8. 编辑提供方的配置、DNS/TLS/HTTP、预算和响应协议故障不得降级为单条内容 quarantine。此类基础设施故障必须让业务事务回滚并由 inbox 自动重试；只有确定性的单条 Schema 或内容校验失败才允许隔离该条并提交同批合格记录。
 
 ## 理由
 

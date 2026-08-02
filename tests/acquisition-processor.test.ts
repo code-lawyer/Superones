@@ -138,6 +138,56 @@ test("processor routes information and publications through domestic adapters", 
   assert.equal(publications.items[0].provenanceStatus, "verified");
 });
 
+test("processor uses the signed v2 source snapshot instead of its deployed bundle", async () => {
+  const value = mixedBatch();
+  value.schemaVersion = 2;
+  value.records = [value.records[0]];
+  value.sourceReports = [value.sourceReports[0]];
+  value.sourceRegistry = {
+    schemaVersion: 1,
+    revision: value.registryRevision,
+    lane: "information",
+    sources: [
+      { sourceId: "dynamic-source", adapter: "rss" },
+      { sourceId: "vault-source", adapter: "rss" },
+    ],
+  };
+  let activeSourceIds: string[] = [];
+  const processor = createAcquisitionBatchProcessor({
+    async processContent(_content, _hash, options) {
+      activeSourceIds = options?.snapshot?.activeSourceIds ?? [];
+    },
+  });
+  await processor(value, { payloadHash: "7".repeat(64), attempt: 1 });
+  assert.deepEqual(activeSourceIds, ["dynamic-source", "vault-source"]);
+});
+
+test("SiC processing uses the signed v2 source snapshot instead of its deployed registry", async () => {
+  const value = mixedBatch();
+  value.schemaVersion = 2;
+  value.lane = "sic";
+  value.scheduleId = "schedule:test:sic";
+  value.records = [value.records[1]];
+  value.sourceReports = [{ ...value.sourceReports[1], adapter: "official_rss" }];
+  value.sourceRegistry = {
+    schemaVersion: 1,
+    revision: value.registryRevision,
+    lane: "sic",
+    sources: [
+      { sourceId: "dynamic-sic-source", adapter: "official_rss" },
+      { sourceId: "sic-source", adapter: "official_rss" },
+    ],
+  };
+  let activeSourceIds: string[] = [];
+  const processor = createAcquisitionBatchProcessor({
+    async processPublications(_content, _fetcher, options) {
+      activeSourceIds = options?.activeSourceIds ?? [];
+    },
+  });
+  await processor(value, { payloadHash: "6".repeat(64), attempt: 1 });
+  assert.deepEqual(activeSourceIds, ["dynamic-sic-source", "sic-source"]);
+});
+
 test("one malformed information record downgrades its source without blocking valid records", async () => {
   const value = mixedBatch();
   const invalid = structuredClone(value.records[0]);

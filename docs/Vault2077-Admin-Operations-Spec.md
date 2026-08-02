@@ -1,7 +1,7 @@
 ---
 type: channel-spec
 status: active
-updated: 2026-07-31
+updated: 2026-08-02
 ---
 
 # Vault2077 后台与运营首版设计基线
@@ -29,7 +29,7 @@ updated: 2026-07-31
 ## 3. 登录与会话
 
 - 管理页面和后台接口只接受配置的独立管理来源；公开站来源和 Node 端口不得进入后台。
-- Passkey 必须绑定 `VAULT2077_ADMIN_ORIGIN` 派生的 RP ID，要求 resident credential 与用户验证；挑战五分钟过期且只能消费一次，签名计数器并发冲突时拒绝请求。
+- Passkey 必须绑定 `VAULT2077_ADMIN_ORIGIN` 派生的 RP ID，要求 resident credential 与用户验证。浏览器 ceremony 使用 `preferred` 兼容平台 PIN 与安全钥匙 PIN 的实际协商，服务端仍必须从签名 authenticator data 确认 `userVerified=true`；没有完成 PIN/生物识别不得注册、登录或再认证。挑战五分钟过期且只能消费一次，签名计数器并发冲突时拒绝请求。
 - 本地开发密码至少 20 个字符并使用 Argon2id 哈希能力测试；开发密码适配器在 `NODE_ENV=production` 下关闭。
 - 应用会话使用服务端随机不透明令牌，数据库只保存带密钥摘要。会话可单独撤销，空闲 30 分钟失效，绝对有效期 4 小时。
 - 生产应用会话 Cookie 必须使用 `__Host-` 前缀、`HttpOnly`、`Secure`、`SameSite=Strict` 和根路径，不设置 `Domain`。Passkey ceremony 只在服务端持久化挑战及摘要，不使用跨站事务 Cookie。

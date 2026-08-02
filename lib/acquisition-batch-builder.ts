@@ -12,6 +12,7 @@ import {
   type AcquisitionSourceStatus,
   type JsonValue,
 } from "./acquisition-contract.ts";
+import { buildAcquisitionSourceRegistrySnapshot } from "./acquisition-source-registry.ts";
 import { MAX_BATCH_ITEMS, type InboundContentBatch } from "./content-contract.ts";
 import type { SicRawCollection } from "./sic-collector.ts";
 
@@ -105,10 +106,18 @@ export function packAcquisitionGroups(
   );
   const batches: AcquisitionBatch[] = [];
   let pending: AcquisitionSourceGroup[] = [];
+  const sourceRegistry = buildAcquisitionSourceRegistrySnapshot({
+    revision: context.registryRevision,
+    lane: context.lane,
+    sources: groups.map((group) => ({
+      sourceId: group.report.sourceId,
+      adapter: group.report.adapter,
+    })),
+  });
 
   function candidate(values: AcquisitionSourceGroup[], index: number): AcquisitionBatch {
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       batchId: `${stableId(batchPrefix, "acquisition", 110)}:${String(index + 1).padStart(4, "0")}`,
       runId: stableId(context.runId, `run:${sha256(context.runId).slice(0, 20)}`),
       lane: context.lane,
@@ -117,6 +126,7 @@ export function packAcquisitionGroups(
       windowFrom: context.windowFrom,
       windowUntil: context.windowUntil,
       registryRevision: stableId(context.registryRevision, "registry:unknown"),
+      sourceRegistry,
       collectedFrom: context.collectedFrom,
       collectedUntil: context.collectedUntil,
       collectedAt: context.collectedAt,

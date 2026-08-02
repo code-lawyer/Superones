@@ -65,7 +65,7 @@ const site = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start"
       VAULT2077_PIPELINE_SIGNING_KEYS: JSON.stringify({ e2e: secret }),
       VAULT2077_PIPELINE_ACTIVE_KEY_ID: "e2e",
       VAULT2077_AUDIT_HASH_SECRET: secret,
-      VAULT2077_ALLOWED_SOURCE_REVISIONS: "sources:http-e2e",
+      VAULT2077_ALLOWED_SOURCE_REVISIONS: "sources:older-domestic-bundle",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -78,7 +78,7 @@ try {
   const observedAt = new Date().toISOString();
   const timestamp = String(Math.floor(Date.now() / 1000));
   const batch = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     batchId: `batch:${timestamp}:http-e2e`,
     runId: `run:${timestamp}:http-e2e`,
     lane: "information",
@@ -86,6 +86,12 @@ try {
     windowFrom: observedAt,
     windowUntil: observedAt,
     registryRevision: "sources:http-e2e",
+    sourceRegistry: {
+      schemaVersion: 1,
+      revision: "sources:http-e2e",
+      lane: "information",
+      sources: [{ sourceId: "http-e2e", adapter: "rss" }],
+    },
     collectedFrom: observedAt,
     collectedUntil: observedAt,
     collectedAt: observedAt,
@@ -102,7 +108,7 @@ try {
     }],
     sourceReports: [{
       sourceId: "http-e2e",
-      adapter: "http-e2e",
+      adapter: "rss",
       status: "succeeded",
       startedAt: observedAt,
       completedAt: observedAt,
@@ -148,7 +154,7 @@ try {
   assert(persisted.rawPayload === rawPayload, "落盘原始正文与签名正文不一致。");
   assert(persisted.status === "received" && persisted.recordCount === 1, "落盘状态或记录计数无效。");
 
-  console.log("统一采集 HTTP E2E 通过：首次 202、重复识别、异文 409、原始正文持久化。");
+  console.log("统一采集 HTTP E2E 通过：v2 动态来源快照、首次 202、重复识别、异文 409、原始正文持久化。");
 } finally {
   if (site.exitCode === null) site.kill();
   await new Promise((resolve) => setTimeout(resolve, 250));

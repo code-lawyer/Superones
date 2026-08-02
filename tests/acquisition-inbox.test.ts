@@ -59,6 +59,21 @@ function submission(value = batch()): AcquisitionSubmission {
   return { batchId: value.batchId, timestamp, signature, rawPayload };
 }
 
+function version2Batch() {
+  const legacy = batch();
+  return {
+    ...legacy,
+    schemaVersion: 2,
+    sourceRegistry: {
+      schemaVersion: 1,
+      revision: legacy.registryRevision,
+      lane: legacy.lane,
+      sources: [{ sourceId: "arxiv:cs-ai", adapter: "official_api" }],
+    },
+    sourceReports: [{ ...legacy.sourceReports[0], adapter: "official_api" }],
+  };
+}
+
 function keyringSubmission(keyId: string, signingSecret: string): AcquisitionSubmission {
   const value = batch();
   const rawPayload = JSON.stringify(value);
@@ -223,6 +238,38 @@ test("rejects a source registry revision that is not deployed", async (context) 
   const deployed = batch();
   deployed.registryRevision = "sources:deployed";
   assert.equal((await receiver.receive(submission(deployed))).status, "received");
+});
+
+test("accepts a signed v2 source snapshot without deploying its exact revision", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-dynamic-registry-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => now,
+    allowedRegistryRevisions: new Set(["sources:older-domestic-bundle"]),
+  });
+  const result = await receiver.receive(submission(version2Batch()));
+  assert.equal(result.status, "received");
+});
+
+test("rejects a v2 source snapshot that requires an undeployed adapter", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-adapter-gate-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => now,
+  });
+  const value = version2Batch();
+  value.sourceRegistry.sources[0].adapter = "future-connector";
+  value.sourceReports[0].adapter = "future-connector";
+  await assert.rejects(
+    receiver.receive(submission(value)),
+    (error) => error instanceof AcquisitionReceiveError
+      && error.code === "UNSUPPORTED_SOURCE_ADAPTER"
+      && error.status === 409,
+  );
 });
 
 test("claims, fails, retries, and completes a durable batch", async (context) => {

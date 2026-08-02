@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { activeEvents, compileInformationBatch, meetsEventThreshold, withOneRetry, type EditorialPort } from "../lib/content-compiler.ts";
 import type { InboundContentBatch, InformationEnvelope } from "../lib/content-contract.ts";
+import { ModelRequestError } from "../lib/openai-compatible-client.ts";
 import { SOURCE_ROLES, type EventRecord, type InformationItem, type SourceRole } from "../lib/types.ts";
 
 function envelope(index: number, publisher: string, sourceRole: SourceRole): InformationEnvelope {
@@ -239,6 +240,22 @@ test("failed information editorial is quarantined and never published", async ()
   assert.equal(result.information.length, 0);
   assert.equal(result.quarantine.length, 1);
   assert.equal(result.quarantine[0].errorCode, "INFORMATION_EDITORIAL_FAILED");
+});
+
+test("model infrastructure failures escape content quarantine so the inbox can retry", async () => {
+  await assert.rejects(
+    compileInformationBatch({
+      batch: batch([envelope(1, "A", "官方")]),
+      previousInformation: [],
+      previousEvents: [],
+      editorial: editorial({
+        async translateInformation() {
+          throw new ModelRequestError("境内 LLM 请求失败：fetch failed", { retryable: true });
+        },
+      }),
+    }),
+    (error) => error instanceof ModelRequestError && error.retryable,
+  );
 });
 
 test("failed event classification is quarantined while the translated record still publishes", async () => {

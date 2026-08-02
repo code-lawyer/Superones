@@ -381,7 +381,8 @@ GitHub schedule 不是可靠业务时钟。漏跑时以境内内容新鲜度告�
 | --- | --- | --- |
 | workflow 提示缺少境内 URL | Secret 名称错误或未设置 | 核对五个 Secret 名称 |
 | HTTP `401 INVALID_SIGNATURE` | 两侧 secret、key ID 或 JSON 不一致 | 对照密码管理器重新写入两侧，不放宽验签 |
-| HTTP `409 UNKNOWN_REGISTRY_REVISION` | VPS 代码或来源注册表落后于 workflow | 部署与 workflow 对应的生产 revision 后补跑 |
+| HTTP `409 UNKNOWN_REGISTRY_REVISION` | 收到了旧 `AcquisitionBatch v1`，且其来源修订不在境内兼容白名单 | 临时加入经过审核的旧修订，或部署对应版本后补跑；`v2` 来源清单变动不依赖此白名单 |
+| HTTP `409 UNSUPPORTED_SOURCE_ADAPTER` / `UNSUPPORTED_SOURCE_REGISTRY_VERSION` | 批次使用了境内代码尚未实现的新 adapter 或来源快照协议 | 审核并完整部署新的采集合同/adapter 后补跑，不放宽验签或 schema 门禁 |
 | HTTP `409 BATCH_CONFLICT` | 同一 batch ID 对应了不同正文 | 保留证据并排查生成逻辑，不手工改 artifact 重发 |
 | HTTP `413` | 请求体超过 Nginx 或应用上限 | 核对 `client_max_body_size 8m` 与批次拆分 |
 | HTTP `429` | 接收限流 | 等待窗口并检查是否发生异常重复投递 |

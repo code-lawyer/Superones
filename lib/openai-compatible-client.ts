@@ -1,5 +1,7 @@
 import "server-only";
 
+import { EditorialInfrastructureError } from "./editorial-failure.ts";
+
 export type OpenAICompatibleConfig = {
   baseUrl: string;
   apiKey: string;
@@ -28,33 +30,36 @@ export type JsonCompletion = {
   input: unknown;
 };
 
-export class ModelNotConfiguredError extends Error {
-  readonly code = "MODEL_NOT_CONFIGURED";
-
+export class ModelNotConfiguredError extends EditorialInfrastructureError {
   constructor(message = "境内 LLM 尚未完成配置。") {
-    super(message);
+    super(message, "MODEL_NOT_CONFIGURED");
     this.name = "ModelNotConfiguredError";
   }
 }
 
-export class ModelRequestError extends Error {
+export class ModelRequestError extends EditorialInfrastructureError {
   readonly retryable: boolean;
   readonly status?: number;
 
   constructor(message: string, options: { retryable: boolean; status?: number }) {
-    super(message);
+    super(message, "MODEL_REQUEST_FAILED");
     this.name = "ModelRequestError";
     this.retryable = options.retryable;
     this.status = options.status;
   }
 }
 
-export class ModelBudgetExceededError extends Error {
-  readonly code = "MODEL_BUDGET_EXCEEDED";
-
+export class ModelBudgetExceededError extends EditorialInfrastructureError {
   constructor(profile: EditorialProfileId) {
-    super(`${profile} 已达到本轮模型请求预算。`);
+    super(`${profile} 已达到本轮模型请求预算。`, "MODEL_BUDGET_EXCEEDED");
     this.name = "ModelBudgetExceededError";
+  }
+}
+
+export class ModelResponseError extends EditorialInfrastructureError {
+  constructor(message: string) {
+    super(message, "MODEL_RESPONSE_INVALID");
+    this.name = "ModelResponseError";
   }
 }
 
@@ -248,7 +253,15 @@ export function createOpenAICompatibleClient(config: OpenAICompatibleConfig, fet
         );
       }
       if (!response.ok) {
-        const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 300);
+        let detail = "";
+        try {
+          detail = (await response.text()).replace(/\s+/g, " ").slice(0, 300);
+        } catch (error) {
+          throw new ModelRequestError(
+            `境内 LLM HTTP ${response.status} 响应体读取失败：${error instanceof Error ? error.message : String(error)}`,
+            { status: response.status, retryable: true },
+          );
+        }
         throw new ModelRequestError(
           `境内 LLM 返回 HTTP ${response.status}${detail ? `：${detail}` : ""}。`,
           {
@@ -260,13 +273,20 @@ export function createOpenAICompatibleClient(config: OpenAICompatibleConfig, fet
           },
         );
       }
-      const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+      let body: { choices?: Array<{ message?: { content?: string } }> };
+      try {
+        body = await response.json() as typeof body;
+      } catch {
+        throw new ModelResponseError("境内 LLM HTTP 响应体不是有效 JSON。");
+      }
       const content = body.choices?.[0]?.message?.content;
-      if (typeof content !== "string") throw new Error("境内 LLM 没有返回 choices[0].message.content。");
+      if (typeof content !== "string") {
+        throw new ModelResponseError("境内 LLM 没有返回 choices[0].message.content。");
+      }
       try {
         return JSON.parse(content) as unknown;
       } catch {
-        throw new Error("境内 LLM 没有返回有效 JSON。");
+        throw new ModelResponseError("境内 LLM 没有返回有效 JSON。");
       }
     },
   };

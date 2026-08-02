@@ -1,6 +1,13 @@
 export { payloadHash, signingInput } from "./batch-signing.ts";
 
-export const ACQUISITION_BATCH_VERSION = 1 as const;
+import {
+  AcquisitionSourceRegistryError,
+  validateAcquisitionSourceRegistrySnapshot,
+  type AcquisitionSourceRegistrySnapshot,
+} from "./acquisition-source-registry.ts";
+
+export const ACQUISITION_BATCH_VERSION = 2 as const;
+export const SUPPORTED_ACQUISITION_BATCH_VERSIONS = [1, 2] as const;
 export const ACQUISITION_LANES = ["information", "roadside", "sic", "rankings"] as const;
 export const ACQUISITION_RUN_MODES = ["incremental", "bootstrap"] as const;
 export const MAX_ACQUISITION_BATCH_BYTES = 8_000_000;
@@ -54,7 +61,7 @@ export type AcquisitionSourceReport = {
 };
 
 export type AcquisitionBatch = {
-  schemaVersion: typeof ACQUISITION_BATCH_VERSION;
+  schemaVersion: (typeof SUPPORTED_ACQUISITION_BATCH_VERSIONS)[number];
   batchId: string;
   runId: string;
   lane: AcquisitionLane;
@@ -63,6 +70,7 @@ export type AcquisitionBatch = {
   windowFrom: string;
   windowUntil: string;
   registryRevision: string;
+  sourceRegistry?: AcquisitionSourceRegistrySnapshot;
   collectedFrom: string;
   collectedUntil: string;
   collectedAt: string;
@@ -195,8 +203,15 @@ function validateRecord(value: unknown, index: number): AcquisitionRecord {
   if (!ACQUISITION_RECORD_KINDS.includes(item.kind as AcquisitionRecordKind)) {
     throw new AcquisitionContractError(`records[${index}].kind 无效。`);
   }
+  const schemaVersion = requiredInteger(item.schemaVersion, `records[${index}].schemaVersion`, 1);
+  if (schemaVersion !== 1) {
+    throw new AcquisitionContractError(
+      `records[${index}].schemaVersion 尚未被境内处理器支持。`,
+      "UNSUPPORTED_RECORD_VERSION",
+    );
+  }
   return {
-    schemaVersion: requiredInteger(item.schemaVersion, `records[${index}].schemaVersion`, 1),
+    schemaVersion,
     kind: item.kind as AcquisitionRecordKind,
     recordId: stableId(item.recordId, `records[${index}].recordId`),
     sourceId: stableId(item.sourceId, `records[${index}].sourceId`),
@@ -288,9 +303,12 @@ export function validateAcquisitionBatch(value: unknown): AcquisitionBatch {
     throw new AcquisitionContractError("采集批次必须是 JSON 对象。");
   }
   const batch = value as Record<string, unknown>;
-  if (batch.schemaVersion !== ACQUISITION_BATCH_VERSION) {
+  if (!SUPPORTED_ACQUISITION_BATCH_VERSIONS.includes(
+    batch.schemaVersion as (typeof SUPPORTED_ACQUISITION_BATCH_VERSIONS)[number],
+  )) {
     throw new AcquisitionContractError("不支持的采集批次版本。", "UNSUPPORTED_VERSION");
   }
+  const schemaVersion = batch.schemaVersion as AcquisitionBatch["schemaVersion"];
   if (!Array.isArray(batch.records) || !Array.isArray(batch.sourceReports)) {
     throw new AcquisitionContractError("records 和 sourceReports 必须是数组。");
   }
@@ -336,8 +354,24 @@ export function validateAcquisitionBatch(value: unknown): AcquisitionBatch {
   if (Date.parse(windowFrom) > Date.parse(windowUntil)) {
     throw new AcquisitionContractError("windowFrom 不能晚于 windowUntil。");
   }
+  const registryRevision = stableId(batch.registryRevision, "registryRevision", 120);
+  let sourceRegistry: AcquisitionSourceRegistrySnapshot | undefined;
+  if (schemaVersion === ACQUISITION_BATCH_VERSION) {
+    try {
+      sourceRegistry = validateAcquisitionSourceRegistrySnapshot(batch.sourceRegistry, {
+        revision: registryRevision,
+        lane: batch.lane as AcquisitionLane,
+        reports: sourceReports,
+      });
+    } catch (error) {
+      if (error instanceof AcquisitionSourceRegistryError) {
+        throw new AcquisitionContractError(error.message, error.code);
+      }
+      throw error;
+    }
+  }
   return {
-    schemaVersion: ACQUISITION_BATCH_VERSION,
+    schemaVersion,
     batchId: stableId(batch.batchId, "batchId", 120),
     runId: stableId(batch.runId, "runId", 120),
     lane: batch.lane as AcquisitionLane,
@@ -345,7 +379,8 @@ export function validateAcquisitionBatch(value: unknown): AcquisitionBatch {
     scheduleId: stableId(batch.scheduleId, "scheduleId", 120),
     windowFrom,
     windowUntil,
-    registryRevision: stableId(batch.registryRevision, "registryRevision", 120),
+    registryRevision,
+    ...(sourceRegistry ? { sourceRegistry } : {}),
     collectedFrom,
     collectedUntil,
     collectedAt: requiredDate(batch.collectedAt, "collectedAt"),

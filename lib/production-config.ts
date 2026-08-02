@@ -109,13 +109,19 @@ function providerHost(
   environment: Record<string, string | undefined>,
   errors: string[],
 ) {
+  function validateProviderUrl(route: "主" | "备用", value: string) {
+    const url = new URL(value);
+    if (url.protocol !== "https:") errors.push(`${profile} 的${route}处理地址必须使用 HTTPS。`);
+    if (url.hostname.toLowerCase() === "api.mimo.com") {
+      errors.push(`${profile} 的${route}处理地址 api.mimo.com 无效；MiMo 官方 OpenAI 兼容地址必须使用 api.xiaomimimo.com。`);
+    }
+    return url;
+  }
   try {
     const config = loadEditorialProfileConfig(profile, environment);
-    const url = new URL(config.primary.baseUrl);
-    if (url.protocol !== "https:") errors.push(`${profile} 的主处理地址必须使用 HTTPS。`);
+    const url = validateProviderUrl("主", config.primary.baseUrl);
     if (config.fallback) {
-      const fallbackUrl = new URL(config.fallback.baseUrl);
-      if (fallbackUrl.protocol !== "https:") errors.push(`${profile} 的备用处理地址必须使用 HTTPS。`);
+      validateProviderUrl("备用", config.fallback.baseUrl);
     }
     return url.hostname;
   } catch (error) {

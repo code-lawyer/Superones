@@ -26,6 +26,7 @@
     "opc:cleanup-ranger-media": "node --conditions=react-server --experimental-strip-types scripts/cleanup-ranger-media.ts",
     "opc:purge-revoked-ranger-media": "node --conditions=react-server --experimental-strip-types scripts/purge-revoked-ranger-media.ts",
     "deploy:check": "node --conditions=react-server --experimental-strip-types scripts/check-production-config.ts",
+    "deploy:verify-editorial": "node --conditions=react-server --experimental-strip-types scripts/verify-editorial-providers.ts",
     "frontier:tick": "node --conditions=react-server --experimental-strip-types scripts/run-frontier-tick.ts",
     "dev:check": "node scripts/check-dev-server.mjs",
     "sources:extract": "node scripts/build-source-registry.mjs",

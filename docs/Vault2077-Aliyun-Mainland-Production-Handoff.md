@@ -496,6 +496,19 @@ VAULT2077_FRONTIER_WRITES_ENABLED=false
 
 Vault 与 SiC 分别需要：HTTPS base URL、API key、明确模型名、超时、并发、批量大小和每轮最大请求数。不要把“自动选择模型”作为生产配置。
 
+2026-08-02 已验证的大陆生产基线如下；API key 只写入 root-owned 环境文件：
+
+```dotenv
+VAULT2077_VAULT_LLM_BASE_URL=https://api.deepseek.com/v1
+VAULT2077_VAULT_LLM_MODEL=deepseek-v4-flash
+VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN=300
+VAULT2077_SIC_LLM_BASE_URL=https://api.xiaomimimo.com/v1
+VAULT2077_SIC_LLM_MODEL=mimo-v2.5
+VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN=200
+```
+
+`api.mimo.com` 是已知错误域名，生产配置门禁会直接拒绝。两个模型默认不显式设置 `REASONING_EFFORT`；这些结构化抽取、翻译和摘要任务先以默认推理行为运行，只有在保存质量/延迟/成本对照证据后才调整。
+
 迁移到大陆后先在 VPS 上分别验证提供方网络、TLS、响应格式、限速、单次最大 token、余额和内容合规策略。主/备用模型的 base URL、key 和模型名都要显式配置；备用只在受控失败类别触发。若两频道使用同一提供方，生产检查会提示集中风险，应记录接受原因，并在首周准备第二提供方或容量降级方案。
 
 不要把境外上游抓取和 LLM 访问混为一谈：境外公开信息仍由 GitHub Actions collector 获取，境内 Worker 只接收签名包并调用已验证可用的编辑模型。
@@ -514,7 +527,7 @@ sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd
 sudo systemctl daemon-reload
 ```
 
-核对 `/opt/node/bin/npm`、用户、工作目录和环境文件路径。如果采用不同的系统级 Node/npm 安装路径，修改全部 unit 的 `PATH` 和 npm 绝对路径后重新 verify。不要启动 timer，直到数据库、配置、bootstrap 和 Web 基础验收完成。
+核对 `/opt/node/bin/npm`、用户、工作目录和环境文件路径。如果采用不同的系统级 Node/npm 安装路径，修改全部 unit 的 `PATH` 和 npm 绝对路径后重新 verify。四个 Node service 的 `RestrictAddressFamilies` 必须保留 `AF_UNIX AF_INET AF_INET6 AF_NETLINK`；缺少 `AF_NETLINK` 会在目标运行时触发 `EAFNOSUPPORT`。不要启动 timer，直到数据库、配置、模型探针、bootstrap 和 Web 基础验收完成。
 
 ### 10.2 Nginx
 
@@ -552,7 +565,22 @@ sudo systemd-run --unit=vault2077-deploy-check --wait --pipe --collect \
 
 若发行版的 `systemd-run` 不支持这些选项，创建一个与现有 oneshot unit 同权限模型的临时 unit；不要把环境文件改成 world-readable。所有错误归零才能继续。
 
-### 11.2 迁移
+### 11.2 真实编辑提供方探针
+
+静态门禁通过后、迁移和 worker 启动前，使用同一 root-owned 环境文件分别调用 Vault/SiC 的全部主线路及已配置备用线路：
+
+```bash
+sudo systemd-run --unit=vault2077-editorial-probe --wait --pipe --collect \
+  --uid=vault2077 --gid=vault2077 \
+  --working-directory=/srv/vault2077/current \
+  --property=EnvironmentFile=/etc/vault2077/production.env \
+  --setenv=NODE_ENV=production \
+  /opt/node/bin/npm run deploy:verify-editorial
+```
+
+输出只能包含 profile、主/备用线路、提供方主机、模型名和 `status=ok`，不包含 key。该探针同时验证 DNS、TLS、凭证、模型名称、Chat Completions 路径和 JSON 响应协议；任一路失败即停止部署，不得以无 key 的 `401` 或普通 `curl` 代替。
+
+### 11.3 迁移
 
 先在 RDS 控制台建立手工备份。然后：
 
@@ -578,7 +606,7 @@ sudo systemd-run --unit=vault2077-pg-test --wait --pipe --collect \
 
 验证 `vault2077_schema_migrations` 最新记录是 `0006_acquisition_reliability.sql`。不要手工修改迁移表，不要回滚 SQL 文件，也不要删除已有 migration。
 
-### 11.3 一次性 bootstrap
+### 11.4 一次性 bootstrap
 
 先在不连接生产数据库的发布目录校验包内内容：
 
@@ -651,7 +679,7 @@ sudo systemd-run --unit=vault2077-admin-enroll --wait --pipe --collect \
 6. 用一条恢复码做受控演练，确认一次性消费；其余恢复码重新核对离线保管。
 7. 紧急接管时才运行 `npm run admin:passkey:enroll -- --revoke-existing`；它会签发新令牌并撤销现有管理员会话，必须双人确认。
 
-Passkey 未在真实 HTTPS 管理域名通过前，不能开放运营后台。不要用 Nginx Basic Auth 或共享密码临时代替。
+Passkey 未在真实 HTTPS 管理域名通过前，不能开放运营后台。浏览器可以使用安全钥匙/平台认证器的 PIN 码；ceremony 以 `preferred` 触发兼容协商，但服务端仍检查认证器签名的 `userVerified=true`，未实际完成 PIN 或生物验证一律拒绝。不要用 Nginx Basic Auth 或共享密码临时代替。
 
 ## 14. 支付宝生产接入
 
@@ -720,7 +748,7 @@ GitHub Actions 只配置：
 
 它不得持有 RDS、后台会话、worker、health、支付宝、OSS 写入或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。
 
-先在低 TTL/维护窗口完成一次真实采集：确认接收 `202`、inbox 入库、worker 消费、内容更新、审计记录、失败重试和重复包幂等。不要把 workflow 成功当作境内发布成功；两端证据都要看。
+先在低 TTL/维护窗口逐通道完成一次真实 incremental：确认接收 `202`、inbox 入库、worker 消费、内容更新、审计记录、模型基础设施故障会变为 `retryable`、确定性坏记录才进入内容 quarantine，且重复包幂等。四通道 incremental 全部闭环后，才按 information → roadside → sic → rankings 逐通道触发一次 bootstrap；每次保存 GitHub run ID、batch ID、inbox 最终状态和内容计数。不要把 workflow 成功当作境内发布成功；两端证据都要看。
 
 ## 17. 启用定时任务
 
@@ -884,7 +912,7 @@ sudo systemctl restart vault2077-web.service
 1. **低覆盖核心模块补测试**：优先提升 content pipeline、GitHub/Frontier、security audit、OPC order store、Frontier store 的失败和并发分支。此前审查中这些模块覆盖明显低于项目平均，首发虽有契约/E2E 门禁，长期仍存在回归风险。
 2. **后台模块化**：继续拆分复杂的管理控制台和业务编排边界，减少单文件状态、重复校验和隐式耦合；每次重构保持小提交和现有 E2E。
 3. **支付自动对账/运营流程**：把待确认、异常通知、退款和日对账变成可审计例行流程，而不是临时查数据库。
-4. **安全与灾备演练**：进行密钥泄露、RDS PITR、release 回滚、OSS 删除、timer 失联、跨境投递失败演练。
+4. **安全与灾备演练**：进行密钥泄露、RDS PITR、release 回滚、OSS 删除、timer 失联、跨境投递失败和模型线路失效后 inbox 自动重试演练。
 5. **费用与架构复核**：依据实际 OSS 公网流量决定是否上 CDN；依据 RDS/服务器利用率决定规格，不为了“云原生”提前引入 Redis、Kubernetes 或多机复杂度。
 6. **不可变纠错策略运营化**：保持方案 A，不建设删改/审核 UI。形成“发现错误 → 新报告更正 → 关联旧报告 → append-only 审计 → 对外说明”的操作模板。
 
@@ -963,7 +991,7 @@ Codex 可以继续执行代码、配置模板、检查、迁移命令和验收�
 5. 阅读 [`Vault2077-Admin-Operations-Spec.md`](Vault2077-Admin-Operations-Spec.md) 与 [`Vault2077-OPC-Admin-Manual.md`](Vault2077-OPC-Admin-Manual.md) 了解 Passkey、发布、支付和头像操作。
 6. 在任何变更前运行 `git status --short`、记录当前 commit，确认用户已有改动，不要 reset/覆盖。
 7. 本地先跑 `npm run docs:check && npm run lint && npm run typecheck && npm test`；只有通过后才接触生产。
-8. 生产操作顺序固定为：备份 → 新 release → deploy check → migration → bootstrap（仅首发）→ Web → health → 功能验收 → timer → DNS/公开切流。
+8. 生产操作顺序固定为：备份 → 新 release → deploy check → 真实模型探针 → migration → bootstrap（仅首发）→ Web → health → 四通道 incremental/处理闭环 → 逐通道远端 bootstrap → 功能验收 → timer → DNS/公开切流。
 
 ## 24. 官方资料与核验日期
 

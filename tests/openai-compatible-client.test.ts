@@ -7,6 +7,7 @@ import {
   loadOpenAICompatibleConfig,
   ModelBudgetExceededError,
   ModelNotConfiguredError,
+  ModelResponseError,
 } from "../lib/openai-compatible-client.ts";
 
 test("blank domestic model configuration remains explicitly unconfigured", () => {
@@ -88,6 +89,20 @@ test("OpenAI-compatible client rejects a non-JSON assistant message", async () =
   const fakeFetch: typeof fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "not json" } }] }), { status: 200 });
   const client = createOpenAICompatibleClient({ baseUrl: "https://llm.example.com/v1", apiKey: "secret", model: "model-a", timeoutMs: 5_000 }, fakeFetch);
   await assert.rejects(() => client.completeJson({ task: "test", schemaVersion: "v1", instruction: "return JSON", input: {} }), /有效 JSON/);
+});
+
+test("OpenAI-compatible client classifies a non-JSON HTTP body as provider infrastructure failure", async () => {
+  const fakeFetch: typeof fetch = async () => new Response("not json", { status: 200 });
+  const client = createOpenAICompatibleClient({
+    baseUrl: "https://llm.example.com/v1",
+    apiKey: "secret",
+    model: "model-a",
+    timeoutMs: 5_000,
+  }, fakeFetch);
+  await assert.rejects(
+    () => client.completeJson({ task: "test", schemaVersion: "v1", instruction: "return JSON", input: {} }),
+    ModelResponseError,
+  );
 });
 
 test("editorial profiles resolve independent Vault and SiC providers", () => {
