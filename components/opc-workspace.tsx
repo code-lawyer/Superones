@@ -161,7 +161,7 @@ export function OpcWorkspace({
   }
 
   return <>
-    <section className="opc-service-browser" aria-label="OPC 服务目录">
+    <section className="opc-service-browser" id="opc-service-browser" aria-label="OPC 服务目录">
       <aside className="opc-service-browser__primary">
         <div className="opc-service-browser__sticky">
           <nav aria-label="OPC 一级入口">

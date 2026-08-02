@@ -1285,8 +1285,13 @@
   }
 
   .frontier-doctrine-face--manifesto > .manifesto-copy {
-    padding-bottom: 56px;
+    padding-top: 28px;
+    padding-bottom: 44px;
     font-size: var(--type-control);
+  }
+
+  .frontier-principles {
+    margin-top: 42px;
   }
 
   .frontier-principle {
@@ -1309,8 +1314,8 @@
   .frontier-live,
   .frontier-rewards,
   .frontier-archive {
-    padding-top: 64px;
-    padding-bottom: 72px;
+    padding-top: 52px;
+    padding-bottom: 64px;
   }
 
   .frontier-live__header,
@@ -1328,6 +1333,11 @@
 
   .frontier-season-card__mark strong {
     font-size: 64px;
+  }
+
+  .frontier-season-card__actions,
+  .frontier-season-card__actions > * {
+    width: 100%;
   }
 
   .frontier-pool-empty {

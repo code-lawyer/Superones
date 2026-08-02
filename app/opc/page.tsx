@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ChannelRibbon } from "@/components/channel-ribbon";
+import { MobileTaskNav, MobileTaskNavLink } from "@/components/mobile-task-nav";
 import { OpcWorkspace } from "@/components/opc-workspace";
 import { PageIntro } from "@/components/page-intro";
 import { opcOrderingAvailable } from "@/lib/opc-payment-config";
@@ -22,7 +23,12 @@ export default async function OpcPage({ searchParams }: { searchParams: Promise<
   const catalog = await getCachedPublishedServiceCatalog();
   const orderingAvailable = opcOrderingAvailable();
   return <>
-    <PageIntro code="OPC / SERVICE DESK" title="超级个体，全栈运行" lead="查看固定范围、公开价格、材料清单和交付周期。标准服务由 Vault2077 直接交付；非标准事项由用户直接联系独立专家。" meta="STANDARD SERVICES / 订单登记与服务器到账核验" />
+    <PageIntro className="channel-page-intro" code="OPC / SERVICE DESK" title="超级个体，全栈运行" lead="查看固定范围、公开价格、材料清单和交付周期。标准服务由 Vault2077 直接交付；非标准事项由用户直接联系独立专家。" meta="STANDARD SERVICES / 订单登记与服务器到账核验" />
+    <MobileTaskNav ariaLabel="OPC 服务快速入口">
+      <MobileTaskNavLink code="01 / INFRA" href="/opc?view=infrastructure#opc-service-browser" label="基础设施" />
+      <MobileTaskNavLink code="02 / SPECIAL" href="/opc?view=specialties#opc-service-browser" label="专项服务" />
+      <MobileTaskNavLink code="03 / RANGERS" href="/opc?view=rangers#opc-service-browser" label="游骑兵" />
+    </MobileTaskNav>
     <ChannelRibbon identity="SUPERONES" slogan="ALL IS ONE. ONE IS ALL." />
     <div className="shell opc-service-browser-shell">
       <OpcWorkspace

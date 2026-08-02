@@ -5,6 +5,7 @@ import {
 import { formatNumber } from "@/lib/number-format";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
+import { getFrontierSeasonLaunchState } from "@/lib/frontier-store";
 import { infrastructureServices, rangerProfiles, specialtyServices } from "@/lib/opc-catalog";
 import {
   getCachedDirectRankingBoards,
@@ -38,11 +39,12 @@ function compactDateTime(value: string | null | undefined) {
 
 export default async function HomePage() {
   const frontierSeason = seasonForDate(new Date());
-  const [content, rankingBoards, sicContent, frontierRanking] = await Promise.all([
+  const [content, rankingBoards, sicContent, frontierRanking, frontierLaunchState] = await Promise.all([
     getCachedPublicContent(),
     getCachedDirectRankingBoards().catch(() => []),
     getCachedSicContent().catch(() => null),
     getCachedFrontierRanking(frontierSeason.code).catch(() => ({ rankings: [], updatedAt: null })),
+    getFrontierSeasonLaunchState(frontierSeason.code).catch(() => ({ writesEnabled: false })),
   ]);
   const githubToday = rankingBoards.find((board) => board.id === "github:today");
   const latestEvents = [...content.events].sort(compareEventsNewest);
@@ -124,6 +126,7 @@ export default async function HomePage() {
       href: project.itemUrl,
     })),
     frontier: {
+      writesEnabled: frontierLaunchState.writesEnabled,
       seasonName: frontierSeason.name,
       settlementDate: new Intl.DateTimeFormat("zh-CN", {
         dateStyle: "medium",

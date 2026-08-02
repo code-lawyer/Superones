@@ -3,7 +3,7 @@
 import { useId, useRef, type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
 
 export function FrontierDialog({ trigger, title, eyebrow, children, triggerClassName = "text-link" }: {
-  trigger: string;
+  trigger: ReactNode;
   title: string;
   eyebrow: string;
   children: ReactNode;

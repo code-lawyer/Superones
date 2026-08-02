@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { FrontierRanking } from "@/components/frontier-ranking";
+import { MobileTaskNav, MobileTaskNavLabel, MobileTaskNavLink } from "@/components/mobile-task-nav";
 import { PageIntro } from "@/components/page-intro";
 import { beijingSeasonDate, seasonFromCode } from "@/lib/frontier-domain";
 import { currentSeason, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
@@ -34,11 +35,24 @@ export default async function FrontierPage() {
   return (
     <div className="frontier-landing">
       <PageIntro
+        className="channel-page-intro"
         code="FRONTIER / PERPETUAL HACKATHON"
         title="无垠荒野，永不落幕"
         lead="提交一件你真正想做的事。没有赛道，没有评委，也没有人替你决定它是否值得。"
         meta={`${season.name} / ${writesEnabled ? "全赛季开放报名" : "报名开放前准备中"} / ${beijingSeasonDate(season.endsAt)} 结算`}
       />
+      <MobileTaskNav ariaLabel="边境计划快速入口" className="frontier-mobile-actions">
+        <MobileTaskNavLink code="01 / ENTER" href={writesEnabled ? "/frontier/submit" : "#frontier-live-title"} label={writesEnabled ? "参加本赛季" : "查看开放状态"} />
+        <MobileTaskNavLink code="02 / RANK" href="/frontier/ranking" label="当前排名" />
+        <FrontierDialog
+          trigger={<MobileTaskNavLabel code="03 / RULES" label="参赛规则" />}
+          title="边境计划参赛规则"
+          eyebrow="FRONTIER / RULES"
+          triggerClassName="mobile-task-nav__item"
+        >
+          <RulesContent />
+        </FrontierDialog>
+      </MobileTaskNav>
       <ChannelRibbon identity="THE FRONTIER" slogan="HERE, YOU MAY PASS." />
 
       <section className="frontier-doctrine" aria-label="边境计划宣言与四无原则">

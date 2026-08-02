@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { EventList } from "@/components/event-list";
 import { InformationList } from "@/components/information-list";
+import { MobileTaskNav, MobileTaskNavLink } from "@/components/mobile-task-nav";
 import { PageIntro } from "@/components/page-intro";
 import { RoadsideList } from "@/components/statement-list";
 import { beijingTime, compareEventsNewest, compareInformationNewest } from "@/lib/feed-format";
@@ -79,11 +80,17 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   return (
     <div className="feed-page">
       <PageIntro
+        className="channel-page-intro"
         code="VAULT / INFORMATION FLOW"
         title="维度收束，视界引擎"
         lead="全球 AI 资讯经翻译与摘要后流经资讯瀑布；只有多条信息共同构成值得持续追踪的变化，才沉淀为事件。"
         meta={`LAST PUBLISHED ${beijingTime(updatedAt, true)}${modeLabel}`}
       />
+      <MobileTaskNav ariaLabel="信息流快速索引" sticky>
+        <MobileTaskNavLink code="01 / LEDGER" href="#event-ledger" label="最新事件" />
+        <MobileTaskNavLink code="02 / FLOW" href="#information-waterfall" label="资讯瀑布" />
+        <MobileTaskNavLink code="03 / VOICES" href="#roadside-stream" label="路边社" />
+      </MobileTaskNav>
       <ChannelRibbon identity="VAULT INTEL" slogan="WITHIN THE LIGHT CONE LIES DESTINY." />
 
       <section className="shell feed-stage">

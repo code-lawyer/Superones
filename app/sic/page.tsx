@@ -58,6 +58,7 @@ export default async function SicPage() {
   return (
     <>
       <PageIntro
+        className="channel-page-intro"
         code="SiC / TECHNOLOGY INDEX"
         title="血肉苦弱，硅碳共生"
         lead="从代码、模型、论文与一手档案中，看见技术趋势正在怎样形成。"

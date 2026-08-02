@@ -377,7 +377,7 @@ body .sic-ranking-grid--five .sic-board--position-4 {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 820px) {
   .sic-ranking-grid--five {
     row-gap: 36px;
   }
@@ -719,6 +719,10 @@ body .sic-ranking-grid--five .sic-board--position-4 {
   padding: 46px 0;
   color: var(--ash);
   font-size: var(--type-note);
+}
+
+.sic-magazine__mobile-more {
+  display: none;
 }
 
 @media (hover: hover) {
@@ -1226,7 +1230,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 820px) {
   .channel-ribbon__track {
     gap: clamp(12px, 4vw, 20px);
     font-size: clamp(9px, 2.65vw, 11px);
@@ -1242,7 +1246,7 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   .sic-mobile-index {
     position: sticky;
     z-index: 8;
-    top: var(--header-height, 63px);
+    top: var(--mobile-task-header-offset, 76px);
     display: flex;
     overflow-x: auto;
     border-bottom: 1px solid var(--carbon);
@@ -1258,12 +1262,12 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
 
   .sic-mobile-index a {
     display: inline-flex;
-    min-height: 44px;
+    min-height: 48px;
     align-items: center;
     flex: 0 0 auto;
     padding: 13px 14px;
     color: var(--carbon);
-    font-size: var(--type-label);
+    font-size: 12px;
     letter-spacing: .04em;
   }
 
@@ -1275,13 +1279,118 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   .sic-mobile-index a:focus-visible {
     background: var(--carbon);
     color: var(--paper-bright);
-    outline: 0;
+  }
+
+  .sic-mobile-index a:focus-visible {
+    outline: 2px solid var(--paper-bright);
+    outline-offset: -4px;
   }
 
   .sic-magazine__header,
   .sic-ranking-rail__header {
     min-height: 0;
-    padding-top: 42px;
+    padding-top: 36px;
+  }
+
+  .sic-magazine__section + .sic-magazine__section {
+    margin-top: 58px;
+  }
+
+  .sic-magazine__section:not(.is-mobile-expanded) .sic-magazine__entry:nth-child(n + 4) {
+    display: none;
+  }
+
+  .sic-magazine__mobile-more {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+    border-top: 1px solid var(--carbon);
+    border-bottom: 1px solid var(--carbon);
+    padding: 10px 0;
+    background: transparent;
+    color: var(--carbon);
+    font-size: 13px;
+    font-weight: 650;
+    text-align: left;
+  }
+
+  .sic-magazine__mobile-more:focus-visible,
+  .sic-magazine__mobile-more:active {
+    background: var(--carbon);
+    color: var(--paper-bright);
+  }
+
+  .sic-magazine__mobile-more:focus-visible {
+    outline: 2px solid var(--paper-bright);
+    outline-offset: -4px;
+  }
+
+  .sic-stage__rail {
+    margin-top: 72px;
+  }
+
+  .sic-magazine__trigger {
+    padding-top: 26px;
+    padding-bottom: 26px;
+  }
+
+  .sic-magazine__meta,
+  .sic-magazine__original,
+  .sic-magazine__detail-copy section > p:first-child,
+  body .sic-stage__rail .sic-board__meta,
+  body .sic-stage__rail .sic-board__address-return,
+  body .sic-stage__rail .sic-board__copy {
+    font-size: 11px;
+  }
+
+  .sic-magazine__original {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .sic-magazine__source-link {
+    min-height: 44px;
+    margin-bottom: 28px;
+    padding: 10px 0;
+    font-size: 13px;
+  }
+
+  body .sic-stage__rail .sic-board__source a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 11px;
+  }
+
+  body .sic-stage__rail .sic-board__row,
+  body .sic-stage__rail .sic-board__row--extra.is-revealed {
+    height: 64px;
+    min-height: 64px;
+  }
+
+  body .sic-stage__rail .sic-board__address-return,
+  body .sic-stage__rail .sic-board__copy {
+    min-height: 44px;
+  }
+
+  body .sic-stage__rail .sic-board__address-return {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body .sic-stage__rail .sic-board__copy {
+    min-width: 56px;
+    padding: 8px 10px;
   }
 
   .sic-magazine__header h2 {

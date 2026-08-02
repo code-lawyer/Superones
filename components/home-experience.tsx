@@ -36,6 +36,7 @@ export type HomeExperienceData = {
     href: string;
   }>;
   frontier: {
+    writesEnabled: boolean;
     seasonName: string;
     settlementDate: string;
     updatedAt: string;
@@ -54,6 +55,33 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
     <div className="home-experience">
       <div className="home-refined shell">
         <HomeRefinedHero />
+
+        <nav className="home-mobile-status" aria-label="四频道当前状态">
+          <Link href={leadEvent ? `/feed/${leadEvent.slug}` : "/feed"}>
+            <span className="mono">INTEL / {data.updatedAt}</span>
+            <strong>Vault 信息流</strong>
+            <small>{leadEvent ? leadEvent.title : "等待下一次事件发布"}</small>
+            <i aria-hidden="true">→</i>
+          </Link>
+          <Link href="/opc">
+            <span className="mono">OPERATE / {String(data.opcEntries.length).padStart(2, "0")} ENTRIES</span>
+            <strong>OPC 服务台</strong>
+            <small>选择标准服务或联系独立顾问</small>
+            <i aria-hidden="true">→</i>
+          </Link>
+          <Link href="/sic">
+            <span className="mono">EVOLVE / {data.sicLatest?.date ?? "PENDING"}</span>
+            <strong>SiC 学院</strong>
+            <small>{data.sicLatest ? `${data.sicLatest.kind} · ${data.sicLatest.title}` : "正式内容正在编排"}</small>
+            <i aria-hidden="true">→</i>
+          </Link>
+          <Link href={data.frontier.writesEnabled ? "/frontier/submit" : "/frontier"}>
+            <span className="mono">BUILD / {data.frontier.seasonName}</span>
+            <strong>边境计划</strong>
+            <small>{data.frontier.settlementDate} 结算 · {data.frontier.writesEnabled ? "参加本赛季" : "报名准备中"}</small>
+            <i aria-hidden="true">→</i>
+          </Link>
+        </nav>
 
         <div className="home-refined__waterfall">
           <section className="home-refined-card home-refined-feed" aria-labelledby="home-feed-title">
@@ -166,7 +194,7 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
           </div>
           <div className="home-refined-frontier__action">
             <p className="mono">{data.frontier.settlementDate} 结算</p>
-            <Link href="/frontier/submit">参与计划</Link>
+            <Link href={data.frontier.writesEnabled ? "/frontier/submit" : "/frontier"}>{data.frontier.writesEnabled ? "参与计划" : "查看开放状态"}</Link>
           </div>
         </section>
       </div>

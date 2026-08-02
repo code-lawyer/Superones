@@ -29,6 +29,7 @@ export function SicContentGroups({
   unavailable?: boolean;
 }) {
   const [activeItem, setActiveItem] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Array<SicContentGroup["id"]>>([]);
   return (
     <section className="sic-magazine" aria-label="固定来源阅读">
       {unavailable ? (
@@ -36,8 +37,9 @@ export function SicContentGroups({
       ) : null}
       {groups.map((group, groupIndex) => {
         const items = content[group.id].slice(0, 6);
+        const expandedOnMobile = expandedGroups.includes(group.id);
         return (
-          <section className={`sic-magazine__section sic-magazine__section--${group.id}`} key={group.id} aria-labelledby={`sic-group-${group.id}`}>
+          <section className={`sic-magazine__section sic-magazine__section--${group.id}${expandedOnMobile ? " is-mobile-expanded" : ""}`} key={group.id} aria-labelledby={`sic-group-${group.id}`}>
             {group.id === "documents" ? <span id="sic-group-archive" aria-hidden="true" /> : null}
             <header className="sic-magazine__header">
               <div className="sic-magazine__folio mono">
@@ -99,6 +101,19 @@ export function SicContentGroups({
                 })}
               </ol>
             ) : <p className="sic-magazine__empty mono">{unavailable ? "读取失败 / 暂无可用缓存" : group.emptyMessage}</p>}
+            {items.length > 3 ? (
+              <button
+                className="sic-magazine__mobile-more"
+                type="button"
+                aria-expanded={expandedOnMobile}
+                onClick={() => setExpandedGroups((current) => expandedOnMobile
+                  ? current.filter((id) => id !== group.id)
+                  : [...current, group.id])}
+              >
+                <span>{expandedOnMobile ? "收起至最新 3 项" : `展开其余 ${items.length - 3} 项`}</span>
+                <span className="mono" aria-hidden="true">{expandedOnMobile ? "↑" : "↓"}</span>
+              </button>
+            ) : null}
           </section>
         );
       })}
