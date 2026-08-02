@@ -46,10 +46,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -79,7 +79,7 @@ jobs:
           echo "value=$lane" >> "$GITHUB_OUTPUT"
           echo "run_mode=$run_mode" >> "$GITHUB_OUTPUT"
           echo "schedule_id=${run_mode}:${lane}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         with:
           python-version: "3.12"
