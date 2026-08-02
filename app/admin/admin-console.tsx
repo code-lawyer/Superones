@@ -48,7 +48,7 @@ type ContentState = {
   projectCount: number;
 };
 
-type OpcOrderStatus = "awaiting_payment" | "paid" | "completed" | "cancelled" | "refunded";
+type OpcOrderStatus = "awaiting_signature" | "awaiting_payment" | "payment_exception" | "paid" | "completed" | "cancelled" | "refunded";
 
 type OpcOrder = {
   id: string;
@@ -79,6 +79,34 @@ type OpcOrder = {
     wechat: string;
     note: string;
   } | null;
+  signer: {
+    type: "individual" | "organization";
+    name: string;
+    phone: string;
+    organizationName: string;
+    organizationCreditCode: string;
+    legalRepresentativeName: string;
+  } | null;
+  signature: {
+    provider: "mock" | "esign" | "legacy";
+    status: string;
+    flowId: string | null;
+    fileId: string | null;
+    templateId: string | null;
+    templateVersion: string | null;
+    notifiedAt: string | null;
+    checkedAt: string | null;
+    completedAt: string | null;
+    failureReason: string | null;
+    archive: {
+      status: "pending" | "archived" | "failed";
+      sha256: string | null;
+      sizeBytes: number | null;
+      archivedAt: string | null;
+      retainUntil: string | null;
+      failureReason: string | null;
+    };
+  };
   status: OpcOrderStatus;
   createdAt: string;
   updatedAt: string;
@@ -101,11 +129,27 @@ type AdminPasskeyCredential = {
 };
 
 const opcOrderStatusLabels: Record<OpcOrderStatus, string> = {
+  awaiting_signature: "待签署",
   awaiting_payment: "待付款",
+  payment_exception: "到账异常（签约未放行）",
   paid: "已到账",
   completed: "已完成",
   cancelled: "已取消",
   refunded: "已退款",
+};
+
+const opcSignatureStatusLabels: Record<string, string> = {
+  preparing: "正在准备协议",
+  awaiting_signer: "等待签署",
+  completed: "签署完成",
+  rejected: "已拒签",
+  expired: "已过期",
+  revoked: "已撤销",
+  failed: "签署失败",
+};
+
+const opcSignatureFailureLabels: Record<string, string> = {
+  provider_request_failed: "签署供应商请求失败",
 };
 
 const adminMutationHeaders = {
@@ -505,6 +549,62 @@ export function AdminConsole() {
     }
   }
 
+  async function reconcileOpcSignature(order: OpcOrder) {
+    if (!window.confirm(`确认查询订单 ${order.reference} 的实时签署状态？查询结果会写入审计记录。`)) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/content", {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({ action: "reconcile-opc-signature", orderId: order.id, confirm: true }),
+      });
+      const body = await jsonMessage(response);
+      setOrders(Array.isArray(body?.orders) ? body.orders : []);
+      setNotice(`订单 ${order.reference} 已完成签署状态查询。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "暂时无法查询订单签署状态。");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function downloadOpcOrderArtifact(order: OpcOrder, kind: "contract" | "contact") {
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/admin/opc/orders/${encodeURIComponent(order.id)}/${kind}`, { cache: "no-store" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string; code?: string; reauthenticationUrl?: string } | null;
+        throw new AdminApiError(body?.error ?? "下载失败。", body?.code, body?.reauthenticationUrl);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${order.reference}-${kind === "contract" ? "signed-contract.pdf" : "customer-contact.csv"}`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setNotice(kind === "contract" ? `订单 ${order.reference} 的已签合同已下载。` : `订单 ${order.reference} 的客户联系方式已导出。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "下载失败。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   if (submissions === null) {
     return (
       <form className="admin-login" onSubmit={login}>
@@ -643,8 +743,8 @@ export function AdminConsole() {
       <section className="admin-donations admin-opc-orders" id="admin-opc-orders" aria-labelledby="admin-opc-orders-title">
         <div className="admin-section-heading">
           <p className="eyebrow mono">OPC / ORDER OPERATIONS</p>
-          <h2 id="admin-opc-orders-title">订单与到账核验</h2>
-          <p className="form-note">用户提交联系方式时即形成待付款订单；付款服务的服务器通知会自动更新到账状态。后台查询用于通知延迟或异常对账，不能依据浏览器返回页面判定到账。</p>
+          <h2 id="admin-opc-orders-title">签约订单与到账核验</h2>
+          <p className="form-note">用户提交签约信息时先形成待签署订单；服务器主动核验签署完成后才进入待付款。付款服务通知会自动更新到账状态，浏览器返回页面不作为签署或到账依据。</p>
         </div>
         <div className="admin-donation-list">
           {orders.length === 0 ? <p className="ranking-empty">当前没有 OPC 订单。</p> : orders.map((order) => (
@@ -654,6 +754,7 @@ export function AdminConsole() {
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
                 <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.channel === "wap" ? "手机付款页面" : order.payment.channel === "page" ? "电脑付款页面" : "尚未发起付款"}</p>
+                <p>签约方 {order.signer?.type === "organization" ? `${order.signer.organizationName}（法定代表人 ${order.signer.legalRepresentativeName}）` : order.signer?.name ?? "历史订单"}</p>
                 {order.contact?.note ? <p>{order.contact.note}</p> : null}
               </div>
               <div className="admin-donation-meta">
@@ -664,12 +765,29 @@ export function AdminConsole() {
                 <time className="mono">创建 {new Date(order.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <time className="mono">更新 {new Date(order.updatedAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <span className="mono">付款状态 {order.payment.tradeStatus ?? "尚未回传"}</span>
+                <span className="mono">签署状态 {opcSignatureStatusLabels[order.signature.status] ?? order.signature.status}</span>
+                <span className="mono">签署流程 {order.signature.flowId ?? "—"}</span>
+                <span className="mono">合同文件 {order.signature.fileId ?? "—"}</span>
+                <span className="mono">模板 {order.signature.templateId ?? "—"} / {order.signature.templateVersion ?? "—"}</span>
+                {order.signature.notifiedAt ? <time className="mono">签署通知 {new Date(order.signature.notifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.signature.checkedAt ? <time className="mono">签署查询 {new Date(order.signature.checkedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.signature.completedAt ? <time className="mono">签署完成 {new Date(order.signature.completedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.signature.failureReason ? <span>签署异常 {opcSignatureFailureLabels[order.signature.failureReason] ?? "未提供详细原因"}</span> : null}
+                <span className="mono">合同归档 {order.signature.archive.status === "archived" && order.signature.archive.sha256 ? "已归档" : order.signature.provider === "legacy" ? "历史订单无电子归档" : order.signature.archive.status === "failed" ? "归档失败" : "待归档"}</span>
+                {order.signature.archive.archivedAt ? <time className="mono">归档时间 {new Date(order.signature.archive.archivedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.signature.archive.retainUntil ? <time className="mono">至少保留至 {new Date(order.signature.archive.retainUntil).toLocaleDateString("zh-CN")}</time> : null}
                 <span className="mono">付款交易号 {order.payment.tradeNo ?? "—"}</span>
                 <span className="mono">收款商户 PID {order.payment.sellerId ?? "尚未绑定"}</span>
                 {order.payment.notifiedAt ? <time className="mono">通知 {new Date(order.payment.notifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.payment.checkedAt ? <time className="mono">查询 {new Date(order.payment.checkedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
               </div>
               <div className="admin-actions">
+                {order.signature.archive.status === "archived" && order.signature.archive.sha256 ? <button className="text-action" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contract")}>下载已签合同</button> : null}
+                {order.contact ? <button className="text-link" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contact")}>导出客户联系方式</button> : null}
+                {order.status === "awaiting_signature" ? <>
+                  <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcSignature(order)}>查询签署状态</button>
+                  <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
+                </> : null}
                 {order.status === "awaiting_payment" ? (
                   <>
                     <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>查询付款状态</button>
@@ -683,6 +801,7 @@ export function AdminConsole() {
                     <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button>
                   </>
                 ) : null}
+                {order.status === "payment_exception" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button> : null}
                 {order.status === "completed" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button> : null}
               </div>
             </article>

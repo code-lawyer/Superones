@@ -45,10 +45,11 @@ updated: 2026-08-01
 - [ADR-0011：人工编辑只进入结构化服务目录](adr/0011-managed-service-catalog.md)
 - [ADR-0012：生产后台采用原生 Passkey 与可撤销应用会话](adr/0012-production-admin-access.md)
 - [ADR-0013：境外可靠投递与境内独立消费](adr/0013-reliable-delivery-and-domestic-worker.md)
-- [ADR-0014：OPC 无账号订单与支付宝服务器到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
+- [ADR-0014：OPC 无账号签约订单与服务器端签署、到账核验](adr/0014-opc-accountless-orders-and-alipay.md)
 - [ADR-0015：当前快照、永久事件证据与自动编辑边界](adr/0015-current-snapshots-and-automated-editorial.md)
 - [ADR-0016：游骑兵公开头像媒体存储](adr/0016-ranger-avatar-media-storage.md)
 - [ADR-0017：Follow Builders 补充来源与隔离失败策略](adr/0017-follow-builders-supplement-and-isolated-failure.md)
+- [ADR-0018：OPC 已签合同私有归档](adr/0018-opc-signed-contract-private-archive.md)
 
 ## 当前运行文档
 
@@ -74,7 +75,7 @@ updated: 2026-08-01
 
 - 项目审计：[2026-07-24 深层次项目审计](Vault2077-Deep-Audit-2026-07-24.md)
 - 阿里云部署：[中国大陆阿里云部署官方事实底稿（2026-07-31）](research/Vault2077-Aliyun-Mainland-Deployment-Official-Facts-2026-07-31.md)
-- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)、[上海起步审批与备案适用范围审计](Vault2077-OPC-Shanghai-Startup-Approvals-Scope-Audit.md)
+- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)、[上海起步审批与备案适用范围审计](Vault2077-OPC-Shanghai-Startup-Approvals-Scope-Audit.md)、[审批备案之外的高普适标准服务研究](Vault2077-OPC-Standardizable-Services-Beyond-Filings-Research.md)、[下单后、付款前电子服务协议签署可行性调研](research/opc-esign-feasibility.md)、[e签宝技术流程与操作责任清单](research/opc-esign-integration-operator-checklist.md)
 - 媒体存储：[游骑兵头像存储决策](Vault2077-Ranger-Avatar-Storage-Decision-2026-07-31.md)
 - 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)
 - 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)、[Akta News Signals 信源审计](Vault2077-Akta-Source-Audit.md)、[Horizon 信息源审计](Vault2077-Horizon-Source-Audit.md)、[TrendRadar 信源与管线审查](Vault2077-TrendRadar-Source-Audit.md)、[Follow Builders 替换 HN/Lobsters 可行性研究](Vault2077-Follow-Builders-Roadside-Replacement-Research.md)

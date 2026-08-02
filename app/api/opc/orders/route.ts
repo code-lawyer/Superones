@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
 import {
   createOpcOrder,
-  getOpcOrderPaymentOrder,
+  bindOpcSignatureFlow,
+  claimOpcSignaturePreparation,
+  getOpcSignaturePreparation,
+  markOpcSignaturePreparationFailed,
   OpcOrderIdempotencyConflictError,
-  recordOpcPaymentRequest,
 } from "@/lib/opc-order-store";
-import {
-  createOpcAlipayPaymentUrl,
-  requireOpcAlipayConfiguration,
-  selectOpcAlipayChannel,
-} from "@/lib/opc-payment-config";
+import { requireOpcAlipayConfiguration } from "@/lib/opc-payment-config";
+import { createOpcEsignFlow, getOpcEsignSignUrl, requireOpcEsignConfiguration } from "@/lib/opc-esign";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
@@ -72,7 +71,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const paymentConfiguration = requireOpcAlipayConfiguration();
+    const esignConfiguration = requireOpcEsignConfiguration();
+    if (process.env.NODE_ENV === "production" || esignConfiguration.provider !== "mock") {
+      requireOpcAlipayConfiguration();
+    }
     const body = await readBoundedJson(request);
     const idempotencyKey = cleanText(body.idempotencyKey, 80);
     const serviceSlug = cleanText(body.serviceSlug, 80).toLowerCase();
@@ -84,7 +86,10 @@ export async function POST(request: NextRequest) {
     const note = cleanText(body.note, 800);
     const website = cleanText(body.website, 200);
     const consent = body.consent === true;
-    const paymentChannel = selectOpcAlipayChannel(body.paymentChannel, paymentConfiguration);
+    const signerType = body.signerType;
+    const organizationName = cleanText(body.organizationName, 160);
+    const organizationCreditCode = cleanText(body.organizationCreditCode, 32).toUpperCase();
+    const legalRepresentativeName = cleanText(body.legalRepresentativeName, 60);
 
     if (
       !/^[0-9a-f-]{36}$/i.test(idempotencyKey)
@@ -93,9 +98,16 @@ export async function POST(request: NextRequest) {
       || name.length < 2
       || website
       || !consent
+      || (signerType !== "individual" && signerType !== "organization")
+      || !phone
       || (phone && !validPhone(phone))
       || (email && !validEmail(email))
       || (!phone && !email && wechat.length < 2)
+      || (signerType === "organization" && (
+        organizationName.length < 2
+        || !/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(organizationCreditCode)
+        || legalRepresentativeName.length < 2
+      ))
     ) {
       return NextResponse.json(
         { error: "请填写联系人姓名和至少一种有效联系方式，并确认订单与隐私说明。" },
@@ -118,20 +130,48 @@ export async function POST(request: NextRequest) {
       serviceName: service.name,
       serviceRevision: service.revision,
       quotedPrice: service.price,
+      servicePeriod: service.period,
+      serviceOutcome: service.outcome,
+      serviceScope: service.includes.join("；"),
+      serviceBoundary: service.boundary,
       contact: { name, phone, email, wechat, note },
+      signer: {
+        type: signerType,
+        name: signerType === "individual" ? name : legalRepresentativeName,
+        phone,
+        organizationName: signerType === "organization" ? organizationName : "",
+        organizationCreditCode: signerType === "organization" ? organizationCreditCode : "",
+        legalRepresentativeName: signerType === "organization" ? legalRepresentativeName : "",
+      },
     });
-    const paymentOrder = await getOpcOrderPaymentOrder(order.reference);
-    const paymentUrl = createOpcAlipayPaymentUrl(paymentOrder, paymentChannel, paymentConfiguration);
-    await recordOpcPaymentRequest(
-      order.reference,
-      paymentChannel,
-      paymentConfiguration.sellerId,
-    );
+    if (!order.resumeToken) throw new Error("订单签署恢复凭据未生成。");
+    const preparation = await getOpcSignaturePreparation(order.reference, order.resumeToken);
+    if (preparation.signature.flowId) {
+      const signUrl = await getOpcEsignSignUrl(preparation.signature.flowId, order.reference, order.resumeToken, preparation.signer);
+      return NextResponse.json({ order, signUrl, resumeToken: order.resumeToken }, { status: 200 });
+    }
+    const claim = await claimOpcSignaturePreparation(order.reference, order.resumeToken);
+    if (!claim.claimed || !claim.claimId) {
+      return NextResponse.json({ error: "订单签署流程正在创建，请稍后使用同一订单继续。" }, { status: 409 });
+    }
+    let flow;
+    try {
+      flow = await createOpcEsignFlow({
+        reference: order.reference,
+        resumeToken: order.resumeToken,
+        party: preparation.signer,
+        fields: preparation.fields,
+      });
+    } catch (error) {
+      await markOpcSignaturePreparationFailed(order.reference, order.resumeToken, claim.claimId);
+      throw error;
+    }
+    const signedOrder = await bindOpcSignatureFlow(order.reference, order.resumeToken, claim.claimId, flow);
+    const signUrl = await getOpcEsignSignUrl(flow.flowId, order.reference, order.resumeToken, preparation.signer);
     return NextResponse.json({
-      order,
-      paymentUrl,
-      paymentChannel,
-      expiresInMinutes: 30,
+      order: signedOrder,
+      signUrl,
+      resumeToken: order.resumeToken,
     }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "暂时无法创建订单。";
@@ -144,8 +184,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof OpcOrderIdempotencyConflictError) {
       return NextResponse.json({ error: message }, { status: 409 });
     }
-    if (message.includes("尚未完成生产配置") || message.includes("在线付款当前未开放")) {
-      return NextResponse.json({ error: "付款服务暂未完成配置，当前不能创建订单。" }, { status: 503 });
+    if (message.includes("尚未完成配置") || message.includes("尚未完成生产配置") || message.includes("在线付款当前未开放")) {
+      return NextResponse.json({ error: "签约或付款服务暂未完成配置，当前不能创建订单。" }, { status: 503 });
     }
     console.error("OPC order creation failed", error);
     return NextResponse.json({ error: "订单暂时无法创建，请稍后重试。" }, { status: 500 });

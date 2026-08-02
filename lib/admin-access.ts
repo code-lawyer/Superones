@@ -62,6 +62,11 @@ export function authenticatedAdminJson(access: AdminAccess, body: unknown, init?
   return response;
 }
 
+export function authenticatedAdminResponse(access: AdminAccess, response: NextResponse) {
+  response.cookies.set(adminCookieName(), access.token, adminCookieOptions());
+  return response;
+}
+
 export function adminAccessErrorResponse(error: unknown) {
   if (error instanceof AdminAccessError) {
     return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });

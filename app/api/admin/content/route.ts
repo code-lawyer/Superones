@@ -18,6 +18,7 @@ import {
   OpcAlipayProviderError,
   queryOpcAlipayTrade,
 } from "@/lib/opc-payment-config";
+import { reconcileOpcSignatureFlow } from "@/lib/opc-esign-reconciliation";
 import { recordAuditEvent } from "@/lib/security-audit";
 import { withPersistenceTransaction } from "@/lib/state-document-store";
 
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     return adminAccessErrorResponse(error);
   }
   const actorHash = access.session.actorHash;
-  let attemptedAction: "admin.opc-order.update" | "admin.opc-order.reconcile" = "admin.opc-order.update";
+  let attemptedAction: "admin.opc-order.update" | "admin.opc-order.reconcile" | "admin.opc-order.signature-reconcile" = "admin.opc-order.update";
   const attemptedTargetType = "opc-order";
   let attemptedTargetId = "unknown";
   try {
@@ -61,6 +62,37 @@ export async function POST(request: NextRequest) {
       orderStatus?: unknown;
       confirm?: unknown;
     };
+    if (body.action === "reconcile-opc-signature") {
+      attemptedAction = "admin.opc-order.signature-reconcile";
+      if (!hasRecentAdminReauthentication(access.session)) {
+        await recordAuditEvent({ actorHash, action: attemptedAction, targetType: attemptedTargetType, targetId: attemptedTargetId, result: "rejected", reason: "recent-reauthentication-required" });
+        return authenticatedAdminJson(access, {
+          error: "查询 OPC 订单签署状态前需要重新验证管理员身份。",
+          code: "ADMIN_REAUTH_REQUIRED",
+          reauthenticationUrl: configuredAdminReauthenticationUrl(),
+        }, { status: 403 });
+      }
+      const orderId = typeof body.orderId === "string" ? body.orderId : "";
+      attemptedTargetId = orderId || "unknown";
+      const order = (await listAdminOpcOrders()).find((value) => value.id === orderId);
+      if (!order || !order.signature.flowId || body.confirm !== true) {
+        await recordAuditEvent({ actorHash, action: attemptedAction, targetType: attemptedTargetType, targetId: attemptedTargetId, result: "rejected", reason: !order ? "order-not-found" : "invalid-or-unconfirmed-request" });
+        return authenticatedAdminJson(access, { error: "签署状态查询需要有效订单、签署流程和明确确认。" }, { status: 400 });
+      }
+      await withPersistenceTransaction(async () => {
+        const signature = await reconcileOpcSignatureFlow(order.signature.flowId!);
+        const updated = (await listAdminOpcOrders()).find((value) => value.id === orderId)!;
+        await recordAuditEvent({
+          actorHash,
+          action: attemptedAction,
+          targetType: attemptedTargetType,
+          targetId: orderId,
+          result: "success",
+          diff: { reference: order.reference, status: updated.status, signatureStatus: signature.signatureStatus, archiveStatus: signature.archive.status },
+        });
+      });
+      return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });
+    }
     if (body.action === "reconcile-opc-order") {
       attemptedAction = "admin.opc-order.reconcile";
       if (!hasRecentAdminReauthentication(access.session)) {

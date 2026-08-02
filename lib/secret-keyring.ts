@@ -98,3 +98,15 @@ export function sensitiveDataKeyring(
     label: "敏感数据密钥环",
   });
 }
+
+export function opcResumeTokenKeyring(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  return loadSecretKeyring({
+    environment,
+    serializedName: "VAULT2077_OPC_RESUME_TOKEN_KEYS",
+    activeKeyIdName: "VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID",
+    developmentFallback: "vault2077-local-opc-resume-token-key!",
+    label: "OPC 订单恢复令牌密钥环",
+  });
+}

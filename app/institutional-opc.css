@@ -1310,6 +1310,112 @@
   margin-top: clamp(34px, 4vw, 52px);
 }
 
+.opc-order-entry__party {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 0;
+  border: 1px solid var(--rule);
+  padding: 18px;
+}
+
+.opc-order-entry__party legend {
+  padding: 0 8px;
+  font-size: var(--type-small);
+  font-weight: 600;
+}
+
+.opc-order-entry__party label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--graphite);
+  font-size: var(--type-small);
+  line-height: 1.55;
+}
+
+.opc-order-entry__party input {
+  margin-top: 3px;
+  accent-color: var(--carbon);
+}
+
+.opc-sign-page {
+  width: min(760px, calc(100% - 40px));
+  margin: clamp(60px, 10vw, 140px) auto;
+  border-top: 1px solid var(--carbon);
+  padding-top: 22px;
+}
+
+.opc-sign-page > .mono {
+  color: var(--ash);
+  font-size: var(--type-label);
+}
+
+.opc-sign-page h1 {
+  max-width: 14ch;
+  margin: 28px 0 24px;
+  font-size: clamp(36px, 6vw, 68px);
+  line-height: 1.04;
+}
+
+.opc-sign-page > p:not(.mono) {
+  max-width: 58ch;
+  color: var(--graphite);
+  line-height: 1.8;
+}
+
+.opc-sign-page dl {
+  margin: 32px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.opc-sign-page dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 18px;
+  border-top: 1px solid var(--rule);
+  padding: 13px 0;
+}
+
+.opc-sign-page dd { margin: 0; overflow-wrap: anywhere; }
+.opc-sign-page dt { color: var(--ash); }
+
+.opc-sign-page > button {
+  min-height: 50px;
+  border: 1px solid var(--carbon);
+  border-radius: 0;
+  padding: 12px 20px;
+  background: var(--carbon);
+  color: var(--paper-bright);
+}
+
+.opc-sign-page > a {
+  display: inline-block;
+  margin-left: 20px;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 4px;
+}
+
+.admin-opc-orders .admin-donation-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .opc-sign-page > button,
+  .opc-sign-page > a {
+    display: block;
+    width: 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
+  .opc-sign-page > a {
+    margin-top: 14px;
+  }
+}
+
 .opc-order-entry .form-field {
   min-width: 0;
 }

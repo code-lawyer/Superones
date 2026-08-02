@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -24,6 +24,10 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
       serviceName: "单份商业合同审查包",
       serviceRevision: "SKU.01",
       quotedPrice: "人民币 1,980 元",
+      servicePeriod: "5 个工作日",
+      serviceOutcome: "审查意见",
+      serviceScope: "审查一份合同",
+      serviceBoundary: "不含诉讼代理",
       contact: {
         name: "测试联系人",
         phone: "13800138000",
@@ -31,11 +35,22 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
         wechat: "vault-test",
         note: "希望本周开始。",
       },
+      signer: {
+        type: "individual" as const,
+        name: "测试联系人",
+        phone: "13800138000",
+        organizationName: "",
+        organizationCreditCode: "",
+        legalRepresentativeName: "",
+      },
     };
     const created = await store.createOpcOrder(input);
     const repeated = await store.createOpcOrder(input);
     assert.equal(repeated.id, created.id);
     assert.equal(repeated.reference, created.reference);
+    const storedJson = await readFile(path.join(root, "opc-orders.json"), "utf8");
+    assert.equal(storedJson.includes(created.resumeToken), false);
+    assert.equal(storedJson.includes("resumeTokenEncrypted"), false);
     await assert.rejects(
       store.createOpcOrder({
         ...input,
@@ -47,8 +62,33 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     const orders = await store.listAdminOpcOrders();
     assert.equal(orders.length, 1);
     assert.equal(orders[0].contact?.phone, "13800138000");
-    assert.equal(orders[0].status, "awaiting_payment");
+    assert.equal(orders[0].status, "awaiting_signature");
+    assert.equal(orders[0].signer?.name, "测试联系人");
     assert.equal(orders[0].payment.amount.decimal, "1980.00");
+
+    const claim = await store.claimOpcSignaturePreparation(created.reference, created.resumeToken);
+    assert.equal(claim.claimed, true);
+    await store.bindOpcSignatureFlow(created.reference, created.resumeToken, claim.claimId!, {
+      provider: "mock",
+      flowId: `mock-${created.reference}`,
+      fileId: `mock-file-${created.reference}`,
+      templateId: "mock-individual",
+      templateVersion: "test",
+    });
+    await store.applyOpcSignatureStatus(created.reference, created.resumeToken, "completed");
+    await store.recordOpcSignatureCallback(`mock-${created.reference}`, "c".repeat(64));
+    const firstNotifiedAt = (await store.listAdminOpcOrders())[0].signature.notifiedAt;
+    await store.recordOpcSignatureCallback(`mock-${created.reference}`, "c".repeat(64));
+    assert.equal((await store.listAdminOpcOrders())[0].signature.notifiedAt, firstNotifiedAt);
+    const archiveClaim = await store.claimOpcSignatureArchive(`mock-${created.reference}`);
+    assert.equal(archiveClaim.claimed, true);
+    assert.equal((await store.claimOpcSignatureArchive(`mock-${created.reference}`)).claimed, false);
+    await store.completeOpcSignatureArchive(`mock-${created.reference}`, archiveClaim.claimId!, {
+      objectKey: `opc-contracts/2026/${created.reference}/${"a".repeat(64)}.pdf`,
+      manifestKey: `opc-contracts/2026/${created.reference}/${"a".repeat(64)}.json`,
+      sha256: "a".repeat(64), sizeBytes: 100, verifiedAt: new Date().toISOString(),
+      archivedAt: new Date().toISOString(), retainUntil: "2036-08-02T00:00:00.000Z", evidence: [],
+    });
 
     await store.recordOpcPaymentRequest(created.reference, "page", "2088000000000001");
     await store.applyOpcAlipayTradeResult({
@@ -110,6 +150,24 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
       idempotencyKey: "9894c180-e710-43ff-a5b3-63eb45b29125",
       quotedPrice: "人民币 6,800 元/年",
     });
+    const lateClaim = await store.claimOpcSignaturePreparation(latePayment.reference, latePayment.resumeToken);
+    assert.equal(lateClaim.claimed, true);
+    await store.bindOpcSignatureFlow(latePayment.reference, latePayment.resumeToken, lateClaim.claimId!, {
+      provider: "mock",
+      flowId: `mock-${latePayment.reference}`,
+      fileId: `mock-file-${latePayment.reference}`,
+      templateId: "mock-individual",
+      templateVersion: "test",
+    });
+    await store.applyOpcSignatureStatus(latePayment.reference, latePayment.resumeToken, "completed");
+    const lateArchiveClaim = await store.claimOpcSignatureArchive(`mock-${latePayment.reference}`);
+    assert.equal(lateArchiveClaim.claimed, true);
+    await store.completeOpcSignatureArchive(`mock-${latePayment.reference}`, lateArchiveClaim.claimId!, {
+      objectKey: `opc-contracts/2026/${latePayment.reference}/${"b".repeat(64)}.pdf`,
+      manifestKey: `opc-contracts/2026/${latePayment.reference}/${"b".repeat(64)}.json`,
+      sha256: "b".repeat(64), sizeBytes: 100, verifiedAt: new Date().toISOString(),
+      archivedAt: new Date().toISOString(), retainUntil: "2036-08-02T00:00:00.000Z", evidence: [],
+    });
     await store.updateOpcOrderStatus(latePayment.id, "cancelled");
     await store.applyOpcAlipayTradeResult({
       reference: latePayment.reference,
@@ -124,6 +182,21 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     );
     assert.equal(recovered?.status, "paid");
     assert.equal(recovered?.cancelledAt, null);
+
+    const unsigned = await store.createOpcOrder({
+      ...input,
+      idempotencyKey: "6be82ad0-28d6-49ed-8615-6f38be8a4bd3",
+    });
+    await store.applyOpcAlipayTradeResult({
+      reference: unsigned.reference,
+      sellerId: "2088000000000001",
+      tradeNo: "2026072822001000000000000003",
+      tradeStatus: "TRADE_SUCCESS",
+      amount: { currency: "CNY", minorUnits: 198_000, decimal: "1980.00" },
+      source: "notify",
+    });
+    const anomaly = (await store.listAdminOpcOrders()).find((value: { id: string }) => value.id === unsigned.id);
+    assert.equal(anomaly?.status, "payment_exception");
   } finally {
     if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previousDataDir;

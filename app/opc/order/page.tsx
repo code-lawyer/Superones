@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
 import { OpcOrderEntry } from "@/components/opc-order-entry";
-import { opcOrderingAvailable } from "@/lib/opc-payment-config";
+import { opcOrderEntryAvailable } from "@/lib/opc-order-availability";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 
 export const metadata: Metadata = { title: "确认订单 — OPC 服务台" };
@@ -35,7 +35,7 @@ export default async function OpcOrderPage({
 
   const view = service.kind === "infrastructure" ? "infrastructure" : "specialties";
   const returnHref = `/opc?view=${view}&service=${encodeURIComponent(service.slug)}`;
-  const orderingAvailable = opcOrderingAvailable();
+  const orderingAvailable = opcOrderEntryAvailable();
 
   return (
     <div className="shell opc-order-page">
@@ -45,8 +45,8 @@ export default async function OpcOrderPage({
           <Link href={returnHref}>← 返回服务详情</Link>
         </div>
         <div className="opc-order-page__introduction">
-          <h1>确认服务，<br />生成付款订单。</h1>
-          <p>核对服务名称、公开价格与预计周期，填写订单联系人。付款完成后，Vault2077 将按所选服务范围启动交付。</p>
+          <h1>确认服务，<br />先签约，再付款。</h1>
+          <p>核对服务名称、公开价格与预计周期，选择签约方并填写联系人。协议签署核验完成后进入付款页面。</p>
         </div>
       </header>
 
@@ -77,16 +77,16 @@ export default async function OpcOrderPage({
               <dd>{service.period}</dd>
             </div>
           </dl>
-          <p className="opc-order-page__delivery-note">Vault2077 直接交付 · 独立付款页面</p>
+          <p className="opc-order-page__delivery-note">Vault2077 直接交付 · 托管签署 · 独立付款</p>
         </aside>
 
         {orderingAvailable ? (
           <OpcOrderEntry service={service} returnHref={returnHref} />
         ) : (
           <section className="opc-order-entry opc-order-entry--unavailable" aria-labelledby="opc-order-unavailable-title">
-            <p className="mono">PAYMENT / 付款服务</p>
-            <h3 id="opc-order-unavailable-title">在线付款尚未开放。</h3>
-            <p>服务目录可以正常浏览，订单与付款入口将在商户接入和真实交易验收完成后开放。当前页面不会收集或保存联系人信息。</p>
+            <p className="mono">SIGN & PAYMENT / 签约与付款</p>
+            <h3 id="opc-order-unavailable-title">在线签约下单尚未开放。</h3>
+            <p>服务目录可以正常浏览，签约与付款入口将在模板、商户接入和真实链路验收完成后开放。当前页面不会收集或保存联系人信息。</p>
             <Link href={returnHref}>返回服务详情</Link>
           </section>
         )}

@@ -3,7 +3,7 @@ import { ChannelRibbon } from "@/components/channel-ribbon";
 import { MobileTaskNav, MobileTaskNavLink } from "@/components/mobile-task-nav";
 import { OpcWorkspace } from "@/components/opc-workspace";
 import { PageIntro } from "@/components/page-intro";
-import { opcOrderingAvailable } from "@/lib/opc-payment-config";
+import { opcOrderEntryAvailable } from "@/lib/opc-order-availability";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 import { publicRangerMediaOrigin } from "@/lib/ranger-avatar-storage";
 
@@ -21,7 +21,7 @@ export default async function OpcPage({ searchParams }: { searchParams: Promise<
     ? query.view
     : "infrastructure";
   const catalog = await getCachedPublishedServiceCatalog();
-  const orderingAvailable = opcOrderingAvailable();
+  const orderingAvailable = opcOrderEntryAvailable();
   return <>
     <PageIntro className="channel-page-intro" code="OPC / SERVICE DESK" title="超级个体，全栈运行" lead="查看固定范围、公开价格、材料清单和交付周期。标准服务由 Vault2077 直接交付；非标准事项由用户直接联系独立专家。" meta="STANDARD SERVICES / 订单登记与服务器到账核验" />
     <MobileTaskNav ariaLabel="OPC 服务快速入口">

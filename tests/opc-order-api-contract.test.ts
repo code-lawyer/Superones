@@ -28,8 +28,11 @@ test("OPC order endpoint trusts the published service snapshot, not client prici
   assert.match(route, /service\.status !== "公开服务"/);
   assert.match(route, /serviceRevision: service\.revision/);
   assert.match(route, /quotedPrice: service\.price/);
-  assert.match(route, /createOpcAlipayPaymentUrl\(paymentOrder, paymentChannel, paymentConfiguration\)/);
-  assert.match(route, /recordOpcPaymentRequest\([\s\S]*paymentConfiguration\.sellerId/);
+  assert.match(route, /createOpcEsignFlow/);
+  assert.match(route, /bindOpcSignatureFlow/);
+  assert.match(route, /serviceScope: service\.includes\.join/);
+  assert.match(route, /serviceBoundary: service\.boundary/);
+  assert.doesNotMatch(route, /createOpcAlipayPaymentUrl/);
   assert.doesNotMatch(route, /body\.(?:price|quotedPrice|serviceRevision)/);
   assert.match(route, /console\.error\("OPC order creation failed", error\)/);
   assert.match(route, /error: "订单暂时无法创建，请稍后重试。"/);
@@ -52,7 +55,8 @@ test("OPC Alipay notification verifies provider identity before marking an order
   assert.doesNotMatch(payment, /subMsg|sub_msg|result\.msg/);
   assert.match(store, /input\.amount\.minorUnits !== order\.payment\.amount\.minorUnits/);
   assert.match(store, /input\.sellerId !== order\.payment\.sellerId/);
-  assert.match(store, /order\.status = "paid"/);
+  assert.match(store, /contractReady \? "paid" : "payment_exception"/);
+  assert.match(store, /order\.signature\.archive\.status === "archived"/);
 });
 
 test("OPC order contacts remain encrypted outside the protected admin projection", async () => {
@@ -62,4 +66,18 @@ test("OPC order contacts remain encrypted outside the protected admin projection
   assert.match(store, /decryptSensitiveText\(order\.contactEncrypted\)/);
   assert.match(store, /730 \* 24 \* 60 \* 60 \* 1000/);
   assert.doesNotMatch(store, /store\.orders = store\.orders\.slice/);
+});
+
+test("OPC admin downloads require recent reauthentication, integrity checks, and auditing", async () => {
+  const contractRoute = await readFile(path.join(root, "app", "api", "admin", "opc", "orders", "[id]", "contract", "route.ts"), "utf8");
+  const contactRoute = await readFile(path.join(root, "app", "api", "admin", "opc", "orders", "[id]", "contact", "route.ts"), "utf8");
+  for (const route of [contractRoute, contactRoute]) {
+    assert.match(route, /authenticateAdminRequest/);
+    assert.match(route, /hasRecentAdminReauthentication/);
+    assert.match(route, /recordAuditEvent/);
+    assert.match(route, /Cache-Control": "private, no-store"/);
+  }
+  assert.match(contractRoute, /createHash\("sha256"\)/);
+  assert.match(contractRoute, /actualSha256 !== archive\.sha256/);
+  assert.match(contactRoute, /\/\^\[=\+\\-@\]\//);
 });

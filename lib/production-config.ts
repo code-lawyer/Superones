@@ -16,6 +16,8 @@ import {
   RANGER_MEDIA_ORIGIN,
 } from "./legal-profile.ts";
 import { opcAlipayConfigurationErrors } from "./opc-payment-config.ts";
+import { opcEsignConfigurationErrors } from "./opc-esign.ts";
+import { opcContractArchiveConfigurationErrors } from "./opc-contract-archive.ts";
 import { parseSecretKeyring } from "./secret-keyring.ts";
 
 export type ProductionConfigurationReport = {
@@ -279,6 +281,15 @@ export function validateProductionConfiguration(
       productionGatewayOnly: true,
     }).map((error) => `支付宝开放平台：${error}`));
   }
+  if (!["true", "false"].includes(environment.VAULT2077_OPC_ESIGN_ENABLED ?? "")) {
+    errors.push("VAULT2077_OPC_ESIGN_ENABLED 必须明确设为 true 或 false。");
+  } else if (environment.VAULT2077_OPC_ESIGN_ENABLED === "true") {
+    errors.push(...opcEsignConfigurationErrors(environment).map((error) => `e 签宝开放平台：${error}`));
+    errors.push(...opcContractArchiveConfigurationErrors(environment).map((error) => `OPC 合同归档：${error}`));
+  }
+  if (environment.VAULT2077_OPC_PAYMENTS_ENABLED !== environment.VAULT2077_OPC_ESIGN_ENABLED) {
+    errors.push("OPC 付款与电子签约开关必须同时开启或同时关闭。");
+  }
 
   const configuredSecrets: Array<{ name: string; value: string }> = [];
   for (const name of REQUIRED_SECRETS) {
@@ -295,6 +306,16 @@ export function validateProductionConfiguration(
     "敏感数据密钥环",
     errors,
   ));
+  if (environment.VAULT2077_OPC_ESIGN_ENABLED === "true") {
+    configuredSecrets.push(...validateKeyring(
+      environment,
+      "VAULT2077_OPC_RESUME_TOKEN_KEYS",
+      "VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID",
+      "VAULT2077_OPC_RESUME_TOKEN_KEY",
+      "OPC 订单恢复令牌密钥环",
+      errors,
+    ));
+  }
   configuredSecrets.push(...validateKeyring(
     environment,
     "VAULT2077_PIPELINE_SIGNING_KEYS",
@@ -321,6 +342,13 @@ export function validateProductionConfiguration(
     const value = environment[name]?.trim() ?? "";
     if (value.length < 16 || placeholder(value)) errors.push(`${name} 必须填写真实的最小权限 RAM 凭证。`);
     if (value) configuredSecrets.push({ name, value });
+  }
+  if (environment.VAULT2077_OPC_ESIGN_ENABLED === "true") {
+    for (const name of ["VAULT2077_OPC_CONTRACT_OSS_ACCESS_KEY_ID", "VAULT2077_OPC_CONTRACT_OSS_ACCESS_KEY_SECRET"] as const) {
+      const value = environment[name]?.trim() ?? "";
+      if (value.length < 16 || placeholder(value)) errors.push(`${name} 必须填写真实的合同归档最小权限 RAM 凭证。`);
+      if (value) configuredSecrets.push({ name, value });
+    }
   }
   const secretOwners = new Map<string, string>();
   for (const secret of configuredSecrets) {

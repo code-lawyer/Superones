@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-07-31
+updated: 2026-08-02
 ---
 
 # Vault2077 部署配置手册
@@ -123,6 +123,34 @@ Frontier 生产开放配置：
 
 Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入。应用 RAM 身份只授予该前缀的对象写入和元数据读取能力。上传上限为 5MB，Nginx 当前 `client_max_body_size 8m` 足以容纳 multipart 开销；如果修改任一侧上限，必须同步校验浏览器、应用路由和 Nginx。生产启用前验证 CNAME/TLS、320/800 WebP、发布前 HEAD、`Cache-Control: public, max-age=31536000, immutable`、替换、撤回、无引用对象清理和费用告警。
 
+### OPC e 签宝电子签约
+
+| 变量 | 说明 |
+| --- | --- |
+| `VAULT2077_OPC_ESIGN_ENABLED` | 必须与付款开关同时开启或关闭；合同模板、凭证和沙箱验收未完成时保持 `false` |
+| `VAULT2077_OPC_ESIGN_PROVIDER` | 生产固定为 `esign`；`mock` 只供本地/自动化测试 |
+| `VAULT2077_ESIGN_APP_ID` / `VAULT2077_ESIGN_APP_SECRET` | e 签宝应用身份和 HmacSHA256 密钥，只注入服务器 Secret |
+| `VAULT2077_ESIGN_API_BASE_URL` | 沙箱 `https://smlopenapi.esign.cn`；生产固定 `https://openapi.esign.cn` |
+| `VAULT2077_ESIGN_INDIVIDUAL_TEMPLATE_ID` | 自然人版服务协议模板 ID |
+| `VAULT2077_ESIGN_ORGANIZATION_TEMPLATE_ID` | 法人/组织版服务协议模板 ID；首期只允许法定代表人本人签署 |
+| `VAULT2077_ESIGN_TEMPLATE_VERSION` | 运营确认的模板版本/生效日期，用于订单审计快照 |
+| `VAULT2077_ESIGN_PROVIDER_SEAL_ID` | 可选的平台方印章 ID；留空时使用 AppID 所属企业默认印章 |
+| `VAULT2077_ESIGN_INDIVIDUAL_PROVIDER_SIGN_POSITION` | 自然人模板内平台方自动签章坐标 JSON：页码、X、Y |
+| `VAULT2077_ESIGN_ORGANIZATION_PROVIDER_SIGN_POSITION` | 组织模板内平台方自动签章坐标 JSON：页码、X、Y |
+| `VAULT2077_OPC_RESUME_TOKEN_KEYS` / `VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID` | 独立、可轮换的订单恢复令牌密钥环；不得与数据加密、会话、支付或 OSS 密钥复用 |
+| `VAULT2077_OPC_CONTRACT_ARCHIVE_STORAGE` | 生产固定为 `oss`；本地默认 `local` |
+| `VAULT2077_OPC_CONTRACT_OSS_REGION` / `VAULT2077_OPC_CONTRACT_OSS_BUCKET` | 专用私有合同 Bucket；不得与公开头像 Bucket 相同 |
+| `VAULT2077_OPC_CONTRACT_OSS_ACCESS_KEY_ID` / `VAULT2077_OPC_CONTRACT_OSS_ACCESS_KEY_SECRET` | 只允许合同前缀 Put/Get 的独立最小权限 RAM 凭证 |
+| `VAULT2077_OPC_CONTRACT_OSS_INTERNAL` | ECS 同地域内网可用时设为 `true` |
+| `VAULT2077_OPC_CONTRACT_RETENTION_YEARS` | 生产固定为 `10` |
+| `VAULT2077_OPC_CONTRACT_RETENTION_LOCKED` | 只有完成 Bucket 10 年保留锁/WORM 配置及写入、读取、禁止提前删除演练后才能设为 `true` |
+
+模板后续可在 e 签宝后台上传，不阻塞代码开发，但上线前必须按 `docs/research/opc-esign-integration-operator-checklist.md` 使用稳定控件名、用官方拖章工具确认平台方签章坐标，并回填两个模板 ID、版本和两组坐标。项目先调用 `/v3/files/create-by-doc-template` 生成合同，再调用 `/v3/sign-flow/create-by-file` 发起流程；流程 ID 立即绑定到订单后才调用 `/v3/sign-flow/{signFlowId}/sign-url` 获取免登录托管页面，避免取链接失败导致重复创建合同。客户在托管页面手动签署，AppID 所属运营主体随后使用默认或指定印章自动签署；发起方省略 `signFlowInitiator`，由 e 签宝按 AppID 所属企业确定。回调执行 HmacSHA256 验签并按事件摘要幂等记录信号，订单返回页或受保护后台必须再调用 `/v3/sign-flow/{signFlowId}/detail` 主动核验双方及签署区；随后下载最终 PDF、调用 `/v3/files/{fileId}/verify` 验签、计算 SHA-256，并将 PDF 与清单写入专用私有合同 Bucket。只有全部成功才从待签署进入待付款；撤销 `3`、过期 `5`、拒签 `7` 或归档失败均不得生成付款链接。
+
+专用合同 Bucket 必须关闭公共读和浏览器直连，启用 10 年保留锁/WORM，并使用与公开媒体不同的 RAM 身份。应用写入内容哈希不可变 key，后台下载时由应用服务器读取并复核 SHA-256；管理员看到“下载已签合同”和“导出客户联系方式”两个独立操作，均要求最近 5 分钟再认证并写审计。非合同联系方式在订单终态满 24 个月后清除，已签合同与验签/存证证据保留 10 年。
+
+上线前分别完成自然人、企业法定代表人两笔沙箱签署，验证模板填充、实名认证/意愿认证、重复回调、伪造回调、返回页主动查询和“未签不得支付”。将公开域名加入 e 签宝重定向白名单，并配置公网 HTTPS 回调地址 `${VAULT2077_PUBLIC_ORIGIN}/api/opc/esign/callback`。生产 AppID 所属主体、企业实名认证、印章与授权由运营方在 e 签宝后台完成，代码不能代替。
+
 ### OPC 支付宝开放平台支付
 
 | 变量 | 说明 |
@@ -143,8 +171,8 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 2. 在应用中添加“电脑网站支付”和/或“手机网站支付”，按业务需要完成签约与应用上线。开发中应用不能调用生产能力。
 3. 在“开发设置 → 接口加签方式”选择 RSA2。推荐使用支付宝密钥工具生成应用密钥对：应用私钥只保存在服务器密钥管理；应用公钥上传开放平台；从开放平台复制对应的“支付宝公钥”用于验签。不要把应用公钥误填成支付宝公钥。
 4. 先用沙箱 APPID、沙箱网关和沙箱密钥完成联调。沙箱通知地址也必须从公网通过 HTTPS 访问，本地开发应使用受控测试域名或临时 HTTPS 隧道。
-5. 生产密钥通过部署平台 Secret、systemd `EnvironmentFile` 或等价密钥管理注入。接入前保持 `VAULT2077_OPC_PAYMENTS_ENABLED=false`，公开站只读展示服务且不收集订单联系人；准备开放时改为 `true`，运行 `npm run deploy:check`，此时缺失 APPID、PID、密钥、官方网关、HTTPS origin 或支付模式必须失败。
-6. 上线前完成一笔最小金额端到端交易：提交联系方式后后台先出现“待付款”订单；跳转支付宝官方收银台；支付后异步通知自动更新为“已到账”；后台展示支付宝交易号和通知时间。
+5. 生产密钥通过部署平台 Secret、systemd `EnvironmentFile` 或等价密钥管理注入。接入前同时保持 `VAULT2077_OPC_ESIGN_ENABLED=false` 与 `VAULT2077_OPC_PAYMENTS_ENABLED=false`，公开站只读展示服务且不收集签约信息；准备开放时同时改为 `true`，运行 `npm run deploy:check`，缺少任一签署或付款配置都必须失败。
+6. 上线前完成一笔最小金额端到端交易：提交签约信息后后台先出现“待签署”订单；完成托管签署并由服务器主动核验后变为“待付款”；跳转支付宝官方收银台；支付后异步通知自动更新为“已到账”。
 7. 模拟通知丢失并使用“查询支付宝状态”补查；验证重复通知幂等、错误签名拒绝、APPID/PID 不匹配拒绝、订单保存 PID 与当前查询配置不一致拒绝、金额不一致拒绝。浏览器 `return_url` 只展示“核验中”，不得直接改订单状态。
 
 项目使用支付宝官方 [`alipay-sdk`](https://github.com/alipay/alipay-sdk-nodejs-all)：`pageExecute()` 生成网站支付链接，`checkNotifySignV2()` 验证异步通知，`alipay.trade.query` 用于异常补查。支付应用上线、签约、费率、结算账户与商家资质由支付宝开放平台审核决定，不由代码代替。
@@ -155,7 +183,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
 
-阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。初始存储 20 GB、连接池 4；先按量付费完成 7～14 天上线验证，稳定后转包月。阿里云当前基础系列不支持日志备份/时间点恢复，因此若已购买基础系列，全功能首发前必须升级或迁移到支持日志备份的系列，推荐高可用多可用区；若业务负责人书面接受只能按备份集恢复，则必须同步降低 RPO 目标并修订上线规格，不能继续声称具备 PITR。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动/日志备份、时间点恢复、删除保护和监控；容量在 50%/70%/80% 分级告警，上线前恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 仅用于服务端处理后的公开游骑兵头像，按《Vault2077 游骑兵头像存储决策》配置独立媒体域名与最小权限 RAM 身份；原始包、授权材料和长期归档仍不得写入该 Bucket，若未来扩大范围必须另立 ADR。
+阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。初始存储 20 GB、连接池 4；先按量付费完成 7～14 天上线验证，稳定后转包月。阿里云当前基础系列不支持日志备份/时间点恢复，因此若已购买基础系列，全功能首发前必须升级或迁移到支持日志备份的系列，推荐高可用多可用区；若业务负责人书面接受只能按备份集恢复，则必须同步降低 RPO 目标并修订上线规格，不能继续声称具备 PITR。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动/日志备份、时间点恢复、删除保护和监控；容量在 50%/70%/80% 分级告警，上线前恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 分为两个完全隔离的用途：公开游骑兵头像按 ADR-0016 使用公开媒体 Bucket；OPC 已签合同按 ADR-0018 使用专用私有、10 年保留锁 Bucket。原始包、授权材料和其他长期归档不得写入任一 Bucket。
 
 ## 6. GitHub Actions
 

@@ -207,19 +207,19 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(orderPage, /query\.kind !== "infrastructure" && query\.kind !== "specialty"/);
   assert.match(orderPage, /if \(!service \|\| service\.kind !== query\.kind\) notFound\(\)/);
   assert.match(orderPage, /const view = service\.kind === "infrastructure" \? "infrastructure" : "specialties"/);
-  assert.match(orderPage, /const orderingAvailable = opcOrderingAvailable\(\)/);
+  assert.match(orderPage, /const orderingAvailable = opcOrderEntryAvailable\(\)/);
   assert.match(orderPage, /<OpcOrderEntry service=\{service\} returnHref=\{returnHref\} \/>/);
   assert.match(orderPage, /\{orderingAvailable \? \(/);
-  assert.match(orderPage, /在线付款尚未开放。/);
+  assert.match(orderPage, /在线签约下单尚未开放。/);
   assert.match(orderPage, /<OpcFeeNotePopover/);
   assert.doesNotMatch(orderPage, /<details|opc-order-page__fee-note/);
   assert.match(orderPage, /className="opc-order-page__workspace"/);
-  assert.match(orderPage, /<h1>确认服务，<br \/>生成付款订单。<\/h1>/);
+  assert.match(orderPage, /<h1>确认服务，<br \/>先签约，再付款。<\/h1>/);
   assert.doesNotMatch(orderPage, /service\.revision|目录版本/);
-  assert.match(orderEntry, /填写订单联系人/);
+  assert.match(orderEntry, /确认签约方与联系人/);
   assert.match(orderEntry, /X-Vault2077-Public-Request/);
-  assert.match(orderEntry, /window\.location\.assign\(body\.paymentUrl\)/);
-  assert.match(orderEntry, /付款服务会把经过验证的结果通知 Vault2077/);
+  assert.match(orderEntry, /window\.location\.assign\(body\.signUrl\)/);
+  assert.match(orderEntry, /服务器核验签署完成后才会生成付款页面/);
   assert.match(orderEntry, /href="\/terms"/);
   assert.match(orderEntry, /href="\/privacy"/);
   assert.doesNotMatch(orderEntry, /service\.revision|openRequest|setExpanded|scrollIntoView/);
@@ -245,7 +245,7 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(styles, /\.opc-reading-pane__body > section::before\s*\{[\s\S]*?height:\s*3px[\s\S]*?background:\s*var\(--carbon\)/);
   assert.match(styles, /\.opc-order-page__workspace\s*\{[\s\S]*?grid-template-columns:/);
   assert.doesNotMatch(styles, /OPC \/ Service register working prototype|OPC \/ Three-column service desk|OPC service blueprint|opc-service-chapter|opc-service-field|opc-universal-order|opc-order-entry__closed/);
-  assert.match(opcPage, /const orderingAvailable = opcOrderingAvailable\(\)/);
+  assert.match(opcPage, /const orderingAvailable = opcOrderEntryAvailable\(\)/);
   assert.match(opcPage, /orderingAvailable=\{orderingAvailable\}/);
 });
 
