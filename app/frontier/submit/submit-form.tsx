@@ -5,7 +5,7 @@ import { clearFieldError, focusFirstInvalidField, isValidEmail } from "@/lib/cli
 import { FrontierDialog } from "../frontier-dialog";
 import { RulesContent } from "../frontier-copy";
 
-type Step = "form" | "challenge" | "verified";
+type Step = "form" | "challenge" | "queued" | "verified";
 type SubmitField = "repo" | "email" | "note";
 type SubmitFieldErrors = Partial<Record<SubmitField, string>>;
 
@@ -18,6 +18,10 @@ type ChallengeResponse = {
   filePath: string;
   expiresAt: string;
   payload: Record<string, string>;
+};
+
+type VerificationResponse = {
+  pending?: boolean;
 };
 
 async function responseMessage(response: Response) {
@@ -90,7 +94,8 @@ export function SubmitForm() {
         body: JSON.stringify({ id: challenge.id }),
       });
       if (!response.ok) throw new Error(await responseMessage(response));
-      setStep("verified");
+      const result = await response.json() as VerificationResponse;
+      setStep(response.status === 202 || result.pending ? "queued" : "verified");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "暂时无法验证仓库。" );
     } finally {
@@ -109,12 +114,28 @@ export function SubmitForm() {
     setFieldErrors({});
   }
 
+  if (step === "queued" && challenge) {
+    return (
+      <div className="verification-result" role="status">
+        <p className="eyebrow mono">PENDING / ASYNC VERIFICATION</p>
+        <h2>仓库正在异步核验。</h2>
+        <p><span className="mono">{challenge.repository}</span> 的挑战文件已进入公开仓库核验队列。境内无法直接读取仓库时，系统会通过境外采集链路完成检查；当前尚未计入榜单。</p>
+        <p className="verification-warning"><strong>请保留挑战文件。</strong>无需重新报名或修改文件；核验完成后，项目会自动进入当前赛季榜单。</p>
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        <div className="form-actions">
+          <button className="text-action" type="button" disabled={pending} onClick={verifyRepository}>{pending ? "正在检查" : "重新检查核验状态"}</button>
+          <button className="text-link" type="button" disabled={pending} onClick={reset}>提交另一个仓库</button>
+        </div>
+      </div>
+    );
+  }
+
   if (step === "verified" && challenge) {
     return (
       <div className="verification-result" role="status">
         <p className="eyebrow mono">VERIFIED / {challenge.season}</p>
         <h2>仓库已通过验证。</h2>
-        <p><span className="mono">{challenge.repository}</span> 已加入 {challenge.seasonName}。{challenge.alreadyVerified ? "这是现有有效报名，不需要重新生成挑战文件。" : "系统已记录验证时的 Star 基线，排行榜会在下一次小时更新后显示。"}</p>
+        <p><span className="mono">{challenge.repository}</span> 已加入 {challenge.seasonName}。{challenge.alreadyVerified ? "这是现有有效报名，不需要重新生成挑战文件。" : "系统已记录验证时的 Star 基线，公开榜单通常会在 30 秒内显示；当前 Star 在北京时间 08:45–22:45 每两小时更新。"}</p>
         <p className="verification-warning"><strong>不要删除挑战文件。</strong>网站将在赛季结算时再次检查；文件缺失或内容改变会使项目失去最终排名和随机奖品资格。</p>
         <button className="text-link" type="button" onClick={reset}>提交另一个仓库</button>
       </div>

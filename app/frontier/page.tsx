@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChannelRibbon } from "@/components/channel-ribbon";
+import { FrontierPrizePool } from "@/components/frontier-prize-pool";
 import { FrontierRanking } from "@/components/frontier-ranking";
 import { MobileTaskNav, MobileTaskNavLabel, MobileTaskNavLink } from "@/components/mobile-task-nav";
 import { PageIntro } from "@/components/page-intro";
@@ -139,9 +140,7 @@ export default async function FrontierPage() {
                 <p>奖池还没有第一件东西。你可以让它从这里开始。</p>
               </div>
             ) : (
-              <ol className="frontier-pool-list">
-                {prizes.map((prize, index) => <li key={prize.id}><span className="mono">{String(index + 1).padStart(2, "0")}</span><div><strong>{prize.name}</strong><p>{prize.description}</p></div><span className="mono muted">{prize.status === "assigned" ? "ASSIGNED" : prize.status === "carried_over" ? "CARRIED OVER" : "AVAILABLE"}</span></li>)}
-              </ol>
+              <FrontierPrizePool prizes={prizes} />
             )}
           </section>
           </div>

@@ -128,12 +128,14 @@ export function DonationForm({ seasonName }: { seasonName: string }) {
         <p id="prize-email-hint">只用于确认奖品和后续交付，不会公开展示。</p>
         {fieldErrors["prize-email"] ? <p className="form-error" id="prize-email-error">{fieldErrors["prize-email"]}</p> : null}
       </div>
-      <label className="consent-check">
-        <input type="checkbox" checked={noticeAccepted} onChange={(event) => setNoticeAccepted(event.target.checked)} disabled={pending} />
-        <span>我已阅读并同意《奖品捐献须知》。</span>
-      </label>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-      <div className="form-actions"><button className="text-action" type="submit" disabled={pending || !noticeAccepted}>{pending ? "正在提交" : "确认捐献奖品"}</button></div>
+      <div className="donation-form__commit">
+        <label className="consent-check">
+          <input type="checkbox" checked={noticeAccepted} onChange={(event) => setNoticeAccepted(event.target.checked)} disabled={pending} />
+          <span>我已阅读并同意《奖品捐献须知》。</span>
+        </label>
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        <div className="form-actions"><button className="text-action" type="submit" disabled={pending || !noticeAccepted}>{pending ? "正在提交" : "确认捐献奖品"}</button></div>
+      </div>
     </form>
   );
 }

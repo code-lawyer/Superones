@@ -315,6 +315,14 @@
   font-size: var(--type-nav);
 }
 
+.donation-form__commit {
+  display: grid;
+  gap: 20px;
+  margin-top: 8px;
+  border-top: 1px solid var(--rule);
+  padding-top: 22px;
+}
+
 .admin-donations {
   margin-top: 56px;
   border-top: 1px solid var(--carbon);
@@ -1150,6 +1158,41 @@
   font-size: var(--type-small);
 }
 
+.frontier-pool-more {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  border: 1px solid var(--carbon);
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--carbon);
+  font-size: var(--type-nav);
+  font-weight: 600;
+  text-align: left;
+}
+
+.frontier-pool-more:hover {
+  background: var(--carbon);
+  color: var(--paper-bright);
+}
+
+.frontier-pool-more:focus-visible {
+  outline: 2px solid var(--carbon);
+  outline-offset: 2px;
+}
+
+.frontier-pool-more__icon {
+  font-size: var(--type-body-large);
+  transition: transform 160ms ease;
+}
+
+.frontier-pool-more[aria-expanded="true"] .frontier-pool-more__icon {
+  transform: rotate(180deg);
+}
+
 .frontier-archive {
   display: grid;
   grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1.45fr);
@@ -1406,6 +1449,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .frontier-pool-more__icon,
   .frontier-doctrine-card.is-turning-to-detail,
   .frontier-doctrine-card.is-returning-to-manifesto {
     animation: none;
