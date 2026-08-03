@@ -51,6 +51,37 @@ test("SiC feed collector uses feed content without requiring article-page fetche
   assert.equal(entries[0].sourceMaterial, "Complete structured feed material.");
 });
 
+test("SiC official channel collector reads YouTube media descriptions", () => {
+  const channelSource: SicSource = {
+    id: "test-official-channel",
+    group: "courses",
+    status: "approved",
+    name: "Test YouTube Channel",
+    publisher: "Test Publisher",
+    kind: "official_channel",
+    homeUrl: "https://www.youtube.com/@test",
+    endpoint: "https://www.youtube.com/feeds/videos.xml?channel_id=test",
+    admissionRule: "全部新视频。",
+    rationale: "用于测试。",
+  };
+  const entries = sicCollectorTestUtils.xmlEntries(channelSource, `
+    <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+      <entry>
+        <title>Official research walkthrough</title>
+        <link rel="alternate" href="https://www.youtube.com/watch?v=example" />
+        <published>2026-08-01T12:00:00Z</published>
+        <media:group>
+          <media:description><![CDATA[<p>First technical section.</p><p>Second technical section.</p>]]></media:description>
+        </media:group>
+      </entry>
+    </feed>
+  `);
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].summary, "First technical section. Second technical section.");
+  assert.equal(entries[0].sourceMaterial, "First technical section.\n\nSecond technical section.");
+});
+
 test("SiC feed collector keeps block structure in long editorial source material", () => {
   const entries = sicCollectorTestUtils.xmlEntries(rssSource, `
     <rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>

@@ -358,11 +358,13 @@ function xmlEntries(source: SicSource, payload: string): Candidate[] {
     const summary = tagValue(block, "content:encoded")
       || tagValue(block, "description")
       || tagValue(block, "summary")
-      || tagValue(block, "content");
+      || tagValue(block, "content")
+      || tagValue(block, "media:description");
     const sourceMaterial = structuredTagValue(block, "content:encoded")
       || structuredTagValue(block, "description")
       || structuredTagValue(block, "summary")
-      || structuredTagValue(block, "content");
+      || structuredTagValue(block, "content")
+      || structuredTagValue(block, "media:description");
     return [{
       title,
       url,

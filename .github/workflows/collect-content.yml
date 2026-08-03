@@ -107,7 +107,7 @@ jobs:
           VAULT2077_DELIVERY_RETRY_BASE_MS: "1000"
       - name: Preserve packets and lane report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: vault2077-${{ steps.lane.outputs.run_mode }}-${{ steps.lane.outputs.value }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .collector-output
