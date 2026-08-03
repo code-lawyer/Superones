@@ -17,6 +17,7 @@ export const SUPPORTED_ACQUISITION_SOURCE_ADAPTERS = new Set([
   "official_sitemap",
   "openrouter",
   "rss",
+  "trusted_feed_json",
 ]);
 
 type SourceRegistryLane = "information" | "roadside" | "sic" | "rankings";

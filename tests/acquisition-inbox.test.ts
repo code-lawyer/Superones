@@ -253,6 +253,21 @@ test("accepts a signed v2 source snapshot without deploying its exact revision",
   assert.equal(result.status, "received");
 });
 
+test("accepts the deployed trusted feed adapter in a signed v2 source snapshot", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-trusted-feed-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => now,
+  });
+  const value = version2Batch();
+  value.sourceRegistry.sources[0].adapter = "trusted_feed_json";
+  value.sourceReports[0].adapter = "trusted_feed_json";
+
+  assert.equal((await receiver.receive(submission(value))).status, "received");
+});
+
 test("rejects a v2 source snapshot that requires an undeployed adapter", async (context) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-adapter-gate-"));
   context.after(() => rm(root, { recursive: true, force: true }));
