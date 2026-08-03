@@ -82,6 +82,45 @@ test("SiC official channel collector reads YouTube media descriptions", () => {
   assert.equal(entries[0].sourceMaterial, "First technical section.\n\nSecond technical section.");
 });
 
+test("SiC bootstrap skips a newest channel entry that has no source material", () => {
+  const channelSource: SicSource = {
+    id: "test-official-channel",
+    group: "courses",
+    status: "approved",
+    name: "Test YouTube Channel",
+    publisher: "Test Publisher",
+    kind: "official_channel",
+    homeUrl: "https://www.youtube.com/@test",
+    endpoint: "https://www.youtube.com/feeds/videos.xml?channel_id=test",
+    admissionRule: "全部新视频。",
+    rationale: "用于测试。",
+  };
+  const candidates = sicCollectorTestUtils.xmlEntries(channelSource, `
+    <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+      <entry>
+        <title>Newest empty short</title>
+        <link rel="alternate" href="https://www.youtube.com/shorts/newest" />
+        <published>2026-08-02T12:00:00Z</published>
+        <media:group><media:description></media:description></media:group>
+      </entry>
+      <entry>
+        <title>Newest publishable walkthrough</title>
+        <link rel="alternate" href="https://www.youtube.com/watch?v=publishable" />
+        <published>2026-08-01T12:00:00Z</published>
+        <media:group><media:description>Complete technical explanation.</media:description></media:group>
+      </entry>
+    </feed>
+  `);
+  const selected = sicCollectorTestUtils.selectCandidates(
+    sicCollectorTestUtils.completeCandidates(candidates),
+    undefined,
+    "bootstrap",
+  );
+
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0].title, "Newest publishable walkthrough");
+});
+
 test("SiC feed collector keeps block structure in long editorial source material", () => {
   const entries = sicCollectorTestUtils.xmlEntries(rssSource, `
     <rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>

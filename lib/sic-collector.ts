@@ -488,6 +488,10 @@ function selectCandidates(
     .map(({ candidate }) => candidate);
 }
 
+function completeCandidates(candidates: Candidate[]) {
+  return candidates.filter((candidate) => Boolean(candidate.summary && candidate.sourceMaterial));
+}
+
 function followBuildersJsonEntries(source: SicSource, payload: string): Candidate[] {
   let root: Record<string, unknown>;
   try {
@@ -785,13 +789,13 @@ async function collectSource(
   } else {
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
-  const admittedCandidates = candidates.filter((candidate) => candidatePassesAdmission(source, candidate));
+  const admittedCandidates = completeCandidates(
+    candidates.filter((candidate) => candidatePassesAdmission(source, candidate)),
+  );
   const selectedCandidates = source.id === "hugging-face-daily-papers" || source.kind === "trusted_feed_json"
     ? dedupe(admittedCandidates)
     : selectCandidates(admittedCandidates, windowFrom, runMode);
-  const items: SicRawContentItem[] = selectedCandidates.filter((candidate) => (
-    Boolean(candidate.summary && candidate.sourceMaterial)
-  )).map((candidate) => ({
+  const items: SicRawContentItem[] = selectedCandidates.map((candidate) => ({
     id: createHash("sha256").update(candidate.canonicalId ?? `${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
     group: source.group,
@@ -1006,6 +1010,7 @@ export const sicCollectorTestUtils = {
   arxivEntries,
   rankHuggingFacePaperRecords,
   selectCandidates,
+  completeCandidates,
   candidatePassesAdmission,
   followBuildersJsonEntries,
   isoWeek,
