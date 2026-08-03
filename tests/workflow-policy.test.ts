@@ -10,6 +10,10 @@ const qualityWorkflow = await readFile(
   new URL("../.github/workflows/quality-check.yml", import.meta.url),
   "utf8",
 );
+const releaseWorkflow = await readFile(
+  new URL("../.github/workflows/build-release.yml", import.meta.url),
+  "utf8",
+);
 const nginx = await readFile(
   new URL("../deploy/nginx/vault2077.conf.example", import.meta.url),
   "utf8",
@@ -27,8 +31,18 @@ test("the repository keeps exactly one overseas acquisition workflow", async () 
   const names = (await readdir(new URL("../.github/workflows/", import.meta.url)))
     .filter((name) => /\.ya?ml$/.test(name))
     .sort();
-  assert.deepEqual(names, ["collect-content.yml", "quality-check.yml"]);
+  assert.deepEqual(names, ["build-release.yml", "collect-content.yml", "quality-check.yml"]);
   assert.equal(names.filter((name) => name.startsWith("collect-")).length, 1);
+});
+
+test("release artifacts are manually built on Linux without production secrets", () => {
+  assert.match(releaseWorkflow, /workflow_dispatch:/);
+  assert.doesNotMatch(releaseWorkflow, /schedule:|push:|pull_request:/);
+  assert.match(releaseWorkflow, /permissions:\s+contents: read/);
+  assert.match(releaseWorkflow, /runs-on: ubuntu-latest/);
+  assert.match(releaseWorkflow, /npm prune --omit=dev/);
+  assert.match(releaseWorkflow, /sha256sum/);
+  assert.doesNotMatch(releaseWorkflow, /secrets\./);
 });
 
 test("GitHub Actions schedules four lanes at the approved Beijing cadence", () => {

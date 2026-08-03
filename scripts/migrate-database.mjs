@@ -1,8 +1,11 @@
-import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import pg from "pg";
+import {
+  acceptedMigrationChecksums,
+  migrationChecksum,
+} from "../lib/migration-checksum.mjs";
 
 const connectionString = process.env.VAULT2077_DATABASE_URL || process.env.DATABASE_URL;
 if (!connectionString) throw new Error("请设置 VAULT2077_DATABASE_URL 后再运行数据库迁移。");
@@ -30,13 +33,13 @@ try {
     .sort();
   for (const name of names) {
     const sql = await readFile(path.join(migrationsDirectory, name), "utf8");
-    const checksum = createHash("sha256").update(sql).digest("hex");
+    const checksum = migrationChecksum(sql);
     const existing = await client.query(
       "SELECT checksum FROM vault2077_schema_migrations WHERE name = $1",
       [name],
     );
     if (existing.rowCount) {
-      if (existing.rows[0].checksum !== checksum) {
+      if (!acceptedMigrationChecksums(sql).has(existing.rows[0].checksum)) {
         throw new Error(`已应用迁移 ${name} 的校验值发生变化；请新增迁移，不要修改历史文件。`);
       }
       console.log(`skip ${name}`);

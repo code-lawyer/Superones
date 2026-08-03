@@ -595,6 +595,8 @@ sudo systemd-run --unit=vault2077-migrate --wait --pipe --collect \
 
 再执行一次，确认幂等；运行 PostgreSQL 集成测试：
 
+迁移校验值以统一为 LF 的 SQL 正文计算，避免同一迁移在 Windows CRLF 与 Linux LF checkout 间误报变化。迁移器仅兼容相同正文的旧 LF/CRLF 原始校验值；任何 SQL 语义或其他字节变化仍会中止部署，必须新增迁移文件，禁止改写历史迁移或手工更新迁移表。
+
 ```bash
 sudo systemd-run --unit=vault2077-pg-test --wait --pipe --collect \
   --uid=vault2077 --gid=vault2077 \
