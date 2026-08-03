@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -242,4 +242,35 @@ test("information and roadside snapshots replace only their own lane", async (co
     stored.information.map((item) => item.slug).sort(),
     ["information-item", "roadside-item"],
   );
+
+  const target = path.join(root, "content-store.json");
+  const legacy = JSON.parse(await readFile(target, "utf8")) as {
+    sourceSnapshots: Record<string, { contentGroup?: string }>;
+    sourceReports: Record<string, { contentGroup?: string }>;
+  };
+  for (const snapshot of Object.values(legacy.sourceSnapshots)) delete snapshot.contentGroup;
+  for (const report of Object.values(legacy.sourceReports)) delete report.contentGroup;
+  await writeFile(target, `${JSON.stringify(legacy, null, 2)}\n`, "utf8");
+
+  await replaceStoredContent({
+    events: [],
+    information: [],
+    projects: [],
+    sourceCount: 0,
+    snapshot: {
+      contentGroup: "information",
+      runId: "run:retire-information",
+      collectedAt: "2026-08-02T08:10:00.000Z",
+      sources: [],
+      reports: [],
+      activeSourceIds: [],
+    },
+  });
+
+  const migrated = await getStoredContent();
+  assert.deepEqual(migrated.information.map((item) => item.slug), ["roadside-item"]);
+  assert.deepEqual(Object.keys(migrated.sourceSnapshots), ["roadside-source"]);
+  assert.deepEqual(Object.keys(migrated.sourceReports), ["roadside-source"]);
+  assert.equal(migrated.sourceSnapshots["roadside-source"].contentGroup, "roadside");
+  assert.equal(migrated.sourceReports["roadside-source"].contentGroup, "roadside");
 });

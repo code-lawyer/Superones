@@ -88,6 +88,17 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
             <pubDate>Sat, 01 Aug 2026 01:38:00 GMT</pubDate>
             <description>apart from one release, a quiet day.</description>
             <content:encoded><![CDATA[<p>Full digest introduction.</p><h2>Models</h2><p>A detailed report with many source links.</p>]]></content:encoded>
+          </item><item>
+            <title>Ontologies for production agents</title>
+            <link>https://www.latent.space/p/ontologies-for-production-agents</link>
+            <pubDate>Sat, 01 Aug 2026 02:38:00 GMT</pubDate>
+            <description>A short interview description.</description>
+            <content:encoded><![CDATA[<p>The complete interview transcript.</p><p>Detailed technical discussion.</p>]]></content:encoded>
+          </item><item>
+            <title>Feed fallback example</title>
+            <link>https://www.latent.space/p/feed-fallback-example</link>
+            <pubDate>Sat, 01 Aug 2026 03:38:00 GMT</pubDate>
+            <description>Only a short feed description is available.</description>
           </item></channel>
         </rss>"""
 
@@ -100,11 +111,20 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
             information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
 
         self.assertEqual(outcome.status, "success")
-        self.assertIn("Full digest introduction", information[0]["originalContent"])
-        self.assertNotEqual(information[0]["originalContent"], "apart from one release, a quiet day.")
-        self.assertEqual(information[0]["contentClass"], "digest")
-        self.assertFalse(information[0]["eventEligible"])
-        self.assertEqual(information[0]["evidenceNature"], "discovery_aggregate")
+        records = {item["originalTitle"]: item for item in information}
+        digest = records["[AINews] not much happened today"]
+        interview = records["Ontologies for production agents"]
+        fallback = records["Feed fallback example"]
+        self.assertIn("Full digest introduction", digest["originalContent"])
+        self.assertNotEqual(digest["originalContent"], "apart from one release, a quiet day.")
+        self.assertEqual(digest["contentClass"], "digest")
+        self.assertFalse(digest["eventEligible"])
+        self.assertEqual(digest["evidenceNature"], "discovery_aggregate")
+        self.assertEqual(digest["contentCompleteness"], "fulltext")
+        self.assertIn("complete interview transcript", interview["originalContent"])
+        self.assertEqual(interview["contentCompleteness"], "fulltext")
+        self.assertIsNone(interview["eventEligible"])
+        self.assertEqual(fallback["contentCompleteness"], "excerpt")
 
     async def test_horizon_rss_adapter_keeps_x_quote_and_chapter_boundaries(self):
         source = {

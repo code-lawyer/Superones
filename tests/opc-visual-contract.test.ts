@@ -320,15 +320,20 @@ test("OPC ranger portraits use compact modern formats with a PNG fallback", asyn
 });
 
 test("OPC ranger profiles use the public dossier composition at every breakpoint", async () => {
-  const styles = await readOpcStyles();
-  const profile = await readFile(path.join(root, "app", "opc", "rangers", "[slug]", "page.tsx"), "utf8");
+  const [styles, profile, admin] = await Promise.all([
+    readOpcStyles(),
+    readFile(path.join(root, "app", "opc", "rangers", "[slug]", "page.tsx"), "utf8"),
+    readFile(path.join(root, "components", "admin-opc-catalog-editor.tsx"), "utf8"),
+  ]);
 
   assert.match(profile, /import \{ ContentMarkup \} from "@\/components\/content-markup"/);
   assert.match(profile, /opc-ranger-dossier__spine/);
   assert.match(profile, /opc-ranger-dossier__ledger/);
   assert.match(profile, /opc-ranger-dossier__contact/);
   assert.match(profile, /opc-ranger-dossier__portrait-frame/);
+  assert.match(profile, /<Image[\s\S]*?loading="eager"[\s\S]*?alt=\{`\$\{profile\.publicName\}的专家头像`\}/);
   assert.match(profile, /<ContentMarkup[\s\S]*?content=\{profile\.credential \?\? "未提供公开职业记录。"\}[\s\S]*?format="markdown"[\s\S]*?className="opc-ranger-dossier__credential"/);
+  assert.match(admin, /支持保留换行，并可使用 Markdown 标题、列表、加粗、引用、代码和链接/);
   assert.match(profile, /mailto:\$\{profile\.contactLabel\}/);
   assert.match(profile, /<h2 className="mono">EXPERTISE \/ 专业方向<\/h2>/);
   assert.match(profile, /<h2 className="mono">PUBLIC RECORD \/ 公开记录<\/h2>/);

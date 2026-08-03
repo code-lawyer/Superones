@@ -13,7 +13,9 @@ Hacker News 与 Lobsters 继续退出生产运行来源。Vault2077 直接消费
 
 本地不得再为这些 feed 维护逐账号或逐节目的准入名单，不与本地直接来源做接入前去重，不排除机构 X 账号，也不按招聘、推广或营销关键词过滤文章。Follow Builders 增删上游来源后，只要中央 feed 继续满足协议约束，变化应自动进入下一轮采集，不要求 Vault2077 修改注册表。
 
-三个 feed 在 Vault2077 中各自只有一个传输入口和来源报告。每条记录仍必须保留上游给出的原发布者名称、canonical URL、发布时间及稳定内容标识；Follow Builders 是选源与传输提供者，不替代原发布者署名。重复内容在统一内容身份层按 canonical URL、原始内容 ID 或内容哈希合并，但不得以去重为由阻止中央 feed 中某个来源进入采集。
+三个 feed 在 Vault2077 中各自只有一个传输入口和来源报告。每条记录仍必须保留上游给出的原发布者名称、canonical URL、发布时间及稳定内容标识；Follow Builders 是选源与传输提供者，不替代页面上的原发布者署名。重复内容在统一内容身份层按 canonical URL、原始内容 ID 或内容哈希合并，但不得以去重为由阻止中央 feed 中某个来源进入采集。
+
+经产品明确批准，Follow Builders X 入口中的所有记录统一继承传输入口的 `ownerEntity=aggregator:follow-builders` 与 `publisherKind=aggregator`。这是补充来源在身份建模与隔离失败上的有意简化，不再逐账号维护实体类型；记录仍须保留 `originalPublisher`、`originAccount`、`originContentId` 与原始 X URL，并且 roadside 记录不参与资讯事件的发布实体多样性计算。
 
 Blogs 和 Podcasts 直接进入 SiC 的 `documents` 与 `podcasts` 内容组，使用中央 feed 已提供的正文或转录。此前为 Anthropic Engineering、Claude Blog、Latent Space、No Priors、Training Data、Unsupervised Learning、MAD Podcast 和 AI & I 维护的官网 sitemap/RSS 采集规则退役。招聘等偶发内容可以发布；境内编辑模型只负责忠实翻译、摘要与语义归类，不负责重新审核 Follow Builders 的选源资格。
 

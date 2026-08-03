@@ -544,9 +544,17 @@
   background: var(--paper-muted);
 }
 
-.opc-ranger-dossier__portrait .opc-ranger-portrait__image {
+.opc-ranger-dossier__portrait-frame {
   width: 100%;
   aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.opc-ranger-dossier__portrait-frame > .opc-ranger-portrait__image {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
 }
 
 .opc-ranger-dossier__portrait figcaption {
@@ -628,14 +636,126 @@
 }
 
 .opc-ranger-dossier__credential {
-  max-width: 24ch;
+  max-width: 68ch;
   margin-bottom: clamp(42px, 5vw, 72px);
-  font-family: var(--font-editorial);
-  font-size: clamp(25px, 2.5vw, 38px);
-  font-weight: 500;
-  letter-spacing: -.03em;
-  line-height: 1.5;
-  text-wrap: pretty;
+  color: var(--graphite);
+  font-family: var(--font-sans);
+  font-size: clamp(14px, 1.1vw, 16px);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.82;
+  overflow-wrap: anywhere;
+}
+
+.opc-ranger-dossier__credential > :first-child {
+  margin-top: 0;
+}
+
+.opc-ranger-dossier__credential > :last-child {
+  margin-bottom: 0;
+}
+
+.opc-ranger-dossier__credential p,
+.opc-ranger-dossier__credential ul,
+.opc-ranger-dossier__credential ol,
+.opc-ranger-dossier__credential blockquote,
+.opc-ranger-dossier__credential pre,
+.opc-ranger-dossier__credential table {
+  margin: 0 0 1.15em;
+}
+
+.opc-ranger-dossier__credential p {
+  white-space: pre-line;
+}
+
+.opc-ranger-dossier__credential h3,
+.opc-ranger-dossier__credential h4,
+.opc-ranger-dossier__credential h5,
+.opc-ranger-dossier__credential h6 {
+  margin: 1.7em 0 .65em;
+  color: var(--carbon);
+  font-family: var(--font-sans);
+  font-size: clamp(16px, 1.3vw, 18px);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.45;
+}
+
+.opc-ranger-dossier__credential ul,
+.opc-ranger-dossier__credential ol {
+  padding-left: 1.45em;
+}
+
+.opc-ranger-dossier__credential li + li {
+  margin-top: .38em;
+}
+
+.opc-ranger-dossier__credential blockquote {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 1em 0;
+  color: var(--ash);
+}
+
+.opc-ranger-dossier__credential a {
+  text-decoration: underline;
+  text-decoration-thickness: .06em;
+  text-underline-offset: 3px;
+}
+
+.opc-ranger-dossier__credential a:hover,
+.opc-ranger-dossier__credential a:focus-visible {
+  background: var(--carbon);
+  color: var(--paper-bright);
+  outline: 0;
+  text-decoration: none;
+}
+
+.opc-ranger-dossier__credential code {
+  padding: .08em .28em;
+  background: var(--paper-bright);
+  font-family: var(--font-mono);
+  font-size: .9em;
+}
+
+.opc-ranger-dossier__credential pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px 16px;
+  background: var(--carbon);
+  color: var(--paper-bright);
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.opc-ranger-dossier__credential pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+}
+
+.opc-ranger-dossier__credential table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--type-small);
+}
+
+.opc-ranger-dossier__credential th,
+.opc-ranger-dossier__credential td {
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 14px 8px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.opc-ranger-dossier__credential th {
+  color: var(--carbon);
+  font-weight: 600;
 }
 
 .opc-ranger-dossier__record dl {
@@ -870,7 +990,7 @@
     padding: 32px;
   }
 
-  .opc-ranger-dossier__portrait .opc-ranger-portrait__image {
+  .opc-ranger-dossier__portrait-frame {
     max-width: 520px;
   }
 
@@ -961,10 +1081,6 @@
 
   .opc-ranger-dossier__section > header {
     margin-bottom: 34px;
-  }
-
-  .opc-ranger-dossier__credential {
-    font-size: 26px;
   }
 
   .opc-ranger-dossier__record dl {

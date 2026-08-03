@@ -33,6 +33,7 @@ test("runtime X stream keeps direct policy sources plus one trusted Follow Build
   assert.ok(handles.every((handle: string) => policy.accounts.has(handle)));
   assert.equal(trustedFeed.length, 1);
   assert.equal(trustedFeed[0].id, "source-follow-builders-x");
+  assert.equal(trustedFeed[0].ownerEntity, "aggregator:follow-builders");
   assert.equal(trustedFeed[0].publisherKind, "aggregator");
   assert.ok(statements.every((source: { originPlatform: string }) => source.originPlatform === "x"));
   assert.ok(statements.every((source: { classificationConfidence: string }) => source.classificationConfidence === "high"));

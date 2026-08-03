@@ -74,7 +74,7 @@ test("contract rejects X-native content from the information waterfall", () => {
   assert.throws(() => validateContentBatch(value), /不得进入资讯瀑布/);
 });
 
-test("roadside X records require a verified natural person and original X identity", () => {
+test("roadside X records require original X identity and allow the approved Follow Builders aggregator simplification", () => {
   const value = batch();
   Object.assign(value.information[0], {
     sourceStream: "roadside",
@@ -87,6 +87,8 @@ test("roadside X records require a verified natural person and original X identi
   assert.throws(() => validateContentBatch(value), /缺少真人身份或原始状态地址/);
   value.information[0].publisherKind = "person";
   assert.equal(validateContentBatch(value).information[0].originContentId, "x:status:123");
+  value.information[0].publisherKind = "aggregator";
+  assert.equal(validateContentBatch(value).information[0].publisherKind, "aggregator");
 });
 
 test("canonical key ignores URL query noise but retains content identity", () => {

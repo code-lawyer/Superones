@@ -104,6 +104,25 @@ function deduplicateInformation(items: InformationItem[]) {
   });
 }
 
+function legacySnapshotGroups(items: InformationItem[]) {
+  const groups = new Map<string, ContentSnapshotGroup>();
+  const ambiguous = new Set<string>();
+  for (const item of items) {
+    if (!item.sourceChannelId || ambiguous.has(item.sourceChannelId)) continue;
+    const group: ContentSnapshotGroup = (item.contentGroup ?? item.sourceStream) === "roadside"
+      ? "roadside"
+      : "information";
+    const previous = groups.get(item.sourceChannelId);
+    if (previous && previous !== group) {
+      groups.delete(item.sourceChannelId);
+      ambiguous.add(item.sourceChannelId);
+    } else {
+      groups.set(item.sourceChannelId, group);
+    }
+  }
+  return groups;
+}
+
 function mergeEventLedger(current: EventRecord[], incoming: EventRecord[]) {
   const bySlug = new Map(current.map((event) => [event.slug, event]));
   for (const event of incoming) {
@@ -202,19 +221,30 @@ export async function replaceStoredContent(input: {
     if (input.snapshot) {
       if (input.snapshot.activeSourceIds) {
         const activeSourceIds = new Set(input.snapshot.activeSourceIds);
+        const legacyGroups = legacySnapshotGroups(current.information);
         current.information = current.information.filter((item) => (
           (item.contentGroup ?? item.sourceStream ?? "information") !== input.snapshot!.contentGroup
           || (Boolean(item.sourceChannelId) && activeSourceIds.has(item.sourceChannelId!))
         ));
         for (const sourceId of Object.keys(current.sourceSnapshots)) {
+          const snapshotGroup = current.sourceSnapshots[sourceId].contentGroup ?? legacyGroups.get(sourceId);
+          if (!current.sourceSnapshots[sourceId].contentGroup && snapshotGroup) {
+            current.sourceSnapshots[sourceId].contentGroup = snapshotGroup;
+          }
           if (
-            current.sourceSnapshots[sourceId].contentGroup === input.snapshot.contentGroup
+            snapshotGroup === input.snapshot.contentGroup
             && !activeSourceIds.has(sourceId)
           ) delete current.sourceSnapshots[sourceId];
         }
         for (const sourceId of Object.keys(current.sourceReports)) {
+          const reportGroup = current.sourceReports[sourceId].contentGroup
+            ?? current.sourceSnapshots[sourceId]?.contentGroup
+            ?? legacyGroups.get(sourceId);
+          if (!current.sourceReports[sourceId].contentGroup && reportGroup) {
+            current.sourceReports[sourceId].contentGroup = reportGroup;
+          }
           if (
-            current.sourceReports[sourceId].contentGroup === input.snapshot.contentGroup
+            reportGroup === input.snapshot.contentGroup
             && !activeSourceIds.has(sourceId)
           ) delete current.sourceReports[sourceId];
         }

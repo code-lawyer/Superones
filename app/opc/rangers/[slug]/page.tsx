@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ChannelRibbon } from "@/components/channel-ribbon";
+import { ContentMarkup } from "@/components/content-markup";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 import { legacyRangerAvatarPublicUrl, rangerAvatarPublicUrl } from "@/lib/ranger-avatar";
 import { publicRangerMediaOrigin } from "@/lib/ranger-avatar-storage";
@@ -62,9 +63,11 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
           </div>
 
           <figure className={`opc-ranger-dossier__portrait opc-ranger-portrait--${portraitIndex}`}>
-            {avatarSource
-              ? <Image className="opc-ranger-portrait__image opc-ranger-portrait__image--custom" src={avatarSource} width={800} height={800} decoding="async" unoptimized alt={`${profile.publicName}的专家头像`} />
-              : <span className="opc-ranger-portrait__image" role="img" aria-label={`${profile.publicName}的专家头像`} />}
+            <div className="opc-ranger-dossier__portrait-frame">
+              {avatarSource
+                ? <Image className="opc-ranger-portrait__image opc-ranger-portrait__image--custom" src={avatarSource} width={800} height={800} loading="eager" decoding="async" unoptimized alt={`${profile.publicName}的专家头像`} />
+                : <span className="opc-ranger-portrait__image" role="img" aria-label={`${profile.publicName}的专家头像`} />}
+            </div>
             <figcaption className="mono">
               <span>PORTRAIT / PUBLIC</span>
               <span>FILE / RA-{profileNumber}</span>
@@ -93,9 +96,11 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
               <span className="mono">02</span>
               <h2 className="mono">PUBLIC RECORD / 公开记录</h2>
             </header>
-            <p className="opc-ranger-dossier__credential">
-              {profile.credential ?? "未提供公开职业记录。"}
-            </p>
+            <ContentMarkup
+              content={profile.credential ?? "未提供公开职业记录。"}
+              format="markdown"
+              className="opc-ranger-dossier__credential"
+            />
             <dl>
               <div><dt className="mono">VERIFIED / 核验</dt><dd>{verifiedAt}</dd></div>
               <div><dt className="mono">UPDATED / 更新</dt><dd>{updatedAt}</dd></div>

@@ -24,7 +24,7 @@ Vault 信息流不是新闻数据库，也不声称检索字面意义上的整�
 - 资讯只有一个来源角色：官方、媒体、测试、评论、研究。
 - 每条资讯继承发布通道的发布实体、发布者性质和证据性质基线；来源角色是条目级判断，可以覆盖通道基线。
 - 经来源注册表逐项批准的第三方聚合 API 或 RSS 可以作为生产传输路径；聚合器本身不构成事实来源，条目必须保留原始发布者、canonical URL、作者与原始时间。参考项目仍只用于准入前发现候选。
-- Hacker News 与 Lobsters 已退出生产来源。Follow Builders X 中央 feed 的上游选择默认可信并完整接入；每条内容仍归属原账号与原始 X URL，Follow Builders 只记录为选源与传输提供者。
+- Hacker News 与 Lobsters 已退出生产来源。Follow Builders X 中央 feed 的上游选择默认可信并完整接入；经产品批准，该补充入口统一使用 `ownerEntity=aggregator:follow-builders` 与 `publisherKind=aggregator`，不逐账号维护实体类型。每条内容仍保留原账号名称、账号标识、status ID 与原始 X URL；该简化不得改变公开署名，也不得进入资讯事件的发布实体多样性计算。
 - 每条原始内容只有一个公开主去向；其他栏目可以引用其稳定 ID，不得再次采集或重复发布正文。
 
 ### 2.1 信源准入硬边界

@@ -10,6 +10,7 @@ briefing, and delivery features are intentionally never imported or run.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import sys
@@ -50,11 +51,21 @@ from src.scrapers.rss import RSSScraper  # noqa: E402
 class FullContentRSSScraper(RSSScraper):
     """Prefer content:encoded over a feed's short description."""
 
+    async def _fetch_feed(self, source: RSSSourceConfig, since: datetime):
+        self._fulltext_hashes: set[str] = set()
+        items = await super()._fetch_feed(source, since)
+        for item in items:
+            content = item.content or ""
+            if hashlib.sha256(content.encode("utf-8")).hexdigest() in self._fulltext_hashes:
+                item.metadata["content_completeness"] = "fulltext"
+        return items
+
     def _extract_content(self, entry: dict) -> str:
         content = entry.get("content")
         if content:
             value = content[0].get("value", "")
             if value:
+                self._fulltext_hashes.add(hashlib.sha256(value.encode("utf-8")).hexdigest())
                 return value
         return entry.get("summary") or entry.get("description") or ""
 
@@ -201,16 +212,18 @@ def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict],
     for item in items:
         url = repair_utf8_mojibake(str(item.url))
         title = repair_utf8_mojibake(item.title)
-        overrides = {}
-        if source.get("name") == "Latent Space" or source.get("id") == "source-latent-space":
+        is_latent_space = source.get("name") == "Latent Space" or source.get("id") == "source-latent-space"
+        overrides = {
+            "contentCompleteness": "fulltext",
+        } if is_latent_space and item.metadata.get("content_completeness") == "fulltext" else {}
+        if is_latent_space:
             is_digest = title.lstrip().lower().startswith("[ainews]") or "/p/ainews-" in url.lower()
             if is_digest:
-                overrides = {
+                overrides.update({
                     "contentClass": "digest",
                     "eventEligible": False,
                     "evidenceNature": "discovery_aggregate",
-                    "contentCompleteness": "fulltext",
-                }
+                })
         normalized = document(
             source,
             url,

@@ -443,7 +443,13 @@ function RangerFields({ ranger, mediaOrigin, onChange }: {
     />
     <TextField label="一句话介绍" value={ranger.intro} multiline onChange={(value) => change("intro", value)} />
     <ListField label="专长标签" value={ranger.tags} onChange={(value) => change("tags", value)} />
-    <TextField label="公开资质或职业记录" value={ranger.credential ?? ""} multiline onChange={(value) => change("credential", value)} />
+    <TextField
+      label="公开资质或职业记录"
+      value={ranger.credential ?? ""}
+      multiline
+      help="支持保留换行，并可使用 Markdown 标题、列表、加粗、引用、代码和链接。"
+      onChange={(value) => change("credential", value)}
+    />
     <TextField label="本人授权的公开联系方式" value={ranger.contactLabel} multiline onChange={(value) => change("contactLabel", value)} />
     <TextField label="核验 / 联系状态" value={ranger.contactState} onChange={(value) => change("contactState", value)} />
     <TextField label="核验日期" value={ranger.verificationDate ?? ""} onChange={(value) => change("verificationDate", value)} />
