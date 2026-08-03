@@ -1,0 +1,53 @@
+name: Build production release artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vault2077-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Keep production dependencies only
+        run: npm prune --omit=dev
+      - name: Package release
+        shell: bash
+        run: |
+          artifact="$RUNNER_TEMP/vault2077-${GITHUB_SHA}.tar.gz"
+          tar \
+            --exclude='.git' \
+            --exclude='.env*' \
+            --exclude='tests' \
+            --exclude='data/ranger-media' \
+            -czf "$artifact" .
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum "$(basename "$artifact")" > "$(basename "$artifact").sha256"
+          )
+          echo "artifact=$artifact" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vault2077-linux-x64-${{ github.sha }}
+          path: |
+            ${{ env.artifact }}
+            ${{ env.artifact }}.sha256
+          if-no-files-found: error
+          retention-days: 14
