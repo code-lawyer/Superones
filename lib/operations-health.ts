@@ -13,6 +13,9 @@ type HealthCheck = {
   detail: string;
 };
 
+const INFORMATION_FLOW_MIN_ITEMS = 10;
+const INFORMATION_FLOW_MAX_AGE_HOURS = 8;
+
 function ageHours(value: string | null) {
   if (!value) return null;
   const age = (Date.now() - Date.parse(value)) / 3_600_000;
@@ -96,6 +99,28 @@ export async function getOperationsHealth() {
   checks.vaultFreshness = {
     status: contentAge !== null && contentAge <= 12 ? "ok" : "degraded",
     detail: contentAge === null ? "no successful publication" : `${contentAge.toFixed(1)}h`,
+  };
+  const informationItems = content?.information.filter((item) => (
+    (item.contentGroup ?? item.sourceStream ?? "information") === "information"
+  )) ?? [];
+  const informationSourceIds = new Set(informationItems.flatMap((item) => item.sourceChannelId ? [item.sourceChannelId] : []));
+  const informationUpdatedAt = content
+    ? Object.entries(content.sourceSnapshots)
+        .filter(([sourceId, snapshot]) => (
+          snapshot.contentGroup === "information"
+          || (!snapshot.contentGroup && informationSourceIds.has(sourceId))
+        ))
+        .map(([, snapshot]) => snapshot.collectedAt)
+        .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null
+    : null;
+  const informationAge = ageHours(informationUpdatedAt);
+  checks.informationFlow = {
+    status: informationItems.length >= INFORMATION_FLOW_MIN_ITEMS
+      && informationAge !== null
+      && informationAge <= INFORMATION_FLOW_MAX_AGE_HOURS
+      ? "ok"
+      : "degraded",
+    detail: `count=${informationItems.length}; age=${informationAge === null ? "none" : `${informationAge.toFixed(1)}h`}; min=${INFORMATION_FLOW_MIN_ITEMS}; maxAge=${INFORMATION_FLOW_MAX_AGE_HOURS}h`,
   };
   const sicAge = ageHours(sic?.state.updatedAt ?? null);
   checks.sicFreshness = {
