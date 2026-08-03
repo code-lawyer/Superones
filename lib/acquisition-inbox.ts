@@ -422,12 +422,16 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
       })));
   }
 
-  function claimNext(excludedBatchIds: ReadonlySet<string> = new Set()): Promise<AcquisitionWorkItem | null> {
+  function claimNext(
+    excludedBatchIds: ReadonlySet<string> = new Set(),
+    includedBatchIds?: ReadonlySet<string>,
+  ): Promise<AcquisitionWorkItem | null> {
     return serialized(async () => {
       const now = clock();
       const available = await records();
       available.sort((left, right) => Date.parse(left.record.receivedAt) - Date.parse(right.record.receivedAt));
       for (const item of available) {
+        if (includedBatchIds && !includedBatchIds.has(item.record.batchId)) continue;
         const leaseExpired = item.record.status === "processing"
           && Date.parse(item.record.processingStartedAt ?? item.record.updatedAt) < now.getTime() - processingLeaseMs;
         if (
@@ -446,12 +450,14 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
           await replacePersisted(item.target, item.record);
         }
       }
-      const eligible = available.filter(({ record }) => !excludedBatchIds.has(record.batchId));
+      const eligible = available.filter(({ record }) =>
+        !excludedBatchIds.has(record.batchId)
+        && (!includedBatchIds || includedBatchIds.has(record.batchId))
+      );
       const candidate = eligible.find(({ record }) => record.status === "received")
         ?? eligible.find(({ record }) => record.status === "retryable"
           && Date.parse(record.nextAttemptAt ?? record.updatedAt) <= now.getTime())
-        ?? available.find(({ record }) => record.status === "processing"
-          && !excludedBatchIds.has(record.batchId)
+        ?? eligible.find(({ record }) => record.status === "processing"
           && Date.parse(record.processingStartedAt ?? record.updatedAt) < now.getTime() - processingLeaseMs);
       if (!candidate) return null;
       const claimed: AcquisitionInboxRecord = {
@@ -662,10 +668,14 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     return receipt(postgresRecord(existing.rows[0]), true);
   }
 
-  async function claimNext(excludedBatchIds: ReadonlySet<string> = new Set()): Promise<AcquisitionWorkItem | null> {
+  async function claimNext(
+    excludedBatchIds: ReadonlySet<string> = new Set(),
+    includedBatchIds?: ReadonlySet<string>,
+  ): Promise<AcquisitionWorkItem | null> {
     const client = await configuredPostgresPool().connect();
     const now = clock();
     const leaseBefore = new Date(now.getTime() - processingLeaseMs).toISOString();
+    const included = includedBatchIds ? [...includedBatchIds] : null;
     try {
       await client.query("BEGIN");
       await client.query(
@@ -673,16 +683,18 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
          SET status = 'quarantined', updated_at = $1, completed_at = $1,
              claim_token = NULL, next_attempt_at = NULL,
              last_error = coalesce(last_error, '批次达到最大处理尝试次数。')
-         WHERE attempts >= $2
-           AND (status = 'retryable' OR (status = 'processing' AND coalesce(processing_started_at, updated_at) < $3))`,
-        [now.toISOString(), maxAttempts, leaseBefore],
+          WHERE attempts >= $2
+            AND ($4::text[] IS NULL OR batch_id = ANY($4::text[]))
+            AND (status = 'retryable' OR (status = 'processing' AND coalesce(processing_started_at, updated_at) < $3))`,
+        [now.toISOString(), maxAttempts, leaseBefore, included],
       );
       const claimed = await client.query(
         `WITH candidate AS (
            SELECT batch_id
            FROM vault2077_acquisition_inbox
-           WHERE NOT (batch_id = ANY($1::text[]))
-             AND attempts < $2
+            WHERE NOT (batch_id = ANY($1::text[]))
+              AND ($6::text[] IS NULL OR batch_id = ANY($6::text[]))
+              AND attempts < $2
              AND (
                status = 'received'
                OR (status = 'retryable' AND coalesce(next_attempt_at, updated_at) <= $4)
@@ -700,7 +712,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
          FROM candidate
          WHERE inbox.batch_id = candidate.batch_id
          RETURNING inbox.*`,
-        [[...excludedBatchIds], maxAttempts, leaseBefore, now.toISOString(), randomUUID()],
+        [[...excludedBatchIds], maxAttempts, leaseBefore, now.toISOString(), randomUUID(), included],
       );
       await client.query("COMMIT");
       if (!claimed.rowCount) return null;

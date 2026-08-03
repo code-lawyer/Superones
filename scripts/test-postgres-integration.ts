@@ -33,6 +33,7 @@ const rateLimitKey = `integration:${testId}`;
 const secret = "vault2077-postgres-integration-secret-value";
 const revision = "registry:postgres-integration";
 const batchIds = [`batch:${testId}:1`, `batch:${testId}:2`];
+const testBatchIds = new Set(batchIds);
 const pool = configuredPostgresPool();
 let adminSessionId: string | null = null;
 
@@ -114,14 +115,14 @@ try {
   assert.equal((await receiverTwo.receive(submissions[0])).duplicate, true);
 
   const [first, second] = await Promise.all([
-    receiverOne.claimNext(),
-    receiverTwo.claimNext(),
+    receiverOne.claimNext(new Set(), testBatchIds),
+    receiverTwo.claimNext(new Set(), testBatchIds),
   ]);
   assert.ok(first && second);
   assert.notEqual(first.batch.batchId, second.batch.batchId, "SKIP LOCKED returned one batch twice");
   await receiverOne.complete(first.batch.batchId, first.claimToken);
   assert.equal(await receiverTwo.fail(second.batch.batchId, second.claimToken, new Error("retry me")), "retryable");
-  const retry = await receiverOne.claimNext();
+  const retry = await receiverOne.claimNext(new Set(), testBatchIds);
   assert.equal(retry?.batch.batchId, second.batch.batchId);
   assert.equal(retry?.attempt, 2);
   assert.equal(await receiverOne.fail(second.batch.batchId, retry!.claimToken, new Error("exhausted")), "quarantined");

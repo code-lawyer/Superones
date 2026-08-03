@@ -320,6 +320,21 @@ test("claims, fails, retries, and completes a durable batch", async (context) =>
   });
 });
 
+test("claim inclusion filters isolate a maintenance consumer from unrelated batches", async (context) => {
+  const { root, receiver } = await fixture();
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const first = batch();
+  const second = batch();
+  second.batchId = `${first.batchId}:isolated`;
+  second.runId = `${first.runId}:isolated`;
+  await receiver.receive(submission(first));
+  await receiver.receive(submission(second));
+
+  const claimed = await receiver.claimNext(new Set(), new Set([second.batchId]));
+  assert.equal(claimed?.batch.batchId, second.batchId);
+  assert.equal((await receiver.stats()).received, 1);
+});
+
 test("quarantines a batch after the retry budget is exhausted", async (context) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-budget-"));
   context.after(() => rm(root, { recursive: true, force: true }));
