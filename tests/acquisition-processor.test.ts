@@ -153,13 +153,16 @@ test("processor uses the signed v2 source snapshot instead of its deployed bundl
     ],
   };
   let activeSourceIds: string[] = [];
+  let runMode = "";
   const processor = createAcquisitionBatchProcessor({
     async processContent(_content, _hash, options) {
       activeSourceIds = options?.snapshot?.activeSourceIds ?? [];
+      runMode = options?.snapshot?.runMode ?? "";
     },
   });
   await processor(value, { payloadHash: "7".repeat(64), attempt: 1 });
   assert.deepEqual(activeSourceIds, ["dynamic-source", "vault-source"]);
+  assert.equal(runMode, "incremental");
 });
 
 test("SiC processing uses the signed v2 source snapshot instead of its deployed registry", async () => {

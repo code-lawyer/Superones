@@ -432,6 +432,7 @@ export function createAcquisitionBatchProcessor(input: {
         requireNoQuarantine: false,
         snapshot: {
           contentGroup: batch.lane,
+          runMode: batch.runMode,
           runId: batch.runId,
           collectedAt: batch.collectedAt,
           activeSourceIds: batch.sourceRegistry

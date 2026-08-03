@@ -291,6 +291,7 @@ export function processInboundContent(
     requireNoQuarantine?: boolean;
     snapshot?: {
       contentGroup: "information" | "roadside";
+      runMode: "incremental" | "bootstrap";
       runId: string;
       collectedAt: string;
       sourceReports: ContentSourceReport[];
@@ -411,6 +412,7 @@ export function processInboundContent(
       ...(options.snapshot ? {
         snapshot: {
           contentGroup: options.snapshot.contentGroup,
+          runMode: options.snapshot.runMode,
           runId: options.snapshot.runId,
           collectedAt: options.snapshot.collectedAt,
           sources: snapshotSources,

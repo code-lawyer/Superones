@@ -75,6 +75,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     sourceCount: 2,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:first",
       collectedAt: firstAt,
       sources: [
@@ -95,6 +96,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     sourceCount: 1,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:latest",
       collectedAt: latestAt,
       sources: [{ sourceId: "source-a", items: [information("latest", latestAt)] }],
@@ -109,6 +111,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     sourceCount: 1,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:stale",
       collectedAt: "2026-07-30T12:00:00.000Z",
       sources: [{ sourceId: "source-a", items: [information("stale", "2026-07-30T12:00:00.000Z")] }],
@@ -128,6 +131,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     sourceCount: 1,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:failed",
       collectedAt: "2026-07-31T10:00:00.000Z",
       sources: [],
@@ -145,6 +149,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     sourceCount: 1,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:empty",
       collectedAt: "2026-07-31T12:00:00.000Z",
       sources: [{ sourceId: "source-a", items: [] }],
@@ -155,6 +160,71 @@ test("current snapshots replace source content, reject older writes, and retain 
   assert.equal(stored.information.length, 0);
   assert.equal(stored.events[0].summary, "latest");
   assert.equal(stored.state.mode, "live");
+});
+
+test("information incremental snapshots retain the rolling 30-day waterfall", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-information-window-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  await replaceStoredContent({
+    events: [],
+    information: [],
+    projects: [],
+    sourceCount: 2,
+    snapshot: {
+      contentGroup: "information",
+      runMode: "bootstrap",
+      runId: "run:bootstrap",
+      collectedAt: "2026-08-01T08:00:00.000Z",
+      sources: [
+        { sourceId: "source-a", items: [information("retained", "2026-07-20T08:00:00.000Z")] },
+        { sourceId: "source-b", items: [information("expired", "2026-06-30T08:00:00.000Z", "source-b")] },
+      ],
+      reports: [
+        { sourceId: "source-a", status: "succeeded", collectedAt: "2026-08-01T08:00:00.000Z" },
+        { sourceId: "source-b", status: "succeeded", collectedAt: "2026-08-01T08:00:00.000Z" },
+      ],
+      activeSourceIds: ["source-a", "source-b"],
+    },
+  });
+  await replaceStoredContent({
+    events: [],
+    information: [],
+    projects: [],
+    sourceCount: 2,
+    snapshot: {
+      contentGroup: "information",
+      runMode: "incremental",
+      runId: "run:incremental",
+      collectedAt: "2026-08-02T08:00:00.000Z",
+      sources: [
+        { sourceId: "source-a", items: [information("new", "2026-08-02T08:00:00.000Z")] },
+        { sourceId: "source-b", items: [] },
+      ],
+      reports: [
+        { sourceId: "source-a", status: "succeeded", collectedAt: "2026-08-02T08:00:00.000Z" },
+        { sourceId: "source-b", status: "empty", collectedAt: "2026-08-02T08:00:00.000Z" },
+      ],
+      activeSourceIds: ["source-a", "source-b"],
+    },
+  });
+
+  const stored = await getStoredContent();
+  assert.deepEqual(stored.information.map((item) => item.slug), ["new", "retained"]);
 });
 
 test("same-run source reports retain the worst shard status", () => {
@@ -209,6 +279,7 @@ test("information and roadside snapshots replace only their own lane", async (co
     sourceCount: 1,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:information",
       collectedAt: "2026-08-02T08:00:00.000Z",
       sources: [{
@@ -226,6 +297,7 @@ test("information and roadside snapshots replace only their own lane", async (co
     sourceCount: 1,
     snapshot: {
       contentGroup: "roadside",
+      runMode: "bootstrap",
       runId: "run:roadside",
       collectedAt: "2026-08-02T08:05:00.000Z",
       sources: [{
@@ -259,6 +331,7 @@ test("information and roadside snapshots replace only their own lane", async (co
     sourceCount: 0,
     snapshot: {
       contentGroup: "information",
+      runMode: "bootstrap",
       runId: "run:retire-information",
       collectedAt: "2026-08-02T08:10:00.000Z",
       sources: [],

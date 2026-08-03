@@ -5,6 +5,9 @@ import type { BatchReceipt, ContentState, EventRecord, InformationItem, Quaranti
 
 export type ContentSnapshotGroup = "information" | "roadside";
 
+const INFORMATION_RETENTION_DAYS = 30;
+const INFORMATION_RETENTION_MS = INFORMATION_RETENTION_DAYS * 24 * 60 * 60 * 1_000;
+
 export type ContentSourceReport = {
   sourceId: string;
   status: "succeeded" | "partial" | "empty" | "failed";
@@ -210,6 +213,7 @@ export async function replaceStoredContent(input: {
   updatedAt?: string;
   snapshot?: {
     contentGroup: ContentSnapshotGroup;
+    runMode: "incremental" | "bootstrap";
     runId: string;
     collectedAt: string;
     sources: Array<{ sourceId: string; items: InformationItem[] }>;
@@ -219,6 +223,8 @@ export async function replaceStoredContent(input: {
 }) {
   return mutateStateDocument(contentDocument, (current) => {
     if (input.snapshot) {
+      const rollingInformation = input.snapshot.contentGroup === "information"
+        && input.snapshot.runMode === "incremental";
       if (input.snapshot.activeSourceIds) {
         const activeSourceIds = new Set(input.snapshot.activeSourceIds);
         const legacyGroups = legacySnapshotGroups(current.information);
@@ -261,15 +267,23 @@ export async function replaceStoredContent(input: {
         if (previous && Date.parse(input.snapshot.collectedAt) < Date.parse(previous.collectedAt)) continue;
         const sameRun = previous?.runId === input.snapshot.runId;
         const retained = current.information.filter((item) => item.sourceChannelId !== source.sourceId);
-        const priorSameRun = sameRun
+        const priorSourceItems = rollingInformation || sameRun
           ? current.information.filter((item) => item.sourceChannelId === source.sourceId)
           : [];
-        current.information = deduplicateInformation([...source.items, ...priorSameRun, ...retained]);
+        current.information = deduplicateInformation([...source.items, ...priorSourceItems, ...retained]);
         current.sourceSnapshots[source.sourceId] = {
           runId: input.snapshot.runId,
           collectedAt: input.snapshot.collectedAt,
           contentGroup: input.snapshot.contentGroup,
         };
+      }
+      if (rollingInformation) {
+        const cutoff = Date.parse(input.snapshot.collectedAt) - INFORMATION_RETENTION_MS;
+        current.information = current.information.filter((item) => {
+          if ((item.contentGroup ?? item.sourceStream ?? "information") !== "information") return true;
+          const publishedAt = Date.parse(item.publishedAt ?? item.discoveredAt);
+          return !Number.isFinite(publishedAt) || publishedAt >= cutoff;
+        });
       }
       const successfulTimes = Object.values(current.sourceSnapshots).map((snapshot) => snapshot.collectedAt);
       current.updatedAt = successfulTimes.sort().at(-1) ?? current.updatedAt;

@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-07-31
+updated: 2026-08-03
 ---
 
 # Vault2077 统一采集运行手册
@@ -12,7 +12,7 @@ updated: 2026-07-31
 
 | 通道 | 北京时间 | 重叠 | 处理 | 说明 |
 | --- | --- | --- | --- | --- |
-| `information` | 08:05–22:05，每两小时 | 24h | 境内编辑处理 | 正式资讯 |
+| `information` | 08:05–22:05，每两小时 | 采集重叠 24h；公开保留 30 天 | 境内编辑处理 | 正式资讯 |
 | `roadside` | 08:55–22:55，每两小时 | 24h | 境内编辑处理 | 个人发布与去重 X 补充 |
 | `sic` | 每日 `08:25` | 24h；周论文读取本周全集 | 境内中文编辑处理 | 论文、档案、课程、播客 |
 | `rankings` | `08:35/12:35/16:35/20:35` | 按任务 | 无编辑模型 | 平台原生榜与 Frontier 失败回退任务 |
@@ -21,7 +21,7 @@ updated: 2026-07-31
 
 采集 job 只安装运行期依赖并完成采集交付，不重复执行全仓门禁。`.github/workflows/quality-check.yml` 在 pull request、推送到 `main` 和北京时间每日 06:30 运行文档一致性、TypeScript/ESLint、Node 单元测试以及 Python lint/单元测试。
 
-information、roadside、SiC 和平台榜均为逐来源当前快照：新成功快照直接替换旧快照；失败时保留上一成功快照并显示更新延迟。来源退出当前运行注册表后，下一轮按 active/approved 来源集合清除其公开快照；事件簿内的不可变证据不删除。同一来源同轮分片的状态取最差结果并聚合条目数。只有事件簿长期保存，并内嵌形成事件时使用的资讯证据副本。单条采集或编辑失败只隔离该条，不阻塞同批正常记录。
+information 是 30 天滚动公开窗口：bootstrap 建立基线，incremental 只合并新增记录，成功空批次保留窗口内旧资讯，超过 30 天后按原始发布时间淘汰。roadside、SiC 和平台榜仍为逐来源当前快照，新成功快照直接替换旧快照；失败时保留上一成功结果并显示更新延迟。来源退出当前运行注册表后，下一轮按 active/approved 来源集合清除其公开内容；事件簿内的不可变证据不删除。同一来源同轮分片的状态取最差结果并聚合条目数。只有事件簿长期保存，并内嵌形成事件时使用的资讯证据副本。单条采集或编辑失败只隔离该条，不阻塞同批正常记录。
 
 运营后台不参与上述信息处理，不提供人工改写、移动、隐藏、补写或发布入口。问题报告只形成审计记录或自动重放信号；正常发布、故障恢复和旧快照替换均由 workflow、worker 与编辑模型完成。
 
@@ -165,10 +165,10 @@ npm run content:migrate-markup -- data/content-store.json data/bootstrap/content
 
 ## 7. 备份与恢复
 
-预览文件不构成生产备份。生产 v1 备份 PostgreSQL 并定期实际恢复。非事件内容只保留最近成功快照；inbox 成功批次保留 30 天、隔离批次保留 180 天后自动清理。ADR-0016 的头像 OSS 不属于采集归档；若未来要把采集数据写入对象存储，仍必须通过新 ADR 定义范围。记录日期、负责人、恢复点、耗时和结果。
+预览文件不构成生产备份。生产 v1 备份 PostgreSQL 并定期实际恢复。information 只保留 30 天滚动窗口，其他非事件内容只保留最近成功快照；inbox 成功批次保留 30 天、隔离批次保留 180 天后自动清理。ADR-0016 的头像 OSS 不属于采集归档；若未来要把采集数据写入对象存储，仍必须通过新 ADR 定义范围。记录日期、负责人、恢复点、耗时和结果。
 
 ## 8. 健康检查
 
-监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、Vault/SiC 新鲜度、平台榜 stale、Frontier 回退积压和两套编辑配置。返回 `503` 表示至少一项 degraded；告警平台还必须采集两个 systemd timer 的最近成功与失败退出码，不能只以 Web 进程存活代替业务健康。
+监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、Vault/SiC 新鲜度、information 独立条目数与最近批次时间、平台榜 stale、Frontier 回退积压和两套编辑配置。information 默认少于 10 条或超过 8 小时未成功运行即 degraded。返回 `503` 表示至少一项 degraded；告警平台还必须采集两个 systemd timer 的最近成功与失败退出码，不能只以 Web 进程存活代替业务健康。
 
 部署前先在最终生产环境变量下运行 `npm run deploy:check`，然后运行 `npm run deploy:verify-editorial`。前者拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、任何已退役 OIDC 配置、旧共享模型配置、错误的 MiMo 域名、缺失的独立处理密钥和不完整的两套编辑配置；后者向两套配置的每条主/备用线路发送最小真实 JSON 探针，验证 DNS、TLS、凭证、模型名与响应协议。任一失败都不得启用 worker timer；warning 必须在发布记录中解释。
