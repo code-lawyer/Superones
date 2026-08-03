@@ -6,7 +6,12 @@ import test from "node:test";
 import { getStoredContent, mergeContentSourceReport, replaceStoredContent } from "../lib/content-store.ts";
 import type { EventRecord, InformationItem } from "../lib/types.ts";
 
-function information(slug: string, collectedAt: string, sourceChannelId = "source-a"): InformationItem {
+function information(
+  slug: string,
+  collectedAt: string,
+  sourceChannelId = "source-a",
+  contentGroup: "information" | "roadside" = "information",
+): InformationItem {
   return {
     slug,
     translatedTitle: slug,
@@ -25,6 +30,7 @@ function information(slug: string, collectedAt: string, sourceChannelId = "sourc
     originalDisplay: "full",
     contentHash: slug.padEnd(64, "0").slice(0, 64),
     sourceChannelId,
+    contentGroup,
   };
 }
 
@@ -68,6 +74,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     projects: [],
     sourceCount: 2,
     snapshot: {
+      contentGroup: "information",
       runId: "run:first",
       collectedAt: firstAt,
       sources: [
@@ -87,6 +94,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     projects: [],
     sourceCount: 1,
     snapshot: {
+      contentGroup: "information",
       runId: "run:latest",
       collectedAt: latestAt,
       sources: [{ sourceId: "source-a", items: [information("latest", latestAt)] }],
@@ -100,6 +108,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     projects: [],
     sourceCount: 1,
     snapshot: {
+      contentGroup: "information",
       runId: "run:stale",
       collectedAt: "2026-07-30T12:00:00.000Z",
       sources: [{ sourceId: "source-a", items: [information("stale", "2026-07-30T12:00:00.000Z")] }],
@@ -118,6 +127,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     projects: [],
     sourceCount: 1,
     snapshot: {
+      contentGroup: "information",
       runId: "run:failed",
       collectedAt: "2026-07-31T10:00:00.000Z",
       sources: [],
@@ -134,6 +144,7 @@ test("current snapshots replace source content, reject older writes, and retain 
     projects: [],
     sourceCount: 1,
     snapshot: {
+      contentGroup: "information",
       runId: "run:empty",
       collectedAt: "2026-07-31T12:00:00.000Z",
       sources: [{ sourceId: "source-a", items: [] }],
@@ -171,4 +182,64 @@ test("same-run source reports retain the worst shard status", () => {
     collectedAt,
   });
   assert.equal(mixed.status, "partial");
+});
+
+test("information and roadside snapshots replace only their own lane", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-content-lanes-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  await replaceStoredContent({
+    events: [],
+    information: [],
+    projects: [],
+    sourceCount: 1,
+    snapshot: {
+      contentGroup: "information",
+      runId: "run:information",
+      collectedAt: "2026-08-02T08:00:00.000Z",
+      sources: [{
+        sourceId: "information-source",
+        items: [information("information-item", "2026-08-02T08:00:00.000Z", "information-source")],
+      }],
+      reports: [{ sourceId: "information-source", status: "succeeded", collectedAt: "2026-08-02T08:00:00.000Z" }],
+      activeSourceIds: ["information-source"],
+    },
+  });
+  await replaceStoredContent({
+    events: [],
+    information: [],
+    projects: [],
+    sourceCount: 1,
+    snapshot: {
+      contentGroup: "roadside",
+      runId: "run:roadside",
+      collectedAt: "2026-08-02T08:05:00.000Z",
+      sources: [{
+        sourceId: "roadside-source",
+        items: [information("roadside-item", "2026-08-02T08:05:00.000Z", "roadside-source", "roadside")],
+      }],
+      reports: [{ sourceId: "roadside-source", status: "succeeded", collectedAt: "2026-08-02T08:05:00.000Z" }],
+      activeSourceIds: ["roadside-source"],
+    },
+  });
+
+  const stored = await getStoredContent();
+  assert.deepEqual(
+    stored.information.map((item) => item.slug).sort(),
+    ["information-item", "roadside-item"],
+  );
 });

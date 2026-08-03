@@ -68,6 +68,44 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(information[0]["originalUrl"], "https://example.test/articles/one")
         self.assertNotIn("本地演练", information[0]["originalTitle"])
 
+    async def test_latent_space_prefers_full_content_and_marks_digest_as_non_event(self):
+        source = {
+            "id": "source-latent-space",
+            "name": "Latent Space",
+            "connector": "rss",
+            "endpoint": "https://www.latent.space/feed",
+            "primaryLanguage": "en",
+            "contentCapability": "feed-content",
+            "evidenceNature": "reported_analysis",
+            "publisherKind": "editorial_media",
+            "classificationConfidence": "high",
+        }
+        body = """<?xml version='1.0'?>
+        <rss version='2.0' xmlns:content='http://purl.org/rss/1.0/modules/content/'>
+          <channel><title>Latent Space</title><item>
+            <title>[AINews] not much happened today</title>
+            <link>https://www.latent.space/p/ainews-not-much-happened-today-038</link>
+            <pubDate>Sat, 01 Aug 2026 01:38:00 GMT</pubDate>
+            <description>apart from one release, a quiet day.</description>
+            <content:encoded><![CDATA[<p>Full digest introduction.</p><h2>Models</h2><p>A detailed report with many source links.</p>]]></content:encoded>
+          </item></channel>
+        </rss>"""
+
+        async def handler(_request):
+            return httpx.Response(200, content=body.encode(), headers={"content-type": "application/rss+xml"})
+
+        start = datetime(2026, 7, 31, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, 8, tzinfo=timezone.utc)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+
+        self.assertEqual(outcome.status, "success")
+        self.assertIn("Full digest introduction", information[0]["originalContent"])
+        self.assertNotEqual(information[0]["originalContent"], "apart from one release, a quiet day.")
+        self.assertEqual(information[0]["contentClass"], "digest")
+        self.assertFalse(information[0]["eventEligible"])
+        self.assertEqual(information[0]["evidenceNature"], "discovery_aggregate")
+
     async def test_horizon_rss_adapter_keeps_x_quote_and_chapter_boundaries(self):
         source = {
             "id": "source-x-test",

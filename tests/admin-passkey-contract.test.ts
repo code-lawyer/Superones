@@ -3,7 +3,7 @@ import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { recordRejectedAdminPasskeyProof } from "../lib/admin-passkey-audit.ts";
+import { adminPasskeyRejectionReason, recordRejectedAdminPasskeyProof } from "../lib/admin-passkey-audit.ts";
 
 test("production admin exposes native Passkey flows and no retired OIDC routes", async () => {
   for (const route of [
@@ -46,11 +46,12 @@ test("production admin exposes native Passkey flows and no retired OIDC routes",
   assert.match(browserReauthentication, /startAuthentication/);
   assert.match(opcEditor, /reauthenticateAdminWithPasskey/);
   assert.doesNotMatch(opcEditor, /\boidc\b|IDaaS/);
+  assert.match(passkeyService, /const PASSKEY_BROWSER_USER_VERIFICATION = "required"/);
   assert.equal([...passkeyService.matchAll(/userVerification: PASSKEY_BROWSER_USER_VERIFICATION/g)].length, 2);
-  assert.equal([...passkeyService.matchAll(/requireUserVerification: false/g)].length, 2);
+  assert.equal([...passkeyService.matchAll(/requireUserVerification: true/g)].length, 2);
   assert.match(passkeyService, /registrationInfo\.userVerified/);
   assert.match(passkeyService, /authenticationInfo\.userVerified/);
-  assert.doesNotMatch(passkeyService, /requireUserVerification: true/);
+  assert.doesNotMatch(passkeyService, /requireUserVerification: false/);
 });
 
 test("rejected Passkey proofs are written as sanitized security audit events", async () => {
@@ -80,4 +81,42 @@ test("rejected Passkey proofs are written as sanitized security audit events", a
     else process.env.VAULT2077_DATABASE_URL = previousDatabase;
     await rm(dataDirectory, { recursive: true, force: true });
   }
+});
+
+test("Passkey rejection diagnostics classify verification stages without leaking proof data", () => {
+  const secretChallenge = "challenge-do-not-log";
+  const secretOrigin = "https://unexpected.example";
+  const secretCredential = "credential-do-not-log";
+
+  assert.equal(
+    adminPasskeyRejectionReason(new Error(`Unexpected authentication response challenge "${secretChallenge}"`)),
+    "webauthn-challenge-mismatch",
+  );
+  assert.equal(
+    adminPasskeyRejectionReason(new Error(`Unexpected authentication response origin "${secretOrigin}"`)),
+    "webauthn-origin-mismatch",
+  );
+  assert.equal(
+    adminPasskeyRejectionReason(Object.assign(new Error("Unexpected RP ID hash"), { name: "UnexpectedRPIDHash" })),
+    "webauthn-rp-id-mismatch",
+  );
+  assert.equal(
+    adminPasskeyRejectionReason(new Error(`Passkey ${secretCredential} does not exist`)),
+    "webauthn-credential-not-found",
+  );
+  assert.equal(
+    adminPasskeyRejectionReason(new Error("Response counter value 0 was lower than expected 4")),
+    "webauthn-counter-replay",
+  );
+  assert.equal(
+    adminPasskeyRejectionReason(new Error("User verification required, but user could not be verified")),
+    "webauthn-user-verification-missing",
+  );
+
+  const classified = [
+    adminPasskeyRejectionReason(new Error(`Unexpected authentication response challenge "${secretChallenge}"`)),
+    adminPasskeyRejectionReason(new Error(`Unexpected authentication response origin "${secretOrigin}"`)),
+    adminPasskeyRejectionReason(new Error(`Passkey ${secretCredential} does not exist`)),
+  ].join(" ");
+  assert.doesNotMatch(classified, new RegExp(`${secretChallenge}|${secretOrigin}|${secretCredential}`));
 });

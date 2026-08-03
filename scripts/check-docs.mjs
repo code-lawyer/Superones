@@ -211,7 +211,7 @@ const requiredByFile = new Map([
   ["docs/Vault2077-Unified-Acquisition-Runbook.md", ["Frontier 境内侧另配置只读 GitHub 服务端凭证", "Follow Builders", "failureMode=isolated", "已经支持显式 `runMode=bootstrap`", "`vault_editorial` 与 `sic_editorial`"]],
   ["docs/Vault2077-Deployment-Configuration-Manual.md", ["Frontier 境内 GitHub 请求", "`vault_editorial`", "`sic_editorial`", "非生产迁移期本地预览兼容层", "bootstrap 是一次性受审计作业", "`npm run db:migrate`", "VAULT2077_RANGER_MEDIA_STORAGE", "VAULT2077_OSS_PUBLIC_ORIGIN", "media.superones.top"]],
   ["docs/Vault2077-Implementation-Traceability.md", ["Frontier GitHub 混合访问", "频道编辑配置", "上线基线与初始化回填", "真实 Bucket/CNAME/RAM 联调", "有效 `[n]` 证据引用校验", "`/opc` 单一工作台", "全部对象版本永久删除命令", "版本化删除演练"]],
-  ["docs/Vault2077-Feed-Design-Spec.md", ["每条原始内容只有一个公开主去向", "Follow Builders", "不得把 Follow Builders 中央 feed", "Vault 编辑配置", "最近 30 天的真实新闻型内容建立上线基线"]],
+  ["docs/Vault2077-Feed-Design-Spec.md", ["每条原始内容只有一个公开主去向", "Follow Builders", "不再逐源访问官网", "Vault 编辑配置", "最近 30 天的真实新闻型内容建立上线基线"]],
   ["docs/Vault2077-SiC-Design-Spec.md", ["宽泛混合 Feed", "才可批准", "SiC 编辑配置", "最近一条符合该来源准入边界的真实内容"]],
   ["docs/Vault2077-SiC-Source-Catalog.md", ["每个 approved 内容来源至少回填最近一条"]],
   ["docs/Vault2077-Admin-Operations-Spec.md", ["自动进入候选注册表", "同一原始内容只有一个主去向", "`vault_editorial`", "`sic_editorial`", "ADR-0016", "后台不接受任意第三方图片 URL"]],

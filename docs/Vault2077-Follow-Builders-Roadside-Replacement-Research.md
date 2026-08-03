@@ -10,6 +10,7 @@ updated: 2026-08-01
 > 上游版本：[`b98abfc`](https://github.com/zarazhangrui/follow-builders/tree/b98abfc829f3379a92b47de3733523c5935c9604)
 > 证据范围：上游 README、固定来源配置、生成脚本、GitHub Actions、公开 feed、提交与运行记录、X 官方政策，以及本仓库现行规格和采集合同。
 > 文档性质：非规范性研究；除非结论被 ADR、产品规格和来源 bundle 吸收，否则不改变生产行为。
+> 现行决策：ADR-0017 已于 2026-08-02 推翻本文“不长期消费中央 feed”和“逐账号审核”的建议。生产默认信任并完整消费 Follow Builders X/Blogs/Podcasts 三个中央 feed；本文以下内容仅保留当时的风险分析。
 
 ## 1. 结论
 

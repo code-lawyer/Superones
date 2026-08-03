@@ -323,15 +323,22 @@ test("OPC ranger profiles use the public dossier composition at every breakpoint
   const styles = await readOpcStyles();
   const profile = await readFile(path.join(root, "app", "opc", "rangers", "[slug]", "page.tsx"), "utf8");
 
+  assert.match(profile, /import \{ ContentMarkup \} from "@\/components\/content-markup"/);
   assert.match(profile, /opc-ranger-dossier__spine/);
   assert.match(profile, /opc-ranger-dossier__ledger/);
   assert.match(profile, /opc-ranger-dossier__contact/);
+  assert.match(profile, /opc-ranger-dossier__portrait-frame/);
+  assert.match(profile, /<ContentMarkup[\s\S]*?content=\{profile\.credential \?\? "未提供公开职业记录。"\}[\s\S]*?format="markdown"[\s\S]*?className="opc-ranger-dossier__credential"/);
   assert.match(profile, /mailto:\$\{profile\.contactLabel\}/);
   assert.match(profile, /<h2 className="mono">EXPERTISE \/ 专业方向<\/h2>/);
   assert.match(profile, /<h2 className="mono">PUBLIC RECORD \/ 公开记录<\/h2>/);
   assert.match(profile, /<h2>直接联系专家本人<\/h2>/);
   assert.doesNotMatch(profile, /opc-ranger-profile-page|authorizationStatus|contactState/);
   assert.match(styles, /\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-columns:\s*var\(--dossier-spine\)/);
+  assert.match(styles, /\.opc-ranger-dossier__portrait-frame\s*\{[\s\S]*?aspect-ratio:\s*1[\s\S]*?overflow:\s*hidden/);
+  assert.match(styles, /\.opc-ranger-dossier__portrait-frame > \.opc-ranger-portrait__image\s*\{[\s\S]*?width:\s*100%[\s\S]*?height:\s*100%[\s\S]*?object-fit:\s*cover/);
+  assert.match(styles, /\.opc-ranger-dossier__credential\s*\{[\s\S]*?font-family:\s*var\(--font-sans\)[\s\S]*?font-size:\s*clamp\(14px,\s*1\.1vw,\s*16px\)/);
+  assert.match(styles, /\.opc-ranger-dossier__credential p\s*\{[\s\S]*?white-space:\s*pre-line/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-columns:\s*var\(--dossier-spine\) minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.opc-ranger-dossier\s*\{[\s\S]*?--dossier-spine:\s*44px/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.opc-ranger-dossier__contact-action a i\s*\{[\s\S]*?transition:\s*none/);

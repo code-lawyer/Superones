@@ -11,3 +11,7 @@ export class EditorialInfrastructureError extends Error {
 export function isEditorialInfrastructureError(error: unknown): error is EditorialInfrastructureError {
   return error instanceof EditorialInfrastructureError;
 }
+
+export function isFatalEditorialInfrastructureError(error: unknown): error is EditorialInfrastructureError {
+  return isEditorialInfrastructureError(error) && error.code !== "MODEL_RESPONSE_INVALID";
+}

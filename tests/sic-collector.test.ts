@@ -258,11 +258,81 @@ test("SiC sitemap collector stays inside the approved publication path", () => {
   const entries = sicCollectorTestUtils.sitemapUrls(rssSource, `
     <urlset>
       <url><loc>https://example.com/news/official-update</loc><lastmod>2026-07-20</lastmod></url>
+      <url><loc>https://example.com/news</loc><lastmod>2026-07-20</lastmod></url>
       <url><loc>https://example.com/about</loc><lastmod>2026-07-20</lastmod></url>
       <url><loc>https://untrusted.example/news/other</loc><lastmod>2026-07-20</lastmod></url>
     </urlset>
   `);
   assert.deepEqual(entries.map((entry) => entry.url), ["https://example.com/news/official-update"]);
+});
+
+test("Follow Builders blog feed keeps upstream publishers and decodes HTML entities", () => {
+  const source: SicSource = {
+    ...rssSource,
+    id: "follow-builders-blogs",
+    group: "documents",
+    kind: "trusted_feed_json",
+    homeUrl: "https://github.com/zarazhangrui/follow-builders",
+    endpoint: "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-blogs.json",
+  };
+  const entries = sicCollectorTestUtils.followBuildersJsonEntries(source, JSON.stringify({
+    generatedAt: "2026-08-02T00:00:00Z",
+    lookbackHours: 72,
+    blogs: [{
+      source: "claude-blog",
+      name: "Claude Blog",
+      title: "Hiring: Part Time Instructor",
+      url: "https://claude.com/blog/hiring-part-time-instructor",
+      author: "Claude Team",
+      publishedAt: "2026-08-01T00:00:00Z",
+      description: "",
+      content: "We&#8217;re hiring an instructor to teach production code.",
+    }, {
+      source: "claude-blog",
+      name: "Claude Blog",
+      title: "Engineering reliable agents",
+      url: "https://claude.com/blog/engineering-reliable-agents",
+      publishedAt: "2026-08-02T00:00:00Z",
+      description: "A second item from the same upstream publisher.",
+      content: "A distinct article selected by Follow Builders.",
+    }],
+  }));
+
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].sourceName, "Claude Blog");
+  assert.equal(entries[0].publisher, "Claude Blog");
+  assert.equal(entries[0].summary, "We’re hiring an instructor to teach production code.");
+  assert.match(entries[0].sourceMaterial ?? "", /We’re hiring an instructor/);
+  assert.notEqual(entries[0].canonicalId, entries[1].canonicalId);
+});
+
+test("Follow Builders podcast feed keeps the supplied transcript without local source admission", () => {
+  const source: SicSource = {
+    ...rssSource,
+    id: "follow-builders-podcasts",
+    group: "podcasts",
+    kind: "trusted_feed_json",
+    homeUrl: "https://github.com/zarazhangrui/follow-builders",
+    endpoint: "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-podcasts.json",
+  };
+  const entries = sicCollectorTestUtils.followBuildersJsonEntries(source, JSON.stringify({
+    generatedAt: "2026-08-02T00:00:00Z",
+    lookbackHours: 336,
+    podcasts: [{
+      source: "new-upstream-show",
+      name: "A newly selected show",
+      title: "Episode one",
+      guid: "episode-one",
+      url: "https://podcasts.example/episode-one",
+      publishedAt: "2026-08-01T00:00:00Z",
+      transcript: "A complete transcript selected by Follow Builders.",
+    }],
+  }));
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].canonicalId, "follow-builders-podcast:episode-one");
+  assert.equal(entries[0].sourceName, "A newly selected show");
+  assert.equal(entries[0].sourceMaterial, "A complete transcript selected by Follow Builders.");
 });
 
 test("SiC source admission rejects configured marketing announcements", () => {

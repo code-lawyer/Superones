@@ -3,10 +3,13 @@ import "server-only";
 import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
 import type { BatchReceipt, ContentState, EventRecord, InformationItem, QuarantinedContent, TrendProject } from "./types.ts";
 
+export type ContentSnapshotGroup = "information" | "roadside";
+
 export type ContentSourceReport = {
   sourceId: string;
   status: "succeeded" | "partial" | "empty" | "failed";
   collectedAt: string;
+  contentGroup?: ContentSnapshotGroup;
   errorCode?: string;
   errorMessage?: string;
 };
@@ -42,6 +45,7 @@ export function mergeContentSourceReport(
 type ContentSourceSnapshot = {
   runId: string;
   collectedAt: string;
+  contentGroup?: ContentSnapshotGroup;
 };
 
 type ContentStore = {
@@ -186,6 +190,7 @@ export async function replaceStoredContent(input: {
   sourceCount: number;
   updatedAt?: string;
   snapshot?: {
+    contentGroup: ContentSnapshotGroup;
     runId: string;
     collectedAt: string;
     sources: Array<{ sourceId: string; items: InformationItem[] }>;
@@ -198,18 +203,28 @@ export async function replaceStoredContent(input: {
       if (input.snapshot.activeSourceIds) {
         const activeSourceIds = new Set(input.snapshot.activeSourceIds);
         current.information = current.information.filter((item) => (
-          Boolean(item.sourceChannelId) && activeSourceIds.has(item.sourceChannelId!)
+          (item.contentGroup ?? item.sourceStream ?? "information") !== input.snapshot!.contentGroup
+          || (Boolean(item.sourceChannelId) && activeSourceIds.has(item.sourceChannelId!))
         ));
         for (const sourceId of Object.keys(current.sourceSnapshots)) {
-          if (!activeSourceIds.has(sourceId)) delete current.sourceSnapshots[sourceId];
+          if (
+            current.sourceSnapshots[sourceId].contentGroup === input.snapshot.contentGroup
+            && !activeSourceIds.has(sourceId)
+          ) delete current.sourceSnapshots[sourceId];
         }
         for (const sourceId of Object.keys(current.sourceReports)) {
-          if (!activeSourceIds.has(sourceId)) delete current.sourceReports[sourceId];
+          if (
+            current.sourceReports[sourceId].contentGroup === input.snapshot.contentGroup
+            && !activeSourceIds.has(sourceId)
+          ) delete current.sourceReports[sourceId];
         }
       }
       for (const report of input.snapshot.reports) {
         const previous = current.sourceReports[report.sourceId];
-        current.sourceReports[report.sourceId] = mergeContentSourceReport(previous, report);
+        current.sourceReports[report.sourceId] = mergeContentSourceReport(previous, {
+          ...report,
+          contentGroup: input.snapshot.contentGroup,
+        });
       }
       for (const source of input.snapshot.sources) {
         const previous = current.sourceSnapshots[source.sourceId];
@@ -223,6 +238,7 @@ export async function replaceStoredContent(input: {
         current.sourceSnapshots[source.sourceId] = {
           runId: input.snapshot.runId,
           collectedAt: input.snapshot.collectedAt,
+          contentGroup: input.snapshot.contentGroup,
         };
       }
       const successfulTimes = Object.values(current.sourceSnapshots).map((snapshot) => snapshot.collectedAt);

@@ -6,7 +6,7 @@ updated: 2026-07-24
 
 # Vault2077 上游信源审计研究
 
-> 当前决策（ADR-0017）：本文记录上游在审计时的分类证据，不定义现行路由。Hacker News/Lobsters 已退出运行时；Follow Builders 去重人物 X 补充 roadside，其他获准来源按官方入口进入 SiC。
+> 当前决策（ADR-0017，2026-08-02 修订）：本文记录历史审计证据，不定义现行路由。生产直接消费 Follow Builders X/Blogs/Podcasts 三个中央 feed，并默认信任其上游选源。
 
 > 状态修正（2026-07-22）：本文逐仓记录固定提交中实际存在的配置，因此仍保留上游 YouTube 清单作为证据。Vault2077 已将视频专属通道从产品范围中删除；这些条目不进入当前注册表、CSV、pending 或运行 bundle，也不得据此恢复视频处理链路。
 

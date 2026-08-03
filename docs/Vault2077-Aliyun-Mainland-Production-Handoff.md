@@ -679,7 +679,7 @@ sudo systemd-run --unit=vault2077-admin-enroll --wait --pipe --collect \
 6. 用一条恢复码做受控演练，确认一次性消费；其余恢复码重新核对离线保管。
 7. 紧急接管时才运行 `npm run admin:passkey:enroll -- --revoke-existing`；它会签发新令牌并撤销现有管理员会话，必须双人确认。
 
-Passkey 未在真实 HTTPS 管理域名通过前，不能开放运营后台。浏览器可以使用安全钥匙/平台认证器的 PIN 码；ceremony 以 `preferred` 触发兼容协商，但服务端仍检查认证器签名的 `userVerified=true`，未实际完成 PIN 或生物验证一律拒绝。不要用 Nginx Basic Auth 或共享密码临时代替。
+Passkey 未在真实 HTTPS 管理域名通过前，不能开放运营后台。浏览器可以使用安全钥匙/平台认证器的 PIN 码；ceremony 使用 `userVerification=required`，要求认证器实际完成 PIN 或生物验证并返回签名的 UV 标志，服务端同时执行底层与业务层复核。不要用 Nginx Basic Auth 或共享密码临时代替。
 
 ## 14. 支付宝生产接入
 

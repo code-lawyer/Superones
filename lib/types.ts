@@ -21,6 +21,9 @@ export type EvidenceNature = (typeof EVIDENCE_NATURES)[number];
 export const CLASSIFICATION_CONFIDENCES = ["high", "medium", "low"] as const;
 export type ClassificationConfidence = (typeof CLASSIFICATION_CONFIDENCES)[number];
 
+export const CONTENT_CLASSES = ["news_report", "official_announcement", "analysis", "interview", "recruitment", "promotion", "digest", "other"] as const;
+export type ContentClass = (typeof CONTENT_CLASSES)[number];
+
 export type EventRecord = {
   slug: string;
   record: string;
@@ -94,6 +97,8 @@ export type InformationItem = {
   transportKind?: string;
   transportProvider?: string;
   eventCandidateKey?: string;
+  contentClass?: ContentClass;
+  eventEligible?: boolean;
 };
 
 export type QuarantinedContent = {

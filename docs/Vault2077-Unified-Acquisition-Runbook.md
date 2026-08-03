@@ -28,12 +28,12 @@ information、roadside、SiC 和平台榜均为逐来源当前快照：新成功
 ### 1.1 内容主路由
 
 - `information`：第三方新闻、批准的机构新闻入口、获准项目的重大 GitHub Release。
-- `roadside`：自然人公开表达、个人博客，以及 Follow Builders 人物白名单中与现有来源去重后的 X 条目。
+- `roadside`：自然人公开表达、个人博客，以及 Follow Builders X 中央 feed 当前选择的全部 X 条目。
 - `sic`：批准的论文、深度档案、课程与播客固定入口。
 - 机构宽泛混合 Feed 保持待审；不得在境内用 LLM 决定同一条内容究竟送往 information 还是 sic。
-- Hacker News 与 Lobsters 已退出运行时来源。Follow Builders 只作为来源发现和 X 传输适配器：X 条目必须还原人物身份、原始帖子 URL 与原始时间；其博客、工程文章和播客按固定官方入口进入 SiC，不从中央聚合 feed 复制正文。
-- Follow Builders 相关来源声明为 `failureMode=isolated`。中央 X feed、由其发现的官方博客或播客任一不可用时，只记录来源失败与新鲜度告警，保留该来源上一成功快照；同轮其他来源继续采集、投递，workflow 不因这类失败返回失败状态。
-- Follow Builders 中央 X feed 只列出本轮存在新帖的账号，因此“白名单账号缺席且 feed 未报告错误”是合法空结果；若账号缺席且 feed 顶层 `errors` 非空，则按上游部分失败处理，禁止用空结果覆盖上一成功快照。帖子的 handle、status ID 和 `createdAt` 必须全部有效并相互一致，否则该来源进入隔离失败报告。
+- Hacker News 与 Lobsters 已退出运行时来源。Follow Builders 同时承担可信上游选源和中央 feed 传输：X、Blogs、Podcasts 分别完整进入 roadside、SiC documents、SiC podcasts；本地不复制上游名单，不做接入前去重或关键词审核。
+- 三个 Follow Builders feed 均声明为 `failureMode=isolated`。任一 feed 不可用时，只记录该 feed 的失败与新鲜度告警，保留上一成功快照；同轮其他来源继续采集、投递。
+- X 帖子的 handle、status ID、canonical URL 和 `createdAt` 必须有效并相互一致；Blogs/Podcasts 必须保留原发布者、原始 HTTPS URL 和非空正文/转录。以上属于协议与身份校验，不得扩展为来源资格审核。
 
 ### 1.2 首次上线回填
 

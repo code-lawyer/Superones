@@ -31,6 +31,8 @@ type Candidate = {
   rankingWeek?: string;
   weeklyRank?: number;
   weeklyUpvotes?: number;
+  sourceName?: string;
+  publisher?: string;
 };
 
 type SicEditorial = {
@@ -44,16 +46,28 @@ export type SicRawContentItem = SicContentItem & {
   sourceMaterial?: string;
 };
 
-function text(value: unknown, limit: number) {
-  return String(value ?? "")
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;|&#160;/gi, " ")
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => {
+      const point = Number.parseInt(code, 16);
+      return Number.isInteger(point) && point <= 0x10ffff ? String.fromCodePoint(point) : "";
+    })
+    .replace(/&#([0-9]+);/g, (_match, code: string) => {
+      const point = Number.parseInt(code, 10);
+      return Number.isInteger(point) && point <= 0x10ffff ? String.fromCodePoint(point) : "";
+    })
+    .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&apos;/gi, "'")
     .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
+    .replace(/&gt;/gi, ">");
+}
+
+function text(value: unknown, limit: number) {
+  return decodeHtmlEntities(String(value ?? "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, limit);
@@ -64,7 +78,7 @@ function structuredText(value: unknown, limit: number) {
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/\r\n?/g, "\n");
   if (!/<[^>]+>/.test(source)) {
-    return source
+    return decodeHtmlEntities(source)
       .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
       .split("\n")
       .map((lineValue) => lineValue.replace(/[ \t]+$/g, ""))
@@ -76,19 +90,13 @@ function structuredText(value: unknown, limit: number) {
   const block = "\uE000";
   const line = "\uE001";
   const inline = "\uE002";
-  return source
+  return decodeHtmlEntities(source
     .replace(/<br\b[^>]*>/gi, line)
     .replace(/<li\b[^>]*>/gi, `${line}- `)
     .replace(/<\/li>/gi, "")
     .replace(/<\/?(?:p|div|section|article|h[1-6]|ul|ol|pre|blockquote)\b[^>]*>/gi, block)
     .replace(/<\/span>\s*<span\b[^>]*>/gi, inline)
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;|&#160;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
+    .replace(/<[^>]+>/g, ""))
     .replace(new RegExp(`(.)${inline}(.)`, "g"), (_match, left: string, right: string) => (
       /^[A-Za-z0-9]$/.test(left) && /^[A-Za-z0-9@#]$/.test(right)
         ? `${left} ${right}`
@@ -307,7 +315,12 @@ function approvedOrigins(source: SicSource) {
 function allowedUrl(raw: string, source: SicSource) {
   try {
     const candidate = new URL(raw, source.homeUrl);
-    if (candidate.protocol !== "https:" || !approvedOrigins(source).has(candidate.origin)) return null;
+    if (
+      candidate.protocol !== "https:"
+      || candidate.username
+      || candidate.password
+      || (source.kind !== "trusted_feed_json" && !approvedOrigins(source).has(candidate.origin))
+    ) return null;
     candidate.hash = "";
     if (candidate.hostname === "developers.google.com") candidate.searchParams.delete("hl");
     return candidate.toString();
@@ -473,6 +486,45 @@ function selectCandidates(
     .map(({ candidate }) => candidate);
 }
 
+function followBuildersJsonEntries(source: SicSource, payload: string): Candidate[] {
+  let root: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+    root = parsed as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+  const collection = source.group === "podcasts" ? "podcasts" : "blogs";
+  const expectedLookback = source.group === "podcasts" ? 336 : 72;
+  if (root.lookbackHours !== expectedLookback || !Array.isArray(root[collection])) return [];
+  if (root[collection].length > 500) throw new Error("Follow Builders feed exceeds the protocol safety limit.");
+  return root[collection].flatMap((entry): Candidate[] => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const item = entry as Record<string, unknown>;
+    const url = allowedUrl(String(item.url ?? ""), source);
+    const title = text(item.title, 500);
+    const sourceName = text(item.name ?? item.source, 180);
+    const rawMaterial = source.group === "podcasts" ? item.transcript : item.content;
+    const sourceMaterial = structuredText(rawMaterial, 12_000);
+    const summary = text(item.description, 1_400) || text(rawMaterial, 1_400);
+    if (!url || !title || !sourceName || !sourceMaterial || !summary) return [];
+    const upstreamId = source.group === "podcasts"
+      ? text(item.guid ?? url, 500)
+      : url;
+    return [{
+      title,
+      url,
+      summary,
+      sourceMaterial,
+      sourceName,
+      publisher: sourceName,
+      canonicalId: `${source.group === "podcasts" ? "follow-builders-podcast" : "follow-builders-blog"}:${upstreamId}`,
+      publishedAt: validDate(item.publishedAt),
+    }];
+  });
+}
+
 function candidatePassesAdmission(source: SicSource, candidate: Pick<Candidate, "title">) {
   return !(source.excludedTitlePatterns ?? []).some((pattern) => (
     new RegExp(pattern, "iu").test(candidate.title)
@@ -621,7 +673,8 @@ function sitemapUrls(source: SicSource, payload: string, windowFrom?: string): C
   const candidates: Candidate[] = [];
   for (const block of payload.matchAll(/<url\b[^>]*>([\s\S]*?)<\/url>/gi)) {
     const url = allowedUrl(tagValue(block[1], "loc"), source);
-    if (!url || !new URL(url).pathname.startsWith(scope)) continue;
+    const path = url ? new URL(url).pathname.replace(/\/$/, "") : "";
+    if (!url || path === scope || !path.startsWith(`${scope}/`)) continue;
     candidates.push({ title: "", url, publishedAt: validDate(tagValue(block[1], "lastmod")) });
   }
   return dedupe(candidates).filter((candidate) => (
@@ -638,10 +691,11 @@ function githubCommitEntries(source: SicSource, payload: string): Candidate[] {
     return commits.flatMap((item) => {
       const commit = item.commit as Record<string, unknown> | undefined;
       const url = allowedUrl(String(item.html_url ?? ""), source);
-      const title = text(commit?.message, 500).split("\n")[0];
+      const material = structuredText(commit?.message, 12_000);
+      const title = text(material, 500).split("\n")[0];
       if (!url || !title) return [];
       const author = commit?.author as Record<string, unknown> | undefined;
-      return [{ title, url, summary: source.rationale, publishedAt: validDate(author?.date) }];
+      return [{ title, url, summary: text(material, 1_400), sourceMaterial: material, publishedAt: validDate(author?.date) }];
     });
   } catch {
     return [];
@@ -702,6 +756,14 @@ async function collectSource(
   let candidates: Candidate[];
   if (source.id === "hugging-face-daily-papers") {
     candidates = await collectHuggingFacePapers(source, fetcher, payload, endpoint);
+  } else if (source.kind === "trusted_feed_json") {
+    const parsed = JSON.parse(payload) as { generatedAt?: unknown };
+    const generatedAt = validDate(parsed.generatedAt);
+    const staleHours = source.group === "podcasts" ? 360 : 96;
+    if (!generatedAt || Date.parse(generatedAt) < Date.parse(collectedAt) - staleHours * 60 * 60 * 1000) {
+      throw new Error(`Follow Builders ${source.group} feed is stale or missing generatedAt.`);
+    }
+    candidates = followBuildersJsonEntries(source, payload);
   } else if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
     candidates = xmlEntries(source, payload);
   } else if (source.kind === "official_api" && source.id === "dair-ai-papers-of-the-week") {
@@ -722,17 +784,19 @@ async function collectSource(
     candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
   }
   const admittedCandidates = candidates.filter((candidate) => candidatePassesAdmission(source, candidate));
-  const selectedCandidates = source.id === "hugging-face-daily-papers"
+  const selectedCandidates = source.id === "hugging-face-daily-papers" || source.kind === "trusted_feed_json"
     ? dedupe(admittedCandidates)
     : selectCandidates(admittedCandidates, windowFrom, runMode);
-  const items: SicRawContentItem[] = selectedCandidates.map((candidate) => ({
+  const items: SicRawContentItem[] = selectedCandidates.filter((candidate) => (
+    Boolean(candidate.summary && candidate.sourceMaterial)
+  )).map((candidate) => ({
     id: createHash("sha256").update(candidate.canonicalId ?? `${source.id}:${candidate.url}`).digest("hex"),
     sourceId: source.id,
     group: source.group,
-    sourceName: source.name,
-    publisher: source.publisher,
+    sourceName: candidate.sourceName || source.name,
+    publisher: candidate.publisher || source.publisher,
     title: candidate.title,
-    summary: candidate.summary || source.rationale,
+    summary: candidate.summary as string,
     url: candidate.url,
     publishedAt: candidate.publishedAt ?? null,
     collectedAt,
@@ -744,7 +808,6 @@ async function collectSource(
     provenanceStatus: candidate.canonicalId ? "verified" : "declared",
     sourceMaterial: candidate.sourceMaterial,
   }));
-  for (const item of items) item.sourceMaterial = item.sourceMaterial || item.summary;
   return { items, materialFailures: 0 };
 }
 
@@ -847,16 +910,17 @@ function validateRawCollection(value: unknown, options: {
     const url = allowedUrl(String(raw.url ?? ""), source);
     const title = text(raw.title, 500);
     const summary = text(raw.summary, 1_400);
-    if (!url || !title) return [];
+    const sourceMaterial = structuredText(raw.sourceMaterial, 12_000);
+    if (!url || !title || !summary || !sourceMaterial) return [];
     return [{
       id: createHash("sha256").update(text(raw.canonicalId, 180) || `${source.id}:${url}`).digest("hex"),
       sourceId: source.id,
       group: source.group,
-      sourceName: source.name,
-      publisher: source.publisher,
+      sourceName: source.kind === "trusted_feed_json" ? text(raw.sourceName, 180) : source.name,
+      publisher: source.kind === "trusted_feed_json" ? text(raw.publisher, 180) : source.publisher,
       title,
-      summary: summary || source.rationale,
-      sourceMaterial: structuredText(raw.sourceMaterial, 12_000) || undefined,
+      summary,
+      sourceMaterial,
       url,
       publishedAt: validDate(raw.publishedAt),
       collectedAt,
@@ -941,6 +1005,7 @@ export const sicCollectorTestUtils = {
   rankHuggingFacePaperRecords,
   selectCandidates,
   candidatePassesAdmission,
+  followBuildersJsonEntries,
   isoWeek,
   huggingFaceWeeklyEndpoint,
 };

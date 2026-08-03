@@ -308,6 +308,50 @@ class CollectorContractTests(unittest.TestCase):
         self.assertEqual(first[0]["transportProvider"], "zarazhangrui/follow-builders")
         self.assertEqual(first[0]["discoveryPath"], "follow-builders:x:2083439562437673053")
 
+    def test_follow_builders_feed_is_consumed_as_one_trusted_upstream_selection(self):
+        source = {
+            "id": "source-follow-builders-x",
+            "name": "Follow Builders X",
+            "channelType": "x",
+            "sourceStream": "roadside",
+            "contentGroup": "roadside",
+            "originPlatform": "x",
+            "connector": "follow-builders-x",
+            "aggregator": "zarazhangrui/follow-builders",
+            "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+            "contentCapability": "feed-content",
+            "evidenceNature": "social_community",
+            "staleAfterHours": 36,
+            "maxAccounts": 100,
+            "maxItemsPerAccount": 20,
+            "maxItemsPerFeed": 2000,
+        }
+        payload = {
+            "generatedAt": "2026-08-01T07:07:44Z",
+            "lookbackHours": 24,
+            "x": [
+                {"name": "Swyx", "handle": "swyx", "tweets": [{
+                    "id": "2083439562437673053", "text": "Builder note.",
+                    "createdAt": "2026-08-01T06:27:54Z",
+                    "url": "https://x.com/swyx/status/2083439562437673053",
+                }]},
+                {"name": "Google Labs", "handle": "GoogleLabs", "tweets": [{
+                    "id": "2083439562437673054", "text": "Lab note.",
+                    "createdAt": "2026-08-01T06:30:00Z",
+                    "url": "https://x.com/GoogleLabs/status/2083439562437673054",
+                }]},
+            ],
+        }
+        start = datetime(2026, 7, 31, 8, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, 8, tzinfo=timezone.utc)
+
+        with patch("collector.feed_collector.fetch_json", return_value=payload):
+            records = collect_follow_builders_x(source, start, end)
+
+        self.assertEqual([item["originalPublisher"] for item in records], ["Swyx", "Google Labs"])
+        self.assertTrue(all(item["sourceChannelId"] == "source-follow-builders-x" for item in records))
+        self.assertTrue(all(item["transportProvider"] == "zarazhangrui/follow-builders" for item in records))
+
     def test_follow_builders_rejects_stale_or_oversized_feeds(self):
         source = {
             "id": "source-follow-builders-x-swyx",

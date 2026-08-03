@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { activeEvents, compileInformationBatch, meetsEventThreshold, withOneRetry, type EditorialPort } from "../lib/content-compiler.ts";
 import type { InboundContentBatch, InformationEnvelope } from "../lib/content-contract.ts";
-import { ModelRequestError } from "../lib/openai-compatible-client.ts";
+import { ModelRequestError, ModelResponseError } from "../lib/openai-compatible-client.ts";
 import { SOURCE_ROLES, type EventRecord, type InformationItem, type SourceRole } from "../lib/types.ts";
 
 function envelope(index: number, publisher: string, sourceRole: SourceRole): InformationEnvelope {
@@ -189,6 +189,43 @@ test("model operation retries exactly once", async () => {
   let attempts = 0;
   await assert.rejects(() => withOneRetry(async () => { attempts += 1; throw new Error("down"); }), /down/);
   assert.equal(attempts, 2);
+});
+
+test("invalid model JSON retries locally instead of failing the whole batch", async () => {
+  let attempts = 0;
+  const result = await withOneRetry(async () => {
+    attempts += 1;
+    if (attempts === 1) throw new ModelResponseError("invalid JSON");
+    return "recovered";
+  });
+  assert.equal(result, "recovered");
+  assert.equal(attempts, 2);
+});
+
+test("invalid batched model JSON falls back to per-record editorial", async () => {
+  const item = envelope(1, "A", "官方");
+  let translated = 0;
+  const result = await compileInformationBatch({
+    batch: batch([item]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial({
+      async processInformationBatch() {
+        throw new ModelResponseError("invalid JSON");
+      },
+      async translateInformation() {
+        translated += 1;
+        return {
+          translatedTitle: "恢复后的标题",
+          summary: "恢复后的摘要",
+          translatedContent: "恢复后的正文",
+        };
+      },
+    }),
+  });
+  assert.equal(translated, 1);
+  assert.equal(result.information.length, 1);
+  assert.equal(result.quarantine.length, 0);
 });
 
 test("missing batched editorial results fall back to single-record processing", async () => {

@@ -4,18 +4,18 @@ import { listApprovedSicSources, listCollectableSicSources, listSicSources } fro
 
 test("SiC source registry contains the approved fixed source catalog", () => {
   const sources = listSicSources();
-  assert.equal(sources.length, 38);
+  assert.equal(sources.length, 40);
   assert.equal(sources.filter((source) => source.group === "papers").length, 2);
-  assert.equal(sources.filter((source) => source.group === "documents").length, 18);
+  assert.equal(sources.filter((source) => source.group === "documents").length, 19);
   assert.equal(sources.filter((source) => source.group === "courses").length, 8);
-  assert.equal(sources.filter((source) => source.group === "podcasts").length, 10);
-  assert.equal(listApprovedSicSources().length, 26);
-  assert.equal(listCollectableSicSources().length, 26);
-  assert.equal(sources.filter((source) => source.status === "retired").length, 11);
+  assert.equal(sources.filter((source) => source.group === "podcasts").length, 11);
+  assert.equal(listApprovedSicSources().length, 20);
+  assert.equal(listCollectableSicSources().length, 20);
+  assert.equal(sources.filter((source) => source.status === "retired").length, 19);
   assert.equal(sources.filter((source) => source.status === "pending_review").length, 1);
   assert.ok(sources.find((source) => source.id === "dair-ai-papers-of-the-week")?.statusReason);
   assert.ok(listCollectableSicSources().every((source) => (
-    ["official_rss", "official_atom", "official_sitemap", "official_api", "official_channel", "hosted_podcast"].includes(source.kind)
+    ["official_rss", "official_atom", "official_sitemap", "official_api", "official_channel", "hosted_podcast", "trusted_feed_json"].includes(source.kind)
   )));
   assert.ok([
     "anthropic-engineering",
@@ -28,6 +28,8 @@ test("SiC source registry contains the approved fixed source catalog", () => {
     "ai-and-i-every-podcast",
   ].every((id) => sources.find((source) => source.id === id)?.failureMode === "isolated"));
   assert.ok((sources.find((source) => source.id === "claude-blog")?.excludedTitlePatterns?.length ?? 0) > 0);
+  assert.equal(sources.find((source) => source.id === "follow-builders-blogs")?.status, "approved");
+  assert.equal(sources.find((source) => source.id === "follow-builders-podcasts")?.status, "approved");
   assert.ok(sources.every((source) => source.rationale.length > 0));
   assert.ok(sources.every((source) => source.endpoint.startsWith("https://")));
 });

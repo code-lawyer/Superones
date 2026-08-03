@@ -388,69 +388,39 @@ for (const source of institutionalNewsRegistry.sources.filter((item) => item.sta
 
 if (
   !followBuildersRegistry
-  || followBuildersRegistry.version !== 1
-  || !Array.isArray(followBuildersRegistry.accounts)
+  || followBuildersRegistry.version !== 2
+  || !followBuildersRegistry.feeds?.x
   || followBuildersRegistry.failureMode !== "isolated"
-  || !String(followBuildersRegistry.upstream?.feedUrl ?? "").startsWith("https://raw.githubusercontent.com/")
+  || !String(followBuildersRegistry.feeds.x.url ?? "").startsWith("https://raw.githubusercontent.com/")
 ) {
-  throw new Error("Follow Builders registry must contain a version 1 account list, isolated failure mode, and an HTTPS raw feed URL.");
+  throw new Error("Follow Builders registry must contain version 2 trusted central feeds and isolated failure mode.");
 }
+const followBuildersX = followBuildersRegistry.feeds.x;
 if (
-  !Number.isInteger(followBuildersRegistry.staleAfterHours)
-  || followBuildersRegistry.staleAfterHours < 24
-  || followBuildersRegistry.staleAfterHours > 72
-  || followBuildersRegistry.maxAccounts !== followBuildersRegistry.accounts.length
-  || !Number.isInteger(followBuildersRegistry.maxItemsPerAccount)
-  || followBuildersRegistry.maxItemsPerAccount < 1
-  || followBuildersRegistry.maxItemsPerAccount > 3
-  || followBuildersRegistry.maxItemsPerFeed !== followBuildersRegistry.maxAccounts * followBuildersRegistry.maxItemsPerAccount
+  !Number.isInteger(followBuildersX.staleAfterHours)
+  || followBuildersX.staleAfterHours < followBuildersX.lookbackHours
+  || !Number.isInteger(followBuildersX.maxAccounts)
+  || !Number.isInteger(followBuildersX.maxItemsPerAccount)
+  || !Number.isInteger(followBuildersX.maxItemsPerFeed)
 ) {
-  throw new Error("Follow Builders registry limits are invalid.");
+  throw new Error("Follow Builders X protocol safety limits are invalid.");
 }
-const followBuildersHandles = new Set();
-for (const account of followBuildersRegistry.accounts) {
-  const handle = normalizeXHandle(account.handle);
-  if (
-    !handle
-    || followBuildersHandles.has(handle)
-    || !["approved", "excluded"].includes(account.status)
-    || !["person", "organization"].includes(account.publisherKind)
-    || (account.status === "approved" && account.publisherKind !== "person")
-    || (account.status === "excluded" && !String(account.reason ?? "").trim())
-  ) {
-    throw new Error("Follow Builders accounts require unique handles, explicit status, and person-only roadside approval.");
-  }
-  followBuildersHandles.add(handle);
-}
-
-const activeXHandles = new Set(sources
-  .filter((source) => source.originPlatform === "x")
-  .map((source) => normalizeXHandle(source.channelIdentifier)));
-let followBuildersDuplicates = 0;
-let followBuildersAdded = 0;
-for (const account of followBuildersRegistry.accounts.filter((item) => item.status === "approved")) {
-  const handle = normalizeXHandle(account.handle);
-  if (activeXHandles.has(handle)) {
-    followBuildersDuplicates += 1;
-    continue;
-  }
-  const idHandle = handle.replace(/[^a-z0-9_]+/g, "-");
-  sources.push({
-    id: `source-follow-builders-x-${idHandle}`,
-    identity: `x:${handle}`,
-    name: account.name,
+sources.push({
+    id: "source-follow-builders-x",
+    identity: "feed:follow-builders:x",
+    name: "Follow Builders X",
     role: "评论",
-    ownerEntity: `person:${idHandle}`,
-    publisherKind: "person",
+    ownerEntity: "aggregator:follow-builders",
+    publisherKind: "aggregator",
     evidenceNature: "social_community",
     classificationConfidence: "high",
-    classificationSource: "curated_follow_builders_registry",
+    classificationSource: "trusted_follow_builders_feed",
     language: "en",
     primaryLanguage: "en",
     geography: "unknown",
     channelType: "x",
-    channelIdentifier: account.handle,
-    homeUrl: `https://x.com/${account.handle}`,
+    channelIdentifier: "",
+    homeUrl: "https://github.com/zarazhangrui/follow-builders",
     evidenceEligible: true,
     contentCapability: "feed-content",
     discoveredFrom: [{
@@ -464,18 +434,15 @@ for (const account of followBuildersRegistry.accounts.filter((item) => item.stat
     provenanceStatus: "verified",
     originPlatform: "x",
     authorityTier: "editorial_voice",
-    endpoint: followBuildersRegistry.upstream.feedUrl,
+    endpoint: followBuildersX.url,
     connector: "follow-builders-x",
     aggregator: "zarazhangrui/follow-builders",
     failureMode: "isolated",
-    staleAfterHours: followBuildersRegistry.staleAfterHours,
-    maxAccounts: followBuildersRegistry.maxAccounts,
-    maxItemsPerAccount: followBuildersRegistry.maxItemsPerAccount,
-    maxItemsPerFeed: followBuildersRegistry.maxItemsPerFeed,
+    staleAfterHours: followBuildersX.staleAfterHours,
+    maxAccounts: followBuildersX.maxAccounts,
+    maxItemsPerAccount: followBuildersX.maxItemsPerAccount,
+    maxItemsPerFeed: followBuildersX.maxItemsPerFeed,
   });
-  activeXHandles.add(handle);
-  followBuildersAdded += 1;
-}
 
 sources.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
 pending.sort((left, right) => left.channelType.localeCompare(right.channelType) || left.name.localeCompare(right.name, "zh-CN"));
@@ -517,7 +484,7 @@ const bundle = {
   generatedAt: new Date().toISOString(),
   registryGeneratedAt: registry.generatedAt,
   registryAuditedAt: registry.audit?.checkedAt ?? null,
-  policy: "Approved news publications, official newsrooms and project releases enter information. Verified people and personal blogs enter roadside. Follow Builders contributes a deduplicated, person-only X supplement through an isolated adapter; its institutional X accounts are excluded. Hacker News and Lobsters are retired. Approved deep research, engineering publications, and podcasts enter SiC and never duplicate into information or roadside. GitHub user activity is not published speech. Unknown publishers and unresolved canonical URLs are quarantined.",
+  policy: "Approved direct publications and project releases enter information; verified direct people enter roadside. Follow Builders central feeds are trusted as upstream source selection and are consumed without a local admission, deduplication, or content-review layer. Protocol, freshness, capacity, HTTPS, and provenance checks remain mandatory. Hacker News and Lobsters are retired. Deep research, engineering publications, and podcasts enter SiC. GitHub user activity is not published speech. Unresolved canonical URLs are quarantined.",
   counts: {
     active: sources.length,
     pending: pending.length,
@@ -527,9 +494,9 @@ const bundle = {
     documents: sources.filter((source) => source.contentGroup === "documents").length,
     roadside: sources.filter((source) => source.sourceStream === "roadside").length,
     statements: sources.filter((source) => source.sourceStream === "roadside" && source.originPlatform === "x").length,
-    followBuildersX: followBuildersAdded,
-    followBuildersXDuplicates: followBuildersDuplicates,
-    followBuildersXExcluded: followBuildersRegistry.accounts.filter((account) => account.status === "excluded").length,
+    followBuildersX: 1,
+    followBuildersXDuplicates: 0,
+    followBuildersXExcluded: 0,
     xCandidates: registry.channels.filter((channel) => channel.channelType === "x").length,
     xRunnableCandidates: registry.channels.filter((channel) => (
       channel.channelType === "x"

@@ -17,4 +17,4 @@ ADR-0009 进一步区分采集通道与频道编辑配置：information、roadsi
 
 ADR-0013 将交付进一步收敛为“境外采集并可靠投递、境内独立 worker 消费”。境外 workflow 不得触发或等待境内编辑处理。
 
-ADR-0017 下架 Hacker News/Lobsters，引入经人物去重的 Follow Builders X 补充与 SiC 官方入口，并允许这些显式隔离的补充来源失败时不阻断统一 workflow。
+ADR-0017 下架 Hacker News/Lobsters，并将 Follow Builders X/Blogs/Podcasts 三个可信中央 feed 分别接入 roadside 与 SiC；这些显式隔离的 feed 失败时不阻断统一 workflow。

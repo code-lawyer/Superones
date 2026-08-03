@@ -1,9 +1,11 @@
 import {
   CLASSIFICATION_CONFIDENCES,
+  CONTENT_CLASSES,
   EVIDENCE_NATURES,
   PUBLISHER_KINDS,
   SOURCE_ROLES,
   type ClassificationConfidence,
+  type ContentClass,
   type EvidenceNature,
   type PublisherKind,
   type SourceRole,
@@ -70,6 +72,8 @@ export type InformationEnvelope = {
   originResolution?: OriginResolution;
   transportKind?: string;
   transportProvider?: string;
+  contentClass?: ContentClass;
+  eventEligible?: boolean;
 };
 
 export type RepositoryEnvelope = {
@@ -189,6 +193,12 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   if (item.classificationConfidence !== undefined && !CLASSIFICATION_CONFIDENCES.includes(item.classificationConfidence as ClassificationConfidence)) {
     throw new ContentContractError(`information[${index}].classificationConfidence 无效。`);
   }
+  if (item.contentClass !== undefined && item.contentClass !== null && !CONTENT_CLASSES.includes(item.contentClass as ContentClass)) {
+    throw new ContentContractError(`information[${index}].contentClass 无效。`);
+  }
+  if (item.eventEligible !== undefined && item.eventEligible !== null && typeof item.eventEligible !== "boolean") {
+    throw new ContentContractError(`information[${index}].eventEligible 必须是布尔值。`);
+  }
   const completeness = item.contentCompleteness;
   if (!["metadata", "excerpt", "fulltext", "transcript"].includes(String(completeness))) {
     throw new ContentContractError(`information[${index}].contentCompleteness 无效。`);
@@ -237,7 +247,7 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     contentGroup === "roadside"
     && originPlatform === "x"
     && (
-      item.publisherKind !== "person"
+      !["person", "aggregator"].includes(String(item.publisherKind))
       || !item.originAccount
       || !item.originContentId
       || !item.originUrl
@@ -298,6 +308,8 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
     originResolution: item.originResolution as OriginResolution | undefined,
     transportKind: optionalText(item.transportKind, `information[${index}].transportKind`, 80),
     transportProvider: optionalText(item.transportProvider, `information[${index}].transportProvider`, 180),
+    contentClass: (item.contentClass ?? undefined) as ContentClass | undefined,
+    eventEligible: typeof item.eventEligible === "boolean" ? item.eventEligible : undefined,
   };
 }
 

@@ -1,12 +1,12 @@
 ---
 type: source-catalog
 status: active
-updated: 2026-08-01
+updated: 2026-08-02
 ---
 
 # Vault2077 SiC 来源目录
 
-本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 38 个来源：26 个 approved、11 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
+本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 40 个来源：20 个 approved、19 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
 
 ## 准入规则
 
@@ -36,8 +36,9 @@ updated: 2026-08-01
 | Google Research Blog | approved | [官方页面](https://research.google/blog/) |
 | Google DeepMind Blog | approved | [官方页面](https://deepmind.google/blog/) |
 | Anthropic Research | retired | [官方页面](https://www.anthropic.com/research) |
-| Anthropic Engineering | approved | [官方页面](https://www.anthropic.com/engineering) |
-| Claude Blog | approved | [官方页面](https://claude.com/blog) |
+| Anthropic Engineering | retired | [官方页面](https://www.anthropic.com/engineering) |
+| Claude Blog | retired | [官方页面](https://claude.com/blog) |
+| Follow Builders Blogs | approved | [中央 Feed](https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-blogs.json) |
 | Meta Engineering | approved | [官方页面](https://engineering.fb.com/) |
 | Microsoft Research | approved | [官方页面](https://www.microsoft.com/en-us/research/) |
 | NVIDIA Developer Blog | approved | [官方页面](https://developer.nvidia.com/blog/) |
@@ -73,18 +74,19 @@ OpenAI News 与 Anthropic News 已迁入 `config/institutional-news-registry.jso
 | --- | --- | --- |
 | Dwarkesh Podcast | approved | [官方页面](https://www.dwarkesh.com) |
 | Lex Fridman Podcast | approved | [官方页面](https://lexfridman.com/podcast/) |
-| Latent Space | approved | [官方页面](https://www.latent.space/about) |
+| Latent Space | retired | [官方页面](https://www.latent.space/about) |
 | The Cognitive Revolution | approved | [官方页面](https://www.cognitiverevolution.ai/) |
 | Google DeepMind: The Podcast | approved | [官方页面](https://deepmind.google/the-podcast/) |
-| No Priors | approved | [官方页面](https://www.nopriors.com/) |
-| Training Data | approved | [官方页面](https://trainingdata.libsyn.com/) |
-| Unsupervised Learning | approved | [官方页面](https://danielmiessler.com/podcast/) |
-| The MAD Podcast with Matt Turck | approved | [官方频道](https://www.youtube.com/@DataDrivenNYC/videos) |
-| AI & I by Every | approved | [官方播放列表](https://www.youtube.com/playlist?list=PLuMcoKK9mKgHtW_o9h5sGO2vXrffKHwJL) |
+| No Priors | retired | [官方页面](https://www.nopriors.com/) |
+| Training Data | retired | [官方页面](https://trainingdata.libsyn.com/) |
+| Unsupervised Learning | retired | [官方页面](https://danielmiessler.com/podcast/) |
+| The MAD Podcast with Matt Turck | retired | [官方频道](https://www.youtube.com/@DataDrivenNYC/videos) |
+| AI & I by Every | retired | [官方播放列表](https://www.youtube.com/playlist?list=PLuMcoKK9mKgHtW_o9h5sGO2vXrffKHwJL) |
+| Follow Builders Podcasts | approved | [中央 Feed](https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-podcasts.json) |
 
-Anthropic Engineering、Claude Blog、Latent Space、No Priors、Training Data、Unsupervised Learning、The MAD Podcast 与 AI & I 是由 Follow Builders 来源策略确认的 SiC 来源。运行时直接读取各自官方 sitemap/RSS，不依赖 Follow Builders 中央 feed；这些来源均为 `failureMode=isolated`，单源不可用时只报告和保留上一成功快照，不阻断其他来源或 workflow。
+Anthropic Engineering、Claude Blog 以及 Follow Builders 当前选择的全部博客由 `feed-blogs.json` 直接进入 SiC documents；Follow Builders 当前选择的全部播客由 `feed-podcasts.json` 直接进入 SiC podcasts。Vault2077 默认信任其上游选择，不维护逐源准入名单；两个中央 feed 均为 `failureMode=isolated`，不可用时只报告并保留上一成功快照。
 
-Claude Blog 还执行注册表中的确定性标题排除规则：`Introducing` / `Announcing` 开头以及上市、定价、促销、合作类短期公告不进入 SiC；具有长期产品、工程或方法价值的文章仍按官方 sitemap 接入。
+Follow Builders Blogs 不执行本地标题排除规则。招聘、推广或营销内容只要由上游 feed 提供就正常进入 SiC；境内编辑负责忠实翻译和摘要，不重新审核其发布资格。
 
 ## 变更规则
 

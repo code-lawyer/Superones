@@ -47,6 +47,18 @@ from src.scrapers.github import GitHubScraper  # noqa: E402
 from src.scrapers.rss import RSSScraper  # noqa: E402
 
 
+class FullContentRSSScraper(RSSScraper):
+    """Prefer content:encoded over a feed's short description."""
+
+    def _extract_content(self, entry: dict) -> str:
+        content = entry.get("content")
+        if content:
+            value = content[0].get("value", "")
+            if value:
+                return value
+        return entry.get("summary") or entry.get("description") or ""
+
+
 @dataclass
 class SourceOutcome:
     source_id: str
@@ -175,7 +187,7 @@ def horizon_scraper_for(source: dict, client: httpx.AsyncClient):
     connector = source.get("connector")
     if connector == "rss":
         config = RSSSourceConfig(name=source["name"], url=source["endpoint"], category="vault")
-        return "horizon-rss", RSSScraper([config], client)
+        return "horizon-rss", FullContentRSSScraper([config], client)
     if connector == "github-releases":
         owner, repo = source["channelIdentifier"].split("/", 1)
         config = GitHubSourceConfig(type="repo_releases", owner=owner, repo=repo, category="vault")
@@ -187,13 +199,26 @@ def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict],
     information: list[dict] = []
     rejected = 0
     for item in items:
+        url = repair_utf8_mojibake(str(item.url))
+        title = repair_utf8_mojibake(item.title)
+        overrides = {}
+        if source.get("name") == "Latent Space" or source.get("id") == "source-latent-space":
+            is_digest = title.lstrip().lower().startswith("[ainews]") or "/p/ainews-" in url.lower()
+            if is_digest:
+                overrides = {
+                    "contentClass": "digest",
+                    "eventEligible": False,
+                    "evidenceNature": "discovery_aggregate",
+                    "contentCompleteness": "fulltext",
+                }
         normalized = document(
             source,
-            repair_utf8_mojibake(str(item.url)),
-            repair_utf8_mojibake(item.title),
+            url,
+            title,
             repair_utf8_mojibake(item.content or ""),
             now_iso(item.published_at),
             repair_utf8_mojibake(item.author or ""),
+            overrides,
         )
         if normalized is None:
             rejected += 1

@@ -36,7 +36,12 @@ function batch() {
 }
 
 test("v2 contract preserves original fields and normalizes timestamps", () => {
-  const result = validateContentBatch(batch());
+  const value = batch();
+  Object.assign(value.information[0], {
+    contentClass: null,
+    eventEligible: null,
+  });
+  const result = validateContentBatch(value);
   assert.equal(result.version, 2);
   assert.equal(result.information[0].originalContent, "## Release\n\n- Original English content.");
   assert.equal(result.information[0].contentFormat, "markdown");
@@ -44,6 +49,8 @@ test("v2 contract preserves original fields and normalizes timestamps", () => {
   assert.equal(result.information[0].ownerEntity, "entity:publisher-one");
   assert.equal(result.information[0].externalUrl, "https://example.net/referenced-story");
   assert.equal(result.generatedAt, "2026-07-22T10:01:00.000Z");
+  assert.equal(result.information[0].contentClass, undefined);
+  assert.equal(result.information[0].eventEligible, undefined);
 });
 
 test("contract rejects a non-sha256 content hash", () => {

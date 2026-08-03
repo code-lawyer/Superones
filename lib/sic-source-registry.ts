@@ -27,7 +27,8 @@ export type SicSource = {
     | "official_channel"
     | "official_api"
     | "official_repository"
-    | "hosted_podcast";
+    | "hosted_podcast"
+    | "trusted_feed_json";
   failureMode?: "blocking" | "isolated";
   homeUrl: string;
   endpoint: string;

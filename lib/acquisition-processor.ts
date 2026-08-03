@@ -62,6 +62,12 @@ function boolean(payload: JsonObject, field: string) {
   throw new Error(`统一采集记录的 ${field} 无效。`);
 }
 
+function optionalBoolean(payload: JsonObject, field: string) {
+  const value = payload[field];
+  if (value === undefined || value === null) return undefined;
+  return boolean(payload, field);
+}
+
 function optionalInteger(payload: JsonObject, field: string, minimum: number) {
   const value = payload[field];
   if (value === undefined || value === null) return undefined;
@@ -143,6 +149,8 @@ export function informationFromAcquisitionRecord(record: AcquisitionRecord): Inf
     originResolution: string(payload, "originResolution", false) as InformationEnvelope["originResolution"],
     transportKind: string(payload, "transportKind", false),
     transportProvider: string(payload, "transportProvider", false),
+    contentClass: string(payload, "contentClass", false) as InformationEnvelope["contentClass"],
+    eventEligible: optionalBoolean(payload, "eventEligible"),
   };
 }
 
@@ -421,6 +429,7 @@ export function createAcquisitionBatchProcessor(input: {
       await processContent(legacy, work.payloadHash, {
         requireNoQuarantine: false,
         snapshot: {
+          contentGroup: batch.lane,
           runId: batch.runId,
           collectedAt: batch.collectedAt,
           activeSourceIds: batch.sourceRegistry

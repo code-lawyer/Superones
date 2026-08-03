@@ -330,7 +330,8 @@
     {
       "id": "anthropic-engineering",
       "group": "documents",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders blogs 中央 feed 直接承载；本地不再维护单源准入和官网抓取规则。",
       "name": "Anthropic Engineering",
       "publisher": "Anthropic",
       "kind": "official_sitemap",
@@ -343,7 +344,8 @@
     {
       "id": "claude-blog",
       "group": "documents",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders blogs 中央 feed 直接承载；本地不再执行标题营销过滤或官网 sitemap 抓取。",
       "name": "Claude Blog",
       "publisher": "Anthropic",
       "kind": "official_sitemap",
@@ -384,7 +386,8 @@
     {
       "id": "latent-space-podcast",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders podcasts 中央 feed 直接提供转录文本。",
       "name": "Latent Space",
       "publisher": "swyx and Latent.Space",
       "kind": "hosted_podcast",
@@ -422,7 +425,8 @@
     {
       "id": "no-priors-podcast",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders podcasts 中央 feed 直接提供转录文本。",
       "name": "No Priors",
       "publisher": "No Priors",
       "kind": "hosted_podcast",
@@ -438,7 +442,8 @@
     {
       "id": "training-data-podcast",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders podcasts 中央 feed 直接提供转录文本。",
       "name": "Training Data",
       "publisher": "Training Data",
       "kind": "hosted_podcast",
@@ -454,7 +459,8 @@
     {
       "id": "unsupervised-learning-podcast",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders podcasts 中央 feed 直接提供转录文本。",
       "name": "Unsupervised Learning",
       "publisher": "Daniel Miessler",
       "kind": "hosted_podcast",
@@ -471,7 +477,8 @@
     {
       "id": "mad-podcast-matt-turck",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders podcasts 中央 feed 直接提供转录文本。",
       "name": "The MAD Podcast with Matt Turck",
       "publisher": "Matt Turck",
       "kind": "hosted_podcast",
@@ -488,7 +495,8 @@
     {
       "id": "ai-and-i-every-podcast",
       "group": "podcasts",
-      "status": "approved",
+      "status": "retired",
+      "statusReason": "已由 Follow Builders podcasts 中央 feed 直接提供转录文本。",
       "name": "AI & I by Every",
       "publisher": "Every",
       "kind": "hosted_podcast",
@@ -501,6 +509,32 @@
       ],
       "admissionRule": "完整接入该节目官方 RSS 的新一期访谈；不从 Follow Builders 中央 feed 复制完整转录。",
       "rationale": "Follow Builders 发现的 AI 产品实践长内容来源，使用节目官方 RSS 独立采集。"
+    },
+    {
+      "id": "follow-builders-blogs",
+      "group": "documents",
+      "status": "approved",
+      "name": "Follow Builders Blogs",
+      "publisher": "Follow Builders selected publishers",
+      "kind": "trusted_feed_json",
+      "failureMode": "isolated",
+      "homeUrl": "https://github.com/zarazhangrui/follow-builders",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-blogs.json",
+      "admissionRule": "完整接入 Follow Builders blogs feed 当前选择的全部上游文章，不在本地增加来源审核或营销内容过滤。",
+      "rationale": "Follow Builders 负责上游选源与正文汇集；Vault2077 仅验证 feed 协议、时效、容量和 HTTPS 链接，并保留原发布者名称与原文链接。"
+    },
+    {
+      "id": "follow-builders-podcasts",
+      "group": "podcasts",
+      "status": "approved",
+      "name": "Follow Builders Podcasts",
+      "publisher": "Follow Builders selected publishers",
+      "kind": "trusted_feed_json",
+      "failureMode": "isolated",
+      "homeUrl": "https://github.com/zarazhangrui/follow-builders",
+      "endpoint": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-podcasts.json",
+      "admissionRule": "完整接入 Follow Builders podcasts feed 当前选择的全部节目与转录，不在本地维护节目准入名单。",
+      "rationale": "Follow Builders 负责上游选源与转录生成；Vault2077 仅验证 feed 协议、时效、容量和 HTTPS 链接，并保留原节目名称与原文链接。"
     }
   ]
 }

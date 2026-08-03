@@ -247,6 +247,8 @@ export function buildVaultAcquisitionBatches(input: {
           originResolution: item.originResolution,
           transportKind: item.transportKind,
           transportProvider: item.transportProvider,
+          contentClass: item.contentClass,
+          eventEligible: item.eventEligible,
         }),
       };
       values.push(record);

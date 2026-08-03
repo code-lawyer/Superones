@@ -1,41 +1,31 @@
 {
-  "version": 1,
+  "version": 2,
   "upstream": {
     "repository": "zarazhangrui/follow-builders",
-    "sourcePath": "config/default-sources.json",
-    "feedUrl": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json"
+    "sourcePath": "config/default-sources.json"
   },
+  "trustPolicy": "Follow Builders owns upstream source selection. Vault2077 consumes each published feed in full and adds no local source admission, deduplication, or content-review layer.",
   "failureMode": "isolated",
-  "staleAfterHours": 36,
-  "maxAccounts": 26,
-  "maxItemsPerAccount": 3,
-  "maxItemsPerFeed": 78,
-  "accounts": [
-    { "name": "Andrej Karpathy", "handle": "karpathy", "publisherKind": "person", "status": "approved" },
-    { "name": "Swyx", "handle": "swyx", "publisherKind": "person", "status": "approved" },
-    { "name": "Josh Woodward", "handle": "joshwoodward", "publisherKind": "person", "status": "approved" },
-    { "name": "Boris Cherny", "handle": "bcherny", "publisherKind": "person", "status": "approved" },
-    { "name": "Thibault Sottiaux", "handle": "thsottiaux", "publisherKind": "person", "status": "approved" },
-    { "name": "Peter Yang", "handle": "petergyang", "publisherKind": "person", "status": "approved" },
-    { "name": "Nan Yu", "handle": "thenanyu", "publisherKind": "person", "status": "approved" },
-    { "name": "Madhu Guru", "handle": "realmadhuguru", "publisherKind": "person", "status": "approved" },
-    { "name": "Amanda Askell", "handle": "AmandaAskell", "publisherKind": "person", "status": "approved" },
-    { "name": "Cat Wu", "handle": "_catwu", "publisherKind": "person", "status": "approved" },
-    { "name": "Thariq", "handle": "trq212", "publisherKind": "person", "status": "approved" },
-    { "name": "Google Labs", "handle": "GoogleLabs", "publisherKind": "organization", "status": "excluded", "reason": "institutional_x_not_roadside" },
-    { "name": "Amjad Masad", "handle": "amasad", "publisherKind": "person", "status": "approved" },
-    { "name": "Guillermo Rauch", "handle": "rauchg", "publisherKind": "person", "status": "approved" },
-    { "name": "Alex Albert", "handle": "alexalbert__", "publisherKind": "person", "status": "approved" },
-    { "name": "Aaron Levie", "handle": "levie", "publisherKind": "person", "status": "approved" },
-    { "name": "Ryo Lu", "handle": "ryolu_", "publisherKind": "person", "status": "approved" },
-    { "name": "Garry Tan", "handle": "garrytan", "publisherKind": "person", "status": "approved" },
-    { "name": "Matt Turck", "handle": "mattturck", "publisherKind": "person", "status": "approved" },
-    { "name": "Zara Zhang", "handle": "zarazhangrui", "publisherKind": "person", "status": "approved" },
-    { "name": "Nikunj Kothari", "handle": "nikunj", "publisherKind": "person", "status": "approved" },
-    { "name": "Peter Steinberger", "handle": "steipete", "publisherKind": "person", "status": "approved" },
-    { "name": "Dan Shipper", "handle": "danshipper", "publisherKind": "person", "status": "approved" },
-    { "name": "Aditya Agarwal", "handle": "adityaag", "publisherKind": "person", "status": "approved" },
-    { "name": "Sam Altman", "handle": "sama", "publisherKind": "person", "status": "approved" },
-    { "name": "Claude", "handle": "claudeai", "publisherKind": "organization", "status": "excluded", "reason": "institutional_x_not_roadside" }
-  ]
+  "feeds": {
+    "x": {
+      "url": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-x.json",
+      "lookbackHours": 24,
+      "staleAfterHours": 36,
+      "maxAccounts": 100,
+      "maxItemsPerAccount": 20,
+      "maxItemsPerFeed": 2000
+    },
+    "blogs": {
+      "url": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-blogs.json",
+      "lookbackHours": 72,
+      "staleAfterHours": 96,
+      "maxItemsPerFeed": 500
+    },
+    "podcasts": {
+      "url": "https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-podcasts.json",
+      "lookbackHours": 336,
+      "staleAfterHours": 360,
+      "maxItemsPerFeed": 500
+    }
+  }
 }

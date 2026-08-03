@@ -269,7 +269,7 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         "originalPublisher": as_text(overrides.get("originalPublisher") or source.get("name"), 180),
         "ownerEntity": as_text(source.get("ownerEntity"), 180) or None,
         "publisherKind": overrides.get("publisherKind") or source.get("publisherKind"),
-        "evidenceNature": source.get("evidenceNature"),
+        "evidenceNature": overrides.get("evidenceNature") or source.get("evidenceNature"),
         "classificationConfidence": source.get("classificationConfidence"),
         "originalAuthor": as_text(author, 180) or None,
         "sourceRole": source_role(source),
@@ -281,7 +281,7 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         "originalTitle": original_title,
         "originalContent": original_content or None,
         "contentFormat": content_format,
-        "contentCompleteness": {
+        "contentCompleteness": overrides.get("contentCompleteness") or {
             "feed-content": "excerpt",
             "structured-data": "metadata",
             "metadata": "metadata",
@@ -294,6 +294,8 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         "itemKind": overrides.get("itemKind") or source.get("itemKind") or "article",
         "provenanceRole": overrides.get("provenanceRole") or source.get("provenanceRole") or "canonical",
         "provenanceStatus": overrides.get("provenanceStatus") or source.get("provenanceStatus") or "verified",
+        "contentClass": overrides.get("contentClass") or source.get("contentClass"),
+        "eventEligible": overrides.get("eventEligible") if "eventEligible" in overrides else source.get("eventEligible"),
         **source_provenance,
     }
 
@@ -398,8 +400,10 @@ def _follow_builders_payload(source: dict, end: datetime) -> dict:
 def collect_follow_builders_x(source: dict, start: datetime, end: datetime) -> list[dict]:
     payload = _follow_builders_payload(source, end)
     expected_handle = normalize_x_handle(source.get("channelIdentifier"))
-    account = next((item for item in payload["x"] if normalize_x_handle(item.get("handle")) == expected_handle), None)
-    if account is None:
+    accounts = payload["x"]
+    if expected_handle:
+        accounts = [item for item in accounts if normalize_x_handle(item.get("handle")) == expected_handle]
+    if expected_handle and not accounts:
         upstream_errors = payload.get("errors") or []
         if upstream_errors:
             summary = "; ".join(upstream_errors)[:500]
@@ -409,51 +413,54 @@ def collect_follow_builders_x(source: dict, start: datetime, end: datetime) -> l
         return []
 
     results = []
-    for post in account["tweets"]:
-        if not isinstance(post, dict):
-            raise ValueError(f"Follow Builders account @{expected_handle} contains an invalid post.")
-        post_id = str(post.get("id") or "")
-        original_url = str(post.get("url") or "")
-        published_at = str(post.get("createdAt") or "")
-        published_time = parse_time(published_at)
-        content = as_structured_text(post.get("text"), 48000)
-        try:
-            actual_handle, actual_post_id = parse_x_status_identity(original_url)
-        except ValueError as error:
-            raise ValueError(
-                f"Follow Builders account @{expected_handle} returned a post with invalid identity.",
-            ) from error
-        if (
-            not post_id.isdigit()
-            or actual_handle != expected_handle
-            or actual_post_id != post_id
-            or published_time is None
-            or not content
-        ):
-            raise ValueError(
-                f"Follow Builders account @{expected_handle} returned a post with invalid identity or publication time.",
+    for account in accounts:
+        account_handle = normalize_x_handle(account.get("handle"))
+        account_name = as_text(account.get("name") or account_handle, 180)
+        account_source = {**source, "channelIdentifier": account_handle, "name": account_name}
+        for post in account["tweets"]:
+            if not isinstance(post, dict):
+                raise ValueError(f"Follow Builders account @{account_handle} contains an invalid post.")
+            post_id = str(post.get("id") or "")
+            original_url = str(post.get("url") or "")
+            published_at = str(post.get("createdAt") or "")
+            published_time = parse_time(published_at)
+            content = as_structured_text(post.get("text"), 48000)
+            try:
+                actual_handle, actual_post_id = parse_x_status_identity(original_url)
+            except ValueError as error:
+                raise ValueError(
+                    f"Follow Builders account @{account_handle} returned a post with invalid identity.",
+                ) from error
+            if (
+                not post_id.isdigit()
+                or actual_handle != account_handle
+                or actual_post_id != post_id
+                or published_time is None
+                or not content
+            ):
+                raise ValueError(
+                    f"Follow Builders account @{account_handle} returned a post with invalid identity or publication time.",
+                )
+            if not start < published_time <= end:
+                continue
+            item = document(
+                account_source,
+                original_url,
+                as_text(content.splitlines()[0], 500),
+                content,
+                published_at,
+                account_name,
+                {
+                    "discoveryPath": f"follow-builders:x:{post_id}",
+                    "originalPublisher": account_name,
+                    "contentGroup": "roadside",
+                    "itemKind": "personal_post",
+                    "provenanceRole": "canonical",
+                    "provenanceStatus": "verified",
+                },
             )
-        if not start < published_time <= end:
-            continue
-        item = document(
-            source,
-            original_url,
-            as_text(content.splitlines()[0], 500),
-            content,
-            published_at,
-            source.get("name", ""),
-            {
-                "discoveryPath": f"follow-builders:x:{post_id}",
-                "originalPublisher": source.get("name"),
-                "publisherKind": "person",
-                "contentGroup": "roadside",
-                "itemKind": "personal_post",
-                "provenanceRole": "canonical",
-                "provenanceStatus": "verified",
-            },
-        )
-        if item:
-            results.append(item)
+            if item:
+                results.append(item)
     return results
 
 

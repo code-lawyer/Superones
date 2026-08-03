@@ -82,8 +82,8 @@ const statementMethods: Record<string, MethodDefinition> = {
   },
   "follow-builders-x": {
     id: "follow-builders-x",
-    label: "Follow Builders / X 补充",
-    description: "读取经本地白名单约束和账号去重的 Follow Builders X 日快照；该适配器失败只报告，不阻断其他来源。",
+    label: "Follow Builders / X 中央 Feed",
+    description: "完整读取 Follow Builders 当前选择的 X 日快照，不维护本地账号白名单或接入前去重；该适配器失败只报告，不阻断其他来源。",
   },
 };
 
@@ -272,7 +272,7 @@ function statementItem(source: InformationSource): SourceCatalogItem {
 }
 
 function sicMethod(kind: string) {
-  if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(kind)) return sicMethods.feed;
+  if (["official_rss", "official_atom", "official_channel", "hosted_podcast", "trusted_feed_json"].includes(kind)) return sicMethods.feed;
   if (kind === "official_sitemap") return sicMethods.sitemap;
   if (kind === "official_api") return sicMethods.github;
   return sicMethods.page;

@@ -47,7 +47,7 @@ test("runtime bundle uses deterministic content groups and excludes misplaced so
   assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "podcast"));
   assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "information").length, 17);
   assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "documents").length, 0);
-  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "roadside").length, 56);
+  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "roadside").length, 36);
   assert.ok(bundle.sources
     .filter((source: { channelType: string }) => source.channelType === "community")
     .every((source: { provenanceRole: string; provenanceStatus: string }) => (

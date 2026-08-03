@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { InformationEnvelope, InboundContentBatch } from "./content-contract.ts";
 import { isEventInput } from "./content-provenance.ts";
 import { cleanEditorialTitle } from "./editorial-title.ts";
-import { isEditorialInfrastructureError } from "./editorial-failure.ts";
+import { isFatalEditorialInfrastructureError } from "./editorial-failure.ts";
 import { normalizeStructuredContent } from "./content-markup.ts";
 import type { EventCategory, EventRecord, InformationItem, QuarantinedContent } from "./types.ts";
 
@@ -68,7 +68,7 @@ export async function withOneRetry<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (error) {
-    if (isEditorialInfrastructureError(error)) throw error;
+    if (isFatalEditorialInfrastructureError(error)) throw error;
     return operation();
   }
 }
@@ -275,7 +275,7 @@ export async function compileInformationBatch(input: {
       const results = await editorial.processInformationBatch({ information: batchEligible, activeEvents: active, recentIndependent });
       for (const result of results) batchedResults.set(result.idempotencyKey, result);
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       // Missing batched results fall back to the single-record editorial path.
     }
   }
@@ -298,7 +298,7 @@ export async function compileInformationBatch(input: {
         translated = validInformationEditorial(await withOneRetry(() => editorial.translateInformation(envelope)));
       }
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       quarantineRecords.push(quarantine(batch, "information", envelope.idempotencyKey, "INFORMATION_EDITORIAL_FAILED", error instanceof Error ? error.message : "资讯翻译或摘要失败。"));
       continue;
     }
@@ -338,9 +338,11 @@ export async function compileInformationBatch(input: {
       originResolution: envelope.originResolution,
       transportKind: envelope.transportKind,
       transportProvider: envelope.transportProvider,
+      contentClass: envelope.contentClass,
+      eventEligible: envelope.eventEligible,
     };
     try {
-      if (!isEventInput(envelope.contentGroup ?? "information")) {
+      if (!isEventInput(envelope.contentGroup ?? "information") || envelope.eventEligible === false) {
         information.push(item);
         newSlugs.add(item.slug);
         existingKeys.add(canonicalKey);
@@ -359,7 +361,7 @@ export async function compileInformationBatch(input: {
         item.eventCandidateKey = clamp(decision.candidateKey, 120);
       }
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       quarantineRecords.push(quarantine(batch, "event", envelope.idempotencyKey, "EVENT_CLASSIFICATION_FAILED", error instanceof Error ? error.message : "事件归类失败，资讯已隔离。"));
       // Event classification is enrichment. A translated source record remains
       // publishable as an independent item when that enrichment fails.
@@ -389,7 +391,7 @@ export async function compileInformationBatch(input: {
     try {
       events[index] = eventFromEditorial(await withOneRetry(() => editorial.composeEvent({ information: items, previous })), items, batch.generatedAt, previous);
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       for (const item of items) {
         if (knownSources.has(item.slug)) continue;
         item.eventSlugs = [];
@@ -419,7 +421,7 @@ export async function compileInformationBatch(input: {
         delete item.eventCandidateKey;
       }
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       quarantineRecords.push(quarantine(batch, "event", candidateKey, "EVENT_COMPOSITION_FAILED", error instanceof Error ? error.message : "新事件生成失败。"));
     }
   }

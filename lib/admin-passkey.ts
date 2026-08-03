@@ -23,9 +23,13 @@ import { PRODUCTION_ADMIN_EMAIL } from "./admin-profile.ts";
 import { configuredAdminOrigin } from "./admin-request-security.ts";
 import { withPersistenceTransaction } from "./state-document-store.ts";
 
-// Let the browser negotiate a platform or security-key PIN. Verification stays
-// fail-closed below by requiring the authenticator's signed UV flag.
-const PASSKEY_BROWSER_USER_VERIFICATION = "preferred" as const;
+// Require the platform or security key to complete PIN/biometric verification
+// and return the authenticator's signed UV flag for every ceremony.
+const PASSKEY_BROWSER_USER_VERIFICATION = "required" as const;
+
+function passkeyVerificationError(code: string, message: string) {
+  return Object.assign(new Error(message), { code });
+}
 
 function passkeyConfiguration() {
   const origin = configuredAdminOrigin() || "http://localhost:3000";
@@ -82,7 +86,7 @@ export async function finishAdminPasskeyRegistration(input: {
     expectedOrigin: origin,
     expectedRPID: rpID,
     requireUserPresence: true,
-    requireUserVerification: false,
+    requireUserVerification: true,
   });
   if (!verification.verified || !verification.registrationInfo.userVerified) {
     throw new Error("Passkey 注册必须完成设备 PIN 或生物识别验证。");
@@ -130,10 +134,12 @@ export async function finishAdminPasskeyAuthentication(input: {
 }) {
   const ceremony = await getAdminPasskeyCeremony(input.ceremonyId, input.purpose);
   if (!ceremony || (input.actorHash && ceremony.actorHash !== input.actorHash)) {
-    throw new Error("Passkey 验证会话无效或已过期。");
+    throw passkeyVerificationError("webauthn-ceremony-invalid", "Passkey 验证会话无效或已过期。");
   }
   const passkey = await getAdminPasskey(input.response.id);
-  if (!passkey) throw new Error("Passkey 不存在或已撤销。");
+  if (!passkey) {
+    throw passkeyVerificationError("webauthn-credential-not-found", "Passkey 不存在或已撤销。");
+  }
   const credential = storedAdminPasskeyCredential(passkey);
   const { origin, rpID } = passkeyConfiguration();
   const verification = await verifyAuthenticationResponse({
@@ -142,10 +148,13 @@ export async function finishAdminPasskeyAuthentication(input: {
     expectedOrigin: origin,
     expectedRPID: rpID,
     credential,
-    requireUserVerification: false,
+    requireUserVerification: true,
   });
-  if (!verification.verified || !verification.authenticationInfo.userVerified) {
-    throw new Error("Passkey 登录必须完成设备 PIN 或生物识别验证。");
+  if (!verification.verified) {
+    throw passkeyVerificationError("webauthn-signature-invalid", "Passkey 签名校验失败。");
+  }
+  if (!verification.authenticationInfo.userVerified) {
+    throw passkeyVerificationError("webauthn-user-verification-missing", "Passkey 登录必须完成设备 PIN 或生物识别验证。");
   }
   await completeAdminPasskeyAuthentication({
     ceremonyId: ceremony.id,

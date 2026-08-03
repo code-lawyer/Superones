@@ -22,8 +22,8 @@ updated: 2026-08-02
 - [ ] 只有一个境外采集 workflow 文件和一个规范接收协议。
 - [ ] information、roadside、sic、rankings 四通道按规定节奏独立运行并可观测。
 - [ ] 机构新闻注册表与 SiC 档案注册表不存在 endpoint/原始内容双重生产路由；混合 Feed 保持待审。
-- [ ] Hacker News 与 Lobsters 已从运行时 bundle 排除；Follow Builders X 只接入人物白名单、已与现有句柄去重，并还原原始作者与 canonical X URL。
-- [ ] Follow Builders 中央 feed、相关官方博客或播客分别断开时，受影响来源会告警并保留上一成功快照，其他来源照常投递，workflow 仍成功结束。
+- [ ] Hacker News 与 Lobsters 已从运行时 bundle 排除；Follow Builders X 中央 feed 全量接入，并还原每条记录的原始账号与 canonical X URL，不维护本地账号白名单。
+- [ ] Follow Builders X、Blogs、Podcasts 任一中央 feed 断开时，受影响 feed 会告警并保留上一成功快照，其他来源照常投递，workflow 仍成功结束。
 - [ ] Frontier 境内 GitHub 快速路径只读取当前参赛名单中的公开仓库，具备服务端凭证、短超时、限流、缓存/条件请求和审计记录。
 - [ ] Frontier 直读失败会保持待验证或上一成功值，并通过 rankings 公开任务异步回退；普通页面和浏览器不直接请求 GitHub。
 - [ ] 私人邮箱和运营资料不会进入采集器、公开任务或构建产物。

@@ -4,7 +4,7 @@
     {
       "id": "source-1b82e976c3e758ea",
       "reason": "retired_by_follow_builders_source_strategy",
-      "note": "Hacker News RSS is retired together with the community API source. Follow Builders supplies a bounded, curated X supplement instead of a community discovery stream."
+      "note": "Hacker News RSS is retired together with the community API source. Follow Builders now supplies one trusted central X feed; its upstream selection is not duplicated into this local exclusion policy."
     },
     {
       "id": "source-c0499a0dc713d290",

@@ -3,7 +3,7 @@ import "server-only";
 import { compileInformationBatch, type BatchedInformationEditorial, type EditorialPort, type EventDecision, type EventEditorial, type InformationEditorial } from "./content-compiler.ts";
 import { validateContentBatch, type InformationEnvelope } from "./content-contract.ts";
 import { getStoredContent, replaceStoredContent, type ContentSourceReport } from "./content-store.ts";
-import { isEditorialInfrastructureError } from "./editorial-failure.ts";
+import { isFatalEditorialInfrastructureError } from "./editorial-failure.ts";
 import {
   createEditorialProfileClient,
   loadEditorialProfileConfig,
@@ -178,7 +178,7 @@ function llmEditorialPort(): EditorialPort {
         try {
           return await complete();
         } catch (error) {
-          if (isEditorialInfrastructureError(error)) throw error;
+          if (isFatalEditorialInfrastructureError(error)) throw error;
           await new Promise((resolve) => setTimeout(resolve, 1_500));
           return complete();
         }
@@ -195,7 +195,7 @@ function llmEditorialPort(): EditorialPort {
           if (missing.length === 0) return results;
           if (missing.length < chunk.length) return [...results, ...await recoverChunk(missing)];
         } catch (error) {
-          if (isEditorialInfrastructureError(error)) throw error;
+          if (isFatalEditorialInfrastructureError(error)) throw error;
           if (chunk.length === 1) {
             console.error("资讯批量编辑降级到单条后仍失败。", {
               idempotencyKey: chunk[0].idempotencyKey,
@@ -290,6 +290,7 @@ export function processInboundContent(
   options: {
     requireNoQuarantine?: boolean;
     snapshot?: {
+      contentGroup: "information" | "roadside";
       runId: string;
       collectedAt: string;
       sourceReports: ContentSourceReport[];
@@ -409,6 +410,7 @@ export function processInboundContent(
       updatedAt: batch.generatedAt,
       ...(options.snapshot ? {
         snapshot: {
+          contentGroup: options.snapshot.contentGroup,
           runId: options.snapshot.runId,
           collectedAt: options.snapshot.collectedAt,
           sources: snapshotSources,

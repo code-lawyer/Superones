@@ -21,20 +21,21 @@ test("X policy is fail-closed, explicit, and contains no duplicate handles", () 
   assert.ok([...policy.accounts.keys()].every((handle) => registered.has(handle)));
 });
 
-test("runtime X stream contains only policy-approved authoritative accounts", () => {
+test("runtime X stream keeps direct policy sources plus one trusted Follow Builders feed", () => {
   const policy = compileXSourcePolicy(policyInput);
-  const supplemental = new Set(followBuilders.accounts
-    .filter((account: { status: string; publisherKind: string }) => account.status === "approved" && account.publisherKind === "person")
-    .map((account: { handle: string }) => normalizeXHandle(account.handle)));
   const statements = bundle.sources.filter((source: { sourceStream: string; originPlatform: string }) => source.sourceStream === "roadside" && source.originPlatform === "x");
-  const handles = statements.map((source: { channelIdentifier: string }) => normalizeXHandle(source.channelIdentifier));
+  const direct = statements.filter((source: { connector: string }) => source.connector !== "follow-builders-x");
+  const trustedFeed = statements.filter((source: { connector: string }) => source.connector === "follow-builders-x");
+  const handles = direct.map((source: { channelIdentifier: string }) => normalizeXHandle(source.channelIdentifier));
 
-  assert.equal(statements.length, 55);
-  assert.equal(new Set(handles).size, statements.length);
-  assert.ok(handles.every((handle: string) => policy.accounts.has(handle) || supplemental.has(handle)));
+  assert.equal(statements.length, 35);
+  assert.equal(new Set(handles).size, direct.length);
+  assert.ok(handles.every((handle: string) => policy.accounts.has(handle)));
+  assert.equal(trustedFeed.length, 1);
+  assert.equal(trustedFeed[0].id, "source-follow-builders-x");
+  assert.equal(trustedFeed[0].publisherKind, "aggregator");
   assert.ok(statements.every((source: { originPlatform: string }) => source.originPlatform === "x"));
   assert.ok(statements.every((source: { classificationConfidence: string }) => source.classificationConfidence === "high"));
-  assert.ok(statements.every((source: { publisherKind: string }) => source.publisherKind === "person"));
   assert.ok(statements
     .filter((source: { connector: string }) => source.connector === "follow-builders-x")
     .every((source: { failureMode: string }) => source.failureMode === "isolated"));
@@ -43,28 +44,22 @@ test("runtime X stream contains only policy-approved authoritative accounts", ()
 test("X cleanup accounting distinguishes candidates, removals, and merged directory declarations", () => {
   assert.equal(bundle.counts.xCandidates, 179);
   assert.equal(bundle.counts.xRunnableCandidates, 160);
-  assert.equal(bundle.counts.statements, 55);
-  assert.equal(bundle.counts.roadside, 56);
-  assert.equal(bundle.counts.followBuildersX, 21);
-  assert.equal(bundle.counts.followBuildersXDuplicates, 3);
-  assert.equal(bundle.counts.followBuildersXExcluded, 2);
+  assert.equal(bundle.counts.statements, 35);
+  assert.equal(bundle.counts.roadside, 36);
+  assert.equal(bundle.counts.followBuildersX, 1);
+  assert.equal(bundle.counts.followBuildersXDuplicates, 0);
+  assert.equal(bundle.counts.followBuildersXExcluded, 0);
   assert.equal(bundle.counts.xExcludedFromRuntime, 126);
   assert.equal(bundle.counts.xDuplicateDiscoveriesMerged, 9);
 });
 
-test("Follow Builders supplement is bounded, deduplicated, and excludes institutional X accounts", () => {
+test("Follow Builders feeds trust upstream selection and retain only protocol safety bounds", () => {
   assert.equal(followBuilders.failureMode, "isolated");
-  assert.equal(followBuilders.maxAccounts, 26);
-  assert.equal(followBuilders.maxItemsPerAccount, 3);
-  assert.equal(followBuilders.maxItemsPerFeed, 78);
-  const handles = followBuilders.accounts.map((account: { handle: string }) => normalizeXHandle(account.handle));
-  assert.equal(new Set(handles).size, 26);
-  assert.deepEqual(
-    followBuilders.accounts
-      .filter((account: { status: string }) => account.status === "excluded")
-      .map((account: { handle: string }) => normalizeXHandle(account.handle))
-      .sort(),
-    ["claudeai", "googlelabs"],
-  );
+  assert.equal(followBuilders.version, 2);
+  assert.match(followBuilders.trustPolicy, /no local source admission/i);
+  assert.equal(followBuilders.feeds.x.maxAccounts, 100);
+  assert.equal(followBuilders.feeds.x.maxItemsPerAccount, 20);
+  assert.equal(followBuilders.feeds.x.maxItemsPerFeed, 2000);
+  assert.equal(followBuilders.accounts, undefined);
   assert.ok(bundle.sources.every((source: { name: string }) => !["Hacker News", "Lobsters"].includes(source.name)));
 });

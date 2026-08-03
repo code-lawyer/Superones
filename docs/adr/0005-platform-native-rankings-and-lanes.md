@@ -12,6 +12,6 @@ SiC 直接转呈经 GitHub 官方 REST API 获取的 OpenGithubs 日/周/月聚�
 
 ADR-0015 将生产节奏修订为白天低频运行：information 为北京时间 `08:05–22:05` 每两小时，roadside 为 `08:55–22:55` 每两小时，sic 每日 `08:25`，rankings 为 `08:35/12:35/16:35/20:35`；00:00–08:00 不采集。Frontier 参赛仓库即时核验仍由境内业务服务执行，常规观察改为 `08:45–22:45` 每两小时。Hugging Face Weekly Papers 在 sic 通道内读取指定周全集和 upvotes，并在本地生成周排名，不归入独立 rankings 通道。
 
-ADR-0008 约束 information、roadside 与 sic 的内容边界：同一原始内容只有一个主去向。ADR-0017 随后下架 Hacker News/Lobsters，并将 Follow Builders 去重人物 X 路由到 roadside、其发现的深度来源按官方入口路由到 sic。
+ADR-0008 约束 information、roadside 与 sic 的内容边界：同一原始内容只有一个主去向。ADR-0017 随后下架 Hacker News/Lobsters，并将 Follow Builders X/Blogs/Podcasts 三个可信中央 feed 分别路由到 roadside、SiC documents 与 SiC podcasts。
 
 ADR-0009 约束三个内容通道的境内处理：information 与 roadside 共享 Vault 编辑配置，sic 使用独立 SiC 编辑配置；四通道的错峰采集节奏不等于同一时间集中调用一套编辑模型。

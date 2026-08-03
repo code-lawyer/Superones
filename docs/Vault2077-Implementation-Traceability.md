@@ -27,7 +27,7 @@ updated: 2026-08-02
 | 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；编辑基础设施故障会回滚并自动重试，四个 Node service 已允许运行时所需 `AF_NETLINK`；待重部署后的退出码告警和积压恢复演练 |
 | 上线基线与初始化回填 | partial | 显式 bootstrap、SiC 每 approved 来源最近一条、Vault 30 天窗口、有界批次和同合同幂等已实现；尚未在生产修订执行并保存逐来源证据 |
 | 频道编辑配置 | partial | 双配置路由、独立并发/批量/超时/熔断、主/受控备用、300/200 生产预算基线及真实部署探针已实现；配置门禁拒绝错误 MiMo 域名，基础设施故障不会再误标 processed；待重部署后保存真实提供方探针、容量、长积压和切换审计证据 |
-| 内容单一主路由 | done | HN/Lobsters 已退出运行时；Follow Builders 去重人物 X 进入 roadside，其发现的博客/播客经官方入口进入 SiC；相关来源失败隔离且不阻断 workflow |
+| 内容单一主路由 | done | HN/Lobsters 已退出运行时；Follow Builders X/Blogs/Podcasts 中央 feed 被默认信任并分别进入 roadside、SiC documents/podcasts；不设本地来源审核，feed 失败隔离且不阻断 workflow |
 | 单一境外采集 workflow | done | 采集只使用 `collect-content.yml`，四 lane 共用一个合同和接收端；另有独立 `quality-check.yml` 负责 PR、main push 与每日质量门禁；采集 workflow 不持有 worker/LLM 密钥、不调用境内处理 |
 | Frontier GitHub 混合访问 | partial | 境内短超时、有界并发、持久化限速、缓存/条件请求、审计和公开任务回退代码已闭环；尚缺生产凭证与真实故障演练 |
 | Frontier 境内业务调度 | partial | `npm run frontier:tick`、审计和 systemd service/timer 模板已实现；待目标服务器安装 timer、接入告警并保存运行证据 |
