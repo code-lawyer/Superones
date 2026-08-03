@@ -167,6 +167,55 @@ test("asynchronous Frontier verification rejects expired challenges and closed s
   }
 });
 
+test("asynchronous eligibility rejection keeps the exact reason and permits a corrected re-submission", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-rejection-"));
+  const previous = process.env.VAULT2077_DATA_DIR;
+  process.env.VAULT2077_DATA_DIR = root;
+  try {
+    const {
+      createPendingSubmission,
+      findSeasonSubmission,
+      getSubmission,
+      rejectPendingSubmission,
+    } = await import(`../lib/frontier-store.ts?rejection=${Date.now()}`);
+    const now = new Date("2099-01-02T00:00:00.000Z");
+    const first = await createPendingSubmission({
+      owner: "Example",
+      repo: "Correctable",
+      email: "owner@example.com",
+      note: "A correctable asynchronous verification",
+      defaultBranch: "main",
+      challenge: "first-challenge",
+      rulesAccepted: true,
+      now,
+    });
+    const reason = "仓库需要先声明可识别的开源许可证。";
+    const rejected = await rejectPendingSubmission(first.id, reason);
+    assert.equal(rejected?.status, "rejected");
+    assert.equal(rejected?.verificationError, reason);
+    assert.equal((await getSubmission(first.id))?.verificationError, reason);
+
+    const second = await createPendingSubmission({
+      owner: "Example",
+      repo: "Correctable",
+      email: "owner@example.com",
+      note: "A corrected asynchronous verification",
+      defaultBranch: "main",
+      challenge: "second-challenge",
+      rulesAccepted: true,
+      now: new Date(now.getTime() + 60_000),
+    });
+    assert.equal(await getSubmission(first.id), null);
+    assert.equal((await findSeasonSubmission("example", "correctable", second.season))?.id, second.id);
+    assert.equal(second.status, "pending");
+    assert.equal(second.verificationError, null);
+  } finally {
+    if (previous === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("unassigned confirmed prizes are explicitly carried into the next season", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-carryover-"));
   const previous = process.env.VAULT2077_DATA_DIR;

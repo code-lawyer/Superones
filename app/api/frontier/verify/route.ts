@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
+import {
+  FRONTIER_PUBLIC_RANKING_CACHE_TAG,
+  FRONTIER_PUBLIC_SNAPSHOT_CACHE_TAG,
+} from "@/lib/cache-tags";
 import { seasonFromCode } from "@/lib/frontier-domain";
 import {
   challengeMatches,
@@ -31,11 +35,18 @@ export async function POST(request: NextRequest) {
     const submission = await getSubmission(body.id);
     if (!submission) {
       return NextResponse.json({
-        error: "没有找到有效的待核验报名。若异步核验已经完成但项目未进入榜单，请确认仓库公开、不是 Fork、未归档，并已声明 GitHub 可识别的开源许可证后重新报名。",
+        error: "没有找到对应的报名记录，请重新报名。",
       }, { status: 404 });
     }
     if (submission.status === "verified") {
       return NextResponse.json({ repository: submission.repository, baselineStars: submission.baselineStars, verifiedAt: submission.verifiedAt });
+    }
+    if (submission.status === "rejected") {
+      return NextResponse.json({
+        rejected: true,
+        error: submission.verificationError ?? "仓库未通过参赛资格核验，请修正后重新报名。",
+        repository: submission.repository,
+      }, { status: 422 });
     }
     if (submission.status !== "pending") return NextResponse.json({ error: "该报名记录当前不能验证。" }, { status: 409 });
     if (new Date(seasonFromCode(submission.season).endsAt).getTime() < Date.now()) {
@@ -104,8 +115,8 @@ export async function POST(request: NextRequest) {
     if (eligibilityError) return NextResponse.json({ error: eligibilityError }, { status: 400 });
     await updatePendingSubmissionRepository(submission.id, { defaultBranch: repository.defaultBranch });
     const verified = await markSubmissionVerified(submission.id, repository.stars);
-    revalidateTag("frontier-public-snapshot", { expire: 0 });
-    revalidateTag("frontier-public-ranking", { expire: 0 });
+    revalidateTag(FRONTIER_PUBLIC_SNAPSHOT_CACHE_TAG, { expire: 0 });
+    revalidateTag(FRONTIER_PUBLIC_RANKING_CACHE_TAG, { expire: 0 });
     return NextResponse.json({ repository: verified.repository, baselineStars: verified.baselineStars, verifiedAt: verified.verifiedAt, keepFileUntil: seasonFromCode(submission.season).endsAt });
   } catch (error) {
     const message = error instanceof Error ? error.message : "暂时无法验证仓库。";

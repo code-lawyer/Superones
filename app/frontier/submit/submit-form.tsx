@@ -5,7 +5,7 @@ import { clearFieldError, focusFirstInvalidField, isValidEmail } from "@/lib/cli
 import { FrontierDialog } from "../frontier-dialog";
 import { RulesContent } from "../frontier-copy";
 
-type Step = "form" | "challenge" | "queued" | "verified";
+type Step = "form" | "challenge" | "queued" | "rejected" | "verified";
 type SubmitField = "repo" | "email" | "note";
 type SubmitFieldErrors = Partial<Record<SubmitField, string>>;
 
@@ -22,6 +22,8 @@ type ChallengeResponse = {
 
 type VerificationResponse = {
   pending?: boolean;
+  rejected?: boolean;
+  error?: string;
 };
 
 async function responseMessage(response: Response) {
@@ -37,6 +39,7 @@ export function SubmitForm() {
   const [challenge, setChallenge] = useState<ChallengeResponse | null>(null);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [error, setError] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
   const [fieldErrors, setFieldErrors] = useState<SubmitFieldErrors>({});
   const [pending, setPending] = useState(false);
 
@@ -87,15 +90,21 @@ export function SubmitForm() {
     if (!challenge) return;
     setPending(true);
     setError("");
+    setRejectionReason("");
     try {
       const response = await fetch("/api/frontier/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: challenge.id }),
       });
-      if (!response.ok) throw new Error(await responseMessage(response));
-      const result = await response.json() as VerificationResponse;
-      setStep(response.status === 202 || result.pending ? "queued" : "verified");
+      const result = await response.json().catch(() => null) as VerificationResponse | null;
+      if (result?.rejected) {
+        setRejectionReason(result.error ?? "仓库未通过参赛资格核验，请修正后重新报名。");
+        setStep("rejected");
+        return;
+      }
+      if (!response.ok) throw new Error(typeof result?.error === "string" ? result.error : "请求暂时无法完成，请稍后重试。");
+      setStep(response.status === 202 || result?.pending ? "queued" : "verified");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "暂时无法验证仓库。" );
     } finally {
@@ -111,19 +120,33 @@ export function SubmitForm() {
     setChallenge(null);
     setRulesAccepted(false);
     setError("");
+    setRejectionReason("");
     setFieldErrors({});
+  }
+
+  if (step === "rejected" && challenge) {
+    return (
+      <div className="verification-result" role="alert">
+        <p className="eyebrow mono">REJECTED / ELIGIBILITY</p>
+        <h2>仓库未通过资格核验。</h2>
+        <p><span className="mono">{challenge.repository}</span> 当前尚未计入榜单。</p>
+        <p className="verification-warning"><strong>未通过原因：</strong>{rejectionReason}</p>
+        <p>请按上述提示修正仓库后重新报名，系统会生成新的验证记录。</p>
+        <button className="text-action" type="button" onClick={reset}>修正后重新报名</button>
+      </div>
+    );
   }
 
   if (step === "queued" && challenge) {
     return (
       <div className="verification-result" role="status">
-        <p className="eyebrow mono">PENDING / ASYNC VERIFICATION</p>
-        <h2>仓库正在异步核验。</h2>
-        <p><span className="mono">{challenge.repository}</span> 的挑战文件已进入公开仓库核验队列。境内无法直接读取仓库时，系统会通过境外采集链路完成检查；当前尚未计入榜单。</p>
-        <p className="verification-warning"><strong>请保留挑战文件。</strong>无需重新报名或修改文件；核验完成后，项目会自动进入当前赛季榜单。</p>
+        <p className="eyebrow mono">PENDING / VERIFICATION</p>
+        <h2>仓库资格核验中。</h2>
+        <p><span className="mono">{challenge.repository}</span> 当前尚未计入榜单，请稍后检查核验结果。</p>
+        <p className="verification-warning"><strong>请保留挑战文件。</strong>资格核验通过后，项目会自动进入当前赛季榜单；如未通过，页面会显示具体原因和重新报名提示。</p>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <div className="form-actions">
-          <button className="text-action" type="button" disabled={pending} onClick={verifyRepository}>{pending ? "正在检查" : "重新检查核验状态"}</button>
+          <button className="text-action" type="button" disabled={pending} onClick={verifyRepository}>{pending ? "正在检查" : "检查核验结果"}</button>
           <button className="text-link" type="button" disabled={pending} onClick={reset}>提交另一个仓库</button>
         </div>
       </div>

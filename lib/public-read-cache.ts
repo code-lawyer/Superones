@@ -1,7 +1,11 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
-import { PUBLISHED_SERVICE_CATALOG_CACHE_TAG } from "./cache-tags";
+import {
+  FRONTIER_PUBLIC_RANKING_CACHE_TAG,
+  FRONTIER_PUBLIC_SNAPSHOT_CACHE_TAG,
+  PUBLISHED_SERVICE_CATALOG_CACHE_TAG,
+} from "./cache-tags";
 import { getDirectRankingBoards } from "./direct-rankings";
 import {
   latestRankingUpdate,
@@ -52,8 +56,8 @@ export const getCachedFrontierSnapshot = unstable_cache(
     ]);
     return { rankings, updatedAt, prizes, history };
   },
-  ["frontier-public-snapshot"],
-  { revalidate: 30, tags: ["frontier-public-snapshot"] },
+  [FRONTIER_PUBLIC_SNAPSHOT_CACHE_TAG],
+  { revalidate: 30, tags: [FRONTIER_PUBLIC_SNAPSHOT_CACHE_TAG] },
 );
 
 export const getCachedFrontierRanking = unstable_cache(
@@ -64,6 +68,6 @@ export const getCachedFrontierRanking = unstable_cache(
     ]);
     return { rankings, updatedAt };
   },
-  ["frontier-public-ranking"],
-  { revalidate: 30, tags: ["frontier-public-ranking"] },
+  [FRONTIER_PUBLIC_RANKING_CACHE_TAG],
+  { revalidate: 30, tags: [FRONTIER_PUBLIC_RANKING_CACHE_TAG] },
 );

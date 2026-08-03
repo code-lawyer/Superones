@@ -1,23 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import type { PublicPrizeDonation } from "@/lib/frontier-store";
 
 const COLLAPSED_PRIZE_COUNT = 3;
 
-type Prize = {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-};
-
-function statusLabel(status: string) {
-  if (status === "assigned") return "ASSIGNED";
-  if (status === "carried_over") return "CARRIED OVER";
-  return "AVAILABLE";
+function statusLabel(status: PublicPrizeDonation["status"]) {
+  const labels: Record<PublicPrizeDonation["status"], string> = {
+    available: "AVAILABLE",
+    assigned: "ASSIGNED",
+    carried_over: "CARRIED OVER",
+  };
+  return labels[status];
 }
 
-export function FrontierPrizePool({ prizes }: { prizes: Prize[] }) {
+export function FrontierPrizePool({ prizes }: { prizes: PublicPrizeDonation[] }) {
   const [expanded, setExpanded] = useState(false);
   const hasMore = prizes.length > COLLAPSED_PRIZE_COUNT;
   const visiblePrizes = expanded ? prizes : prizes.slice(0, COLLAPSED_PRIZE_COUNT);

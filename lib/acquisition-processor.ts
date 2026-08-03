@@ -16,7 +16,7 @@ import { assertAcquisitionLaneKinds } from "./acquisition-contract.ts";
 import {
   applyFrontierVerificationObservation,
   recordStarSnapshots,
-  removePendingSubmission,
+  rejectPendingSubmission,
 } from "./frontier-store.ts";
 import { completeFrontierObservationTasks } from "./frontier-public-tasks.ts";
 import { repositoryEligibilityError } from "./frontier-service.ts";
@@ -378,6 +378,7 @@ export function createAcquisitionBatchProcessor(input: {
   persistDirectRankings?: typeof persistDirectRankingBoards;
   recordFrontierSnapshots?: typeof recordStarSnapshots;
   applyFrontierVerification?: typeof applyFrontierVerificationObservation;
+  rejectFrontierSubmission?: typeof rejectPendingSubmission;
   completeFrontierFallbackTasks?: typeof completeFrontierObservationTasks;
 } = {}): AcquisitionBatchProcessor {
   const processContent = input.processContent ?? processInboundContent;
@@ -385,6 +386,7 @@ export function createAcquisitionBatchProcessor(input: {
   const persistRankings = input.persistDirectRankings ?? persistDirectRankingBoards;
   const persistFrontier = input.recordFrontierSnapshots ?? recordStarSnapshots;
   const applyFrontierVerification = input.applyFrontierVerification ?? applyFrontierVerificationObservation;
+  const rejectFrontierSubmission = input.rejectFrontierSubmission ?? rejectPendingSubmission;
   const completeFrontierFallback = input.completeFrontierFallbackTasks ?? completeFrontierObservationTasks;
 
   return async (batch, work) => {
@@ -500,7 +502,7 @@ export function createAcquisitionBatchProcessor(input: {
             license: value.license,
           });
           if (eligibilityError) {
-            await removePendingSubmission(value.submissionId);
+            await rejectFrontierSubmission(value.submissionId, eligibilityError);
           } else {
             const outcome = await applyFrontierVerification({
               submissionId: value.submissionId,

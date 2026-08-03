@@ -1975,7 +1975,8 @@ h3 {
   .nav-link::after,
   .text-link::after,
   .text-action,
-  .text-action::after {
+  .text-action::after,
+  .frontier-pool-more__icon {
     transition: none !important;
   }
 }

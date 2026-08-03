@@ -381,6 +381,50 @@ test("Frontier verification fallback advances the pending submission and complet
   assert.deepEqual(completed, ["submission-1"]);
 });
 
+test("Frontier verification fallback persists an exact eligibility rejection before completing its task", async () => {
+  const value = mixedBatch();
+  value.lane = "rankings";
+  value.scheduleId = "schedule:test:frontier-rejection";
+  value.records = [{
+    ...value.records[0],
+    kind: "repository_observation",
+    recordId: "repository:frontier:rejection",
+    externalId: "frontier:rejection-task",
+    sourceId: "frontier-public-fallback",
+    canonicalUrl: "https://github.com/owner/repo",
+    payload: {
+      target: "frontier",
+      taskKind: "verify_submission",
+      season: "2099-Q1",
+      submissionId: "submission-rejected",
+      stars: 42,
+      defaultBranch: "main",
+      isFork: true,
+      isArchived: false,
+      isPrivate: false,
+      license: "MIT",
+      challenge: "challenge-value",
+    },
+  }];
+  value.sourceReports = [{ ...value.sourceReports[0], sourceId: "frontier-public-fallback", recordCount: 1 }];
+  const rejected: Array<{ id: string; reason: string }> = [];
+  const completed: string[] = [];
+  const processor = createAcquisitionBatchProcessor({
+    async rejectFrontierSubmission(id, reason) {
+      rejected.push({ id, reason });
+      return null;
+    },
+    async completeFrontierFallbackTasks(ids) {
+      completed.push(...ids);
+      return ids.length;
+    },
+  });
+  const result = await processor(value, { payloadHash: "4".repeat(64), attempt: 1 });
+  assert.equal(result.repositories, 1);
+  assert.deepEqual(rejected, [{ id: "submission-rejected", reason: "纯 Fork 仓库不能参加边境计划。" }]);
+  assert.deepEqual(completed, ["submission-rejected"]);
+});
+
 test("processor fails visibly when a record kind has no domestic adapter", async () => {
   const value = mixedBatch();
   value.lane = "sic";

@@ -16,7 +16,7 @@ import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } 
 import { decryptSensitiveText, encryptSensitiveText } from "./sensitive-data.ts";
 import type { FrontierEntry } from "./types.ts";
 
-type SubmissionStatus = "pending" | "verified" | "settled" | "ineligible_at_settlement";
+type SubmissionStatus = "pending" | "rejected" | "verified" | "settled" | "ineligible_at_settlement";
 export type PrizeDonationStatus = "pending_confirmation" | "available" | "rejected" | "withdrawn" | "assigned" | "carried_over";
 
 export type StoredSubmission = {
@@ -36,6 +36,7 @@ export type StoredSubmission = {
   currentStars: number | null;
   lastSnapshotAt: string | null;
   status: SubmissionStatus;
+  verificationError: string | null;
   rulesRevision: string;
   rulesAcceptedAt: string;
   settlementReason: string | null;
@@ -82,7 +83,7 @@ export type SettlementRun = {
 };
 
 type FrontierStore = {
-  version: 5;
+  version: 6;
   submissions: StoredSubmission[];
   prizeDonations: StoredPrizeDonation[];
   snapshots: SubmissionSnapshot[];
@@ -92,6 +93,14 @@ type FrontierStore = {
   seasonConfigurations: FrontierSeasonConfiguration[];
 };
 
+type Version5Submission = Omit<StoredSubmission, "status" | "verificationError"> & {
+  status: Exclude<SubmissionStatus, "rejected">;
+};
+type Version5Store = Omit<FrontierStore, "version" | "submissions"> & {
+  version: 5;
+  submissions: Version5Submission[];
+};
+
 type Version4SeasonConfiguration = Omit<
   FrontierSeasonConfiguration,
   "taxNotice" | "rewardProcessOpenWithinDays"
@@ -99,16 +108,16 @@ type Version4SeasonConfiguration = Omit<
   taxNotice: "奖励产生的税费由获奖者自行承担";
   deliveryDeadlineDays: 7;
 };
-type Version4Store = Omit<FrontierStore, "version" | "seasonConfigurations"> & {
+type Version4Store = Omit<Version5Store, "version" | "seasonConfigurations"> & {
   version: 4;
   seasonConfigurations: Version4SeasonConfiguration[];
 };
-type Version3Store = Omit<FrontierStore, "version" | "seasonConfigurations"> & { version: 3 };
+type Version3Store = Omit<Version5Store, "version" | "seasonConfigurations"> & { version: 3 };
 type Version2Store = Omit<Version3Store, "version" | "settlementRuns"> & { version: 2 };
 
 type LegacyStore = {
   version: 1;
-  submissions: Array<Omit<StoredSubmission, "rulesRevision" | "rulesAcceptedAt" | "settlementReason" | "status"> & { status: "pending" | "verified" | "disqualified"; reviewNote?: string | null }>;
+  submissions: Array<Omit<StoredSubmission, "rulesRevision" | "rulesAcceptedAt" | "settlementReason" | "verificationError" | "status"> & { status: "pending" | "verified" | "disqualified"; reviewNote?: string | null }>;
   winnerRepositories: string[];
 };
 
@@ -125,7 +134,10 @@ export type FrontierSeasonConfiguration = {
 
 export type AdminSubmission = Omit<StoredSubmission, "emailEncrypted" | "challengeHash"> & { email: string };
 export type AdminPrizeDonation = Omit<StoredPrizeDonation, "emailEncrypted"> & { email: string };
-export type PublicPrizeDonation = Pick<StoredPrizeDonation, "id" | "season" | "name" | "description" | "status">;
+export type PublicPrizeDonationStatus = Extract<PrizeDonationStatus, "available" | "assigned" | "carried_over">;
+export type PublicPrizeDonation = Pick<StoredPrizeDonation, "id" | "season" | "name" | "description"> & {
+  status: PublicPrizeDonationStatus;
+};
 
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -133,7 +145,7 @@ function hash(value: string) {
 
 function defaultStore(): FrontierStore {
   return {
-    version: 5,
+    version: 6,
     submissions: [],
     prizeDonations: [],
     snapshots: [],
@@ -144,12 +156,20 @@ function defaultStore(): FrontierStore {
   };
 }
 
-function migrateStore(parsed: FrontierStore | Version4Store | Version3Store | Version2Store | LegacyStore): FrontierStore {
-  if (parsed.version === 5) return parsed;
+function migrateSubmissions(submissions: Version5Submission[]): StoredSubmission[] {
+  return submissions.map((submission) => ({ ...submission, verificationError: null }));
+}
+
+function migrateStore(parsed: FrontierStore | Version5Store | Version4Store | Version3Store | Version2Store | LegacyStore): FrontierStore {
+  if (parsed.version === 6) return parsed;
+  if (parsed.version === 5) {
+    return { ...parsed, version: 6, submissions: migrateSubmissions(parsed.submissions) };
+  }
   if (parsed.version === 4) {
     return {
       ...parsed,
-      version: 5,
+      version: 6,
+      submissions: migrateSubmissions(parsed.submissions),
       seasonConfigurations: parsed.seasonConfigurations.map((configuration) => {
         const { deliveryDeadlineDays: _, ...rest } = configuration;
         return {
@@ -161,8 +181,8 @@ function migrateStore(parsed: FrontierStore | Version4Store | Version3Store | Ve
       }),
     };
   }
-  if (parsed.version === 3) return { ...parsed, version: 5, seasonConfigurations: [] };
-  if (parsed.version === 2) return { ...parsed, version: 5, settlementRuns: [], seasonConfigurations: [] };
+  if (parsed.version === 3) return { ...parsed, version: 6, submissions: migrateSubmissions(parsed.submissions), seasonConfigurations: [] };
+  if (parsed.version === 2) return { ...parsed, version: 6, submissions: migrateSubmissions(parsed.submissions), settlementRuns: [], seasonConfigurations: [] };
   return {
     ...defaultStore(),
     submissions: parsed.submissions.map((item) => ({
@@ -170,6 +190,7 @@ function migrateStore(parsed: FrontierStore | Version4Store | Version3Store | Ve
       status: item.status === "disqualified" ? "ineligible_at_settlement" : item.status,
       rulesRevision: FRONTIER_RULES_REVISION,
       rulesAcceptedAt: item.createdAt,
+      verificationError: null,
       settlementReason: item.reviewNote ?? null,
     })),
     championRepositories: parsed.winnerRepositories.map((item) => item.toLowerCase()),
@@ -178,7 +199,7 @@ function migrateStore(parsed: FrontierStore | Version4Store | Version3Store | Ve
 
 function validateStore(store: FrontierStore) {
   if (
-    store.version !== 5 ||
+    store.version !== 6 ||
     !Array.isArray(store.settlementRuns) ||
     !Array.isArray(store.submissions) ||
     !Array.isArray(store.prizeDonations) ||
@@ -195,7 +216,7 @@ const frontierDocument: StateDocumentDefinition<FrontierStore> = {
   fileName: "mvp-store.json",
   create: defaultStore,
   parse: (value) => validateStore(migrateStore(
-    value as FrontierStore | Version4Store | Version3Store | Version2Store | LegacyStore,
+    value as FrontierStore | Version5Store | Version4Store | Version3Store | Version2Store | LegacyStore,
   )),
 };
 
@@ -319,6 +340,7 @@ export async function createPendingSubmission(input: {
     currentStars: null,
     lastSnapshotAt: null,
     status: "pending",
+    verificationError: null,
     rulesRevision: FRONTIER_RULES_REVISION,
     rulesAcceptedAt: now.toISOString(),
     settlementReason: null,
@@ -326,9 +348,9 @@ export async function createPendingSubmission(input: {
 
   await mutateStore((store) => {
     if (store.championRepositories.includes(repository.toLowerCase())) throw new Error("该仓库已成为往届季度冠军，不能再次参赛。");
-    const existingVerified = store.submissions.find((item) => item.season === season.code && item.repository.toLowerCase() === repository.toLowerCase() && item.status !== "pending");
+    const existingVerified = store.submissions.find((item) => item.season === season.code && item.repository.toLowerCase() === repository.toLowerCase() && item.status !== "pending" && item.status !== "rejected");
     if (existingVerified) throw new Error("该仓库已经通过本赛季验证，无需重复报名。");
-    store.submissions = store.submissions.filter((item) => !(item.season === season.code && item.repository.toLowerCase() === repository.toLowerCase() && item.status === "pending"));
+    store.submissions = store.submissions.filter((item) => !(item.season === season.code && item.repository.toLowerCase() === repository.toLowerCase() && (item.status === "pending" || item.status === "rejected")));
     store.submissions.push(submission);
   });
 
@@ -340,6 +362,16 @@ export async function removePendingSubmission(id: string) {
     const before = store.submissions.length;
     store.submissions = store.submissions.filter((item) => item.id !== id || item.status !== "pending");
     return store.submissions.length !== before;
+  });
+}
+
+export async function rejectPendingSubmission(id: string, verificationError: string) {
+  return mutateStore((store) => {
+    const submission = store.submissions.find((item) => item.id === id);
+    if (!submission || submission.status !== "pending") return null;
+    submission.status = "rejected";
+    submission.verificationError = verificationError;
+    return submission;
   });
 }
 
@@ -396,6 +428,7 @@ export async function applyFrontierVerificationObservation(input: {
     if (!input.challenge) return "inspected" as const;
     if (!challengeMatches(input.challenge, submission.challengeHash)) return "challenge-mismatch" as const;
     submission.status = "verified";
+    submission.verificationError = null;
     submission.verifiedAt = input.capturedAt;
     submission.baselineStars = input.stars;
     submission.currentStars = input.stars;
@@ -431,6 +464,7 @@ export async function markSubmissionVerified(id: string, stars: number, now: Dat
     if (submission.status !== "pending") throw new Error("该报名记录当前不能验证。");
     const capturedAt = now.toISOString();
     submission.status = "verified";
+    submission.verificationError = null;
     submission.verifiedAt = capturedAt;
     submission.baselineStars = stars;
     submission.currentStars = stars;
@@ -510,7 +544,9 @@ export async function createPrizeDonation(input: { name: string; description: st
 export async function listPublicPrizePool(season = seasonForDate().code): Promise<PublicPrizeDonation[]> {
   const store = await readStore();
   return store.prizeDonations
-    .filter((item) => item.season === season && ["available", "assigned", "carried_over"].includes(item.status))
+    .filter((item): item is StoredPrizeDonation & { status: PublicPrizeDonationStatus } => (
+      item.season === season && (item.status === "available" || item.status === "assigned" || item.status === "carried_over")
+    ))
     .map(({ id, season: itemSeason, name, description, status }) => ({ id, season: itemSeason, name, description, status }));
 }
 
