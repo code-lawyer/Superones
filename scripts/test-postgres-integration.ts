@@ -125,9 +125,18 @@ try {
   assert.equal(retry?.batch.batchId, second.batch.batchId);
   assert.equal(retry?.attempt, 2);
   assert.equal(await receiverOne.fail(second.batch.batchId, retry!.claimToken, new Error("exhausted")), "quarantined");
-  const stats = await receiverOne.stats();
-  assert.equal(stats.processed, 1);
-  assert.equal(stats.quarantined, 1);
+  const testQueue = await pool.query<{ status: string; count: string }>(
+    `SELECT status, count(*)::text AS count
+       FROM vault2077_acquisition_inbox
+      WHERE batch_id = ANY($1::text[])
+      GROUP BY status`,
+    [batchIds],
+  );
+  const testQueueCounts = Object.fromEntries(
+    testQueue.rows.map((row) => [row.status, Number(row.count)]),
+  );
+  assert.equal(testQueueCounts.processed, 1);
+  assert.equal(testQueueCounts.quarantined, 1);
 
   assert.equal(await withinDurableRateLimit(rateLimitKey, 2, 60_000), true);
   assert.equal(await withinDurableRateLimit(rateLimitKey, 2, 60_000), true);
@@ -160,7 +169,7 @@ try {
     ok: true,
     stateDocumentCount: 20,
     claimedDistinctBatches: 2,
-    finalQueue: stats,
+    finalQueue: testQueueCounts,
     durableRateLimit: "enforced",
     immutableAudit: "enforced",
     revocableAdminSession: "enforced",

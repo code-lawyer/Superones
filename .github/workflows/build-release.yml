@@ -43,7 +43,7 @@ jobs:
             sha256sum "$(basename "$artifact")" > "$(basename "$artifact").sha256"
           )
           echo "artifact=$artifact" >> "$GITHUB_ENV"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vault2077-linux-x64-${{ github.sha }}
           path: |
