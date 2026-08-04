@@ -7,6 +7,5 @@
     missingok
     notifempty
     copytruncate
-    su vault2077 vault2077
-    create 0600 vault2077 vault2077
+    su root root
 }
