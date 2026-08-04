@@ -118,6 +118,45 @@ test("accepts a signed batch and returns source and kind accounting", async (con
   });
 });
 
+test("reports queue ages and the latest batch for each acquisition lane", async (context) => {
+  const { root, receiver } = await fixture();
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await receiver.receive(submission());
+
+  assert.deepEqual(await receiver.health(), {
+    counts: { received: 1, processing: 0, processed: 0, retryable: 0, quarantined: 0 },
+    oldestReceivedAt: now.toISOString(),
+    oldestProcessingAt: null,
+    oldestRetryableAt: null,
+    latestByLane: {
+      sic: {
+        batchId: batch().batchId,
+        lastReceivedAt: now.toISOString(),
+        lastProcessedAt: null,
+      },
+    },
+    latestQuarantine: null,
+  });
+});
+
+test("reports retryable age from its latest failure instead of original receipt", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-acquisition-health-retry-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  let clock = now;
+  const receiver = createAcquisitionReceiver({
+    inboxDirectory: path.join(root, "inbox"),
+    sharedSecret: secret,
+    now: () => clock,
+    retryBaseMs: 0,
+  });
+  await receiver.receive(submission());
+  const work = await receiver.claimNext();
+  clock = new Date(now.getTime() + 30 * 60 * 1_000);
+  await receiver.fail(batch().batchId, work!.claimToken, new Error("temporary"));
+
+  assert.equal((await receiver.health()).oldestRetryableAt, clock.toISOString());
+});
+
 test("recognizes an identical batch after a receiver restart", async (context) => {
   const { root, receiver } = await fixture();
   context.after(() => rm(root, { recursive: true, force: true }));

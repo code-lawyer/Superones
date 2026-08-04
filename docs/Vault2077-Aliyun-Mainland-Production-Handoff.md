@@ -652,7 +652,7 @@ process.exit(r.ok ? 0 : 1);
 '
 ```
 
-健康为 `200` 且所有检查为 okay 才能继续。它覆盖：最新迁移、inbox received/processing/retryable、Vault 12 小时新鲜度、SiC 36 小时新鲜度、榜单存在且非 stale/failed/partial、Frontier 回退积压和两套编辑配置。`503` 不是“服务活着所以忽略”的状态。
+健康为 `200` 且所有检查为 okay 才能继续。它覆盖：最新迁移、inbox 数量与最老 received/processing/retryable、新增 quarantine、四通道最近接收/处理/最终发布时间、榜单 stale/failed/partial、Frontier 回退积压和两套编辑配置。新鲜度按 ADR-0015 的北京时间计划和通道宽限期判断，不能使用会在夜间停采窗口误报的固定 8/36 小时阈值。`503` 不是“服务活着所以忽略”的状态。
 
 ## 13. Passkey 管理员接管
 
@@ -759,6 +759,7 @@ GitHub Actions 只配置：
 ```bash
 sudo systemctl enable --now \
   vault2077-acquisition-worker.timer \
+  vault2077-healthcheck.timer \
   vault2077-frontier-tick.timer \
   vault2077-ranger-media-cleanup.timer
 sudo systemctl list-timers 'vault2077-*' --all
@@ -768,6 +769,7 @@ sudo systemctl list-timers 'vault2077-*' --all
 
 ```bash
 sudo systemctl start vault2077-acquisition-worker.service
+sudo systemctl start vault2077-healthcheck.service
 sudo systemctl start vault2077-frontier-tick.service
 sudo systemctl start vault2077-ranger-media-cleanup.service
 ```
@@ -776,11 +778,12 @@ sudo systemctl start vault2077-ranger-media-cleanup.service
 
 ```bash
 sudo journalctl -u vault2077-acquisition-worker.service -n 200 --no-pager
+sudo journalctl -u vault2077-healthcheck.service -n 200 --no-pager
 sudo journalctl -u vault2077-frontier-tick.service -n 200 --no-pager
 sudo journalctl -u vault2077-ranger-media-cleanup.service -n 200 --no-pager
 ```
 
-oneshot 返回非零、timer 超过两个周期没有成功、inbox 出现新增 quarantine 或频道超过新鲜度阈值都必须告警。
+oneshot 返回非零、timer 超过两个周期没有成功、inbox 出现新增 quarantine 或频道超过调度感知的新鲜度 deadline 都必须告警。生产主告警接收人为 `lanzhouda@163.com`，当前没有备用接收人；阿里云侧必须实际发送测试邮件并记录送达结果。
 
 ## 18. 公开切流前验收
 

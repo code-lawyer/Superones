@@ -26,6 +26,14 @@ const frontierTimer = await readFile(
   new URL("../deploy/systemd/vault2077-frontier-tick.timer", import.meta.url),
   "utf8",
 );
+const healthTimer = await readFile(
+  new URL("../deploy/systemd/vault2077-healthcheck.timer", import.meta.url),
+  "utf8",
+);
+const healthService = await readFile(
+  new URL("../deploy/systemd/vault2077-healthcheck.service", import.meta.url),
+  "utf8",
+);
 
 test("the repository keeps exactly one overseas acquisition workflow", async () => {
   const names = (await readdir(new URL("../.github/workflows/", import.meta.url)))
@@ -101,6 +109,14 @@ test("overseas workflow only delivers signed batches and never invokes the domes
   assert.doesNotMatch(workflow, /TRIGGER_PROCESSING/);
 });
 
+test("collection artifacts are retained only after complete evidence validation", () => {
+  assert.match(workflow, /name: Validate run evidence[\s\S]*?if: always\(\)[\s\S]*?npm run acquisition:validate-artifact/);
+  assert.match(workflow, /if: \$\{\{ always\(\) && hashFiles\('\.collector-output\/\.validated-for-upload'\) != '' \}\}/);
+  assert.match(workflow, /include-hidden-files: true/);
+  assert.match(workflow, /if-no-files-found: error/);
+  assert.match(workflow, /retention-days: 30/);
+});
+
 test("the public proxy exposes only the two cross-border routes and the domestic worker is timed locally", () => {
   assert.match(nginx, /location = \/api\/internal\/acquisition \{/);
   assert.match(nginx, /if \(\$request_method != POST\) \{ return 405; \}/);
@@ -111,4 +127,9 @@ test("the public proxy exposes only the two cross-border routes and the domestic
   assert.match(workerTimer, /OnCalendar=\*:0\/5/);
   assert.match(workerTimer, /Persistent=true/);
   assert.match(frontierTimer, /08,10,12,14,16,18,20,22:45:00 Asia\/Shanghai/);
+  assert.match(healthTimer, /OnUnitActiveSec=5min/);
+  assert.match(healthTimer, /Persistent=true/);
+  assert.match(healthService, /EnvironmentFile=\/etc\/vault2077\/production\.env/);
+  assert.match(healthService, /npm run health:check/);
+  assert.match(healthService, /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK/);
 });

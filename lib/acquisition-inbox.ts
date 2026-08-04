@@ -72,6 +72,23 @@ export type AcquisitionWorkItem = {
 
 export type AcquisitionInboxStats = Record<AcquisitionInboxStatus, number>;
 
+export type AcquisitionInboxHealthSnapshot = {
+  counts: AcquisitionInboxStats;
+  oldestReceivedAt: string | null;
+  oldestProcessingAt: string | null;
+  oldestRetryableAt: string | null;
+  latestByLane: Partial<Record<AcquisitionLane, {
+    batchId: string;
+    lastReceivedAt: string;
+    lastProcessedAt: string | null;
+  }>>;
+  latestQuarantine: {
+    batchId: string;
+    lane: AcquisitionLane;
+    at: string;
+  } | null;
+};
+
 type AcquisitionInboxRecord = {
   version: 2;
   batchId: string;
@@ -541,6 +558,56 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
     ) as AcquisitionInboxStats;
   }
 
+  async function health(): Promise<AcquisitionInboxHealthSnapshot> {
+    const available = (await records()).map(({ record }) => record);
+    const counts = Object.fromEntries(
+      ACQUISITION_INBOX_STATUSES
+        .map((status) => [status, available.filter((record) => record.status === status).length]),
+    ) as AcquisitionInboxStats;
+    const oldest = (status: AcquisitionInboxStatus) => available
+      .filter((record) => record.status === status)
+      .map((record) => status === "processing"
+        ? record.processingStartedAt ?? record.updatedAt
+        : status === "retryable"
+          ? record.updatedAt
+          : record.receivedAt)
+      .sort((left, right) => Date.parse(left) - Date.parse(right))[0] ?? null;
+    const latestByLane: AcquisitionInboxHealthSnapshot["latestByLane"] = {};
+    for (const record of available) {
+      const current = latestByLane[record.lane];
+      if (!current || Date.parse(record.receivedAt) > Date.parse(current.lastReceivedAt)) {
+        latestByLane[record.lane] = {
+          batchId: record.batchId,
+          lastReceivedAt: record.receivedAt,
+          lastProcessedAt: current?.lastProcessedAt ?? null,
+        };
+      }
+      if (record.status === "processed" && record.completedAt) {
+        const lane = latestByLane[record.lane]!;
+        if (!lane.lastProcessedAt || Date.parse(record.completedAt) > Date.parse(lane.lastProcessedAt)) {
+          lane.lastProcessedAt = record.completedAt;
+        }
+      }
+    }
+    const latestQuarantineRecord = available
+      .filter((record) => record.status === "quarantined")
+      .sort((left, right) => Date.parse(right.completedAt ?? right.updatedAt) - Date.parse(left.completedAt ?? left.updatedAt))[0];
+    return {
+      counts,
+      oldestReceivedAt: oldest("received"),
+      oldestProcessingAt: oldest("processing"),
+      oldestRetryableAt: oldest("retryable"),
+      latestByLane,
+      latestQuarantine: latestQuarantineRecord
+        ? {
+            batchId: latestQuarantineRecord.batchId,
+            lane: latestQuarantineRecord.lane,
+            at: latestQuarantineRecord.completedAt ?? latestQuarantineRecord.updatedAt,
+          }
+        : null,
+    };
+  }
+
   function prune(retention: AcquisitionInboxRetention = DEFAULT_ACQUISITION_INBOX_RETENTION) {
     return serialized(async () => {
       const now = clock().getTime();
@@ -562,7 +629,7 @@ export function createAcquisitionReceiver(options: AcquisitionReceiverOptions) {
     });
   }
 
-  return { receive, claimNext, complete, fail, stats, prune };
+  return { receive, claimNext, complete, fail, stats, health, prune };
 }
 
 function postgresRecord(value: Record<string, unknown>): AcquisitionInboxRecord {
@@ -791,6 +858,70 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     return counts;
   }
 
+  async function health(): Promise<AcquisitionInboxHealthSnapshot> {
+    const [counts, ages, lanes, quarantine] = await Promise.all([
+      stats(),
+      configuredPostgresPool().query<{
+        oldest_received_at: Date | string | null;
+        oldest_processing_at: Date | string | null;
+        oldest_retryable_at: Date | string | null;
+      }>(
+        `SELECT
+           min(received_at) FILTER (WHERE status = 'received') AS oldest_received_at,
+           min(coalesce(processing_started_at, updated_at)) FILTER (WHERE status = 'processing') AS oldest_processing_at,
+           min(updated_at) FILTER (WHERE status = 'retryable') AS oldest_retryable_at
+         FROM vault2077_acquisition_inbox`,
+      ),
+      configuredPostgresPool().query<{
+        lane: AcquisitionLane;
+        batch_id: string;
+        last_received_at: Date | string;
+        last_processed_at: Date | string | null;
+      }>(
+        `SELECT lane,
+                (array_agg(batch_id ORDER BY received_at DESC))[1] AS batch_id,
+                max(received_at) AS last_received_at,
+                max(completed_at) FILTER (WHERE status = 'processed') AS last_processed_at
+           FROM vault2077_acquisition_inbox
+          GROUP BY lane`,
+      ),
+      configuredPostgresPool().query<{
+        batch_id: string;
+        lane: AcquisitionLane;
+        at: Date | string;
+      }>(
+        `SELECT batch_id, lane, coalesce(completed_at, updated_at) AS at
+           FROM vault2077_acquisition_inbox
+          WHERE status = 'quarantined'
+          ORDER BY coalesce(completed_at, updated_at) DESC
+          LIMIT 1`,
+      ),
+    ]);
+    const iso = (value: Date | string | null | undefined) => value
+      ? value instanceof Date ? value.toISOString() : new Date(value).toISOString()
+      : null;
+    const latestByLane: AcquisitionInboxHealthSnapshot["latestByLane"] = {};
+    for (const row of lanes.rows) {
+      latestByLane[row.lane] = {
+        batchId: row.batch_id,
+        lastReceivedAt: iso(row.last_received_at)!,
+        lastProcessedAt: iso(row.last_processed_at),
+      };
+    }
+    const ageRow = ages.rows[0];
+    const quarantineRow = quarantine.rows[0];
+    return {
+      counts,
+      oldestReceivedAt: iso(ageRow?.oldest_received_at),
+      oldestProcessingAt: iso(ageRow?.oldest_processing_at),
+      oldestRetryableAt: iso(ageRow?.oldest_retryable_at),
+      latestByLane,
+      latestQuarantine: quarantineRow
+        ? { batchId: quarantineRow.batch_id, lane: quarantineRow.lane, at: iso(quarantineRow.at)! }
+        : null,
+    };
+  }
+
   async function prune(retention: AcquisitionInboxRetention = DEFAULT_ACQUISITION_INBOX_RETENTION) {
     const result = await configuredPostgresPool().query(
       `DELETE FROM vault2077_acquisition_inbox
@@ -804,7 +935,7 @@ export function createPostgresAcquisitionReceiver(options: PostgresAcquisitionRe
     return result.rowCount ?? 0;
   }
 
-  return { receive, claimNext, complete, fail, stats, prune };
+  return { receive, claimNext, complete, fail, stats, health, prune };
 }
 
 type ConfiguredReceiver =

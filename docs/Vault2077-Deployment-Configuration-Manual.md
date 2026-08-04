@@ -198,7 +198,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 计划任务必须要求成功投递。交付模块对瞬时网络错误做最多四次同批次重试，但 GitHub 定时任务仍可能延迟或被平台丢弃，因此必须以境内内容新鲜度告警发现漏跑，并通过 `workflow_dispatch` 使用新的 schedule ID 补跑。workflow 权限保持 `contents: read`，artifact 不得含密钥、邮箱或后台数据。
 
-GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥、版本化签名密钥环和活动 key ID，不得持有 worker、后台、用户数据或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。境内安装并启用 `vault2077-acquisition-worker.{service,timer}`，每五分钟消费 inbox、执行到期重试并清理保留期外记录；Frontier 在白天每两小时执行 `npm run frontier:tick`。两类任务都以 systemd 退出码、append-only 审计和 `/api/internal/health` 判断成功，并配置失败告警和错过任务补跑策略。
+GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥、版本化签名密钥环和活动 key ID，不得持有 worker、后台、用户数据或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。每次采集必须上传包含 manifest、报告、不可变批次和 SHA256 的隐藏目录 artifact；证据缺失必须使 workflow 失败。境内安装并启用 `vault2077-acquisition-worker.{service,timer}` 与 `vault2077-healthcheck.{service,timer}`，前者每五分钟消费 inbox、执行到期重试并清理保留期外记录，后者每五分钟把受保护业务 health 转换为 systemd 退出码；Frontier 在白天每两小时执行 `npm run frontier:tick`。三类任务都以 systemd 退出码、append-only 审计和 `/api/internal/health` 判断成功，并配置失败告警和错过任务补跑策略。
 
 Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限流、缓存或条件请求并记录最近成功时间。普通页面不得触发 GitHub 请求；直读失败必须转为只含公开仓库标识的 rankings 回退任务。
 
@@ -224,7 +224,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 4. 生成彼此独立的高熵秘密与两个版本化密钥环；把采集签名密钥环、活动 ID 和 Frontier 公开任务只读密钥配置到 GitHub Secrets，把完整验签密钥环配置在境内。不得复制 worker、LLM、后台或用户数据秘密到 GitHub。
 5. 注入 PostgreSQL、OSS、Passkey、管线、模型与功能开关的最终生产变量，先运行 `npm run deploy:check`，再运行会实际调用全部已配置主/备用模型的 `npm run deploy:verify-editorial`；两者全绿后再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
 6. 运行 PostgreSQL 迁移，确认健康检查识别最新迁移；创建自动备份后执行一次隔离恢复演练。
-7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer` 与 `vault2077-frontier-tick.timer`；执行 `nginx -t`、`systemd-analyze verify` 并接入失败告警。
+7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer`、`vault2077-healthcheck.timer` 与 `vault2077-frontier-tick.timer`；执行 `nginx -t`、`systemd-analyze verify` 并接入失败告警。生产主告警接收人为 `lanzhouda@163.com`，当前无备用接收人。
 8. 部署应用但暂不开放内容频道；执行一次性 bootstrap，把 SiC 每个 approved 来源的最近一条合格内容与 Vault 最近 30 天真实内容写入生产事实源。
 9. 验证 bootstrap 的逐来源覆盖、原始日期、稳定 ID、分批处理和幂等补跑，再启用统一增量计划和境内两个 timer。
 10. 在生产等价预发布环境验证投递重试、GitHub 漏跑补跑、worker 积压恢复、四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台会话与再认证、头像 OSS 上传/访问/发布/撤回/清理、OPC 下单/到账/完成/退款状态流转、反向代理伪造头拒绝和 `/pipeline` 边界。

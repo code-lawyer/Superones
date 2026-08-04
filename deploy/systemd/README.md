@@ -4,6 +4,7 @@
 
 - `vault2077-web.service`：Web 进程，启动前执行生产配置检查和数据库迁移。
 - `vault2077-acquisition-worker.service/.timer`：每五分钟消费境内 PostgreSQL inbox。
+- `vault2077-healthcheck.service/.timer`：每五分钟使用独立 health 密钥检查数据库、队列、四个采集通道和最终发布时间；任一业务检查降级时 oneshot 非零退出。
 - `vault2077-frontier-tick.service/.timer`：北京时间 08:45–22:45 每两小时观察当前参赛仓库并推进结算。
 - `vault2077-ranger-media-cleanup.service/.timer`：每天清理超过 7 天的孤儿头像和超过 30 天的已替换头像。
 
@@ -15,10 +16,10 @@ sudo install -m 0644 deploy/systemd/vault2077-*.timer /etc/systemd/system/
 sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd/system/vault2077-*.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now vault2077-web.service
-sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-frontier-tick.timer vault2077-ranger-media-cleanup.timer
+sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-healthcheck.timer vault2077-frontier-tick.timer vault2077-ranger-media-cleanup.timer
 ```
 
-模板默认把受控 Node.js 运行时固定在 `/opt/node`，并使用 `/opt/node/bin/npm`；完整安装和校验方法见 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`。若采用发行版软件包，必须同步修改四个 service 的 `PATH` 与 npm 绝对路径，再运行 `systemd-analyze verify`。部署前还必须核对用户、目录和环境文件。环境文件权限应为 `0600`，归 `root` 所有；应用用户只通过 systemd 读取，不得把密钥写进仓库。
+模板默认把受控 Node.js 运行时固定在 `/opt/node`，并使用 `/opt/node/bin/npm`；完整安装和校验方法见 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`。若采用发行版软件包，必须同步修改全部 service 的 `PATH` 与 npm 绝对路径，再运行 `systemd-analyze verify`。部署前还必须核对用户、目录和环境文件。环境文件权限应为 `0600`，归 `root` 所有；应用用户只通过 systemd 读取，不得把密钥写进仓库。
 
 生产数据库是外部阿里云 RDS，因此 unit 只等待 `network-online.target`，不依赖本机 `postgresql.service`。若迁移到其他外部数据库，同样不得为了满足 unit 依赖在应用机安装空的 PostgreSQL 服务。
 
@@ -28,6 +29,7 @@ sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-frontie
 systemctl status vault2077-web.service
 systemctl list-timers 'vault2077-*'
 journalctl -u vault2077-acquisition-worker.service -n 100 --no-pager
+journalctl -u vault2077-healthcheck.service -n 100 --no-pager
 journalctl -u vault2077-frontier-tick.service -n 100 --no-pager
 journalctl -u vault2077-ranger-media-cleanup.service -n 100 --no-pager
 ```
