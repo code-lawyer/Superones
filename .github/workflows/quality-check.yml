@@ -33,6 +33,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run bootstrap:verify
       - run: npm run build
       - run: node scripts/run-acquisition-inbox-e2e.mjs
       - run: node scripts/run-content-pipeline-e2e.mjs

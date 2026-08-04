@@ -23,6 +23,7 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - run: npm run bootstrap:verify
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: "1"

@@ -24,8 +24,12 @@ export type BootstrapManifest = {
   files: Record<string, { sha256: string; bytes: number }>;
 };
 
+function canonicalSeedBody(value: string) {
+  return value.replaceAll("\r\n", "\n");
+}
+
 function hash(value: string) {
-  return createHash("sha256").update(value).digest("hex");
+  return createHash("sha256").update(canonicalSeedBody(value)).digest("hex");
 }
 
 export type BootstrapContentSeed = {
@@ -106,7 +110,7 @@ export function buildBootstrapManifest(
       name,
       {
         sha256: hash(files[name]),
-        bytes: Buffer.byteLength(files[name]),
+        bytes: Buffer.byteLength(canonicalSeedBody(files[name])),
       },
     ])),
   };
