@@ -105,11 +105,15 @@ jobs:
           VAULT2077_DELIVERY_ATTEMPTS: "4"
           VAULT2077_DELIVERY_TIMEOUT_MS: "60000"
           VAULT2077_DELIVERY_RETRY_BASE_MS: "1000"
-      - name: Preserve packets and lane report
+      - name: Validate run evidence
         if: always()
+        run: npm run acquisition:validate-artifact
+      - name: Preserve packets and lane report
+        if: ${{ always() && hashFiles('.collector-output/.validated-for-upload') != '' }}
         uses: actions/upload-artifact@v6
         with:
           name: vault2077-${{ steps.lane.outputs.run_mode }}-${{ steps.lane.outputs.value }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .collector-output
-          if-no-files-found: warn
-          retention-days: 14
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

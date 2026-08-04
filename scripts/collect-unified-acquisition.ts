@@ -22,6 +22,7 @@ import {
 import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
 import { deliverAcquisitionBatch } from "../lib/acquisition-delivery.ts";
 import { evaluateAcquisitionFailures, type AcquisitionFailureMode } from "../lib/acquisition-failure-policy.ts";
+import { createAcquisitionRunEvidence } from "../lib/acquisition-run-evidence.ts";
 import { pipelineSigningKeyring } from "../lib/secret-keyring.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
 
@@ -309,6 +310,31 @@ async function collectFrontierFallbacks(context: AcquisitionBuildContext): Promi
 
 await mkdir(outputRoot, { recursive: true });
 await mkdir(batchOutput, { recursive: true });
+const collectedAt = new Date().toISOString();
+const lookbackHours = runMode === "bootstrap"
+  ? lane === "information" || lane === "roadside"
+    ? 30 * 24
+    : 24
+  : lane === "sic"
+    ? 24
+    : 24;
+process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS = String(lookbackHours);
+const windowUntil = collectedAt;
+const windowFrom = new Date(Date.parse(windowUntil) - lookbackHours * 60 * 60 * 1000).toISOString();
+const scheduleId = process.env.VAULT2077_SCHEDULE_ID
+  || `${lane}:${windowUntil.slice(0, 13).replace(/[-T]/g, "")}`;
+const runId = `run:${process.env.GITHUB_RUN_ID || compactTimestamp(collectedAt)}:${lane}`;
+const runEvidence = createAcquisitionRunEvidence({
+  outputRoot,
+  runId,
+  lane,
+  runMode,
+  scheduleId,
+  startedAt: collectedAt,
+});
+await runEvidence.begin();
+
+try {
 const [sourceBundle, sicRegistry] = await Promise.all([
   readJson<{
     revision: string;
@@ -333,20 +359,6 @@ const [sourceBundle, sicRegistry] = await Promise.all([
     }>;
   }>(sicRegistryPath),
 ]);
-const collectedAt = new Date().toISOString();
-const lookbackHours = runMode === "bootstrap"
-  ? lane === "information" || lane === "roadside"
-    ? 30 * 24
-    : 24
-  : lane === "sic"
-    ? 24
-    : 24;
-process.env.VAULT2077_COLLECTION_LOOKBACK_HOURS = String(lookbackHours);
-const windowUntil = collectedAt;
-const windowFrom = new Date(Date.parse(windowUntil) - lookbackHours * 60 * 60 * 1000).toISOString();
-const scheduleId = process.env.VAULT2077_SCHEDULE_ID
-  || `${lane}:${windowUntil.slice(0, 13).replace(/[-T]/g, "")}`;
-const runId = `run:${process.env.GITHUB_RUN_ID || compactTimestamp(collectedAt)}:${lane}`;
 const context: AcquisitionBuildContext = {
   runId,
   lane,
@@ -428,7 +440,11 @@ for (const batch of batches) {
   const filename = `${createHash("sha256").update(batch.batchId).digest("hex")}.json`;
   const target = path.join(batchOutput, filename);
   await writeFile(target, rawPayload, "utf8");
-  files.push({ batchId: batch.batchId, file: target, bytes: Buffer.byteLength(rawPayload) });
+  files.push({
+    batchId: batch.batchId,
+    file: path.relative(outputRoot, target).split(path.sep).join("/"),
+    bytes: Buffer.byteLength(rawPayload),
+  });
   if (ingestUrl && signing) {
     const activeSecret = signing.keys.get(signing.activeKeyId);
     if (!activeSecret) throw new Error("活动采集签名密钥不存在。");
@@ -533,6 +549,7 @@ const recordsByKind = Object.fromEntries(
     ]),
 );
 const report = {
+  schemaVersion: 1,
   runId,
   lane,
   runMode,
@@ -571,8 +588,17 @@ const report = {
 await writeFile(path.join(outputRoot, "acquisition-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report));
 if (failureEvaluation.shouldFailWorkflow) {
-  console.error(`阻断型来源抓取失败：${failureEvaluation.blockingSourceIds.join(", ")}；请检查 acquisition-report.json。`);
+  const failure = new Error(`阻断型来源抓取失败：${failureEvaluation.blockingSourceIds.join(", ")}；请检查 acquisition-report.json。`);
+  await runEvidence.fail(failure);
+  console.error(failure.message);
   process.exitCode = 1;
-} else if (failureEvaluation.isolatedSourceIds.length > 0) {
-  console.warn(`隔离型补充来源抓取失败但 workflow 继续：${failureEvaluation.isolatedSourceIds.join(", ")}。`);
+} else {
+  await runEvidence.complete();
+  if (failureEvaluation.isolatedSourceIds.length > 0) {
+    console.warn(`隔离型补充来源抓取失败但 workflow 继续：${failureEvaluation.isolatedSourceIds.join(", ")}。`);
+  }
+}
+} catch (error) {
+  await runEvidence.fail(error).catch(() => undefined);
+  throw error;
 }

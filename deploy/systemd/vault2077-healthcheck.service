@@ -1,0 +1,27 @@
+[Unit]
+Description=Vault2077 protected business health probe
+After=network-online.target vault2077-web.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vault2077
+Group=vault2077
+WorkingDirectory=/srv/vault2077/current
+EnvironmentFile=/etc/vault2077/production.env
+Environment=NODE_ENV=production
+Environment=PATH=/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/opt/node/bin/npm run health:check
+TimeoutStartSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

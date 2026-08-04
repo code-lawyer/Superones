@@ -250,7 +250,10 @@ workflow 必须满足：
 - 境内接口返回接收凭据，通常为 HTTP `202`；
 - job 最终为绿色；
 - artifact 已生成，且不含密钥或私人资料；
+- artifact 包含 `run-manifest.json`、`acquisition-report.json` 与 `acquisition-batches/*.json`，manifest 中的 SHA256 与文件一致；失败运行也必须留下状态为 `failed` 的脱敏 manifest；
 - 不能出现“采集完成但未投递”仍为绿色的情况。
+
+workflow 使用隐藏目录 `.collector-output`，上传步骤必须保留 `include-hidden-files: true` 与 `if-no-files-found: error`。删除这两个门禁会让 Actions 在证据丢失时错误显示成功。
 
 如需查看失败日志：
 
@@ -366,12 +369,14 @@ bootstrap 需要逐通道运行并保存报告。SiC 必须证明每个 approved
 - 告警能发现 worker 非零退出、quarantine 和内容过期；
 - bootstrap 已完成或已明确不处于首次上线阶段。
 
-境内 worker timer：
+境内 worker 与业务健康 timer：
 
 ```bash
-sudo systemctl enable --now vault2077-acquisition-worker.timer
-systemctl list-timers 'vault2077-acquisition-worker*' --all
+sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-healthcheck.timer
+systemctl list-timers 'vault2077-acquisition-worker*' 'vault2077-healthcheck*' --all
 ```
+
+`vault2077-healthcheck.service` 使用 VPS root-only 环境文件中的独立 health 密钥，从回环地址核对数据库、队列和四通道最终发布时间。生产主告警接收人为 `lanzhouda@163.com`，当前没有备用接收人；联系人配置保存在阿里云监控侧，不写入应用代码或 GitHub Secrets。任一新增 quarantine 立即告警；其他新鲜度和队列延迟按连续检查与对应通道 deadline 告警。
 
 GitHub schedule 不是可靠业务时钟。漏跑时以境内内容新鲜度告警为准，并通过 `workflow_dispatch` 补跑对应通道。
 

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { acquisitionInboxHealth, acquisitionLaneFreshness } from "./acquisition-health.ts";
 import { configuredAcquisitionReceiver } from "./acquisition-inbox.ts";
 import { getStoredContent } from "./content-store.ts";
 import { getDirectRankingBoards, getDirectRankingSourceReports } from "./direct-rankings.ts";
@@ -14,7 +15,6 @@ type HealthCheck = {
 };
 
 const INFORMATION_FLOW_MIN_ITEMS = 10;
-const INFORMATION_FLOW_MAX_AGE_HOURS = 8;
 
 function ageHours(value: string | null) {
   if (!value) return null;
@@ -46,6 +46,7 @@ async function safely<T>(operation: () => Promise<T>) {
 }
 
 export async function getOperationsHealth() {
+  const now = new Date();
   const checks: Record<string, HealthCheck> = {};
   let mode: "postgresql" | "file-preview" | "unavailable" = "unavailable";
   try {
@@ -77,7 +78,7 @@ export async function getOperationsHealth() {
   }
 
   const [queue, content, sic, rankings, rankingReports, frontierTasks] = await Promise.all([
-    safely(() => configuredAcquisitionReceiver().stats()),
+    safely(() => configuredAcquisitionReceiver().health()),
     safely(() => getStoredContent()),
     safely(() => getSicStoredContent()),
     safely(() => getDirectRankingBoards()),
@@ -85,14 +86,7 @@ export async function getOperationsHealth() {
     safely(() => frontierObservationTaskStats()),
   ]);
   checks.inbox = queue
-    ? {
-        status: queue.received > 20
-          || queue.processing > 2
-          || queue.retryable > 20
-          ? "degraded"
-          : "ok",
-        detail: `received=${queue.received}; processing=${queue.processing}; retryable=${queue.retryable}; quarantined=${queue.quarantined}`,
-      }
+    ? acquisitionInboxHealth(queue, now)
     : { status: "degraded", detail: "inbox unavailable" };
 
   const contentAge = ageHours(content?.state.updatedAt ?? null);
@@ -114,27 +108,59 @@ export async function getOperationsHealth() {
         .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null
     : null;
   const informationAge = ageHours(informationUpdatedAt);
+  const informationFreshness = acquisitionLaneFreshness({
+    lane: "information",
+    lastSuccessfulAt: informationUpdatedAt,
+    now,
+  });
   checks.informationFlow = {
     status: informationItems.length >= INFORMATION_FLOW_MIN_ITEMS
-      && informationAge !== null
-      && informationAge <= INFORMATION_FLOW_MAX_AGE_HOURS
+      && informationFreshness.status === "ok"
       ? "ok"
       : "degraded",
-    detail: `count=${informationItems.length}; age=${informationAge === null ? "none" : `${informationAge.toFixed(1)}h`}; min=${INFORMATION_FLOW_MIN_ITEMS}; maxAge=${INFORMATION_FLOW_MAX_AGE_HOURS}h`,
+    detail: `count=${informationItems.length}; age=${informationAge === null ? "none" : `${informationAge.toFixed(1)}h`}; min=${INFORMATION_FLOW_MIN_ITEMS}; ${informationFreshness.detail}; received=${queue?.latestByLane.information?.lastReceivedAt ?? "none"}; processed=${queue?.latestByLane.information?.lastProcessedAt ?? "none"}`,
   };
-  const sicAge = ageHours(sic?.state.updatedAt ?? null);
+  const roadsideUpdatedAt = content
+    ? Object.values(content.sourceSnapshots)
+        .filter((snapshot) => snapshot.contentGroup === "roadside")
+        .map((snapshot) => snapshot.collectedAt)
+        .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null
+    : null;
+  const roadsideFreshness = acquisitionLaneFreshness({
+    lane: "roadside",
+    lastSuccessfulAt: roadsideUpdatedAt,
+    now,
+  });
+  checks.roadsideFlow = {
+    status: roadsideFreshness.status,
+    detail: `${roadsideFreshness.detail}; received=${queue?.latestByLane.roadside?.lastReceivedAt ?? "none"}; processed=${queue?.latestByLane.roadside?.lastProcessedAt ?? "none"}`,
+  };
+  const sicFreshness = acquisitionLaneFreshness({
+    lane: "sic",
+    lastSuccessfulAt: sic?.state.updatedAt ?? null,
+    now,
+  });
   checks.sicFreshness = {
-    status: sicAge !== null && sicAge <= 36 ? "ok" : "degraded",
-    detail: sicAge === null ? "no successful publication" : `${sicAge.toFixed(1)}h`,
+    status: sicFreshness.status,
+    detail: `${sicFreshness.detail}; received=${queue?.latestByLane.sic?.lastReceivedAt ?? "none"}; processed=${queue?.latestByLane.sic?.lastProcessedAt ?? "none"}`,
   };
+  const rankingUpdatedAt = rankings
+    ?.map((board) => board.capturedAt)
+    .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
+  const rankingFreshness = acquisitionLaneFreshness({
+    lane: "rankings",
+    lastSuccessfulAt: rankingUpdatedAt,
+    now,
+  });
   checks.rankings = rankings
     ? {
         status: rankings.length > 0
           && rankings.every((board) => !board.stale)
           && (rankingReports ?? []).every((report) => !["failed", "partial"].includes(report.status))
+          && rankingFreshness.status === "ok"
           ? "ok"
           : "degraded",
-        detail: `${rankings.length} boards; stale=${rankings.filter((board) => board.stale).length}; failed=${(rankingReports ?? []).filter((report) => ["failed", "partial"].includes(report.status)).length}`,
+        detail: `${rankings.length} boards; stale=${rankings.filter((board) => board.stale).length}; failed=${(rankingReports ?? []).filter((report) => ["failed", "partial"].includes(report.status)).length}; ${rankingFreshness.detail}; received=${queue?.latestByLane.rankings?.lastReceivedAt ?? "none"}; processed=${queue?.latestByLane.rankings?.lastProcessedAt ?? "none"}`,
       }
     : { status: "degraded", detail: "rankings unavailable" };
   checks.frontierFallback = frontierTasks
