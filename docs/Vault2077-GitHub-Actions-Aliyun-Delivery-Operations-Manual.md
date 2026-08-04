@@ -253,7 +253,7 @@ workflow 必须满足：
 - artifact 包含 `run-manifest.json`、`acquisition-report.json` 与 `acquisition-batches/*.json`，manifest 中的 SHA256 与文件一致；失败运行也必须留下状态为 `failed` 的脱敏 manifest；
 - 不能出现“采集完成但未投递”仍为绿色的情况。
 
-workflow 使用隐藏目录 `.collector-output`，上传步骤必须保留 `include-hidden-files: true` 与 `if-no-files-found: error`。删除这两个门禁会让 Actions 在证据丢失时错误显示成功。
+workflow 使用隐藏目录 `.collector-output`，上传步骤只允许白名单中的 `run-manifest.json`、`acquisition-report.json`、`acquisition-batches/` 与 `.validated-for-upload`，不得归档 collector 临时目录。上传步骤必须保留 `include-hidden-files: true` 与 `if-no-files-found: error`。删除这些门禁会让 Actions 在证据丢失或范围失控时错误显示成功。
 
 如需查看失败日志：
 
