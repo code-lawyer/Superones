@@ -49,6 +49,7 @@ test("release artifacts are manually built on Linux without production secrets",
   assert.match(releaseWorkflow, /permissions:\s+contents: read/);
   assert.match(releaseWorkflow, /runs-on: ubuntu-latest/);
   assert.match(releaseWorkflow, /npm prune --omit=dev/);
+  assert.match(releaseWorkflow, /npm run bootstrap:verify/);
   assert.match(releaseWorkflow, /sha256sum/);
   assert.doesNotMatch(releaseWorkflow, /secrets\./);
 });
@@ -75,6 +76,7 @@ test("full repository checks run outside collection jobs", () => {
   assert.match(qualityWorkflow, /npm run typecheck/);
   assert.match(qualityWorkflow, /npm test/);
   assert.match(qualityWorkflow, /npm run build/);
+  assert.match(qualityWorkflow, /npm run bootstrap:verify/);
   assert.match(qualityWorkflow, /run-acquisition-inbox-e2e\.mjs/);
   assert.match(qualityWorkflow, /run-content-pipeline-e2e\.mjs/);
   assert.match(qualityWorkflow, /ruff check collector/);

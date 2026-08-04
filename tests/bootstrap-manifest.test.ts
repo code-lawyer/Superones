@@ -29,6 +29,22 @@ test("bootstrap manifest hashes every seed and derives counts from its payloads"
   assert.match(manifest.files["content-store.seed.json"].sha256, /^[a-f0-9]{64}$/);
 });
 
+test("bootstrap manifest checksums are stable across LF and CRLF release checkouts", () => {
+  const lfFiles = {
+    "content-store.seed.json": '{"information":[],"events":[]}\n',
+    "sic-content-store.seed.json": '{"items":[]}\n',
+    "direct-rankings.seed.json": '{"boards":[]}\n',
+  };
+  const crlfFiles = Object.fromEntries(Object.entries(lfFiles).map(([name, body]) => [
+    name,
+    body.replaceAll("\n", "\r\n"),
+  ])) as typeof lfFiles;
+
+  const lf = buildBootstrapManifest(lfFiles, ".collector-output/runs/example", "2026-07-31T00:00:00.000Z");
+  const crlf = buildBootstrapManifest(crlfFiles, ".collector-output/runs/example", "2026-07-31T00:00:00.000Z");
+  assert.deepEqual(crlf.files, lf.files);
+});
+
 test("bootstrap import preserves newer production content and only adds missing seed records", () => {
   const project = (owner: string, repo: string, description: string) => ({
     owner, repo, description, rank: 1, change: "new", category: "AI", language: "TypeScript",
