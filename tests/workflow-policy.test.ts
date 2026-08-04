@@ -117,6 +117,15 @@ test("collection artifacts are retained only after complete evidence validation"
   assert.match(workflow, /include-hidden-files: true/);
   assert.match(workflow, /if-no-files-found: error/);
   assert.match(workflow, /retention-days: 30/);
+  for (const archivedPath of [
+    ".collector-output/run-manifest.json",
+    ".collector-output/acquisition-report.json",
+    ".collector-output/acquisition-batches",
+    ".collector-output/.validated-for-upload",
+  ]) {
+    assert.ok(workflow.includes(archivedPath), archivedPath);
+  }
+  assert.doesNotMatch(workflow, /^\s+path: \.collector-output\s*$/m);
 });
 
 test("the public proxy exposes only the two cross-border routes and the domestic worker is timed locally", () => {

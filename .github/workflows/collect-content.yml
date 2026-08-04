@@ -113,7 +113,11 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: vault2077-${{ steps.lane.outputs.run_mode }}-${{ steps.lane.outputs.value }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .collector-output
+          path: |
+            .collector-output/run-manifest.json
+            .collector-output/acquisition-report.json
+            .collector-output/acquisition-batches
+            .collector-output/.validated-for-upload
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30

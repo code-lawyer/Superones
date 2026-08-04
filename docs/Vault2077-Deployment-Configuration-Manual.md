@@ -198,7 +198,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 计划任务必须要求成功投递。交付模块对瞬时网络错误做最多四次同批次重试，但 GitHub 定时任务仍可能延迟或被平台丢弃，因此必须以境内内容新鲜度告警发现漏跑，并通过 `workflow_dispatch` 使用新的 schedule ID 补跑。workflow 权限保持 `contents: read`，artifact 不得含密钥、邮箱或后台数据。
 
-GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥、版本化签名密钥环和活动 key ID，不得持有 worker、后台、用户数据或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。每次采集必须上传包含 manifest、报告、不可变批次和 SHA256 的隐藏目录 artifact；证据缺失必须使 workflow 失败。境内安装并启用 `vault2077-acquisition-worker.{service,timer}` 与 `vault2077-healthcheck.{service,timer}`，前者每五分钟消费 inbox、执行到期重试并清理保留期外记录，后者每五分钟把受保护业务 health 转换为 systemd 退出码；Frontier 在白天每两小时执行 `npm run frontier:tick`。三类任务都以 systemd 退出码、append-only 审计和 `/api/internal/health` 判断成功，并配置失败告警和错过任务补跑策略。
+GitHub Actions 只持有接收 URL、公开任务 URL、公开任务只读密钥、版本化签名密钥环和活动 key ID，不得持有 worker、后台、用户数据或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。每次采集必须上传 manifest、报告、不可变批次、SHA256 与验证授权标记；artifact 路径必须使用这四项白名单，不得上传 collector 临时目录，证据缺失必须使 workflow 失败。境内安装并启用 `vault2077-acquisition-worker.{service,timer}` 与 `vault2077-healthcheck.{service,timer}`，前者每五分钟消费 inbox、执行到期重试并清理保留期外记录，后者每五分钟把受保护业务 health 转换为 systemd 退出码；Frontier 在白天每两小时执行 `npm run frontier:tick`。三类任务都以 systemd 退出码、append-only 审计和 `/api/internal/health` 判断成功，并配置失败告警和错过任务补跑策略。
 
 Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限流、缓存或条件请求并记录最近成功时间。普通页面不得触发 GitHub 请求；直读失败必须转为只含公开仓库标识的 rankings 回退任务。
 
