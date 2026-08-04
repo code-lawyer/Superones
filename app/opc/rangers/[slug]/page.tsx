@@ -57,7 +57,6 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
               <span>RANGER ASSOCIATION / 公开档案</span>
               <span>{profileNumber} / {profileCount}</span>
             </div>
-            <p className="opc-ranger-dossier__identity mono">IDENTITY / {profile.identity}</p>
             <h1>{profile.publicName}</h1>
             <p className="opc-ranger-dossier__intro">{profile.intro}</p>
           </div>
@@ -73,6 +72,21 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
               <span>FILE / RA-{profileNumber}</span>
             </figcaption>
           </figure>
+
+          <dl className="opc-ranger-dossier__issue-register" aria-label="档案签发信息">
+            <div>
+              <dt className="mono">VERIFIED / 核验</dt>
+              <dd>{verifiedAt}</dd>
+            </div>
+            <div>
+              <dt className="mono">UPDATED / 更新</dt>
+              <dd>{updatedAt}</dd>
+            </div>
+            <div>
+              <dt className="mono">IDENTITY / 身份</dt>
+              <dd>{profile.identity}</dd>
+            </div>
+          </dl>
         </header>
 
         <div className="opc-ranger-dossier__ledger">
@@ -101,10 +115,6 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
               format="markdown"
               className="opc-ranger-dossier__credential"
             />
-            <dl>
-              <div><dt className="mono">VERIFIED / 核验</dt><dd>{verifiedAt}</dd></div>
-              <div><dt className="mono">UPDATED / 更新</dt><dd>{updatedAt}</dd></div>
-            </dl>
           </section>
         </div>
 

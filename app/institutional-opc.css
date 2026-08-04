@@ -458,14 +458,16 @@
 
 .opc-ranger-dossier__hero {
   display: grid;
-  grid-template-columns: var(--dossier-spine) minmax(0, 1.48fr) minmax(300px, .72fr);
-  min-height: clamp(560px, 58vw, 760px);
+  grid-template-columns: var(--dossier-spine) minmax(0, 1.32fr) minmax(340px, .88fr);
+  grid-template-rows: auto auto;
   border-bottom: 1px solid var(--carbon);
 }
 
 .opc-ranger-dossier__spine {
   display: flex;
   align-items: center;
+  grid-row: 1 / 3;
+  min-height: 0;
   flex-direction: column;
   justify-content: space-between;
   gap: 24px;
@@ -492,6 +494,8 @@
 .opc-ranger-dossier__title {
   display: flex;
   min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
   flex-direction: column;
   justify-content: flex-end;
   border-right: 1px solid var(--carbon);
@@ -504,12 +508,6 @@
   justify-content: space-between;
   gap: 28px;
   margin-bottom: auto;
-  color: var(--ash);
-  font-size: var(--type-label);
-}
-
-.opc-ranger-dossier__identity {
-  margin-bottom: clamp(22px, 2.5vw, 34px);
   color: var(--ash);
   font-size: var(--type-label);
 }
@@ -538,6 +536,8 @@
   display: grid;
   min-width: 0;
   align-content: center;
+  grid-column: 3;
+  grid-row: 1;
   grid-template-rows: auto auto;
   margin: 0;
   padding: clamp(20px, 2.8vw, 42px);
@@ -566,6 +566,38 @@
   padding-top: 12px;
   color: var(--ash);
   font-size: var(--type-micro);
+}
+
+.opc-ranger-dossier__issue-register {
+  display: grid;
+  grid-column: 2 / -1;
+  grid-row: 2;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--carbon);
+}
+
+.opc-ranger-dossier__issue-register > div {
+  min-width: 0;
+  padding: clamp(16px, 1.8vw, 24px) clamp(22px, 3vw, 42px);
+}
+
+.opc-ranger-dossier__issue-register > div + div {
+  border-left: 1px solid var(--rule);
+}
+
+.opc-ranger-dossier__issue-register dt {
+  margin-bottom: 8px;
+  color: var(--ash);
+  font-size: var(--type-micro);
+}
+
+.opc-ranger-dossier__issue-register dd {
+  margin: 0;
+  color: var(--carbon);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .opc-ranger-dossier__ledger {
@@ -758,36 +790,6 @@
   font-weight: 600;
 }
 
-.opc-ranger-dossier__record dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 0;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-}
-
-.opc-ranger-dossier__record dl > div {
-  min-width: 0;
-  padding: 16px 18px 18px 0;
-}
-
-.opc-ranger-dossier__record dl > div + div {
-  border-left: 1px solid var(--rule);
-  padding-left: 18px;
-}
-
-.opc-ranger-dossier__record dt {
-  margin-bottom: 10px;
-  color: var(--ash);
-  font-size: var(--type-micro);
-}
-
-.opc-ranger-dossier__record dd {
-  margin: 0;
-  font-size: var(--type-small);
-  font-variant-numeric: tabular-nums;
-}
-
 .opc-ranger-dossier__contact {
   display: grid;
   grid-template-columns: var(--dossier-spine) minmax(0, 1.48fr) minmax(300px, .72fr);
@@ -974,10 +976,11 @@
 
   .opc-ranger-dossier__hero {
     grid-template-columns: var(--dossier-spine) minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
   }
 
   .opc-ranger-dossier__spine {
-    grid-row: 1 / 3;
+    grid-row: 1 / 4;
   }
 
   .opc-ranger-dossier__title {
@@ -986,12 +989,18 @@
 
   .opc-ranger-dossier__portrait {
     grid-column: 2;
+    grid-row: 2;
     border-top: 1px solid var(--carbon);
     padding: 32px;
   }
 
   .opc-ranger-dossier__portrait-frame {
     max-width: 520px;
+  }
+
+  .opc-ranger-dossier__issue-register {
+    grid-column: 2;
+    grid-row: 3;
   }
 
   .opc-ranger-dossier__ledger {
@@ -1081,16 +1090,6 @@
 
   .opc-ranger-dossier__section > header {
     margin-bottom: 34px;
-  }
-
-  .opc-ranger-dossier__record dl {
-    grid-template-columns: 1fr;
-  }
-
-  .opc-ranger-dossier__record dl > div + div {
-    border-top: 1px solid var(--rule);
-    border-left: 0;
-    padding-left: 0;
   }
 
   .opc-ranger-dossier__contact {
@@ -1516,6 +1515,21 @@
 .admin-opc-orders .admin-donation-meta {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .opc-ranger-dossier__issue-register {
+    grid-template-columns: 1fr;
+  }
+
+  .opc-ranger-dossier__issue-register > div {
+    padding: 14px 20px 16px;
+  }
+
+  .opc-ranger-dossier__issue-register > div + div {
+    border-top: 1px solid var(--rule);
+    border-left: 0;
+  }
 }
 
 @media (max-width: 620px) {

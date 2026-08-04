@@ -331,6 +331,9 @@ test("OPC ranger profiles use the public dossier composition at every breakpoint
   assert.match(profile, /opc-ranger-dossier__ledger/);
   assert.match(profile, /opc-ranger-dossier__contact/);
   assert.match(profile, /opc-ranger-dossier__portrait-frame/);
+  assert.match(profile, /<dl className="opc-ranger-dossier__issue-register" aria-label="档案签发信息">/);
+  assert.match(profile, /VERIFIED \/ 核验[\s\S]*?UPDATED \/ 更新[\s\S]*?IDENTITY \/ 身份/);
+  assert.doesNotMatch(profile, /opc-ranger-dossier__identity/);
   assert.match(profile, /<Image[\s\S]*?loading="eager"[\s\S]*?alt=\{`\$\{profile\.publicName\}的专家头像`\}/);
   assert.match(profile, /<ContentMarkup[\s\S]*?content=\{profile\.credential \?\? "未提供公开职业记录。"\}[\s\S]*?format="markdown"[\s\S]*?className="opc-ranger-dossier__credential"/);
   assert.match(admin, /支持保留换行，并可使用 Markdown 标题、列表、加粗、引用、代码和链接/);
@@ -339,7 +342,12 @@ test("OPC ranger profiles use the public dossier composition at every breakpoint
   assert.match(profile, /<h2 className="mono">PUBLIC RECORD \/ 公开记录<\/h2>/);
   assert.match(profile, /<h2>直接联系专家本人<\/h2>/);
   assert.doesNotMatch(profile, /opc-ranger-profile-page|authorizationStatus|contactState/);
-  assert.match(styles, /\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-columns:\s*var\(--dossier-spine\)/);
+  assert.match(styles, /\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-columns:\s*var\(--dossier-spine\) minmax\(0, 1\.32fr\) minmax\(340px, \.88fr\)/);
+  assert.match(styles, /\.opc-ranger-dossier__hero\s*\{[\s\S]*?grid-template-rows:\s*auto auto/);
+  assert.match(styles, /\.opc-ranger-dossier__spine\s*\{[\s\S]*?grid-row:\s*1 \/ 3/);
+  assert.doesNotMatch(styles, /min-height:\s*clamp\(560px,\s*58vw,\s*760px\)/);
+  assert.match(styles, /\.opc-ranger-dossier__issue-register\s*\{[\s\S]*?grid-column:\s*2 \/ -1[\s\S]*?grid-row:\s*2[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 720px\)[\s\S]*?\.opc-ranger-dossier__issue-register\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
   assert.match(styles, /\.opc-ranger-dossier__portrait-frame\s*\{[\s\S]*?aspect-ratio:\s*1[\s\S]*?overflow:\s*hidden/);
   assert.match(styles, /\.opc-ranger-dossier__portrait-frame > \.opc-ranger-portrait__image\s*\{[\s\S]*?width:\s*100%[\s\S]*?height:\s*100%[\s\S]*?object-fit:\s*cover/);
   assert.match(styles, /\.opc-ranger-dossier__credential\s*\{[\s\S]*?font-family:\s*var\(--font-sans\)[\s\S]*?font-size:\s*clamp\(14px,\s*1\.1vw,\s*16px\)/);
