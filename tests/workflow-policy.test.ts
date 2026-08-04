@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
+import { ACQUISITION_SCHEDULES } from "../lib/acquisition-schedule.ts";
 
 const workflow = await readFile(
   new URL("../.github/workflows/collect-content.yml", import.meta.url),
@@ -34,6 +35,22 @@ const healthService = await readFile(
   new URL("../deploy/systemd/vault2077-healthcheck.service", import.meta.url),
   "utf8",
 );
+const webService = await readFile(
+  new URL("../deploy/systemd/vault2077-web.service", import.meta.url),
+  "utf8",
+);
+const workerService = await readFile(
+  new URL("../deploy/systemd/vault2077-acquisition-worker.service", import.meta.url),
+  "utf8",
+);
+const frontierService = await readFile(
+  new URL("../deploy/systemd/vault2077-frontier-tick.service", import.meta.url),
+  "utf8",
+);
+const failureNotifier = await readFile(
+  new URL("../deploy/systemd/vault2077-failure-notify@.service", import.meta.url),
+  "utf8",
+);
 
 test("the repository keeps exactly one overseas acquisition workflow", async () => {
   const names = (await readdir(new URL("../.github/workflows/", import.meta.url)))
@@ -55,13 +72,8 @@ test("release artifacts are manually built on Linux without production secrets",
 });
 
 test("GitHub Actions schedules four lanes at the approved Beijing cadence", () => {
-  for (const cron of [
-    "5 0,2,4,6,8,10,12,14 * * *",
-    "55 0,2,4,6,8,10,12,14 * * *",
-    "25 0 * * *",
-    "35 0,4,8,12 * * *",
-  ]) {
-    assert.ok(workflow.includes(`cron: "${cron}"`), cron);
+  for (const [lane, schedule] of Object.entries(ACQUISITION_SCHEDULES)) {
+    assert.ok(workflow.includes(`cron: "${schedule.cron}"`), `${lane}: ${schedule.cron}`);
   }
   assert.match(workflow, /group: vault2077-acquisition-\$\{\{ inputs\.run_mode \|\| 'incremental' \}\}-\$\{\{ inputs\.lane \|\| github\.event\.schedule \}\}/);
   assert.match(workflow, /cancel-in-progress: false/);
@@ -112,6 +124,9 @@ test("overseas workflow only delivers signed batches and never invokes the domes
 });
 
 test("collection artifacts are retained only after complete evidence validation", () => {
+  assert.match(workflow, /name: Resolve scheduled lane[\s\S]*?name: Initialize run evidence[\s\S]*?run: npm ci/);
+  assert.match(workflow, /name: Finalize interrupted run evidence[\s\S]*?if: always\(\)[\s\S]*?finalize-acquisition-evidence\.ts/);
+  assert.match(workflow, /Finalize interrupted run evidence[\s\S]*?name: Validate run evidence/);
   assert.match(workflow, /name: Validate run evidence[\s\S]*?if: always\(\)[\s\S]*?npm run acquisition:validate-artifact/);
   assert.match(workflow, /if: \$\{\{ always\(\) && hashFiles\('\.collector-output\/\.validated-for-upload'\) != '' \}\}/);
   assert.match(workflow, /include-hidden-files: true/);
@@ -142,5 +157,18 @@ test("the public proxy exposes only the two cross-border routes and the domestic
   assert.match(healthTimer, /Persistent=true/);
   assert.match(healthService, /EnvironmentFile=\/etc\/vault2077\/production\.env/);
   assert.match(healthService, /npm run health:check/);
+  assert.match(healthService, /^LogsDirectory=vault2077$/m);
+  assert.match(healthService, /^Environment=VAULT2077_HEALTH_HEARTBEAT_FILE=\/var\/log\/vault2077\/health-heartbeat\.log$/m);
   assert.match(healthService, /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK/);
+});
+
+test("production services emit a uniform journal event when systemd marks them failed", () => {
+  for (const service of [webService, workerService, frontierService, healthService]) {
+    assert.match(service, /^OnFailure=vault2077-failure-notify@%n\.service$/m);
+  }
+  assert.match(failureNotifier, /^ExecStart=\/usr\/bin\/logger --priority daemon\.err --tag vault2077-alert /m);
+  assert.match(failureNotifier, /unit=%i/);
+  assert.match(failureNotifier, /^LogsDirectory=vault2077$/m);
+  assert.match(failureNotifier, /^StandardOutput=append:\/var\/log\/vault2077\/failures\.log$/m);
+  assert.match(failureNotifier, /ExecStart=\/usr\/bin\/printf .*vault2077-alert.*unit.*%i.*status.*failed/);
 });

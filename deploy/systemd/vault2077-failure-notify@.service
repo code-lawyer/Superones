@@ -1,0 +1,23 @@
+[Unit]
+Description=Record Vault2077 unit failure for %i
+
+[Service]
+Type=oneshot
+User=vault2077
+Group=vault2077
+LogsDirectory=vault2077
+StandardOutput=append:/var/log/vault2077/failures.log
+ExecStart=/usr/bin/logger --priority daemon.err --tag vault2077-alert unit=%i status=failed
+ExecStart=/usr/bin/printf "{\"source\":\"vault2077-alert\",\"unit\":\"%i\",\"status\":\"failed\"}\n"
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX

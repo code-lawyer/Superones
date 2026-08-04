@@ -33,11 +33,18 @@ export type AcquisitionRunManifest = {
 
 const manifestName = "run-manifest.json";
 const reportName = "acquisition-report.json";
+const credentialName = "(?:api[_-]?key|access[_-]?key(?:[_-]?(?:id|secret))?|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|private[_-]?key|authorization|cookie|session[_-]?(?:id|token)|token)";
 const sensitiveEvidencePatterns = [
-  /Authorization\s*:\s*Bearer\s+[A-Za-z0-9._~+/=-]{12,}/iu,
+  /Authorization\s*:\s*(?:Basic|Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/iu,
   /-----BEGIN (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY-----/u,
   /\bpostgresql(?:\+\w+)?:\/\/(?!\[REDACTED\]@)[^@\s]+@/iu,
-  /"(?:api[_-]?key|access[_-]?key[_-]?secret|password|private[_-]?key|authorization)"\s*:\s*"(?!\[REDACTED\])[^"\r\n]{8,}"/iu,
+  /\bhttps?:\/\/[^/@\s:]+:[^/@\s]+@/iu,
+  /\b[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+\b/iu,
+  new RegExp(`"${credentialName}"\\s*:\\s*"(?!\\[REDACTED\\])[^"\\r\\n]{8,}"`, "iu"),
+  new RegExp(`\\b${credentialName}\\b\\s*(?:=|:)\\s*["']?(?!\\[REDACTED\\])[^\\s;,"']{8,}`, "iu"),
+  new RegExp(`[?&]${credentialName}=(?!%5BREDACTED%5D|\\[REDACTED\\])[^&#\\s]{8,}`, "iu"),
+  /\b(?:gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|LTAI[A-Za-z0-9]{12,})\b/u,
+  /\b(?:Set-Cookie|Cookie)\s*:\s*\S+/iu,
 ];
 
 function portablePath(root: string, target: string) {
@@ -78,8 +85,15 @@ function sanitizedFailure(error: unknown) {
   const name = error instanceof Error ? error.name : "Error";
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = rawMessage
-    .replace(/Authorization\s*:\s*Bearer\s+\S+/giu, "Authorization: Bearer [REDACTED]")
+    .replace(/-----BEGIN (OPENSSH|RSA|EC|DSA) PRIVATE KEY-----[\s\S]*?-----END \1 PRIVATE KEY-----/giu, "[REDACTED PRIVATE KEY]")
+    .replace(/Authorization\s*:\s*(Basic|Bearer)\s+\S+/giu, "Authorization: $1 [REDACTED]")
     .replace(/\b(postgresql(?:\+\w+)?):\/\/[^@\s]+@/giu, "$1://[REDACTED]@")
+    .replace(/\b(https?):\/\/[^/@\s:]+:[^/@\s]+@/giu, "$1://[REDACTED]@")
+    .replace(new RegExp(`([?&]${credentialName}=)[^&#\\s]+`, "giu"), "$1[REDACTED]")
+    .replace(new RegExp(`(\\b${credentialName}\\b\\s*(?:=|:)\\s*["']?)[^\\s;,"']+`, "giu"), "$1[REDACTED]")
+    .replace(/\b[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+\b/giu, "[REDACTED_EMAIL]")
+    .replace(/\b(?:gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|LTAI[A-Za-z0-9]{12,})\b/gu, "[REDACTED]")
+    .replace(/\b(?:Set-Cookie|Cookie)\s*:\s*\S+/giu, "Cookie: [REDACTED]")
     .slice(0, 1_000);
   return { name: name.slice(0, 120), message };
 }

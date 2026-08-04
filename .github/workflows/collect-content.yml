@@ -53,7 +53,6 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci
       - id: lane
         name: Resolve scheduled lane
         shell: bash
@@ -79,6 +78,14 @@ jobs:
           echo "value=$lane" >> "$GITHUB_OUTPUT"
           echo "run_mode=$run_mode" >> "$GITHUB_OUTPUT"
           echo "schedule_id=${run_mode}:${lane}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - name: Initialize run evidence
+        run: node --experimental-strip-types scripts/initialize-acquisition-evidence.ts
+        env:
+          VAULT2077_ACQUISITION_LANE: ${{ steps.lane.outputs.value }}
+          VAULT2077_ACQUISITION_RUN_MODE: ${{ steps.lane.outputs.run_mode }}
+          VAULT2077_SCHEDULE_ID: ${{ steps.lane.outputs.schedule_id }}
+          VAULT2077_COLLECTOR_OUTPUT_DIR: .collector-output
+      - run: npm ci
       - uses: actions/setup-python@v7
         if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         with:
@@ -88,7 +95,8 @@ jobs:
         if: steps.lane.outputs.value == 'information' || steps.lane.outputs.value == 'roadside'
         run: |
           pip install -r collector/requirements.txt
-      - name: Collect and reliably deliver one lane
+      - id: collect
+        name: Collect and reliably deliver one lane
         run: npm run acquisition:collect
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -105,6 +113,11 @@ jobs:
           VAULT2077_DELIVERY_ATTEMPTS: "4"
           VAULT2077_DELIVERY_TIMEOUT_MS: "60000"
           VAULT2077_DELIVERY_RETRY_BASE_MS: "1000"
+      - name: Finalize interrupted run evidence
+        if: always()
+        run: node --experimental-strip-types scripts/finalize-acquisition-evidence.ts
+        env:
+          VAULT2077_COLLECTOR_OUTPUT_DIR: .collector-output
       - name: Validate run evidence
         if: always()
         run: npm run acquisition:validate-artifact

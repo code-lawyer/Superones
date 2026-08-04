@@ -2,6 +2,7 @@
 Description=Vault2077 domestic acquisition inbox worker
 After=network-online.target vault2077-web.service
 Wants=network-online.target
+OnFailure=vault2077-failure-notify@%n.service
 
 [Service]
 Type=oneshot

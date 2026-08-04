@@ -1,14 +1,10 @@
 import type { AcquisitionLane } from "./acquisition-contract.ts";
+import { ACQUISITION_SCHEDULES, type AcquisitionLaneSchedule } from "./acquisition-schedule.ts";
 
 type LaneFreshnessInput = {
   lane: AcquisitionLane;
   lastSuccessfulAt: string | null;
   now?: Date;
-};
-
-type LaneSchedule = {
-  minutes: number[];
-  graceMinutes: number;
 };
 
 export type AcquisitionInboxHealthInput = {
@@ -22,37 +18,24 @@ export type AcquisitionInboxHealthInput = {
   oldestReceivedAt: string | null;
   oldestProcessingAt: string | null;
   oldestRetryableAt: string | null;
+  latestQuarantine: {
+    batchId: string;
+    lane: AcquisitionLane;
+    at: string;
+  } | null;
 };
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1_000;
-
-const schedules: Record<AcquisitionLane, LaneSchedule> = {
-  information: {
-    minutes: Array.from({ length: 8 }, (_, index) => (8 + index * 2) * 60 + 5),
-    graceMinutes: 90,
-  },
-  roadside: {
-    minutes: Array.from({ length: 8 }, (_, index) => (8 + index * 2) * 60 + 55),
-    graceMinutes: 90,
-  },
-  sic: {
-    minutes: [8 * 60 + 25],
-    graceMinutes: 180,
-  },
-  rankings: {
-    minutes: [8 * 60 + 35, 12 * 60 + 35, 16 * 60 + 35, 20 * 60 + 35],
-    graceMinutes: 90,
-  },
-};
+const NEW_QUARANTINE_WINDOW_MINUTES = 30;
 
 function beijingDayStart(value: Date) {
   const shifted = new Date(value.getTime() + BEIJING_OFFSET_MS);
   return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - BEIJING_OFFSET_MS;
 }
 
-function latestExpectedAt(now: Date, schedule: LaneSchedule) {
+function latestExpectedAt(now: Date, schedule: AcquisitionLaneSchedule) {
   const today = beijingDayStart(now);
-  const candidates = [-1, 0].flatMap((dayOffset) => schedule.minutes.map((minute) => (
+  const candidates = [-1, 0].flatMap((dayOffset) => schedule.beijingMinutes.map((minute) => (
     today + dayOffset * 24 * 60 * 60 * 1_000 + minute * 60 * 1_000
   )));
   const nowMs = now.getTime();
@@ -62,7 +45,7 @@ function latestExpectedAt(now: Date, schedule: LaneSchedule) {
 
 export function acquisitionLaneFreshness(input: LaneFreshnessInput) {
   const now = input.now ?? new Date();
-  const schedule = schedules[input.lane];
+  const schedule = ACQUISITION_SCHEDULES[input.lane];
   const expectedAtMs = latestExpectedAt(now, schedule);
   const lastSuccessfulMs = input.lastSuccessfulAt ? Date.parse(input.lastSuccessfulAt) : Number.NaN;
   const status = Number.isFinite(lastSuccessfulMs) && lastSuccessfulMs >= expectedAtMs ? "ok" : "degraded";
@@ -85,7 +68,9 @@ export function acquisitionInboxHealth(input: AcquisitionInboxHealthInput, now =
   const receivedAge = ageMinutes(input.oldestReceivedAt, now);
   const processingAge = ageMinutes(input.oldestProcessingAt, now);
   const retryableAge = ageMinutes(input.oldestRetryableAt, now);
-  const degraded = input.counts.quarantined > 0
+  const quarantineAge = ageMinutes(input.latestQuarantine?.at ?? null, now);
+  const hasNewQuarantine = quarantineAge !== null && quarantineAge <= NEW_QUARANTINE_WINDOW_MINUTES;
+  const degraded = hasNewQuarantine
     || input.counts.received > 20
     || input.counts.processing > 2
     || input.counts.retryable > 20
@@ -102,6 +87,7 @@ export function acquisitionInboxHealth(input: AcquisitionInboxHealthInput, now =
       `oldestReceived=${receivedAge === null ? "none" : `${receivedAge.toFixed(1)}m`}`,
       `oldestProcessing=${processingAge === null ? "none" : `${processingAge.toFixed(1)}m`}`,
       `oldestRetryable=${retryableAge === null ? "none" : `${retryableAge.toFixed(1)}m`}`,
+      `latestQuarantine=${input.latestQuarantine ? `${input.latestQuarantine.batchId}/${input.latestQuarantine.lane}/${quarantineAge?.toFixed(1) ?? "invalid"}m` : "none"}`,
     ].join("; "),
   } as const;
 }

@@ -251,6 +251,7 @@ workflow 必须满足：
 - job 最终为绿色；
 - artifact 已生成，且不含密钥或私人资料；
 - artifact 包含 `run-manifest.json`、`acquisition-report.json` 与 `acquisition-batches/*.json`，manifest 中的 SHA256 与文件一致；失败运行也必须留下状态为 `failed` 的脱敏 manifest；
+- workflow 在 `npm ci` 前初始化证据，并在验证前始终执行中断收尾；依赖安装、Python 安装或采集脚本加载失败时，也必须把 `started` manifest 转为 `failed` 后再验证和归档。GitHub Runner、checkout 或 Actions 平台自身不可用属于平台级故障，以 Actions 系统日志和漏跑新鲜度告警为证据边界；
 - 不能出现“采集完成但未投递”仍为绿色的情况。
 
 workflow 使用隐藏目录 `.collector-output`，上传步骤只允许白名单中的 `run-manifest.json`、`acquisition-report.json`、`acquisition-batches/` 与 `.validated-for-upload`，不得归档 collector 临时目录。上传步骤必须保留 `include-hidden-files: true` 与 `if-no-files-found: error`。删除这些门禁会让 Actions 在证据丢失或范围失控时错误显示成功。
@@ -377,6 +378,8 @@ systemctl list-timers 'vault2077-acquisition-worker*' 'vault2077-healthcheck*' -
 ```
 
 `vault2077-healthcheck.service` 使用 VPS root-only 环境文件中的独立 health 密钥，从回环地址核对数据库、队列和四通道最终发布时间。生产主告警接收人为 `lanzhouda@163.com`，当前没有备用接收人；联系人配置保存在阿里云监控侧，不写入应用代码或 GitHub Secrets。任一新增 quarantine 立即告警；其他新鲜度和队列延迟按连续检查与对应通道 deadline 告警。
+
+关键 systemd 单元失败会同时写入 journald 和 `/var/log/vault2077/failures.log`，健康检查成功会写入 `/var/log/vault2077/health-heartbeat.log`。联系人、LoongCollector、SLS 失败/无心跳规则和测试邮件的手动配置步骤见 `docs/Vault2077-Aliyun-Alert-Manual-Checklist.md`。
 
 GitHub schedule 不是可靠业务时钟。漏跑时以境内内容新鲜度告警为准，并通过 `workflow_dispatch` 补跑对应通道。
 

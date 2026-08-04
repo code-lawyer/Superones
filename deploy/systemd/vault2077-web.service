@@ -2,6 +2,7 @@
 Description=Vault2077 web application
 After=network-online.target
 Wants=network-online.target
+OnFailure=vault2077-failure-notify@%n.service
 
 [Service]
 Type=simple
@@ -12,11 +13,10 @@ EnvironmentFile=/etc/vault2077/production.env
 Environment=NODE_ENV=production
 Environment=PATH=/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 Environment=NODE_OPTIONS=--max-old-space-size=384
-Environment=HOSTNAME=127.0.0.1
 Environment=PORT=3000
 ExecStartPre=/opt/node/bin/npm run deploy:check
 ExecStartPre=/opt/node/bin/npm run db:migrate
-ExecStart=/opt/node/bin/npm run start
+ExecStart=/opt/node/bin/npm run start -- --hostname 127.0.0.1
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=180
