@@ -84,6 +84,13 @@ test("systemd templates bound Node heaps and deprioritize background work", () =
   }
 });
 
+test("the production web service binds Next.js to the loopback interface", () => {
+  assert.match(
+    webService,
+    /^ExecStart=\/opt\/node\/bin\/npm run start -- --hostname 127\.0\.0\.1$/m,
+  );
+});
+
 test("the sticky site header avoids continuous backdrop recompositing", () => {
   for (const stylesheet of [globalStyles, institutionalStyles]) {
     const rule = /\.site-header\s*\{([^}]+)\}/.exec(stylesheet)?.[1] ?? "";

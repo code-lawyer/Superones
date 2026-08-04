@@ -2,6 +2,7 @@
 Description=Vault2077 protected business health probe
 After=network-online.target vault2077-web.service
 Wants=network-online.target
+OnFailure=vault2077-failure-notify@%n.service
 
 [Service]
 Type=oneshot
@@ -11,6 +12,8 @@ WorkingDirectory=/srv/vault2077/current
 EnvironmentFile=/etc/vault2077/production.env
 Environment=NODE_ENV=production
 Environment=PATH=/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=VAULT2077_HEALTH_HEARTBEAT_FILE=/var/log/vault2077/health-heartbeat.log
+LogsDirectory=vault2077
 ExecStart=/opt/node/bin/npm run health:check
 TimeoutStartSec=30
 UMask=0077

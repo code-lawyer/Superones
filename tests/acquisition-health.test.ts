@@ -39,14 +39,37 @@ test("each acquisition lane uses its own Beijing publication deadline", () => {
   }
 });
 
-test("any quarantined acquisition batch degrades business health", () => {
+test("a newly quarantined acquisition batch degrades business health with its identity", () => {
   const result = acquisitionInboxHealth({
     counts: { received: 0, processing: 0, processed: 20, retryable: 0, quarantined: 1 },
     oldestReceivedAt: null,
     oldestProcessingAt: null,
     oldestRetryableAt: null,
+    latestQuarantine: {
+      batchId: "batch:information:failed",
+      lane: "information",
+      at: "2026-08-04T04:20:00.000Z",
+    },
   }, new Date("2026-08-04T04:30:00.000Z"));
 
   assert.equal(result.status, "degraded");
   assert.match(result.detail, /quarantined=1/);
+  assert.match(result.detail, /batch:information:failed/);
+});
+
+test("retained historical quarantine evidence does not permanently degrade health", () => {
+  const result = acquisitionInboxHealth({
+    counts: { received: 0, processing: 0, processed: 20, retryable: 0, quarantined: 1 },
+    oldestReceivedAt: null,
+    oldestProcessingAt: null,
+    oldestRetryableAt: null,
+    latestQuarantine: {
+      batchId: "batch:information:old-failure",
+      lane: "information",
+      at: "2026-08-03T04:20:00.000Z",
+    },
+  }, new Date("2026-08-04T04:30:00.000Z"));
+
+  assert.equal(result.status, "ok");
+  assert.match(result.detail, /batch:information:old-failure/);
 });

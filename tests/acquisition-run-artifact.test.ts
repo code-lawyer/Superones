@@ -64,7 +64,7 @@ test("failed acquisition evidence remains valid without exposing credentials", a
 
   await evidence.begin();
   await evidence.fail(
-    new Error("Authorization: Bearer top-secret-value; postgresql://vault:database-password@db.example/vault"),
+    new Error("Authorization: Bearer top-secret-value; postgresql://vault:database-password@db.example/vault; owner@example.com; api_key=abcdefghijklmnop; https://operator:password@example.com/private"),
     "2026-08-03T00:25:30.000Z",
   );
 
@@ -72,7 +72,7 @@ test("failed acquisition evidence remains valid without exposing credentials", a
   assert.equal(result.status, "failed");
   const persisted = await readFile(path.join(root, "run-manifest.json"), "utf8");
   assert.match(persisted, /\[REDACTED\]/);
-  assert.doesNotMatch(persisted, /top-secret-value|database-password/);
+  assert.doesNotMatch(persisted, /top-secret-value|database-password|owner@example\.com|abcdefghijklmnop|operator:password/);
 });
 
 test("artifact validation CLI reports an archived run", async (context) => {
@@ -107,6 +107,33 @@ test("artifact validation CLI reports an archived run", async (context) => {
   );
 });
 
+test("workflow evidence finalizer archives a run interrupted before collection", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-run-interrupted-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const environment = {
+    ...process.env,
+    VAULT2077_COLLECTOR_OUTPUT_DIR: root,
+    VAULT2077_ACQUISITION_LANE: "roadside",
+    VAULT2077_ACQUISITION_RUN_MODE: "incremental",
+    VAULT2077_SCHEDULE_ID: "incremental:roadside:30828010970:1",
+    GITHUB_RUN_ID: "30828010970",
+  };
+
+  await execFileAsync(process.execPath, [
+    "--experimental-strip-types",
+    "scripts/initialize-acquisition-evidence.ts",
+  ], { cwd: path.resolve("."), env: environment });
+  await execFileAsync(process.execPath, [
+    "--experimental-strip-types",
+    "scripts/finalize-acquisition-evidence.ts",
+  ], { cwd: path.resolve("."), env: environment });
+
+  const result = await validateAcquisitionRunEvidence(root);
+  assert.equal(result.status, "failed");
+  assert.equal(result.lane, "roadside");
+  assert.match(result.failure?.message ?? "", /before collection completed/);
+});
+
 test("artifact validation rejects credential material in reports", async (context) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-run-secret-"));
   context.after(() => rm(root, { recursive: true, force: true }));
@@ -129,6 +156,44 @@ test("artifact validation rejects credential material in reports", async (contex
   await evidence.complete();
 
   await assert.rejects(validateAcquisitionRunEvidence(root), /敏感凭据/);
+});
+
+test("artifact validation rejects private emails and common credential encodings", async (context) => {
+  const samples = [
+    "owner@example.com",
+    "api_key=abcdefghijklmnop",
+    "client_secret: abcdefghijklmnop",
+    "https://operator:password@example.com/private",
+    "https://api.example.test/data?access_token=abcdefghijklmnop",
+    "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
+    "AKIAIOSFODNN7EXAMPLE",
+  ];
+
+  for (const [index, sample] of samples.entries()) {
+    const root = await mkdtemp(path.join(os.tmpdir(), `vault2077-run-private-${index}-`));
+    context.after(() => rm(root, { recursive: true, force: true }));
+    await mkdir(path.join(root, "acquisition-batches"), { recursive: true });
+    const evidence = createAcquisitionRunEvidence({
+      outputRoot: root,
+      runId: `run:private:${index}`,
+      lane: "information",
+      runMode: "incremental",
+      scheduleId: `incremental:information:private:${index}`,
+    });
+    await evidence.begin();
+    await writeFile(path.join(root, "acquisition-batches", "batch.json"), JSON.stringify({
+      batchId: `batch:private:${index}`,
+      diagnostic: sample,
+    }), "utf8");
+    await writeFile(path.join(root, "acquisition-report.json"), JSON.stringify({
+      schemaVersion: 1,
+      runId: `run:private:${index}`,
+      lane: "information",
+    }), "utf8");
+    await evidence.complete();
+
+    await assert.rejects(validateAcquisitionRunEvidence(root), /敏感凭据/, sample);
+  }
 });
 
 test("artifact validation CLI does not authorize unsafe evidence for upload", async (context) => {

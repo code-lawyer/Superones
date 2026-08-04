@@ -785,6 +785,8 @@ sudo journalctl -u vault2077-ranger-media-cleanup.service -n 200 --no-pager
 
 oneshot 返回非零、timer 超过两个周期没有成功、inbox 出现新增 quarantine 或频道超过调度感知的新鲜度 deadline 都必须告警。生产主告警接收人为 `lanzhouda@163.com`，当前没有备用接收人；阿里云侧必须实际发送测试邮件并记录送达结果。
 
+项目会把关键单元失败写入 `/var/log/vault2077/failures.log`，并每五分钟向 `/var/log/vault2077/health-heartbeat.log` 写入成功心跳。阿里云联系人、LoongCollector、SLS 规则和无影响合成失败演练按 `docs/Vault2077-Aliyun-Alert-Manual-Checklist.md` 执行。
+
 ## 18. 公开切流前验收
 
 ### 18.1 自动化门禁

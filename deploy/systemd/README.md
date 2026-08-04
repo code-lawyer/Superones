@@ -13,6 +13,7 @@
 ```bash
 sudo install -m 0644 deploy/systemd/vault2077-*.service /etc/systemd/system/
 sudo install -m 0644 deploy/systemd/vault2077-*.timer /etc/systemd/system/
+sudo install -m 0644 deploy/logrotate/vault2077 /etc/logrotate.d/vault2077
 sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd/system/vault2077-*.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now vault2077-web.service
@@ -35,6 +36,12 @@ journalctl -u vault2077-ranger-media-cleanup.service -n 100 --no-pager
 ```
 
 oneshot 本轮返回非零、timer 超过两个周期没有成功、inbox 新增 quarantine 或频道超过新鲜度阈值都必须告警。历史 quarantine 不应让每次 worker 永久返回非零；worker 失败后按最多六次指数退避保留 inbox，成功记录保留 30 天、隔离记录保留 180 天后自动清理。不得从 GitHub Actions 远程调用处理接口。
+
+## 失败事件与健康心跳
+
+`vault2077-failure-notify@.service` 会在 Web、采集 worker、健康探针或 Frontier 单元失败时，把统一事件写入 journald 和 `/var/log/vault2077/failures.log`。健康探针成功时会向 `/var/log/vault2077/health-heartbeat.log` 追加最小心跳。两类日志只包含状态、单元名和时间，不包含密钥或业务正文；`deploy/logrotate/vault2077` 每日轮转并保留 14 份。
+
+阿里云联系人、LoongCollector、SLS 规则和邮件送达演练见 `docs/Vault2077-Aliyun-Alert-Manual-Checklist.md`。
 
 ## 2 核 2G 基线
 

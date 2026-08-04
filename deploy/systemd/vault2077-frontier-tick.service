@@ -2,6 +2,7 @@
 Description=Vault2077 Frontier daytime observation and settlement
 After=network-online.target
 Wants=network-online.target
+OnFailure=vault2077-failure-notify@%n.service
 
 [Service]
 Type=oneshot

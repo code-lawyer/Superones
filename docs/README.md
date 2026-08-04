@@ -54,6 +54,7 @@ updated: 2026-08-01
 ## 当前运行文档
 
 - [阿里云中国大陆生产部署与迁移 Handoff](Vault2077-Aliyun-Mainland-Production-Handoff.md)
+- [阿里云告警手动配置清单](Vault2077-Aliyun-Alert-Manual-Checklist.md)
 - [生产部署执行方案](../Vault2077-Production-Deployment-Plan-2026-07-31.md)
 - [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
 - [GitHub Actions 向阿里云生产环境投递操作手册](Vault2077-GitHub-Actions-Aliyun-Delivery-Operations-Manual.md)
