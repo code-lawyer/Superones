@@ -51,6 +51,10 @@ const failureNotifier = await readFile(
   new URL("../deploy/systemd/vault2077-failure-notify@.service", import.meta.url),
   "utf8",
 );
+const productionLogrotate = await readFile(
+  new URL("../deploy/logrotate/vault2077", import.meta.url),
+  "utf8",
+);
 
 test("the repository keeps exactly one overseas acquisition workflow", async () => {
   const names = (await readdir(new URL("../.github/workflows/", import.meta.url)))
@@ -171,4 +175,6 @@ test("production services emit a uniform journal event when systemd marks them f
   assert.match(failureNotifier, /^LogsDirectory=vault2077$/m);
   assert.match(failureNotifier, /^StandardOutput=append:\/var\/log\/vault2077\/failures\.log$/m);
   assert.match(failureNotifier, /ExecStart=\/usr\/bin\/printf .*vault2077-alert.*unit.*%i.*status.*failed/);
+  assert.match(productionLogrotate, /^\s*copytruncate$/m);
+  assert.match(productionLogrotate, /^\s*su root root$/m);
 });
