@@ -176,5 +176,7 @@ test("production services emit a uniform journal event when systemd marks them f
   assert.match(failureNotifier, /^StandardOutput=append:\/var\/log\/vault2077\/failures\.log$/m);
   assert.match(failureNotifier, /ExecStart=\/usr\/bin\/printf .*vault2077-alert.*unit.*%i.*status.*failed/);
   assert.match(productionLogrotate, /^\s*copytruncate$/m);
+  assert.match(productionLogrotate, /^\s*maxsize 10M$/m);
+  assert.doesNotMatch(productionLogrotate, /^\s*size\s/m);
   assert.match(productionLogrotate, /^\s*su root root$/m);
 });
