@@ -76,6 +76,7 @@ updated: 2026-08-01
 
 - 项目审计：[2026-07-24 深层次项目审计](Vault2077-Deep-Audit-2026-07-24.md)
 - 阿里云部署：[中国大陆阿里云部署官方事实底稿（2026-07-31）](research/Vault2077-Aliyun-Mainland-Deployment-Official-Facts-2026-07-31.md)
+- 合规调研：[中国大陆互联网公司审批、许可与备案地图](research/china-internet-licenses.md)
 - OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)、[上海起步审批与备案适用范围审计](Vault2077-OPC-Shanghai-Startup-Approvals-Scope-Audit.md)、[审批备案之外的高普适标准服务研究](Vault2077-OPC-Standardizable-Services-Beyond-Filings-Research.md)、[下单后、付款前电子服务协议签署可行性调研](research/opc-esign-feasibility.md)、[e签宝技术流程与操作责任清单](research/opc-esign-integration-operator-checklist.md)
 - 媒体存储：[游骑兵头像存储决策](Vault2077-Ranger-Avatar-Storage-Decision-2026-07-31.md)
 - 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)

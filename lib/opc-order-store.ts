@@ -806,42 +806,35 @@ export async function recordOpcAlipayQuery(reference: string, result: OpcAlipayQ
 }
 
 export async function listAdminOpcOrders() {
-    return mutateStateDocument(orderDocument, (store) => {
-      scrubExpiredContacts(store, new Date());
-      return store.orders
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-        .slice(0, 1_000)
-        .map((order) => {
-          const contact = order.contactEncrypted
-            ? JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact
-            : null;
-          const signer = order.signerEncrypted
-            ? JSON.parse(decryptSensitiveText(order.signerEncrypted)) as OpcSignerParty
-            : null;
-          const {
-            contactEncrypted: _contactEncrypted,
-            signerEncrypted: _signerEncrypted,
-            resumeTokenHash: _resumeTokenHash,
-            resumeTokenNonce: _resumeTokenNonce,
-            resumeTokenKeyId: _resumeTokenKeyId,
-            resumeTokenExpiresAt: _resumeTokenExpiresAt,
-            signature: storedSignature,
-            idempotencyHash: _idempotencyHash,
-            requestFingerprint: _requestFingerprint,
-            ...record
-          } = order;
-          const {
-            preparationClaimId: _preparationClaimId,
-            preparationLeaseExpiresAt: _preparationLeaseExpiresAt,
-            archiveClaimId: _archiveClaimId,
-            archiveLeaseExpiresAt: _archiveLeaseExpiresAt,
-            callbackEventHashes: _callbackEventHashes,
-            ...signature
-          } = storedSignature;
-          return { ...record, signature, contact, signer };
-        });
+  const store = await readStateDocument(orderDocument);
+  return [...store.orders]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, 1_000)
+    .map((order) => {
+      const contactAvailable = Boolean(order.contactEncrypted && order.signerEncrypted);
+      const {
+        contactEncrypted: _contactEncrypted,
+        signerEncrypted: _signerEncrypted,
+        resumeTokenHash: _resumeTokenHash,
+        resumeTokenNonce: _resumeTokenNonce,
+        resumeTokenKeyId: _resumeTokenKeyId,
+        resumeTokenExpiresAt: _resumeTokenExpiresAt,
+        signature: storedSignature,
+        idempotencyHash: _idempotencyHash,
+        requestFingerprint: _requestFingerprint,
+        ...record
+      } = order;
+      const {
+        preparationClaimId: _preparationClaimId,
+        preparationLeaseExpiresAt: _preparationLeaseExpiresAt,
+        archiveClaimId: _archiveClaimId,
+        archiveLeaseExpiresAt: _archiveLeaseExpiresAt,
+        callbackEventHashes: _callbackEventHashes,
+        ...signature
+      } = storedSignature;
+      return { ...record, signature, contactAvailable };
     });
-  }
+}
 
 export async function updateOpcOrderStatus(id: string, status: OpcOrderStatus) {
   return mutateStateDocument(orderDocument, (store) => {

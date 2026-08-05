@@ -59,13 +59,21 @@ test("OPC Alipay notification verifies provider identity before marking an order
   assert.match(store, /order\.signature\.archive\.status === "archived"/);
 });
 
-test("OPC order contacts remain encrypted outside the protected admin projection", async () => {
+test("OPC order contacts remain encrypted outside the reauthenticated export", async () => {
   const store = await readFile(path.join(root, "lib", "opc-order-store.ts"), "utf8");
+  const adminList = store.slice(
+    store.indexOf("export async function listAdminOpcOrders"),
+    store.indexOf("export async function updateOpcOrderStatus"),
+  );
 
   assert.match(store, /contactEncrypted: encryptSensitiveText\(JSON\.stringify\(input\.contact\)\)/);
   assert.match(store, /decryptSensitiveText\(order\.contactEncrypted\)/);
   assert.match(store, /730 \* 24 \* 60 \* 60 \* 1000/);
   assert.doesNotMatch(store, /store\.orders = store\.orders\.slice/);
+  assert.match(adminList, /readStateDocument\(orderDocument\)/);
+  assert.match(adminList, /contactAvailable/);
+  assert.doesNotMatch(adminList, /decryptSensitiveText/);
+  assert.doesNotMatch(adminList, /mutateStateDocument/);
 });
 
 test("OPC admin downloads require recent reauthentication, integrity checks, and auditing", async () => {
@@ -80,4 +88,14 @@ test("OPC admin downloads require recent reauthentication, integrity checks, and
   assert.match(contractRoute, /createHash\("sha256"\)/);
   assert.match(contractRoute, /actualSha256 !== archive\.sha256/);
   assert.match(contactRoute, /\/\^\[=\+\\-@\]\//);
+});
+
+test("admin responses containing protected data are never cacheable", async () => {
+  const access = await readFile(path.join(root, "lib", "admin-access.ts"), "utf8");
+  const registration = await readFile(path.join(root, "app", "api", "admin", "passkey", "register", "verify", "route.ts"), "utf8");
+  const recovery = await readFile(path.join(root, "app", "api", "admin", "passkey", "recover", "route.ts"), "utf8");
+
+  assert.match(access, /response\.headers\.set\("Cache-Control", "private, no-store"\)/);
+  assert.match(registration, /response\.headers\.set\("Cache-Control", "private, no-store"\)/);
+  assert.match(recovery, /"Cache-Control": "private, no-store"/);
 });

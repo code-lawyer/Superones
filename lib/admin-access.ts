@@ -57,12 +57,11 @@ export async function authenticateAdminRequest(
 }
 
 export function authenticatedAdminJson(access: AdminAccess, body: unknown, init?: ResponseInit) {
-  const response = NextResponse.json(body, init);
-  response.cookies.set(adminCookieName(), access.token, adminCookieOptions());
-  return response;
+  return authenticatedAdminResponse(access, NextResponse.json(body, init));
 }
 
 export function authenticatedAdminResponse(access: AdminAccess, response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-store");
   response.cookies.set(adminCookieName(), access.token, adminCookieOptions());
   return response;
 }

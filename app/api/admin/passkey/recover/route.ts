@@ -26,7 +26,10 @@ export async function POST(request: NextRequest) {
     if (typeof body.recoveryCode !== "string" || body.recoveryCode.length < 20) throw new Error("invalid-code");
     const result = await exchangeAdminRecoveryCode(body.recoveryCode.trim());
     await recordAuditEvent({ actorHash: clientHash, action: "admin.passkey.recover", targetType: "credential", targetId: "owner", result: "success" });
-    return NextResponse.json({ ok: true, enrollmentToken: result.token, expiresAt: result.expiresAt });
+    return NextResponse.json(
+      { ok: true, enrollmentToken: result.token, expiresAt: result.expiresAt },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     await recordRejectedAdminPasskeyEvent({
       actorHash: clientHash,

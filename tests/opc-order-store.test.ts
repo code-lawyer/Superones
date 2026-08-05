@@ -61,9 +61,10 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
 
     const orders = await store.listAdminOpcOrders();
     assert.equal(orders.length, 1);
-    assert.equal(orders[0].contact?.phone, "13800138000");
+    assert.equal("contact" in orders[0], false);
+    assert.equal("signer" in orders[0], false);
+    assert.equal(orders[0].contactAvailable, true);
     assert.equal(orders[0].status, "awaiting_signature");
-    assert.equal(orders[0].signer?.name, "测试联系人");
     assert.equal(orders[0].payment.amount.decimal, "1980.00");
 
     const claim = await store.claimOpcSignaturePreparation(created.reference, created.resumeToken);

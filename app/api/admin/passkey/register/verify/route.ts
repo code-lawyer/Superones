@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       result: "success",
     });
     const response = NextResponse.json({ ok: true, recoveryCodes: result.recoveryCodes });
+    response.headers.set("Cache-Control", "private, no-store");
     response.cookies.set(adminCookieName(), created.token, adminCookieOptions());
     return response;
   } catch (error) {

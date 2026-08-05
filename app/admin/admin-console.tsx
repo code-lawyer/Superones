@@ -72,21 +72,7 @@ type OpcOrder = {
     notifiedAt: string | null;
     checkedAt: string | null;
   };
-  contact: {
-    name: string;
-    phone: string;
-    email: string;
-    wechat: string;
-    note: string;
-  } | null;
-  signer: {
-    type: "individual" | "organization";
-    name: string;
-    phone: string;
-    organizationName: string;
-    organizationCreditCode: string;
-    legalRepresentativeName: string;
-  } | null;
+  contactAvailable: boolean;
   signature: {
     provider: "mock" | "esign" | "legacy";
     status: string;
@@ -754,14 +740,11 @@ export function AdminConsole() {
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
                 <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.channel === "wap" ? "手机付款页面" : order.payment.channel === "page" ? "电脑付款页面" : "尚未发起付款"}</p>
-                <p>签约方 {order.signer?.type === "organization" ? `${order.signer.organizationName}（法定代表人 ${order.signer.legalRepresentativeName}）` : order.signer?.name ?? "历史订单"}</p>
-                {order.contact?.note ? <p>{order.contact.note}</p> : null}
+                <p>签约资料 {order.contactAvailable ? "已加密保存，重新验证后可导出" : "已按保留期清除"}</p>
               </div>
               <div className="admin-donation-meta">
-                <strong>{order.contact?.name ?? "联系方式已按保留期清除"}</strong>
-                <span className="mono">{order.contact?.phone || "未填手机号"}</span>
-                <span className="mono">{order.contact?.email || "未填邮箱"}</span>
-                <span className="mono">{order.contact?.wechat || "未填即时通讯账号"}</span>
+                <strong>{order.contactAvailable ? "客户联系方式受保护" : "联系方式已按保留期清除"}</strong>
+                <span className="mono">{order.contactAvailable ? "完整资料需重新验证后导出" : "无可导出的联系方式"}</span>
                 <time className="mono">创建 {new Date(order.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <time className="mono">更新 {new Date(order.updatedAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <span className="mono">付款状态 {order.payment.tradeStatus ?? "尚未回传"}</span>
@@ -783,7 +766,7 @@ export function AdminConsole() {
               </div>
               <div className="admin-actions">
                 {order.signature.archive.status === "archived" && order.signature.archive.sha256 ? <button className="text-action" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contract")}>下载已签合同</button> : null}
-                {order.contact ? <button className="text-link" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contact")}>导出客户联系方式</button> : null}
+                {order.contactAvailable ? <button className="text-link" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contact")}>导出客户联系方式</button> : null}
                 {order.status === "awaiting_signature" ? <>
                   <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcSignature(order)}>查询签署状态</button>
                   <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
