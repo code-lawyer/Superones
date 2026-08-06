@@ -50,6 +50,13 @@ type OpcEsignConfiguration = {
   providerOrganizationSignPosition: OpcSignPosition;
 };
 
+export type OpcEsignTemplateProbe = {
+  kind: "individual" | "organization";
+  templateName: string;
+  componentCount: number;
+  status: "ok";
+};
+
 type OpcSignPosition = { positionPage: string; positionX: number; positionY: number };
 
 function parseSignPosition(value: string | undefined, label: string): OpcSignPosition {
@@ -200,8 +207,18 @@ function signedHeaders(method: string, path: string, body: string, configuration
 }
 
 async function esignRequest(method: "GET" | "POST", path: string, payload: unknown, configuration: OpcEsignConfiguration) {
+  return esignRequestWith(method, path, payload, configuration, fetch);
+}
+
+async function esignRequestWith(
+  method: "GET" | "POST",
+  path: string,
+  payload: unknown,
+  configuration: OpcEsignConfiguration,
+  fetcher: typeof fetch,
+) {
   const body = method === "POST" ? JSON.stringify(payload) : "";
-  const response = await fetch(`${configuration.apiBaseUrl}${path}`, {
+  const response = await fetcher(`${configuration.apiBaseUrl}${path}`, {
     method,
     headers: signedHeaders(method, path, body, configuration),
     body: body || undefined,
@@ -214,6 +231,81 @@ async function esignRequest(method: "GET" | "POST", path: string, payload: unkno
     throw new Error("电子签约服务暂时不可用。");
   }
   return result.data;
+}
+
+const requiredOpcTemplateComponentKeys = [
+  "order_reference",
+  "service_code",
+  "service_name",
+  "service_revision",
+  "quoted_price",
+  "service_period",
+  "service_outcome",
+  "service_scope",
+  "service_boundary",
+  "provider_name",
+  "provider_credit_code",
+  "customer_name",
+  "customer_phone",
+  "customer_org_name",
+  "customer_org_credit_code",
+  "customer_legal_representative",
+] as const satisfies ReadonlyArray<keyof OpcEsignTemplateFields>;
+
+export async function verifyOpcEsignTemplates(
+  environment: Record<string, string | undefined> = process.env,
+  fetcher: typeof fetch = fetch,
+) {
+  const configuration = readConfiguration(environment);
+  if (configuration.provider !== "esign") {
+    throw new Error("E 签宝模板探针必须使用真实的 e 签宝供应商配置。");
+  }
+  const templates = [
+    ["individual", configuration.individualTemplateId],
+    ["organization", configuration.organizationTemplateId],
+  ] as const;
+  const probes: OpcEsignTemplateProbe[] = [];
+  for (const [kind, templateId] of templates) {
+    const data = await esignRequestWith(
+      "GET",
+      `/v3/doc-templates/${encodeURIComponent(templateId)}`,
+      null,
+      configuration,
+      fetcher,
+    );
+    if (String(data.docTemplateId ?? "") !== templateId) {
+      throw new Error(`E 签宝${kind === "individual" ? "自然人" : "组织"}模板编号与查询结果不一致。`);
+    }
+    const components = Array.isArray(data.components)
+      ? data.components as Array<Record<string, unknown>>
+      : [];
+    const componentKeys = components
+      .map((component) => String(component.componentKey ?? ""))
+      .filter(Boolean);
+    const duplicates = componentKeys.filter((key, index) => componentKeys.indexOf(key) !== index);
+    if (duplicates.length > 0) {
+      throw new Error(`E 签宝${kind === "individual" ? "自然人" : "组织"}模板含重复控件 Key：${[...new Set(duplicates)].join("、")}。`);
+    }
+    const missing = requiredOpcTemplateComponentKeys.filter((key) => !componentKeys.includes(key));
+    if (missing.length > 0) {
+      throw new Error(`E 签宝${kind === "individual" ? "自然人" : "组织"}模板缺少控件 Key：${missing.join("、")}。`);
+    }
+    const unknownRequired = components.filter((component) => (
+      component.required === true
+      && ![6, 17, 21].includes(Number(component.componentType))
+      && !requiredOpcTemplateComponentKeys.includes(String(component.componentKey ?? "") as keyof OpcEsignTemplateFields)
+    ));
+    if (unknownRequired.length > 0) {
+      throw new Error(`E 签宝${kind === "individual" ? "自然人" : "组织"}模板含代码不会填充的必填控件。`);
+    }
+    probes.push({
+      kind,
+      templateName: String(data.docTemplateName ?? "未命名模板").slice(0, 128),
+      componentCount: components.length,
+      status: "ok",
+    });
+  }
+  return probes;
 }
 
 export async function createOpcEsignFlow(input: {

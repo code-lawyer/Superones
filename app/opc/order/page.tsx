@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
 import { OpcOrderEntry } from "@/components/opc-order-entry";
+import { buildOpcPaperCheckoutAgreement } from "@/lib/opc-checkout-agreement";
 import { opcOrderEntryAvailable } from "@/lib/opc-order-availability";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 
@@ -21,6 +23,7 @@ export default async function OpcOrderPage({
 }: {
   searchParams: Promise<OpcOrderPageSearchParams>;
 }) {
+  if (!opcOrderEntryAvailable()) notFound();
   const query = await searchParams;
   if (
     (query.kind !== "infrastructure" && query.kind !== "specialty")
@@ -35,8 +38,17 @@ export default async function OpcOrderPage({
 
   const view = service.kind === "infrastructure" ? "infrastructure" : "specialties";
   const returnHref = `/opc?view=${view}&service=${encodeURIComponent(service.slug)}`;
-  const orderingAvailable = opcOrderEntryAvailable();
-
+  const checkoutAgreement = buildOpcPaperCheckoutAgreement({
+    code: service.code,
+    name: service.name,
+    revision: service.revision,
+    price: service.price,
+    period: service.period,
+    outcome: service.outcome,
+    scope: service.includes.join("；"),
+    boundary: service.boundary,
+  });
+  const agreementSha256 = createHash("sha256").update(checkoutAgreement.text).digest("hex");
   return (
     <div className="shell opc-order-page">
       <header className="opc-order-page__header">
@@ -45,8 +57,8 @@ export default async function OpcOrderPage({
           <Link href={returnHref}>← 返回服务详情</Link>
         </div>
         <div className="opc-order-page__introduction">
-          <h1>确认服务，<br />先签约，再付款。</h1>
-          <p>核对服务名称、公开价格与预计周期，选择签约方并填写联系人。协议签署核验完成后进入付款页面。</p>
+          <h1>确认服务，<br />先付款，再寄送合同。</h1>
+          <p>核对服务名称、固定金额与服务范围，选择纸质签约并填写付款方、联系人和合同寄送地址；提交后进入支付宝官方付款页面。</p>
         </div>
       </header>
 
@@ -77,19 +89,15 @@ export default async function OpcOrderPage({
               <dd>{service.period}</dd>
             </div>
           </dl>
-          <p className="opc-order-page__delivery-note">Vault2077 直接交付 · 托管签署 · 独立付款</p>
+          <p className="opc-order-page__delivery-note">固定金额支付 · 纸质合同寄送 · 原路全额退款</p>
         </aside>
 
-        {orderingAvailable ? (
-          <OpcOrderEntry service={service} returnHref={returnHref} />
-        ) : (
-          <section className="opc-order-entry opc-order-entry--unavailable" aria-labelledby="opc-order-unavailable-title">
-            <p className="mono">SIGN & PAYMENT / 签约与付款</p>
-            <h3 id="opc-order-unavailable-title">在线签约下单尚未开放。</h3>
-            <p>服务目录可以正常浏览，签约与付款入口将在模板、商户接入和真实链路验收完成后开放。当前页面不会收集或保存联系人信息。</p>
-            <Link href={returnHref}>返回服务详情</Link>
-          </section>
-        )}
+        <OpcOrderEntry
+          service={service}
+          returnHref={returnHref}
+          checkoutAgreement={checkoutAgreement}
+          agreementSha256={agreementSha256}
+        />
       </div>
     </div>
   );

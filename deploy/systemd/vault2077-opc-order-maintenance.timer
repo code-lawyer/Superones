@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Vault2077 OPC order maintenance every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+Persistent=true
+Unit=vault2077-opc-order-maintenance.service
+
+[Install]
+WantedBy=timers.target

@@ -70,7 +70,8 @@ superones.top             admin.superones.top
 境内 systemd timers
   |-- acquisition worker：每 5 分钟
   |-- Frontier tick：北京时间 08:45–22:45 每 2 小时
-  `-- ranger media cleanup：每天 03:25
+  |-- ranger media cleanup：每天 03:25
+  `-- OPC order maintenance：每 1 分钟
 ```
 
 公开 Nginx 只允许两个精确的 `/api/internal/*` 路由；数据库、Node 3000、健康检查、手工处理入口和其余后台能力都不能暴露公网。
@@ -357,7 +358,7 @@ sudo ln -sfn "/opt/node-v${V2077_NODE_VERSION}-${V2077_NODE_ARCH}" /opt/node
 /opt/node/bin/node -p 'process.platform + " " + process.arch'
 ```
 
-四个 systemd 模板已显式设置 `/opt/node/bin` PATH 并调用 `/opt/node/bin/npm`。生产版本要固定并纳入补丁升级流程；升级补丁时先构建/测试同版本发布包，再原子切换 `/opt/node` 链接和应用 release，不执行无人复核的自动大版本升级。
+全部 Node systemd 模板已显式设置 `/opt/node/bin` PATH 并调用 `/opt/node/bin/npm`。生产版本要固定并纳入补丁升级流程；升级补丁时先构建/测试同版本发布包，再原子切换 `/opt/node` 链接和应用 release，不执行无人复核的自动大版本升级。
 
 ## 8. 生产构建与发布包
 
@@ -527,7 +528,7 @@ sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd
 sudo systemctl daemon-reload
 ```
 
-核对 `/opt/node/bin/npm`、用户、工作目录和环境文件路径。如果采用不同的系统级 Node/npm 安装路径，修改全部 unit 的 `PATH` 和 npm 绝对路径后重新 verify。四个 Node service 的 `RestrictAddressFamilies` 必须保留 `AF_UNIX AF_INET AF_INET6 AF_NETLINK`；缺少 `AF_NETLINK` 会在目标运行时触发 `EAFNOSUPPORT`。不要启动 timer，直到数据库、配置、模型探针、bootstrap 和 Web 基础验收完成。
+核对 `/opt/node/bin/npm`、用户、工作目录和环境文件路径。如果采用不同的系统级 Node/npm 安装路径，修改全部 unit 的 `PATH` 和 npm 绝对路径后重新 verify。所有 Node service 的 `RestrictAddressFamilies` 必须保留 `AF_UNIX AF_INET AF_INET6 AF_NETLINK`；缺少 `AF_NETLINK` 会在目标运行时触发 `EAFNOSUPPORT`。不要启动 timer，直到数据库、配置、模型探针、bootstrap 和 Web 基础验收完成。
 
 ### 10.2 Nginx
 
@@ -761,7 +762,8 @@ sudo systemctl enable --now \
   vault2077-acquisition-worker.timer \
   vault2077-healthcheck.timer \
   vault2077-frontier-tick.timer \
-  vault2077-ranger-media-cleanup.timer
+  vault2077-ranger-media-cleanup.timer \
+  vault2077-opc-order-maintenance.timer
 sudo systemctl list-timers 'vault2077-*' --all
 ```
 
@@ -772,6 +774,7 @@ sudo systemctl start vault2077-acquisition-worker.service
 sudo systemctl start vault2077-healthcheck.service
 sudo systemctl start vault2077-frontier-tick.service
 sudo systemctl start vault2077-ranger-media-cleanup.service
+sudo systemctl start vault2077-opc-order-maintenance.service
 ```
 
 检查：
@@ -877,7 +880,8 @@ curl -i https://<服务器公网IP>:3000/
 sudo systemctl stop \
   vault2077-acquisition-worker.timer \
   vault2077-frontier-tick.timer \
-  vault2077-ranger-media-cleanup.timer
+  vault2077-ranger-media-cleanup.timer \
+  vault2077-opc-order-maintenance.timer
 sudo ln -sfn /srv/vault2077/releases/<上一稳定版本> /srv/vault2077/current.new
 sudo mv -Tf /srv/vault2077/current.new /srv/vault2077/current
 sudo systemctl restart vault2077-web.service

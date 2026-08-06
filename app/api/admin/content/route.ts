@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       action?: unknown;
       orderId?: unknown;
       orderStatus?: unknown;
+      expectedUpdatedAt?: unknown;
       confirm?: unknown;
     };
     if (body.action === "reconcile-opc-signature") {
@@ -174,7 +175,13 @@ export async function POST(request: NextRequest) {
       const orderId = typeof body.orderId === "string" ? body.orderId : "";
       attemptedTargetId = orderId || "unknown";
       const orderStatus = body.orderStatus as OpcOrderStatus;
-      if (!orderId || !OPC_ORDER_STATUSES.includes(orderStatus) || body.confirm !== true) {
+      if (
+        !orderId
+        || !OPC_ORDER_STATUSES.includes(orderStatus)
+        || !["cancelled", "completed"].includes(orderStatus)
+        || typeof body.expectedUpdatedAt !== "string"
+        || body.confirm !== true
+      ) {
         await recordAuditEvent({
           actorHash,
           action: "admin.opc-order.update",
@@ -186,14 +193,14 @@ export async function POST(request: NextRequest) {
         return authenticatedAdminJson(access, { error: "更新 OPC 订单需要有效订单、目标状态和明确确认。" }, { status: 400 });
       }
       await withPersistenceTransaction(async () => {
-        const updated = await updateOpcOrderStatus(orderId, orderStatus);
+        const updated = await updateOpcOrderStatus(orderId, orderStatus, body.expectedUpdatedAt as string);
         await recordAuditEvent({
           actorHash,
           action: "admin.opc-order.update",
           targetType: "opc-order",
           targetId: orderId,
           result: "success",
-          diff: { reference: updated.reference, status: updated.status },
+          diff: { reference: updated.reference, status: updated.status, expectedUpdatedAt: body.expectedUpdatedAt },
         });
       });
       return authenticatedAdminJson(access, { orders: await listAdminOpcOrders() });

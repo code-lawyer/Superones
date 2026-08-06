@@ -206,33 +206,35 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(orderPage, /const service = services\.find\(\(item\) => item\.slug === query\.service\)/);
   assert.match(orderPage, /query\.kind !== "infrastructure" && query\.kind !== "specialty"/);
   assert.match(orderPage, /if \(!service \|\| service\.kind !== query\.kind\) notFound\(\)/);
+  assert.match(orderPage, /if \(!opcOrderEntryAvailable\(\)\) notFound\(\)/);
   assert.match(orderPage, /const view = service\.kind === "infrastructure" \? "infrastructure" : "specialties"/);
-  assert.match(orderPage, /const orderingAvailable = opcOrderEntryAvailable\(\)/);
-  assert.match(orderPage, /<OpcOrderEntry service=\{service\} returnHref=\{returnHref\} \/>/);
-  assert.match(orderPage, /\{orderingAvailable \? \(/);
-  assert.match(orderPage, /在线签约下单尚未开放。/);
+  assert.match(orderPage, /<OpcOrderEntry[\s\S]*service=\{service\}[\s\S]*returnHref=\{returnHref\}[\s\S]*checkoutAgreement=\{checkoutAgreement\}[\s\S]*agreementSha256=\{agreementSha256\}[\s\S]*\/>/);
+  assert.doesNotMatch(orderPage, /筹备中|当前可用|在线签约下单尚未开放/);
   assert.match(orderPage, /<OpcFeeNotePopover/);
   assert.doesNotMatch(orderPage, /<details|opc-order-page__fee-note/);
   assert.match(orderPage, /className="opc-order-page__workspace"/);
-  assert.match(orderPage, /<h1>确认服务，<br \/>先签约，再付款。<\/h1>/);
-  assert.doesNotMatch(orderPage, /service\.revision|目录版本/);
-  assert.match(orderEntry, /确认签约方与联系人/);
+  assert.match(orderPage, /<h1>确认服务，<br \/>先付款，再寄送合同。<\/h1>/);
+  assert.doesNotMatch(orderPage, /<dd>\{service\.revision\}<\/dd>|目录版本/);
+  assert.match(orderEntry, />电子签约<\/button>/);
+  assert.match(orderEntry, /<button type="button" disabled>电子签约<\/button>/);
+  assert.match(orderEntry, /<button type="button" aria-pressed="true">纸质签约<\/button>/);
+  assert.doesNotMatch(orderEntry, /筹备中|当前可用/);
   assert.match(orderEntry, /X-Vault2077-Public-Request/);
-  assert.match(orderEntry, /window\.location\.assign\(body\.signUrl\)/);
-  assert.match(orderEntry, /服务器核验签署完成后才会生成付款页面/);
+  assert.match(orderEntry, /window\.location\.assign\(body\.paymentUrl\)/);
+  assert.match(orderEntry, /sessionStorage\.setItem\(`vault2077:opc:resume:/);
+  assert.match(orderEntry, /recipientName, deliveryPhone, province, city, district, addressLine/);
+  assert.match(orderEntry, /agreementAccepted/);
   assert.match(orderEntry, /href="\/terms"/);
   assert.match(orderEntry, /href="\/privacy"/);
-  assert.doesNotMatch(orderEntry, /service\.revision|openRequest|setExpanded|scrollIntoView/);
-  assert.match(orderEntry, /document\.getElementById\(`opc-order-\$\{firstField\}`\)\?\.focus\(\)/);
-  assert.match(orderEntry, /if \(submittingRef\.current\) return/);
+  assert.doesNotMatch(orderEntry, /openRequest|setExpanded|scrollIntoView|目录版本|服务修订/);
+  assert.match(orderEntry, /document\.getElementById\(`opc-order-\$\{first\}`\)\?\.focus\(\)/);
+  assert.match(orderEntry, /if \(submittingRef\.current \|\| !validate\(\)\) return/);
   assert.match(orderEntry, /const controller = new AbortController\(\)/);
   assert.match(orderEntry, /signal: controller\.signal/);
   assert.match(orderEntry, /window\.setTimeout\(\(\) => controller\.abort\(\), orderRequestTimeoutMs\)/);
-  assert.match(orderEntry, /requestAbortRef\.current\?\.abort\(\)/);
-  assert.match(orderEntry, /useEffect\(\(\) => \{\s*mountedRef\.current = true/);
   assert.match(orderEntry, /aria-busy=\{pending\}/);
-  assert.match(orderEntry, /id="opc-order-request-error" role="alert"/);
-  assert.match(orderEntry, /订单请求超时。请检查网络连接后重试；重复提交不会重复创建订单。/);
+  assert.match(orderEntry, /role="alert"/);
+  assert.match(orderEntry, /订单请求超时，请检查网络后重试；重复提交不会重复创建订单。/);
   assert.doesNotMatch(orderEntry, /下单暂未开放|支付通道完成上线配置后开放下单|disabled=\{!enabled\}/);
   const orderRules = styles.match(/\.opc-order-entry\s*\{[^}]+\}/g) ?? [];
   const finalOrderRule = orderRules.find((rule) => rule.includes("background: var(--paper-bright)")) ?? "";
@@ -249,7 +251,7 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(opcPage, /orderingAvailable=\{orderingAvailable\}/);
 });
 
-test("public interaction copy does not expose third-party payment or messaging brands", async () => {
+test("general public copy avoids messaging handles while OPC may identify its payment provider", async () => {
   const source = await Promise.all([
     readSourceTree(path.join(root, "app")),
     readSourceTree(path.join(root, "components")),
@@ -262,7 +264,8 @@ test("public interaction copy does not expose third-party payment or messaging b
     readFile(path.join(root, "app", "frontier", "submit", "submit-form.tsx"), "utf8"),
   ]);
 
-  assert.doesNotMatch(source.join("\n"), /支付宝|微信号/);
+  assert.doesNotMatch(source.join("\n"), /微信号/);
+  assert.match(source.join("\n"), /支付宝/);
   assert.doesNotMatch(
     publicSurfaceCopy.join("\n"),
     /GITHUB\s*\/|GitHub 官方|GitHub Trending|Hugging Face Trending|OpenRouter Top|YouTube 只|微信公众号|知乎|微博|B\s*站|公开 GitHub|GitHub 可识别/,

@@ -16,6 +16,7 @@ import {
   RANGER_MEDIA_ORIGIN,
 } from "./legal-profile.ts";
 import { opcAlipayConfigurationErrors } from "./opc-payment-config.ts";
+import { opcPaymentEmailConfigurationErrors } from "./opc-payment-email.ts";
 import { opcEsignConfigurationErrors } from "./opc-esign.ts";
 import { opcContractArchiveConfigurationErrors } from "./opc-contract-archive.ts";
 import { parseSecretKeyring } from "./secret-keyring.ts";
@@ -281,17 +282,35 @@ export function validateProductionConfiguration(
       productionGatewayOnly: true,
     }).map((error) => `支付宝开放平台：${error}`));
   }
+  if (!["true", "false"].includes(environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED ?? "")) {
+    errors.push("VAULT2077_OPC_PAPER_CHECKOUT_ENABLED 必须明确设为 true 或 false。");
+  }
+  if (!["true", "false"].includes(environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED ?? "")) {
+    errors.push("VAULT2077_OPC_PAYMENT_EMAIL_ENABLED 必须明确设为 true 或 false。");
+  } else if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED === "true") {
+    errors.push(...opcPaymentEmailConfigurationErrors(environment).map((error) => `OPC 付款邮件：${error}`));
+  }
+  if (environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED === "true") {
+    if (environment.VAULT2077_OPC_PAYMENTS_ENABLED !== "true") {
+      errors.push("纸质签约入口开放时必须同时启用 OPC 支付宝付款。");
+    }
+    if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED !== "true") {
+      errors.push("纸质签约入口开放时必须同时启用付款邮件通知。");
+    }
+  }
   if (!["true", "false"].includes(environment.VAULT2077_OPC_ESIGN_ENABLED ?? "")) {
     errors.push("VAULT2077_OPC_ESIGN_ENABLED 必须明确设为 true 或 false。");
   } else if (environment.VAULT2077_OPC_ESIGN_ENABLED === "true") {
     errors.push(...opcEsignConfigurationErrors(environment).map((error) => `e 签宝开放平台：${error}`));
     errors.push(...opcContractArchiveConfigurationErrors(environment).map((error) => `OPC 合同归档：${error}`));
   }
-  if (environment.VAULT2077_OPC_PAYMENTS_ENABLED !== environment.VAULT2077_OPC_ESIGN_ENABLED) {
-    errors.push("OPC 付款与电子签约开关必须同时开启或同时关闭。");
-  }
 
   const configuredSecrets: Array<{ name: string; value: string }> = [];
+  if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED === "true") {
+    const smtpPassword = environment.VAULT2077_SMTP_PASSWORD?.trim() ?? "";
+    if (placeholder(smtpPassword)) errors.push("VAULT2077_SMTP_PASSWORD 不得使用占位值。");
+    if (smtpPassword) configuredSecrets.push({ name: "VAULT2077_SMTP_PASSWORD", value: smtpPassword });
+  }
   for (const name of REQUIRED_SECRETS) {
     const value = environment[name]?.trim() ?? "";
     if (Buffer.byteLength(value, "utf8") < 32) errors.push(`${name} 必须至少 32 字节。`);
@@ -306,7 +325,10 @@ export function validateProductionConfiguration(
     "敏感数据密钥环",
     errors,
   ));
-  if (environment.VAULT2077_OPC_ESIGN_ENABLED === "true") {
+  if (
+    environment.VAULT2077_OPC_ESIGN_ENABLED === "true"
+    || environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED === "true"
+  ) {
     configuredSecrets.push(...validateKeyring(
       environment,
       "VAULT2077_OPC_RESUME_TOKEN_KEYS",

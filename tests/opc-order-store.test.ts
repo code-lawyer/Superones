@@ -91,9 +91,10 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
       archivedAt: new Date().toISOString(), retainUntil: "2036-08-02T00:00:00.000Z", evidence: [],
     });
 
-    await store.recordOpcPaymentRequest(created.reference, "page", "2088000000000001");
+    await store.recordOpcPaymentRequest(created.reference, "page", "2088000000000001", "2026000000000001");
     await store.applyOpcAlipayTradeResult({
       reference: created.reference,
+      appId: "2026000000000001",
       sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000001",
       tradeStatus: "TRADE_SUCCESS",
@@ -107,6 +108,7 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     assert.ok(paid.payment.notifiedAt);
     await store.applyOpcAlipayTradeResult({
       reference: created.reference,
+      appId: "2026000000000001",
       sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000001",
       tradeStatus: "TRADE_SUCCESS",
@@ -117,6 +119,7 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     await assert.rejects(
       store.applyOpcAlipayTradeResult({
         reference: created.reference,
+        appId: "2026000000000001",
         sellerId: "2088000000000001",
         tradeNo: "2026072822001000000000000001",
         tradeStatus: "TRADE_SUCCESS",
@@ -128,7 +131,19 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     await assert.rejects(
       store.applyOpcAlipayTradeResult({
         reference: created.reference,
-        sellerId: "2088000000000002",
+        appId: "2026000000000002",
+        tradeNo: "2026072822001000000000000001",
+        tradeStatus: "TRADE_SUCCESS",
+        amount: { currency: "CNY", minorUnits: 198_000, decimal: "1980.00" },
+        source: "query",
+      }),
+      /应用 ID.*不一致/,
+    );
+    await assert.rejects(
+      store.applyOpcAlipayTradeResult({
+        reference: created.reference,
+        appId: "2026000000000001",
+        configuredSellerId: "2088000000000002",
         tradeNo: "2026072822001000000000000001",
         tradeStatus: "TRADE_SUCCESS",
         amount: { currency: "CNY", minorUnits: 198_000, decimal: "1980.00" },
@@ -140,11 +155,11 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     await assert.rejects(store.updateOpcOrderStatus(created.id, "cancelled"), /不能从 paid/);
     await store.updateOpcOrderStatus(created.id, "completed");
     assert.equal((await store.listAdminOpcOrders())[0].status, "completed");
-    await store.updateOpcOrderStatus(created.id, "refunded");
-    const refunded = (await store.listAdminOpcOrders())[0];
-    assert.equal(refunded.status, "refunded");
-    assert.ok(refunded.completedAt);
-    assert.ok(refunded.refundedAt);
+    await assert.rejects(store.updateOpcOrderStatus(created.id, "refunded"), /不能从 completed/);
+    const completed = (await store.listAdminOpcOrders())[0];
+    assert.equal(completed.status, "completed");
+    assert.ok(completed.completedAt);
+    assert.equal(completed.refundedAt, null);
 
     const latePayment = await store.createOpcOrder({
       ...input,
@@ -169,9 +184,32 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
       sha256: "b".repeat(64), sizeBytes: 100, verifiedAt: new Date().toISOString(),
       archivedAt: new Date().toISOString(), retainUntil: "2036-08-02T00:00:00.000Z", evidence: [],
     });
-    await store.updateOpcOrderStatus(latePayment.id, "cancelled");
+    const lateAwaitingPayment = (await store.listAdminOpcOrders()).find(
+      (value: { id: string; updatedAt: string }) => value.id === latePayment.id,
+    );
+    await assert.rejects(store.updateOpcOrderStatus(latePayment.id, "cancelled"), /不能从 awaiting_payment/);
+    const staleRequestCreatedAt = new Date(Date.now() - 40 * 60 * 1_000);
+    await assert.rejects(
+      store.cancelAwaitingOpcOrderWithProviderEvidence(
+        latePayment.id,
+        lateAwaitingPayment!.updatedAt,
+        {
+          provider: "alipay",
+          kind: "expired_not_found",
+          requestCreatedAt: staleRequestCreatedAt.toISOString(),
+          linkExpiredAt: new Date(staleRequestCreatedAt.getTime() + 30 * 60 * 1_000).toISOString(),
+        },
+      ),
+      /当前支付会话不匹配/,
+    );
+    await store.cancelAwaitingOpcOrderWithProviderEvidence(
+      latePayment.id,
+      lateAwaitingPayment!.updatedAt,
+      { provider: "alipay", kind: "provider_closed", providerTradeStatus: "TRADE_CLOSED" },
+    );
     await store.applyOpcAlipayTradeResult({
       reference: latePayment.reference,
+      appId: "2026000000000001",
       sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000002",
       tradeStatus: "TRADE_SUCCESS",
@@ -184,12 +222,33 @@ test("OPC orders encrypt contact details and reuse an idempotent request", async
     assert.equal(recovered?.status, "paid");
     assert.equal(recovered?.cancelledAt, null);
 
+    const abandoned = await store.createOpcOrder({
+      ...input,
+      idempotencyKey: "a9304f22-8978-4c96-9ec4-4ce5b6d4ca35",
+    });
+    await store.updateOpcOrderStatus(abandoned.id, "cancelled");
+    const abandonedOrder = (await store.listAdminOpcOrders()).find(
+      (value: { id: string }) => value.id === abandoned.id,
+    );
+    const completedAt = new Date(completed.completedAt!);
+    const cancelledAt = new Date(abandonedOrder!.cancelledAt!);
+    await store.runOpcOrderRetention(new Date(cancelledAt.getTime() + 91 * 24 * 60 * 60 * 1_000));
+    const afterNinetyOneDays = await store.listAdminOpcOrders();
+    assert.equal(afterNinetyOneDays.find((value: { id: string }) => value.id === abandoned.id)?.contactAvailable, false);
+    assert.equal(afterNinetyOneDays.find((value: { id: string }) => value.id === created.id)?.contactAvailable, true);
+    await store.runOpcOrderRetention(new Date(completedAt.getTime() + 731 * 24 * 60 * 60 * 1_000));
+    assert.equal(
+      (await store.listAdminOpcOrders()).find((value: { id: string }) => value.id === created.id)?.contactAvailable,
+      false,
+    );
+
     const unsigned = await store.createOpcOrder({
       ...input,
       idempotencyKey: "6be82ad0-28d6-49ed-8615-6f38be8a4bd3",
     });
     await store.applyOpcAlipayTradeResult({
       reference: unsigned.reference,
+      appId: "2026000000000001",
       sellerId: "2088000000000001",
       tradeNo: "2026072822001000000000000003",
       tradeStatus: "TRADE_SUCCESS",

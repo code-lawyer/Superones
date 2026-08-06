@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applyOpcAlipayTradeResult } from "@/lib/opc-order-store";
+import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
 import { verifyOpcAlipayNotification } from "@/lib/opc-payment-config";
 
 export const runtime = "nodejs";
 const maximumNotificationBytes = 32_768;
+const lifecycle = createOpcOrderLifecycle({});
 
 function textResponse(body: "success" | "failure", status = 200) {
   return new NextResponse(body, {
@@ -39,8 +40,9 @@ export async function POST(request: NextRequest) {
       return textResponse("failure", 413);
     }
     const notification = verifyOpcAlipayNotification(parseNotification(raw));
-    await applyOpcAlipayTradeResult({
+    await lifecycle.applyPaymentEvidence({
       reference: notification.reference,
+      appId: notification.appId,
       sellerId: notification.sellerId,
       tradeNo: notification.tradeNo,
       tradeStatus: notification.tradeStatus,

@@ -34,6 +34,7 @@ export type OpcAlipayPaymentOrder = {
 
 export type OpcAlipayNotification = {
   reference: string;
+  appId: string;
   sellerId: string;
   tradeNo: string;
   tradeStatus: "TRADE_SUCCESS" | "TRADE_FINISHED";
@@ -43,10 +44,32 @@ export type OpcAlipayNotification = {
 export type OpcAlipayQueryResult = {
   found: boolean;
   reference: string;
-  sellerId: string;
+  appId: string;
+  configuredSellerId: string;
+  identitySource: "signed_application_query";
   tradeNo: string | null;
   tradeStatus: string | null;
   amount: OpcAlipayAmount | null;
+};
+
+export type OpcAlipayCloseResult = {
+  status: "closed" | "paid" | "not_found";
+  reference: string;
+};
+
+export type OpcAlipayRefundRequest = {
+  reference: string;
+  tradeNo: string;
+  refundRequestNo: string;
+  reason: string;
+  amount: OpcAlipayAmount;
+};
+
+export type OpcAlipayRefundResult = {
+  status: "succeeded" | "processing" | "not_found";
+  reference: string;
+  refundRequestNo: string;
+  amount: OpcAlipayAmount;
 };
 
 export class OpcAlipayProviderError extends Error {
@@ -212,6 +235,16 @@ export function createOpcAlipayPaymentUrl(
   }
   const method = channel === "wap" ? "alipay.trade.wap.pay" : "alipay.trade.page.pay";
   const productCode = channel === "wap" ? "QUICK_WAP_WAY" : "FAST_INSTANT_TRADE_PAY";
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1_000);
+  const timeParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(expiresAt).map((part) => [part.type, part.value]));
   const sdk = createAlipaySdk(configuration);
   const paymentUrl = sdk.pageExecute(method, "GET", {
     notifyUrl: `${configuration.publicOrigin}/api/opc/alipay/notify`,
@@ -224,6 +257,7 @@ export function createOpcAlipayPaymentUrl(
       body: `${order.serviceCode} · ${order.serviceRevision}`.slice(0, 128),
       total_amount: order.paymentAmount.decimal,
       timeout_express: "30m",
+      time_expire: `${timeParts.year}-${timeParts.month}-${timeParts.day} ${timeParts.hour}:${timeParts.minute}`,
     },
   });
   const parsed = new URL(paymentUrl);
@@ -256,6 +290,7 @@ export function verifyOpcAlipayNotification(
   }
   return {
     reference: notification.out_trade_no,
+    appId: notification.app_id,
     sellerId: notification.seller_id,
     tradeNo: notification.trade_no,
     tradeStatus: notification.trade_status,
@@ -281,7 +316,9 @@ export async function queryOpcAlipayTrade(
       return {
         found: false,
         reference,
-        sellerId: configuration.sellerId,
+        appId: configuration.appId,
+        configuredSellerId: configuration.sellerId,
+        identitySource: "signed_application_query",
         tradeNo: null,
         tradeStatus: null,
         amount: null,
@@ -312,9 +349,138 @@ export async function queryOpcAlipayTrade(
   return {
     found: true,
     reference: resultReference,
-    sellerId: configuration.sellerId,
+    appId: configuration.appId,
+    configuredSellerId: configuration.sellerId,
+    identitySource: "signed_application_query",
     tradeNo,
     tradeStatus,
     amount,
+  };
+}
+
+export async function closeOpcAlipayTrade(
+  reference: string,
+  configuration = requireOpcAlipayConfiguration(),
+): Promise<OpcAlipayCloseResult> {
+  if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(reference)) throw new Error("OPC 支付宝关单订单号无效。");
+  const sdk = createAlipaySdk(configuration);
+  const result = await sdk.exec("alipay.trade.close", {
+    bizContent: { out_trade_no: reference },
+  }, { validateSign: true }).catch((error: unknown) => {
+    console.error("OPC Alipay trade close request failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new OpcAlipayProviderError();
+  });
+  if (result.code === "10000") {
+    const resultReference = String(result.outTradeNo ?? result.out_trade_no ?? reference);
+    if (resultReference !== reference) throw new Error("支付宝关单返回的商户订单号不匹配。");
+    return { status: "closed", reference };
+  }
+  const subCode = String(result.subCode ?? result.sub_code ?? "");
+  if (subCode === "ACQ.TRADE_HAS_SUCCESS") return { status: "paid", reference };
+  if (subCode === "ACQ.TRADE_NOT_EXIST") return { status: "not_found", reference };
+  console.error("OPC Alipay trade close rejected", {
+    code: result.code ?? "UNKNOWN",
+    subCode: subCode || "UNKNOWN",
+  });
+  throw new OpcAlipayProviderError();
+}
+
+export async function requestOpcAlipayFullRefund(
+  request: OpcAlipayRefundRequest,
+  configuration = requireOpcAlipayConfiguration(),
+): Promise<OpcAlipayRefundResult> {
+  if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(request.reference)) throw new Error("OPC 退款订单号无效。");
+  if (!/^\d{16,64}$/.test(request.tradeNo)) throw new Error("支付宝退款交易号无效。");
+  if (!/^RF-[A-Z0-9]{10,40}$/.test(request.refundRequestNo)) throw new Error("支付宝退款请求号无效。");
+  const sdk = createAlipaySdk(configuration);
+  const result = await sdk.exec("alipay.trade.refund", {
+    bizContent: {
+      out_trade_no: request.reference,
+      trade_no: request.tradeNo,
+      refund_amount: request.amount.decimal,
+      out_request_no: request.refundRequestNo,
+      refund_reason: request.reason.slice(0, 256),
+    },
+  }, { validateSign: true }).catch((error: unknown) => {
+    console.error("OPC Alipay refund request failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new OpcAlipayProviderError();
+  });
+  if (result.code !== "10000") {
+    console.error("OPC Alipay refund rejected", {
+      code: result.code ?? "UNKNOWN",
+      subCode: result.subCode ?? result.sub_code ?? "UNKNOWN",
+    });
+    throw new OpcAlipayProviderError();
+  }
+  const refundAmount = alipayDecimalToAmount(String(result.refundFee ?? result.refund_fee ?? ""));
+  if (!refundAmount || refundAmount.minorUnits !== request.amount.minorUnits) {
+    throw new Error("支付宝退款响应金额与订单全额不一致。");
+  }
+  return {
+    status: String(result.fundChange ?? result.fund_change ?? "").toUpperCase() === "Y"
+      ? "succeeded"
+      : "processing",
+    reference: request.reference,
+    refundRequestNo: request.refundRequestNo,
+    amount: refundAmount,
+  };
+}
+
+export async function queryOpcAlipayRefund(
+  request: Pick<OpcAlipayRefundRequest, "reference" | "tradeNo" | "refundRequestNo" | "amount">,
+  configuration = requireOpcAlipayConfiguration(),
+): Promise<OpcAlipayRefundResult> {
+  const sdk = createAlipaySdk(configuration);
+  const result = await sdk.exec("alipay.trade.fastpay.refund.query", {
+    bizContent: {
+      out_trade_no: request.reference,
+      out_request_no: request.refundRequestNo,
+    },
+  }, { validateSign: true }).catch((error: unknown) => {
+    console.error("OPC Alipay refund query failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    throw new OpcAlipayProviderError();
+  });
+  if (result.code !== "10000") {
+    const subCode = String(result.subCode ?? result.sub_code ?? "");
+    console.error("OPC Alipay refund query rejected", {
+      code: result.code ?? "UNKNOWN",
+      subCode: subCode || "UNKNOWN",
+    });
+    if (["ACQ.TRADE_NOT_EXIST", "ACQ.REFUND_NOT_EXIST"].includes(subCode)) {
+      return {
+        status: "not_found",
+        reference: request.reference,
+        refundRequestNo: request.refundRequestNo,
+        amount: request.amount,
+      };
+    }
+    throw new OpcAlipayProviderError();
+  }
+  const resultRequestNo = String(result.outRequestNo ?? result.out_request_no ?? "");
+  const resultReference = String(result.outTradeNo ?? result.out_trade_no ?? "");
+  const resultTradeNo = String(result.tradeNo ?? result.trade_no ?? "");
+  const refundAmount = alipayDecimalToAmount(String(result.refundAmount ?? result.refund_amount ?? ""));
+  if (
+    resultRequestNo !== request.refundRequestNo
+    || resultReference !== request.reference
+    || resultTradeNo !== request.tradeNo
+    || !refundAmount
+    || refundAmount.minorUnits !== request.amount.minorUnits
+  ) {
+    throw new Error("支付宝退款查询结果与订单全额退款请求不一致。");
+  }
+  // 新版 alipay.trade.fastpay.refund.query 的成功响应没有 refund_status
+  // 字段；匹配到稳定退款请求号、原交易和全额金额即是该退款记录的证据。
+  return {
+    status: "succeeded",
+    reference: request.reference,
+    refundRequestNo: request.refundRequestNo,
+    amount: refundAmount,
   };
 }

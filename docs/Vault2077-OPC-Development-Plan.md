@@ -3,7 +3,7 @@ title: Vault2077 OPC 开发计划
 date: 2026-07-23
 type: supporting-plan
 status: reference
-updated: 2026-07-31
+updated: 2026-08-05
 tags:
   - vault2077
   - opc
@@ -13,6 +13,8 @@ tags:
 # Vault2077 OPC 开发计划
 
 > 本计划的三入口模型已经吸收到 [OPC 设计规格](Vault2077-OPC-Design-Spec.md)。若两者有差异，以规格为准；本文件只保留业务输入和实施分解，不再定义产品结构。
+>
+> 其中早期关于“付款、材料接收和订单均在网站之外”的描述已经失效。当前标准服务订单的线上目标由 [ADR-0019](adr/0019-opc-prepaid-paper-contract-checkout.md) 和 [全额预付与纸质合同线上实施方案](Vault2077-OPC-Prepaid-Paper-Contract-Implementation-Plan.md) 定义。
 
 > [!warning] 文档状态
 > 本文保留 OPC 板块早期内容开发方向，但不构成正式服务承诺。首版 SKU、价格和字段以 [OPC 服务清单](Vault2077-OPC-Service-Catalog.md) 为准。

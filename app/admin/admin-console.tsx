@@ -4,6 +4,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { AdminOpcCatalogEditor } from "@/components/admin-opc-catalog-editor";
 import { reauthenticateAdminWithPasskey } from "@/lib/admin-passkey-browser";
+import {
+  downloadOpcPaymentReceiptPng,
+  type OpcPaymentReceiptView as OpcPaymentReceiptData,
+} from "@/lib/opc-payment-receipt-image";
 
 type Submission = {
   id: string;
@@ -48,7 +52,7 @@ type ContentState = {
   projectCount: number;
 };
 
-type OpcOrderStatus = "awaiting_signature" | "awaiting_payment" | "payment_exception" | "paid" | "completed" | "cancelled" | "refunded";
+type OpcOrderStatus = "awaiting_signature" | "awaiting_payment" | "payment_exception" | "paid_pending_contract" | "paid" | "refund_pending" | "completed" | "cancelled" | "refunded";
 
 type OpcOrder = {
   id: string;
@@ -57,6 +61,7 @@ type OpcOrder = {
   serviceName: string;
   serviceRevision: string;
   quotedPrice: string;
+  signatureMethod: "paper" | "electronic";
   payment: {
     provider: "alipay";
     amount: {
@@ -101,6 +106,25 @@ type OpcOrder = {
   refundedAt: string | null;
   completedAt: string | null;
   contactDeletedAt: string | null;
+  paymentReceipt: OpcPaymentReceiptData | null;
+  refund: { status: "pending" | "succeeded"; requestNo: string; reason: string; amount: { decimal: string }; requestedAt: string; completedAt: string | null } | null;
+  notifications: Array<{ eventId: string; recipient: string; status: string; attempts: number; sentAt: string | null }>;
+};
+
+type OpcOrderDossier = {
+  id: string;
+  reference: string;
+  status: OpcOrderStatus;
+  service: { code: string; name: string; revision: string; quotedPrice: string; period: string; outcome: string; scope: string; boundary: string };
+  contact: { name: string; phone: string; email: string; wechat: string; note: string };
+  signer: { type: "individual" | "organization"; name: string; organizationName: string; organizationCreditCode: string; legalRepresentativeName: string };
+  delivery: { recipientName: string; phone: string; province: string; city: string; district: string; addressLine: string } | null;
+  payment: OpcOrder["payment"];
+  paymentReceipt: OpcPaymentReceiptData | null;
+  checkoutAgreement: { version: string; title: string; text: string; sha256: string; acceptedAt: string } | null;
+  refund: OpcOrder["refund"];
+  notifications: OpcOrder["notifications"];
+  auditTrail: Array<{ occurredAt: string; actorHash: string; action: string; result: "success" | "rejected" | "failed"; reason: string | null; diff: Record<string, unknown> }>;
 };
 
 type AdminLoginMode = "passkey" | "local-password";
@@ -118,7 +142,9 @@ const opcOrderStatusLabels: Record<OpcOrderStatus, string> = {
   awaiting_signature: "待签署",
   awaiting_payment: "待付款",
   payment_exception: "到账异常（签约未放行）",
+  paid_pending_contract: "已付款，待确认纸质合同",
   paid: "已到账",
+  refund_pending: "全额退款处理中",
   completed: "已完成",
   cancelled: "已取消",
   refunded: "已退款",
@@ -156,7 +182,7 @@ class AdminApiError extends Error {
 }
 
 async function jsonMessage(response: Response) {
-  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; seasonConfiguration?: FrontierSeasonConfiguration; state?: ContentState; orders?: OpcOrder[]; refreshed?: unknown; failed?: unknown } | null;
+  const body = await response.json().catch(() => null) as { error?: unknown; code?: unknown; reauthenticationUrl?: unknown; submissions?: Submission[]; donations?: Donation[]; seasonConfiguration?: FrontierSeasonConfiguration; state?: ContentState; orders?: OpcOrder[]; dossier?: OpcOrderDossier; order?: Partial<OpcOrder>; refreshed?: unknown; failed?: unknown } | null;
   if (!response.ok) {
     throw new AdminApiError(
       typeof body?.error === "string" ? body.error : "请求暂时无法完成。",
@@ -174,6 +200,7 @@ export function AdminConsole() {
   const [seasonReward, setSeasonReward] = useState("");
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [orders, setOrders] = useState<OpcOrder[]>([]);
+  const [opcDossiers, setOpcDossiers] = useState<Record<string, OpcOrderDossier>>({});
   const [passkeys, setPasskeys] = useState<AdminPasskeyCredential[]>([]);
   const [password, setPassword] = useState("");
   const [enrollmentToken, setEnrollmentToken] = useState("");
@@ -482,18 +509,25 @@ export function AdminConsole() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/content", {
+      const paymentCancellation = order.status === "awaiting_payment" && status === "cancelled";
+      const response = await fetch(paymentCancellation
+        ? `/api/admin/opc/orders/${encodeURIComponent(order.id)}/cancel`
+        : "/api/admin/content", {
         method: "POST",
         headers: adminMutationHeaders,
-        body: JSON.stringify({
+        body: JSON.stringify(paymentCancellation ? {
+          expectedUpdatedAt: order.updatedAt,
+        } : {
           action: "update-opc-order",
           orderId: order.id,
           orderStatus: status,
+          expectedUpdatedAt: order.updatedAt,
           confirm: true,
         }),
       });
       const body = await jsonMessage(response);
-      setOrders(Array.isArray(body?.orders) ? body.orders : []);
+      if (paymentCancellation) await load();
+      else setOrders(Array.isArray(body?.orders) ? body.orders : []);
       setNotice(`订单 ${order.reference} 已更新为“${opcOrderStatusLabels[status]}”。`);
     } catch (cause) {
       if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
@@ -586,6 +620,64 @@ export function AdminConsole() {
         setReauthenticationUrl(cause.reauthenticationUrl ?? "");
       }
       setError(cause instanceof Error ? cause.message : "下载失败。");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function viewOpcDossier(order: OpcOrder) {
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/opc/orders/${encodeURIComponent(order.id)}/dossier`, { cache: "no-store" });
+      const body = await jsonMessage(response);
+      if (!body?.dossier) throw new Error("订单 dossier 不可用。");
+      setOpcDossiers((current) => ({ ...current, [order.id]: body.dossier! }));
+      setNotice(`订单 ${order.reference} 的完整资料已载入，本次查看已写入审计日志。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "无法读取订单 dossier。");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function runOpcPaperAction(order: OpcOrder, action: "approve-contract" | "refund") {
+    const reason = action === "refund"
+      ? window.prompt("请输入原路全额退款原因：", "用户不同意纸质合同")
+      : "";
+    if (action === "refund" && reason === null) return;
+    const confirmation = action === "approve-contract"
+      ? `确认已经收到并核验订单 ${order.reference} 的已签字纸质合同？`
+      : `确认通过支付宝为订单 ${order.reference} 原路全额退款 ¥${order.payment.amount.decimal}？`;
+    if (!window.confirm(confirmation)) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/admin/opc/orders/${encodeURIComponent(order.id)}/${action}`, {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify(action === "refund"
+          ? { reason, expectedUpdatedAt: order.updatedAt }
+          : { expectedUpdatedAt: order.updatedAt }),
+      });
+      const body = await jsonMessage(response);
+      await load();
+      setNotice(action === "approve-contract"
+        ? `订单 ${order.reference} 已确认收到纸质合同。`
+        : body?.order?.status === "refunded"
+          ? `订单 ${order.reference} 的支付宝全额退款已确认。`
+          : `订单 ${order.reference} 的支付宝全额退款仍在处理中，请稍后继续核验。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "纸质订单操作失败。");
     } finally {
       setPending(false);
     }
@@ -730,15 +822,16 @@ export function AdminConsole() {
         <div className="admin-section-heading">
           <p className="eyebrow mono">OPC / ORDER OPERATIONS</p>
           <h2 id="admin-opc-orders-title">签约订单与到账核验</h2>
-          <p className="form-note">用户提交签约信息时先形成待签署订单；服务器主动核验签署完成后才进入待付款。付款服务通知会自动更新到账状态，浏览器返回页面不作为签署或到账依据。</p>
+          <p className="form-note">纸质签约订单先形成固定金额待付款订单；到账后进入纸质合同门禁。付款服务通知会自动更新到账状态，浏览器返回页面不作为到账依据。</p>
         </div>
         <div className="admin-donation-list">
           {orders.length === 0 ? <p className="ranking-empty">当前没有 OPC 订单。</p> : orders.map((order) => (
-            <article key={order.id}>
+            <article key={order.id} id={`opc-order-${order.reference}`}>
               <div>
                 <p className="mono muted">{order.reference} / {opcOrderStatusLabels[order.status]}</p>
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
+                <p>签约方式 {order.signatureMethod === "paper" ? "纸质签约" : "电子签约"}</p>
                 <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.channel === "wap" ? "手机付款页面" : order.payment.channel === "page" ? "电脑付款页面" : "尚未发起付款"}</p>
                 <p>签约资料 {order.contactAvailable ? "已加密保存，重新验证后可导出" : "已按保留期清除"}</p>
               </div>
@@ -748,6 +841,7 @@ export function AdminConsole() {
                 <time className="mono">创建 {new Date(order.createdAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <time className="mono">更新 {new Date(order.updatedAt).toLocaleString("zh-CN", { hour12: false })}</time>
                 <span className="mono">付款状态 {order.payment.tradeStatus ?? "尚未回传"}</span>
+                {order.signatureMethod === "electronic" ? <>
                 <span className="mono">签署状态 {opcSignatureStatusLabels[order.signature.status] ?? order.signature.status}</span>
                 <span className="mono">签署流程 {order.signature.flowId ?? "—"}</span>
                 <span className="mono">合同文件 {order.signature.fileId ?? "—"}</span>
@@ -759,12 +853,18 @@ export function AdminConsole() {
                 <span className="mono">合同归档 {order.signature.archive.status === "archived" && order.signature.archive.sha256 ? "已归档" : order.signature.provider === "legacy" ? "历史订单无电子归档" : order.signature.archive.status === "failed" ? "归档失败" : "待归档"}</span>
                 {order.signature.archive.archivedAt ? <time className="mono">归档时间 {new Date(order.signature.archive.archivedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.signature.archive.retainUntil ? <time className="mono">至少保留至 {new Date(order.signature.archive.retainUntil).toLocaleDateString("zh-CN")}</time> : null}
+                </> : <span className="mono">纸质合同门禁 {order.status === "paid_pending_contract" ? "待确认" : order.status === "refund_pending" || order.status === "refunded" ? "未通过，已进入退款" : order.status === "paid" || order.status === "completed" ? "已通过" : "待付款"}</span>}
                 <span className="mono">付款交易号 {order.payment.tradeNo ?? "—"}</span>
                 <span className="mono">收款商户 PID {order.payment.sellerId ?? "尚未绑定"}</span>
                 {order.payment.notifiedAt ? <time className="mono">通知 {new Date(order.payment.notifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.payment.checkedAt ? <time className="mono">查询 {new Date(order.payment.checkedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
+                {order.paymentReceipt ? <span className="mono">付款凭证 {order.paymentReceipt.receiptNumber}</span> : null}
+                {order.notifications?.map((notification) => <span className="mono" key={notification.eventId}>付款邮件 {notification.recipient} / {notification.status} / 尝试 {notification.attempts}</span>)}
+                {order.refund ? <span className="mono">退款 {order.refund.status} / ¥{order.refund.amount.decimal} / {order.refund.requestNo}</span> : null}
               </div>
+              {opcDossiers[order.id] ? <OpcDossierView dossier={opcDossiers[order.id]} /> : null}
               <div className="admin-actions">
+                {order.contactAvailable ? <button className="text-action" type="button" disabled={pending} onClick={() => void viewOpcDossier(order)}>查看完整订单 dossier</button> : null}
                 {order.signature.archive.status === "archived" && order.signature.archive.sha256 ? <button className="text-action" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contract")}>下载已签合同</button> : null}
                 {order.contactAvailable ? <button className="text-link" type="button" disabled={pending} onClick={() => void downloadOpcOrderArtifact(order, "contact")}>导出客户联系方式</button> : null}
                 {order.status === "awaiting_signature" ? <>
@@ -781,11 +881,14 @@ export function AdminConsole() {
                   <>
                     <button className="text-link" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>复查付款状态</button>
                     <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "completed")}>标记交付完成</button>
-                    <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button>
+                    {order.signatureMethod === "paper" ? <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>支付宝原路全额退款</button> : null}
                   </>
                 ) : null}
-                {order.status === "payment_exception" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button> : null}
-                {order.status === "completed" ? <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "refunded")}>登记已退款</button> : null}
+                {order.status === "paid_pending_contract" ? <>
+                  <button className="text-action" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "approve-contract")}>确认收到已签纸质合同</button>
+                  <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>支付宝原路全额退款</button>
+                </> : null}
+                {order.status === "refund_pending" ? <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>继续核验全额退款</button> : null}
               </div>
             </article>
           ))}
@@ -793,4 +896,50 @@ export function AdminConsole() {
       </section>
     </section>
   );
+}
+
+function OpcDossierView({ dossier }: { dossier: OpcOrderDossier }) {
+  async function downloadOpcPaymentReceiptData() {
+    if (!dossier.paymentReceipt) return;
+    await downloadOpcPaymentReceiptPng(dossier.paymentReceipt);
+  }
+  const rows: Array<[string, string]> = [
+    ["联系人", dossier.contact.name],
+    ["手机号", dossier.contact.phone],
+    ["邮箱", dossier.contact.email || "—"],
+    ["即时通讯", dossier.contact.wechat || "—"],
+    ["备注", dossier.contact.note || "—"],
+    ["签约方类型", dossier.signer.type === "organization" ? "法人 / 组织" : "自然人"],
+    ["签约方", dossier.signer.organizationName || dossier.signer.name],
+    ["统一社会信用代码", dossier.signer.organizationCreditCode || "—"],
+    ["法定代表人", dossier.signer.legalRepresentativeName || "—"],
+    ["纸质合同收件人", dossier.delivery?.recipientName ?? "—"],
+    ["收件手机号", dossier.delivery?.phone ?? "—"],
+    ["完整寄送地址", dossier.delivery ? `${dossier.delivery.province}${dossier.delivery.city}${dossier.delivery.district}${dossier.delivery.addressLine}` : "—"],
+    ["服务范围", dossier.service.scope],
+    ["服务边界", dossier.service.boundary],
+    ["支付宝交易号", dossier.payment.tradeNo ?? "—"],
+    ["付款凭证", dossier.paymentReceipt?.receiptNumber ?? "—"],
+    ["凭证金额", dossier.paymentReceipt ? `人民币 ${dossier.paymentReceipt.payment.amount.decimal} 元` : "—"],
+    ["凭证付款方", dossier.paymentReceipt ? dossier.paymentReceipt.customer.organizationName || dossier.paymentReceipt.customer.name : "—"],
+    ["凭证运营方", dossier.paymentReceipt?.operator.name ?? "—"],
+    ["在线协议版本", dossier.checkoutAgreement?.version ?? "—"],
+    ["在线协议 SHA-256", dossier.checkoutAgreement?.sha256 ?? "—"],
+    ["退款", dossier.refund ? `${dossier.refund.status} / ¥${dossier.refund.amount.decimal} / ${dossier.refund.reason}` : "—"],
+  ];
+  return <section className="admin-opc-dossier" aria-label={`${dossier.reference} 完整订单资料`}>
+    <h4>完整订单 dossier</h4>
+    <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    {dossier.paymentReceipt ? <button className="text-link" type="button" onClick={() => void downloadOpcPaymentReceiptData()}>下载付款凭证截图（PNG）</button> : null}
+    {dossier.checkoutAgreement ? <details>
+      <summary>在线协议完整正文：{dossier.checkoutAgreement.title}</summary>
+      <pre className="admin-opc-dossier__agreement">{dossier.checkoutAgreement.text}</pre>
+    </details> : null}
+    <details>
+      <summary>审计记录（{dossier.auditTrail.length}）</summary>
+      <ol>{dossier.auditTrail.map((event) => <li key={`${event.occurredAt}-${event.action}`}>
+        <span className="mono">{event.occurredAt}</span> · {event.action} · {event.result}{event.reason ? ` · ${event.reason}` : ""}
+      </li>)}</ol>
+    </details>
+  </section>;
 }

@@ -30,3 +30,12 @@ test("content reconciliation audits authentication, validation, and missing-orde
     "order-not-found",
   ]) assert.match(source, new RegExp(`reason: "${reason}"`));
 });
+
+test("paper contract approval, cancellation, and refund writes share a transaction with their audits", async () => {
+  for (const action of ["approve-contract", "cancel", "refund"]) {
+    const source = await readFile(new URL(`../app/api/admin/opc/orders/[id]/${action}/route.ts`, import.meta.url), "utf8");
+    assert.match(source, /authenticateAdminRequest\(request, \{ mutation: true \}\)/);
+    assert.match(source, /expectedUpdatedAt/);
+    assert.match(source, /withPersistenceTransaction\(async \(\) => \{[\s\S]*?recordAuditEvent\(/);
+  }
+});

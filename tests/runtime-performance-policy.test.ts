@@ -15,6 +15,7 @@ const [
   workerService,
   frontierService,
   rangerMediaCleanupService,
+  opcOrderMaintenanceService,
   globalStyles,
   institutionalStyles,
   proxy,
@@ -28,6 +29,7 @@ const [
   source("../deploy/systemd/vault2077-acquisition-worker.service"),
   source("../deploy/systemd/vault2077-frontier-tick.service"),
   source("../deploy/systemd/vault2077-ranger-media-cleanup.service"),
+  source("../deploy/systemd/vault2077-opc-order-maintenance.service"),
   source("../app/globals.css"),
   source("../app/institutional.css"),
   source("../proxy.ts"),
@@ -75,11 +77,12 @@ test("systemd templates bound Node heaps and deprioritize background work", () =
   assert.match(workerService, /NODE_OPTIONS=--max-old-space-size=512/);
   assert.match(frontierService, /NODE_OPTIONS=--max-old-space-size=384/);
   assert.match(rangerMediaCleanupService, /NODE_OPTIONS=--max-old-space-size=384/);
-  for (const backgroundService of [workerService, frontierService, rangerMediaCleanupService]) {
+  assert.match(opcOrderMaintenanceService, /NODE_OPTIONS=--max-old-space-size=384/);
+  for (const backgroundService of [workerService, frontierService, rangerMediaCleanupService, opcOrderMaintenanceService]) {
     assert.match(backgroundService, /^Nice=5$/m);
     assert.match(backgroundService, /^CPUWeight=50$/m);
   }
-  for (const service of [webService, workerService, frontierService, rangerMediaCleanupService]) {
+  for (const service of [webService, workerService, frontierService, rangerMediaCleanupService, opcOrderMaintenanceService]) {
     assert.match(service, /^RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK$/m);
   }
 });

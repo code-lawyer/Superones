@@ -12,11 +12,11 @@ test("OPC order endpoint enforces its public-write security boundary", async () 
   assert.match(route, /x-vault2077-public-request/);
   assert.match(route, /sec-fetch-site/);
   assert.match(route, /VAULT2077_PUBLIC_ORIGIN/);
-  assert.match(route, /maximumBodyBytes = 16_384/);
+  assert.match(route, /maximumBodyBytes = 24_576/);
   assert.match(route, /Buffer\.byteLength\(raw, "utf8"\)/);
   assert.match(route, /withinDurableRateLimit\(`opc-orders:\$\{clientHash\}`, 6/);
   assert.match(route, /website/);
-  assert.match(route, /consent/);
+  assert.match(route, /agreementAccepted/);
   assert.match(route, /OpcOrderIdempotencyConflictError/);
   assert.match(route, /status: 409/);
 });
@@ -25,16 +25,23 @@ test("OPC order endpoint trusts the published service snapshot, not client prici
   const route = await readFile(path.join(root, "app", "api", "opc", "orders", "route.ts"), "utf8");
 
   assert.match(route, /readPublishedServiceCatalog/);
-  assert.match(route, /service\.status !== "公开服务"/);
+  assert.match(route, /service\.status !== "[^"]+"/);
   assert.match(route, /serviceRevision: service\.revision/);
   assert.match(route, /quotedPrice: service\.price/);
-  assert.match(route, /createOpcEsignFlow/);
-  assert.match(route, /bindOpcSignatureFlow/);
+  assert.match(route, /createOpcOrderLifecycle/);
+  assert.match(route, /const signatureMethod = body\.signatureMethod/);
+  assert.match(route, /signatureMethod !== "paper"/);
+  assert.match(route, /signatureMethod,/);
+  assert.match(route, /createOpcAlipayPaymentUrl/);
+  assert.match(route, /agreementSha256/);
   assert.match(route, /serviceScope: service\.includes\.join/);
   assert.match(route, /serviceBoundary: service\.boundary/);
-  assert.doesNotMatch(route, /createOpcAlipayPaymentUrl/);
-  assert.doesNotMatch(route, /body\.(?:price|quotedPrice|serviceRevision)/);
-  assert.match(route, /console\.error\("OPC order creation failed", error\)/);
+  assert.doesNotMatch(route, /createOpcEsignFlow|bindOpcSignatureFlow/);
+  assert.doesNotMatch(route, /body\.(?:price|quotedPrice)/);
+  assert.match(route, /expectedServiceRevision !== service\.revision/);
+  assert.match(route, /expectedAgreementVersion !== agreement\.version/);
+  assert.match(route, /expectedAgreementSha256 !== agreementSha256/);
+  assert.match(route, /console\.error\("OPC paper order creation failed"/);
   assert.match(route, /error: "订单暂时无法创建，请稍后重试。"/);
   assert.doesNotMatch(route, /NextResponse\.json\(\{ error: message \}, \{ status \}\)/);
 });
@@ -46,15 +53,23 @@ test("OPC Alipay notification verifies provider identity before marking an order
 
   assert.match(notification, /application\/x-www-form-urlencoded/);
   assert.match(notification, /verifyOpcAlipayNotification/);
-  assert.match(notification, /applyOpcAlipayTradeResult/);
+  assert.match(notification, /lifecycle\.applyPaymentEvidence/);
   assert.match(notification, /return textResponse\("success"\)/);
   assert.match(payment, /checkNotifySignV2\(notification\)/);
   assert.match(payment, /notification\.app_id !== configuration\.appId/);
   assert.match(payment, /notification\.seller_id !== configuration\.sellerId/);
   assert.match(payment, /OpcAlipayProviderError/);
   assert.doesNotMatch(payment, /subMsg|sub_msg|result\.msg/);
+  const activeQuery = payment.slice(
+    payment.indexOf("export async function queryOpcAlipayTrade"),
+    payment.indexOf("export async function requestOpcAlipayFullRefund"),
+  );
+  assert.doesNotMatch(activeQuery, /\bsellerId: configuration\.sellerId/);
+  assert.match(activeQuery, /configuredSellerId: configuration\.sellerId/);
+  assert.match(activeQuery, /identitySource: "signed_application_query"/);
+  assert.match(store, /order\.payment\.appId && input\.appId !== order\.payment\.appId/);
   assert.match(store, /input\.amount\.minorUnits !== order\.payment\.amount\.minorUnits/);
-  assert.match(store, /input\.sellerId !== order\.payment\.sellerId/);
+  assert.match(store, /evidenceSellerId !== order\.payment\.sellerId/);
   assert.match(store, /contractReady \? "paid" : "payment_exception"/);
   assert.match(store, /order\.signature\.archive\.status === "archived"/);
 });
@@ -63,12 +78,13 @@ test("OPC order contacts remain encrypted outside the reauthenticated export", a
   const store = await readFile(path.join(root, "lib", "opc-order-store.ts"), "utf8");
   const adminList = store.slice(
     store.indexOf("export async function listAdminOpcOrders"),
-    store.indexOf("export async function updateOpcOrderStatus"),
+    store.indexOf("export async function getOpcPaymentReceipt"),
   );
 
   assert.match(store, /contactEncrypted: encryptSensitiveText\(JSON\.stringify\(input\.contact\)\)/);
   assert.match(store, /decryptSensitiveText\(order\.contactEncrypted\)/);
-  assert.match(store, /730 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(store, /retentionDays = order\.cancelledAt && !order\.paidAt \? 90 : 730/);
+  assert.match(store, /runOpcOrderRetention/);
   assert.doesNotMatch(store, /store\.orders = store\.orders\.slice/);
   assert.match(adminList, /readStateDocument\(orderDocument\)/);
   assert.match(adminList, /contactAvailable/);

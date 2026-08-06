@@ -7,6 +7,7 @@
 - `vault2077-healthcheck.service/.timer`：每五分钟使用独立 health 密钥检查数据库、队列、四个采集通道和最终发布时间；任一业务检查降级时 oneshot 非零退出。
 - `vault2077-frontier-tick.service/.timer`：北京时间 08:45–22:45 每两小时观察当前参赛仓库并推进结算。
 - `vault2077-ranger-media-cleanup.service/.timer`：每天清理超过 7 天的孤儿头像和超过 30 天的已替换头像。
+- `vault2077-opc-order-maintenance.service/.timer`：每分钟发送 OPC 付款 outbox 脱敏邮件并执行订单联系方式分层保留清理；失败触发统一 systemd 告警。
 
 示例安装：
 
@@ -17,7 +18,7 @@ sudo install -m 0644 deploy/logrotate/vault2077 /etc/logrotate.d/vault2077
 sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd/system/vault2077-*.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now vault2077-web.service
-sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-healthcheck.timer vault2077-frontier-tick.timer vault2077-ranger-media-cleanup.timer
+sudo systemctl enable --now vault2077-acquisition-worker.timer vault2077-healthcheck.timer vault2077-frontier-tick.timer vault2077-ranger-media-cleanup.timer vault2077-opc-order-maintenance.timer
 ```
 
 模板默认把受控 Node.js 运行时固定在 `/opt/node`，并使用 `/opt/node/bin/npm`；完整安装和校验方法见 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`。若采用发行版软件包，必须同步修改全部 service 的 `PATH` 与 npm 绝对路径，再运行 `systemd-analyze verify`。部署前还必须核对用户、目录和环境文件。环境文件权限应为 `0600`，归 `root` 所有；应用用户只通过 systemd 读取，不得把密钥写进仓库。
@@ -33,6 +34,7 @@ journalctl -u vault2077-acquisition-worker.service -n 100 --no-pager
 journalctl -u vault2077-healthcheck.service -n 100 --no-pager
 journalctl -u vault2077-frontier-tick.service -n 100 --no-pager
 journalctl -u vault2077-ranger-media-cleanup.service -n 100 --no-pager
+journalctl -u vault2077-opc-order-maintenance.service -n 100 --no-pager
 ```
 
 oneshot 本轮返回非零、timer 超过两个周期没有成功、inbox 新增 quarantine 或频道超过新鲜度阈值都必须告警。历史 quarantine 不应让每次 worker 永久返回非零；worker 失败后按最多六次指数退避保留 inbox，成功记录保留 30 天、隔离记录保留 180 天后自动清理。不得从 GitHub Actions 远程调用处理接口。

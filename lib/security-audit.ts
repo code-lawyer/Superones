@@ -1,6 +1,6 @@
 import "server-only";
 
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { configuredPostgresPool, configuredPostgresWriter, persistenceMode } from "./state-document-store.ts";
 
@@ -41,6 +41,49 @@ export async function recordAuditEvent(event: AuditEvent) {
     `${JSON.stringify({ occurredAt: new Date().toISOString(), ...event })}\n`,
     { encoding: "utf8", flag: "a" },
   );
+}
+
+export async function listAuditEventsForTarget(targetType: string, targetId: string, maximum = 20) {
+  const limit = Math.max(1, Math.min(100, maximum));
+  if (persistenceMode() === "postgresql") {
+    const result = await configuredPostgresPool().query<{
+      occurred_at: Date;
+      actor_hash: string;
+      action: string;
+      result: AuditEvent["result"];
+      reason: string | null;
+      diff: Record<string, unknown>;
+    }>(
+      `SELECT occurred_at, actor_hash, action, result, reason, diff
+       FROM vault2077_audit_log
+       WHERE target_type = $1 AND target_id = $2
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT $3`,
+      [targetType, targetId, limit],
+    );
+    return result.rows.map((row) => ({
+      occurredAt: row.occurred_at.toISOString(),
+      actorHash: row.actor_hash,
+      action: row.action,
+      result: row.result,
+      reason: row.reason,
+      diff: row.diff,
+    }));
+  }
+  const dataRoot = process.env.VAULT2077_DATA_DIR
+    ? path.resolve(process.env.VAULT2077_DATA_DIR)
+    : path.join(process.cwd(), "data");
+  const source = await readFile(path.join(dataRoot, "security-audit.jsonl"), "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return "";
+    throw error;
+  });
+  return source.split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as AuditEvent & { occurredAt: string })
+    .filter((event) => event.targetType === targetType && event.targetId === targetId)
+    .slice(-limit)
+    .reverse()
+    .map(({ targetType: _targetType, targetId: _targetId, ...event }) => event);
 }
 
 export async function loginThrottleState(clientHash: string) {

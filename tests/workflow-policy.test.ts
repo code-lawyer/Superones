@@ -47,6 +47,14 @@ const frontierService = await readFile(
   new URL("../deploy/systemd/vault2077-frontier-tick.service", import.meta.url),
   "utf8",
 );
+const opcOrderMaintenanceService = await readFile(
+  new URL("../deploy/systemd/vault2077-opc-order-maintenance.service", import.meta.url),
+  "utf8",
+);
+const opcOrderMaintenanceTimer = await readFile(
+  new URL("../deploy/systemd/vault2077-opc-order-maintenance.timer", import.meta.url),
+  "utf8",
+);
 const failureNotifier = await readFile(
   new URL("../deploy/systemd/vault2077-failure-notify@.service", import.meta.url),
   "utf8",
@@ -167,7 +175,7 @@ test("the public proxy exposes only the two cross-border routes and the domestic
 });
 
 test("production services emit a uniform journal event when systemd marks them failed", () => {
-  for (const service of [webService, workerService, frontierService, healthService]) {
+  for (const service of [webService, workerService, frontierService, healthService, opcOrderMaintenanceService]) {
     assert.match(service, /^OnFailure=vault2077-failure-notify@%n\.service$/m);
   }
   assert.match(failureNotifier, /^ExecStart=\/usr\/bin\/logger --priority daemon\.err --tag vault2077-alert /m);
@@ -179,4 +187,10 @@ test("production services emit a uniform journal event when systemd marks them f
   assert.match(productionLogrotate, /^\s*maxsize 10M$/m);
   assert.doesNotMatch(productionLogrotate, /^\s*size\s/m);
   assert.match(productionLogrotate, /^\s*su root root$/m);
+});
+
+test("OPC payment outbox and retention run on the domestic business clock", () => {
+  assert.match(opcOrderMaintenanceTimer, /^OnUnitActiveSec=60s$/m);
+  assert.match(opcOrderMaintenanceTimer, /^Persistent=true$/m);
+  assert.match(opcOrderMaintenanceService, /npm run opc:maintain-orders/);
 });

@@ -45,3 +45,4 @@ vault2077-deploy*.tar.gz
 .codex/
 .impeccable/config.local.json
 .impeccable/critique/
+desktop.ini

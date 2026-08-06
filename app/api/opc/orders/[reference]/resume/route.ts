@@ -33,7 +33,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     const raw = await request.text();
     if (Buffer.byteLength(raw, "utf8") > 4_096) return NextResponse.json({ error: "订单恢复内容超过大小限制。" }, { status: 413 });
     const body = JSON.parse(raw) as { token?: unknown; paymentChannel?: unknown };
-    const token = typeof body.token === "string" ? body.token : "";
+    const token = typeof body.token === "string" && body.token
+      ? body.token
+      : request.cookies.get("vault2077_opc_resume")?.value ?? "";
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return NextResponse.json({ error: "订单恢复凭据无效。" }, { status: 403 });
 
     let order = await getOpcOrderByResumeToken(reference, token);
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
       const channel = selectOpcAlipayChannel(body.paymentChannel, configuration);
       const paymentOrder = await getOpcOrderPaymentOrder(reference);
       const paymentUrl = createOpcAlipayPaymentUrl(paymentOrder, channel, configuration);
-      await recordOpcPaymentRequest(reference, channel, configuration.sellerId);
+      await recordOpcPaymentRequest(reference, channel, configuration.sellerId, configuration.appId);
       return NextResponse.json({ order, paymentUrl, paymentChannel: channel, expiresInMinutes: 30 });
     } catch (error) {
       console.error("OPC payment link creation after signature failed", { errorType: error instanceof Error ? error.name : "unknown" });
