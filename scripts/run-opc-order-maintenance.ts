@@ -1,4 +1,4 @@
-import { runOpcOrderRetention } from "../lib/opc-order-store.ts";
+import { runOpcOrderRetention } from "../lib/opc-orders/admin.ts";
 import { createOpcPaymentEmailSender } from "../lib/opc-payment-email.ts";
 import { processOpcPaymentNotifications } from "../lib/opc-payment-notifications.ts";
 

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { buildOpcPaperCheckoutAgreement } from "@/lib/opc-checkout-agreement";
 import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
-import { OpcOrderIdempotencyConflictError } from "@/lib/opc-order-store";
+import { OpcOrderIdempotencyConflictError } from "@/lib/opc-orders/model";
 import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
 import {
   createOpcAlipayPaymentUrl,

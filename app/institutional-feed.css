@@ -961,7 +961,7 @@
 .event-dossier .feed-detail__header h1 {
   max-width: 1050px;
   margin-top: clamp(52px, 7vw, 92px);
-  font-size: clamp(44px, 5.6vw, 80px);
+  font-size: clamp(44px, 5.6vw, 82px);
   letter-spacing: -0.04em;
   line-height: 1.08;
   text-wrap: balance;

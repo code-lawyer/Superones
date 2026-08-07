@@ -43,8 +43,11 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
+    console.error("Frontier public task dispatch failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "暂时无法生成 Frontier 公开任务。" },
+      { error: "暂时无法生成 Frontier 公开任务。" },
       { status: 503 },
     );
   }

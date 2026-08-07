@@ -37,6 +37,8 @@ __pycache__/
 # Production deployment credentials and locally assembled release archives
 MIMO.pem
 .ssh-key
+.vault2077-operations-memory.local.md
+docs/**/*.local.md
 certs/
 vault2077-deploy*.tar.gz
 

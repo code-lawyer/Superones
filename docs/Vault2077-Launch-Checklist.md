@@ -1,7 +1,7 @@
 ---
 type: release-gate
 status: active
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # Vault2077 生产上线清单
@@ -76,7 +76,7 @@ updated: 2026-08-05
 - [ ] 境内 scheduler 已安装 `vault2077-frontier-tick.timer` 和 `vault2077-opc-order-maintenance.timer`；任务失败会告警，错过执行可补跑，OPC timer 每分钟处理邮件 outbox 与到期联系方式清除，邮件重试复用稳定 Message-ID。
 - [ ] GitHub schedule 漏跑的新鲜度告警与 `workflow_dispatch` 补跑完成演练；没有把 GitHub schedule 当作唯一可靠业务时钟。
 - [ ] 阿里云安全组/轻量防火墙只开放必要端口；Node 仅回环监听；轻量服务器已与 RDS 所在 VPC 建立内网互通，RDS 不对公网开放且仅允许应用私网来源访问。
-- [ ] RDS 所选系列明确支持日志备份/PITR；TLS、自动/日志备份、时间点恢复、删除保护和监控已启用，并已从真实时间点恢复到隔离实例。基础系列只能按备份集恢复，不得在未书面降低 RPO 并修订规格时通过此门禁。
+- [ ] RDS 的 TLS、自动/日志备份、可恢复时间区间、删除保护和监控已启用，并已从真实时间点恢复到隔离实例；门禁以控制面能力和实际恢复证据为准，不以系列名称或“备份成功”状态替代恢复演练。
 - [ ] Nginx、Web、采集 worker、Frontier timer 和 OPC 订单维护 timer 的配置已通过语法/单元验证并接入 journal/进程退出告警。
 - [ ] 部署、回滚、密钥轮换、备份恢复和事故联系人已演练并留下日期/负责人/结果。
 

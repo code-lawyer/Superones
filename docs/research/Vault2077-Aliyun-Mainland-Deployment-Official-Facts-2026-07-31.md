@@ -1,12 +1,14 @@
 ---
 type: research
-status: active
-updated: 2026-07-31
+status: reference
+updated: 2026-08-06
 ---
 
 # Vault2077 中国大陆阿里云部署官方事实底稿（2026-07-31）
 
 本底稿只整理阿里云及阿里云帮助中心的一手资料，为生产 handoff 和部署手册提供可复核依据；它不是当前运行规范，也不包含账号、实例 ID、IP、数据库密码、AccessKey、证书私钥等秘密。控制台名称和产品能力以实际购买地域、实例系列及当天控制台为准。
+
+> 2026-08-06 现网复核：当前 PostgreSQL 17 Basic 实例的控制面已启用日志备份，并由 `DescribeLocalAvailableRecoveryTime` 返回有效的本地时间点恢复区间。本文后续“Basic 不支持 PITR”的内容只代表 2026-07-31 的资料快照，不再作为当前发布门禁；当前门禁以真实实例 API 和隔离恢复演练为准。
 
 ## 1. 对 Vault2077 的直接结论
 

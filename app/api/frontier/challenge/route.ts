@@ -4,6 +4,7 @@ import {
   createPendingSubmission,
   currentSeason,
   findSeasonSubmission,
+  FrontierSubmissionConflictError,
   getFrontierSeasonLaunchState,
   removePendingSubmission,
   updatePendingSubmissionRepository,
@@ -111,8 +112,12 @@ export async function POST(request: NextRequest) {
       },
     }, { status: directInspection ? 201 : 202 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "暂时无法创建验证文件。";
-    const status = message.includes("已经") || message.includes("获奖") ? 409 : 502;
-    return NextResponse.json({ error: message }, { status });
+    if (error instanceof FrontierSubmissionConflictError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
+    }
+    console.error("Frontier repository challenge creation failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    return NextResponse.json({ error: "暂时无法创建验证文件。" }, { status: 502 });
   }
 }

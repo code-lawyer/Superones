@@ -7,7 +7,7 @@ import {
   completeOpcSignatureArchive,
   getOpcSignatureArchivePreparationByFlow,
   markOpcSignatureArchiveFailed,
-} from "./opc-order-store.ts";
+} from "./opc-orders/signature.ts";
 import {
   downloadAndVerifyOpcEsignContract,
   queryOpcEsignFlow,

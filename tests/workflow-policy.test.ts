@@ -19,6 +19,10 @@ const nginx = await readFile(
   new URL("../deploy/nginx/vault2077.conf.example", import.meta.url),
   "utf8",
 );
+const nginxEdgeErrorSecurity = await readFile(
+  new URL("../deploy/nginx/vault2077-edge-error-security.conf.example", import.meta.url),
+  "utf8",
+);
 const workerTimer = await readFile(
   new URL("../deploy/systemd/vault2077-acquisition-worker.timer", import.meta.url),
   "utf8",
@@ -162,6 +166,13 @@ test("the public proxy exposes only the two cross-border routes and the domestic
   assert.match(nginx, /if \(\$request_method != GET\) \{ return 405; \}/);
   assert.match(nginx, /location \^~ \/api\/internal\/ \{ return 404; \}/);
   assert.match(nginx, /proxy_set_header X-Forwarded-For \$remote_addr;/);
+  assert.match(nginx, /server_tokens off;/);
+  assert.match(nginx, /error_page 404 = @public_edge_not_found;/);
+  assert.match(nginx, /error_page 405 = @public_edge_method_not_allowed;/);
+  assert.match(nginx, /error_page 404 = @admin_edge_not_found;/);
+  assert.match(nginx, /Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;/);
+  assert.match(nginxEdgeErrorSecurity, /Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'" always;/);
+  assert.match(nginxEdgeErrorSecurity, /X-Content-Type-Options "nosniff" always;/);
   assert.match(workerTimer, /OnCalendar=\*:0\/5/);
   assert.match(workerTimer, /Persistent=true/);
   assert.match(frontierTimer, /08,10,12,14,16,18,20,22:45:00 Asia\/Shanghai/);

@@ -131,7 +131,10 @@ body .sic-board__face--back {
 }
 
 body .sic-board__address-return {
+  display: flex;
   min-width: 0;
+  min-height: 44px;
+  align-items: center;
   overflow: hidden;
   border: 0;
   padding: 0;
@@ -155,8 +158,10 @@ body .sic-board__address-return:focus-visible {
 }
 
 body .sic-board__copy {
+  min-width: 56px;
+  min-height: 44px;
   border: 1px solid var(--paper-bright);
-  padding: 6px 9px;
+  padding: 8px 10px;
   background: transparent;
   color: var(--paper-bright);
   font-family: var(--font-sans);
@@ -1372,25 +1377,6 @@ body .sic-stage__rail .sic-board__toggle:focus-visible {
   body .sic-stage__rail .sic-board__row--extra.is-revealed {
     height: 64px;
     min-height: 64px;
-  }
-
-  body .sic-stage__rail .sic-board__address-return,
-  body .sic-stage__rail .sic-board__copy {
-    min-height: 44px;
-  }
-
-  body .sic-stage__rail .sic-board__address-return {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  body .sic-stage__rail .sic-board__copy {
-    min-width: 56px;
-    padding: 8px 10px;
   }
 
   .sic-magazine__header h2 {

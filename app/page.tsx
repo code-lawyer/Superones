@@ -2,6 +2,7 @@ import {
   HomeExperience,
   type HomeExperienceData,
 } from "@/components/home-experience";
+import "./home.css";
 import { formatNumber } from "@/lib/number-format";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";

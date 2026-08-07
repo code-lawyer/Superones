@@ -8,6 +8,7 @@ import { validTestAlipayEnvironment } from "./alipay-test-environment.ts";
 function providerEnvironment() {
   return {
     ...validTestAlipayEnvironment(),
+    VAULT2077_OPC_ESIGN_ENABLED: "true",
     VAULT2077_OPC_ESIGN_PROVIDER: "esign",
     VAULT2077_ESIGN_APP_ID: "5110000000000001",
     VAULT2077_ESIGN_APP_SECRET: "esign-preflight-test-secret",
@@ -96,9 +97,38 @@ test("OPC provider preflight proves templates and a signed read-only trade query
 
   assert.equal(result.alipay.tradeQuery, "ok");
   assert.equal(result.alipay.gatewayHost, "openapi.alipay.com");
-  assert.equal(result.esign.length, 2);
+  assert.equal(result.esign.status, "ok");
+  assert.equal(result.esign.templates.length, 2);
   const serialized = JSON.stringify(result);
   assert.doesNotMatch(serialized, /PRIVATE KEY|esign-preflight-test-secret/);
+});
+
+test("OPC provider preflight skips e-sign when paper checkout is the active path", async () => {
+  let esignProbeCalled = false;
+  const environment = {
+    ...validTestAlipayEnvironment(),
+    VAULT2077_OPC_ESIGN_ENABLED: "false",
+  };
+  const result = await verifyOpcProviders(environment, fetch, {
+    verifyEsignTemplates: async () => {
+      esignProbeCalled = true;
+      throw new Error("disabled e-sign must not be probed");
+    },
+    queryAlipayTrade: async (reference, configuration) => ({
+      found: false,
+      reference,
+      appId: configuration.appId,
+      configuredSellerId: configuration.sellerId,
+      identitySource: "signed_application_query" as const,
+      tradeNo: null,
+      tradeStatus: null,
+      amount: null,
+    }),
+  });
+
+  assert.equal(esignProbeCalled, false);
+  assert.deepEqual(result.esign, { status: "disabled", templates: [] });
+  assert.equal(result.alipay.tradeQuery, "ok");
 });
 
 test("OPC provider preflight fails closed if its reserved Alipay reference already exists", async () => {

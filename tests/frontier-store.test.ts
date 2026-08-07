@@ -216,6 +216,42 @@ test("asynchronous eligibility rejection keeps the exact reason and permits a co
   }
 });
 
+test("verified Frontier submissions reject duplicates with a typed public conflict", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-conflict-"));
+  const previous = process.env.VAULT2077_DATA_DIR;
+  process.env.VAULT2077_DATA_DIR = root;
+  try {
+    const {
+      createPendingSubmission,
+      FrontierSubmissionConflictError,
+      markSubmissionVerified,
+    } = await import(`../lib/frontier-store.ts?conflict=${Date.now()}`);
+    const now = new Date("2099-01-02T00:00:00.000Z");
+    const input = {
+      owner: "Example",
+      repo: "AlreadyVerified",
+      email: "owner@example.com",
+      note: "A verified repository",
+      defaultBranch: "main",
+      challenge: "verified-challenge",
+      rulesAccepted: true,
+      now,
+    };
+    const first = await createPendingSubmission(input);
+    await markSubmissionVerified(first.id, 10, now);
+
+    await assert.rejects(
+      () => createPendingSubmission({ ...input, challenge: "duplicate-challenge" }),
+      (error: unknown) => error instanceof FrontierSubmissionConflictError
+        && (error as { code?: unknown }).code === "ALREADY_VERIFIED",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("unassigned confirmed prizes are explicitly carried into the next season", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-frontier-carryover-"));
   const previous = process.env.VAULT2077_DATA_DIR;

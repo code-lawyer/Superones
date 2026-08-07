@@ -7,6 +7,7 @@ import test from "node:test";
 import { promisify } from "node:util";
 import {
   createAcquisitionRunEvidence,
+  validateAcquisitionPayloadForDelivery,
   validateAcquisitionRunEvidence,
 } from "../lib/acquisition-run-evidence.ts";
 
@@ -158,9 +159,34 @@ test("artifact validation rejects credential material in reports", async (contex
   await assert.rejects(validateAcquisitionRunEvidence(root), /敏感凭据/);
 });
 
-test("artifact validation rejects private emails and common credential encodings", async (context) => {
+test("artifact validation allows public email addresses in collected content", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-run-public-email-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "acquisition-batches"), { recursive: true });
+  const evidence = createAcquisitionRunEvidence({
+    outputRoot: root,
+    runId: "run:public-email:information",
+    lane: "information",
+    runMode: "incremental",
+    scheduleId: "incremental:information:public-email:1",
+  });
+  await evidence.begin();
+  await writeFile(path.join(root, "acquisition-batches", "batch.json"), JSON.stringify({
+    batchId: "batch:public-email:1",
+    sourceContent: "Contact the public press office at press@example.com.",
+  }), "utf8");
+  await writeFile(path.join(root, "acquisition-report.json"), JSON.stringify({
+    schemaVersion: 1,
+    runId: "run:public-email:information",
+    lane: "information",
+  }), "utf8");
+  await evidence.complete();
+
+  await assert.doesNotReject(validateAcquisitionRunEvidence(root));
+});
+
+test("artifact validation rejects common credential encodings with safe diagnostics", async (context) => {
   const samples = [
-    "owner@example.com",
     "api_key=abcdefghijklmnop",
     "client_secret: abcdefghijklmnop",
     "https://operator:password@example.com/private",
@@ -192,8 +218,28 @@ test("artifact validation rejects private emails and common credential encodings
     }), "utf8");
     await evidence.complete();
 
-    await assert.rejects(validateAcquisitionRunEvidence(root), /敏感凭据/, sample);
+    await assert.rejects(
+      validateAcquisitionRunEvidence(root),
+      (error: unknown) => error instanceof Error
+        && error.message.includes("敏感凭据")
+        && error.message.includes("acquisition-batches/batch.json")
+        && !error.message.includes(sample),
+      sample,
+    );
   }
+});
+
+test("delivery preflight rejects credential material before network delivery", () => {
+  assert.throws(
+    () => validateAcquisitionPayloadForDelivery(
+      "acquisition-batches/batch.json",
+      '{"authorization":"Bearer accidentally-logged-secret"}',
+    ),
+    (error: unknown) => error instanceof Error
+      && error.message.includes("acquisition-batches/batch.json")
+      && error.message.includes("credential-json-field")
+      && !error.message.includes("accidentally-logged-secret"),
+  );
 });
 
 test("artifact validation CLI does not authorize unsafe evidence for upload", async (context) => {

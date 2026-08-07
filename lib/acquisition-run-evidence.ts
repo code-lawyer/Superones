@@ -34,18 +34,39 @@ export type AcquisitionRunManifest = {
 const manifestName = "run-manifest.json";
 const reportName = "acquisition-report.json";
 const credentialName = "(?:api[_-]?key|access[_-]?key(?:[_-]?(?:id|secret))?|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|private[_-]?key|authorization|cookie|session[_-]?(?:id|token)|token)";
-const sensitiveEvidencePatterns = [
-  /Authorization\s*:\s*(?:Basic|Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/iu,
-  /-----BEGIN (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY-----/u,
-  /\bpostgresql(?:\+\w+)?:\/\/(?!\[REDACTED\]@)[^@\s]+@/iu,
-  /\bhttps?:\/\/[^/@\s:]+:[^/@\s]+@/iu,
-  /\b[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+\b/iu,
-  new RegExp(`"${credentialName}"\\s*:\\s*"(?!\\[REDACTED\\])[^"\\r\\n]{8,}"`, "iu"),
-  new RegExp(`\\b${credentialName}\\b\\s*(?:=|:)\\s*["']?(?!\\[REDACTED\\])[^\\s;,"']{8,}`, "iu"),
-  new RegExp(`[?&]${credentialName}=(?!%5BREDACTED%5D|\\[REDACTED\\])[^&#\\s]{8,}`, "iu"),
-  /\b(?:gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|LTAI[A-Za-z0-9]{12,})\b/u,
-  /\b(?:Set-Cookie|Cookie)\s*:\s*\S+/iu,
-];
+const sensitiveEvidenceRules = [
+  { id: "authorization-header", pattern: /Authorization\s*:\s*(?:Basic|Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/iu },
+  { id: "private-key", pattern: /-----BEGIN (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY-----/u },
+  { id: "postgres-credentials", pattern: /\bpostgresql(?:\+\w+)?:\/\/(?!\[REDACTED\]@)[^@\s]+@/iu },
+  { id: "url-userinfo", pattern: /\bhttps?:\/\/[^/@\s:]+:[^/@\s]+@/iu },
+  { id: "credential-json-field", pattern: new RegExp(`"${credentialName}"\\s*:\\s*"(?!\\[REDACTED\\])[^"\\r\\n]{8,}"`, "iu") },
+  { id: "credential-assignment", pattern: new RegExp(`\\b${credentialName}\\b\\s*(?:=|:)\\s*["']?(?!\\[REDACTED\\])[^\\s;,"']{8,}`, "iu") },
+  { id: "credential-query", pattern: new RegExp(`[?&]${credentialName}=(?!%5BREDACTED%5D|\\[REDACTED\\])[^&#\\s]{8,}`, "iu") },
+  { id: "provider-credential", pattern: /\b(?:gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|LTAI[A-Za-z0-9]{12,})\b/u },
+  { id: "cookie-header", pattern: /\b(?:Set-Cookie|Cookie)\s*:\s*\S+/iu },
+] as const;
+
+type SensitiveEvidenceFinding = {
+  path: string;
+  ruleId: (typeof sensitiveEvidenceRules)[number]["id"];
+};
+
+function sensitiveEvidenceFindings(files: ReadonlyMap<string, string>): SensitiveEvidenceFinding[] {
+  return [...files].flatMap(([filePath, body]) => sensitiveEvidenceRules
+    .filter(({ pattern }) => pattern.test(body))
+    .map(({ id }) => ({ path: filePath, ruleId: id })));
+}
+
+function assertSensitiveEvidenceSafe(files: ReadonlyMap<string, string>) {
+  const findings = sensitiveEvidenceFindings(files);
+  if (findings.length === 0) return;
+  const diagnostics = findings.map(({ path: filePath, ruleId }) => `${filePath}:${ruleId}`).join(", ");
+  throw new Error(`采集证据包含疑似敏感凭据，拒绝处理（${diagnostics}）。`);
+}
+
+export function validateAcquisitionPayloadForDelivery(filePath: string, body: string) {
+  assertSensitiveEvidenceSafe(new Map([[filePath, body]]));
+}
 
 function portablePath(root: string, target: string) {
   return path.relative(root, target).split(path.sep).join("/");
@@ -155,10 +176,10 @@ export async function validateAcquisitionRunEvidence(outputRoot: string) {
     await readFile(path.join(outputRoot, ...file.path.split("/")), "utf8"),
   ] as const)));
   const reportBody = evidenceBodies.get(reportName) ?? null;
-  const bodiesToScan = [manifestBody, ...evidenceBodies.values()];
-  if (sensitiveEvidencePatterns.some((pattern) => bodiesToScan.some((body) => pattern.test(body)))) {
-    throw new Error("采集证据包含疑似敏感凭据，拒绝归档。");
-  }
+  assertSensitiveEvidenceSafe(new Map([
+    [manifestName, manifestBody],
+    ...evidenceBodies,
+  ]));
   if (manifest.status === "failed") {
     if (!manifest.failure?.message) throw new Error("失败采集证据缺少脱敏错误信息。");
     return manifest;

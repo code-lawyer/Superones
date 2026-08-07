@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # Vault2077 文档权威索引
@@ -54,6 +54,7 @@ updated: 2026-08-05
 
 ## 当前运行文档
 
+- [项目长期记忆与接管清单](Vault2077-Project-Memory.md)
 - [阿里云中国大陆生产部署与迁移 Handoff](Vault2077-Aliyun-Mainland-Production-Handoff.md)
 - [阿里云告警手动配置清单](Vault2077-Aliyun-Alert-Manual-Checklist.md)
 - [生产部署执行方案](../Vault2077-Production-Deployment-Plan-2026-07-31.md)
@@ -63,6 +64,7 @@ updated: 2026-08-05
 - [部署配置手册](Vault2077-Deployment-Configuration-Manual.md)
 - [阿里云轻量服务器与历史后台身份决策](Vault2077-Aliyun-Identity-Gateway-Decision.md)：保留已退役 OIDC 方案的历史背景，当前实现见 ADR-0012。
 - [OPC 服务目录后台操作手册](Vault2077-OPC-Admin-Manual.md)
+- [负责人纸质结账启用手册](Vault2077-Owner-Paper-Checkout-Activation-Manual.md)
 - [Content Pipeline Operations](Content-Pipeline-Operations.md) 已被统一采集手册取代，只保留迁移指引。
 
 ## 支持性方案
@@ -91,7 +93,8 @@ updated: 2026-08-05
 
 ## 维护规则
 
-- 所有 `docs/` 下的 Markdown 必须有 `type`、`status`、`updated` 元数据并在本页登记。
+- 所有 `docs/` 下的 Markdown 必须有 `type`、`status`、`updated` 元数据；除标注 `authority: process` 且以 `.local.md` 结尾的本地过程材料外，其余文档必须在本页登记。
+- 产品规格、已接受 ADR、系统交付规格、当前运行手册与项目长期记忆才是项目文档。调研草稿、临时审计、中间方案和阶段记录不产生规范效力；本地保留时必须同时使用 `.local.md` 文件名和 `authority: process`，该命名已被 Git 忽略，不得加入本索引或提交。
 - 规范正文不得引用已废止的接口、榜单或运行命令，除非明确写在迁移段落。
 - 接受 ADR 时，必须同步更新总规格、受影响专项规格、系统规格、追踪矩阵与上线清单。
 - 调研结论只有被吸收到规范文档后才生效。

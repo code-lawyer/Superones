@@ -9,11 +9,10 @@ import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import { getStoredContent } from "@/lib/content-store";
 import {
   listAdminOpcOrders,
-  OPC_ORDER_STATUSES,
-  recordOpcAlipayQuery,
   updateOpcOrderStatus,
-  type OpcOrderStatus,
-} from "@/lib/opc-order-store";
+} from "@/lib/opc-orders/admin";
+import { OPC_ORDER_STATUSES, type OpcOrderStatus } from "@/lib/opc-orders/model";
+import { recordOpcAlipayQuery } from "@/lib/opc-orders/payment";
 import {
   OpcAlipayProviderError,
   queryOpcAlipayTrade,

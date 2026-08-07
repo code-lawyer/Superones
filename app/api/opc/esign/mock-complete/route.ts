@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeMockOpcSignature } from "@/lib/opc-order-store";
+import { completeMockOpcSignature } from "@/lib/opc-orders/signature";
 
 export const runtime = "nodejs";
 

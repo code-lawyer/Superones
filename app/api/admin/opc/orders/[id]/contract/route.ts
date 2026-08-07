@@ -7,7 +7,7 @@ import {
   configuredAdminReauthenticationUrl,
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
-import { getAdminOpcContractArchive } from "@/lib/opc-order-store";
+import { getAdminOpcContractArchive } from "@/lib/opc-orders/admin";
 import { readOpcContractArchive } from "@/lib/opc-contract-archive";
 import { recordAuditEvent } from "@/lib/security-audit";
 

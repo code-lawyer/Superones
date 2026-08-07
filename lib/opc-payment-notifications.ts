@@ -4,7 +4,7 @@ import {
   claimNextOpcPaymentNotification,
   completeOpcPaymentNotification,
   failOpcPaymentNotification,
-} from "./opc-order-store.ts";
+} from "./opc-orders/payment.ts";
 import { ADMIN_ORIGIN } from "./legal-profile.ts";
 
 export type OpcPaymentEmailMessage = {

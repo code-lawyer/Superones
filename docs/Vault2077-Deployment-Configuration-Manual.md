@@ -1,12 +1,12 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # Vault2077 部署配置手册
 
-> 2026-07-31 更新：RDS 目标为 PostgreSQL 17、初始 20 GB；阿里云基础系列不支持日志备份/PITR，因此全功能首发应升级或迁移到支持日志备份的系列，推荐高可用多可用区。公开游骑兵头像使用同地域 OSS。付费 IDaaS 已取消，生产后台改为项目内原生 Passkey；上线前仍须完成真实设备、TLS、RDS 恢复、OSS 媒体链路与源站绕过验收。完整操作见 [阿里云中国大陆生产部署与迁移 Handoff](Vault2077-Aliyun-Mainland-Production-Handoff.md)。
+> 2026-08-06 现网更新：当前 RDS 为 PostgreSQL 17 Basic，控制面已启用日志备份并返回本地时间点恢复区间；旧版“Basic 一律不支持 PITR”的绝对结论不再适用。全功能首发仍须开启删除保护并完成真实时间点的隔离恢复演练。公开游骑兵头像使用同地域 OSS。付费 IDaaS 已取消，生产后台采用项目内原生 Passkey；上线前仍须完成真实设备、TLS、RDS 恢复、OSS 媒体链路与源站绕过验收。完整操作见 [阿里云中国大陆生产部署与迁移 Handoff](Vault2077-Aliyun-Mainland-Production-Handoff.md)。
 
 ## 1. 环境级别
 
@@ -113,7 +113,7 @@ Frontier 生产开放配置：
 | 变量 | 生产要求 | 用途 |
 | --- | --- | --- |
 | `VAULT2077_RANGER_MEDIA_STORAGE` | 必须为 `oss` | 禁止生产退回 VPS 本地磁盘 |
-| `VAULT2077_OSS_REGION` | 必需 | 与轻量服务器同地域的 OSS 地域标识 |
+| `VAULT2077_OSS_REGION` | 必需 | 与 ECS 同地域的 OSS 地域标识 |
 | `VAULT2077_OSS_BUCKET` | 必需 | 只保存处理后公开头像的独立 Bucket |
 | `VAULT2077_OSS_ACCESS_KEY_ID` | 必需 | 应用最小权限 RAM AccessKey ID |
 | `VAULT2077_OSS_ACCESS_KEY_SECRET` | 必需 | 只由服务器秘密管理注入的 RAM Secret |
@@ -200,7 +200,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
 
-阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。初始存储 20 GB、连接池 4；先按量付费完成 7～14 天上线验证，稳定后转包月。阿里云当前基础系列不支持日志备份/时间点恢复，因此若已购买基础系列，全功能首发前必须升级或迁移到支持日志备份的系列，推荐高可用多可用区；若业务负责人书面接受只能按备份集恢复，则必须同步降低 RPO 目标并修订上线规格，不能继续声称具备 PITR。轻量应用服务器处于独立自动 VPC，不会自动与 RDS 同网；必须选择同账号、同地域资源并配置轻量服务器与目标 VPC 的内网互通，再限制 RDS 白名单/安全组。RDS 必须开启 TLS、自动/日志备份、时间点恢复、删除保护和监控；容量在 50%/70%/80% 分级告警，上线前恢复到隔离实例并记录 RPO/RTO。Redis 当前不需要。OSS 用途保持隔离：公开游骑兵头像按 ADR-0016 使用公开媒体 Bucket；ADR-0018 的专用私有合同 Bucket 只在未来电子签约启用前配置。当前纸质合同原件的线下保管不进入系统或 OSS。原始包、授权材料和其他长期归档不得写入头像或电子合同 Bucket。
+阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。2026-08-06 现网实例为 Basic、2 核 4 GB、100 GB general ESSD，连接池仍按 4 起步；控制面已启用 SSL、自动快照和日志备份，并返回本地时间点恢复区间。系列名称不再单独决定 PITR 门禁；必须开启删除保护，从真实时间点恢复到隔离实例并记录 RPO/RTO，若实际恢复能力或高可用性不足再升级多可用区。服务器与 RDS 必须使用受控私网链路，并限制 RDS 白名单/安全组。容量在 50%/70%/80% 分级告警。Redis 当前不需要。OSS 用途保持隔离：公开游骑兵头像按 ADR-0016 使用公开媒体 Bucket；ADR-0018 的专用私有合同 Bucket 已预创建并锁定 10 年，但只在未来电子签约启用前进入验收。当前纸质合同原件的线下保管不进入系统或 OSS。原始包、授权材料和其他长期归档不得写入头像或电子合同 Bucket。
 
 ## 6. GitHub Actions
 
@@ -235,7 +235,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 
 ## 8. 部署步骤
 
-1. 固定提交、Node/Python 运行时和锁文件；在阿里云创建轻量应用服务器、RDS、头像 OSS、轻量与 VPC 内网互通、安全组/防火墙、三个主机的 DNS/TLS 和监控联系人。
+1. 固定提交、Node/Python 运行时和锁文件；核对现有 ECS、RDS、头像 OSS、VPC 私网链路、安全组/防火墙、三个主机的 DNS/TLS 和监控联系人。
 2. 安全组仅允许公网 `80/443`，SSH 只允许受控运维来源；RDS 只允许应用安全组访问。Node 只监听 `127.0.0.1:3000`。
 3. 通过 SSH 生成一次性 Passkey 注册令牌，在管理域名为唯一 owner 注册至少一个凭证并离线保存恢复码；确认公开域名和 Node 端口都不能进入后台。
 4. 生成彼此独立的高熵秘密与两个版本化密钥环；把采集签名密钥环、活动 ID 和 Frontier 公开任务只读密钥配置到 GitHub Secrets，把完整验签密钥环配置在境内。不得复制 worker、LLM、后台或用户数据秘密到 GitHub。

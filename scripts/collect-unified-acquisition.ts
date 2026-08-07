@@ -22,7 +22,10 @@ import {
 import type { DirectRankingBoard } from "../lib/direct-rankings.ts";
 import { deliverAcquisitionBatch } from "../lib/acquisition-delivery.ts";
 import { evaluateAcquisitionFailures, type AcquisitionFailureMode } from "../lib/acquisition-failure-policy.ts";
-import { createAcquisitionRunEvidence } from "../lib/acquisition-run-evidence.ts";
+import {
+  createAcquisitionRunEvidence,
+  validateAcquisitionPayloadForDelivery,
+} from "../lib/acquisition-run-evidence.ts";
 import { pipelineSigningKeyring } from "../lib/secret-keyring.ts";
 import type { SicRawCollection } from "../lib/sic-collector.ts";
 
@@ -439,6 +442,7 @@ for (const batch of batches) {
   const rawPayload = JSON.stringify(batch);
   const filename = `${createHash("sha256").update(batch.batchId).digest("hex")}.json`;
   const target = path.join(batchOutput, filename);
+  validateAcquisitionPayloadForDelivery(`acquisition-batches/${filename}`, rawPayload);
   await writeFile(target, rawPayload, "utf8");
   files.push({
     batchId: batch.batchId,

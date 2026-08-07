@@ -61,8 +61,11 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    console.error("Correction submission failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "暂时无法提交纠错。" },
+      { error: "暂时无法提交纠错。" },
       { status: 500 },
     );
   }

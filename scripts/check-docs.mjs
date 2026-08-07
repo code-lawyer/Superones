@@ -98,7 +98,14 @@ for (const [file, body] of bodies) {
 const index = bodies.get(indexPath);
 for (const file of docFiles) {
   if (file === indexPath) continue;
+  const meta = frontmatter(bodies.get(file));
   const relative = path.relative(docsRoot, file).replaceAll("\\", "/");
+  if (meta?.authority === "process") {
+    if (!relative.endsWith(".local.md")) {
+      errors.push(`过程材料必须使用 .local.md 文件名以确保不会提交：${relative}`);
+    }
+    continue;
+  }
   if (!index.includes(relative)) errors.push(`文档未在 docs/README.md 登记：${relative}`);
 }
 

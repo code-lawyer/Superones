@@ -6,6 +6,7 @@ upstream vault2077_app {
 # This file is included from nginx's http context on standard Debian/Ubuntu
 # installations, so the shared ingest limit zone is declared once here.
 limit_req_zone $binary_remote_addr zone=vault2077_ingest:10m rate=10r/m;
+server_tokens off;
 
 server {
     listen 80;
@@ -26,6 +27,28 @@ server {
 
     ssl_certificate /etc/letsencrypt/live/superones.top/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/superones.top/privkey.pem;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
+    add_header X-DNS-Prefetch-Control "off" always;
+
+    error_page 404 = @public_edge_not_found;
+    error_page 405 = @public_edge_method_not_allowed;
+
+    location @public_edge_not_found {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
+
+    location @public_edge_method_not_allowed {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 405;
+    }
 
     location = /admin { return 404; }
     location ^~ /api/admin/ { return 404; }
@@ -94,7 +117,22 @@ server {
     ssl_certificate /etc/letsencrypt/live/admin.superones.top/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/admin.superones.top/privkey.pem;
 
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
+    add_header X-DNS-Prefetch-Control "off" always;
     add_header X-Robots-Tag "noindex, nofollow" always;
+
+    error_page 404 = @admin_edge_not_found;
+
+    location @admin_edge_not_found {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
 
     location = /admin {
         proxy_pass http://vault2077_app;

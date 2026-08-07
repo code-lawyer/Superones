@@ -119,7 +119,9 @@ export async function POST(request: NextRequest) {
     revalidateTag(FRONTIER_PUBLIC_RANKING_CACHE_TAG, { expire: 0 });
     return NextResponse.json({ repository: verified.repository, baselineStars: verified.baselineStars, verifiedAt: verified.verifiedAt, keepFileUntil: seasonFromCode(submission.season).endsAt });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "暂时无法验证仓库。";
-    return NextResponse.json({ error: message }, { status: 502 });
+    console.error("Frontier repository verification failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    return NextResponse.json({ error: "暂时无法验证仓库。" }, { status: 502 });
   }
 }

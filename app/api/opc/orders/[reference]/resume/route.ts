@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getOpcOrderByResumeToken,
   getOpcOrderPaymentOrder,
   recordOpcPaymentRequest,
-} from "@/lib/opc-order-store";
+} from "@/lib/opc-orders/checkout";
+import { getOpcOrderByResumeToken } from "@/lib/opc-orders/signature";
 import { reconcileOpcSignatureFlow } from "@/lib/opc-esign-reconciliation";
 import {
   createOpcAlipayPaymentUrl,

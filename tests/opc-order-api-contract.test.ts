@@ -49,7 +49,7 @@ test("OPC order endpoint trusts the published service snapshot, not client prici
 test("OPC Alipay notification verifies provider identity before marking an order paid", async () => {
   const notification = await readFile(path.join(root, "app", "api", "opc", "alipay", "notify", "route.ts"), "utf8");
   const payment = await readFile(path.join(root, "lib", "opc-payment-config.ts"), "utf8");
-  const store = await readFile(path.join(root, "lib", "opc-order-store.ts"), "utf8");
+  const store = await readFile(path.join(root, "lib", "opc-orders", "payment.ts"), "utf8");
 
   assert.match(notification, /application\/x-www-form-urlencoded/);
   assert.match(notification, /verifyOpcAlipayNotification/);
@@ -75,21 +75,25 @@ test("OPC Alipay notification verifies provider identity before marking an order
 });
 
 test("OPC order contacts remain encrypted outside the reauthenticated export", async () => {
-  const store = await readFile(path.join(root, "lib", "opc-order-store.ts"), "utf8");
-  const adminList = store.slice(
-    store.indexOf("export async function listAdminOpcOrders"),
-    store.indexOf("export async function getOpcPaymentReceipt"),
+  const [checkout, internalStore, admin] = await Promise.all([
+    readFile(path.join(root, "lib", "opc-orders", "checkout.ts"), "utf8"),
+    readFile(path.join(root, "lib", "opc-orders", "internal-store.ts"), "utf8"),
+    readFile(path.join(root, "lib", "opc-orders", "admin.ts"), "utf8"),
+  ]);
+  const adminList = admin.slice(
+    admin.indexOf("export async function listAdminOpcOrders"),
+    admin.indexOf("export async function getAdminOpcOrderDossier"),
   );
 
-  assert.match(store, /contactEncrypted: encryptSensitiveText\(JSON\.stringify\(input\.contact\)\)/);
-  assert.match(store, /decryptSensitiveText\(order\.contactEncrypted\)/);
-  assert.match(store, /retentionDays = order\.cancelledAt && !order\.paidAt \? 90 : 730/);
-  assert.match(store, /runOpcOrderRetention/);
-  assert.doesNotMatch(store, /store\.orders = store\.orders\.slice/);
-  assert.match(adminList, /readStateDocument\(orderDocument\)/);
+  assert.match(checkout, /contactEncrypted: encryptSensitiveText\(JSON\.stringify\(input\.contact\)\)/);
+  assert.match(internalStore, /decryptSensitiveText\(order\.contactEncrypted\)/);
+  assert.match(internalStore, /retentionDays = order\.cancelledAt && !order\.paidAt \? 90 : 730/);
+  assert.match(admin, /runOpcOrderRetention/);
+  assert.doesNotMatch(internalStore, /store\.orders = store\.orders\.slice/);
+  assert.match(adminList, /readOpcOrderStore\(\)/);
   assert.match(adminList, /contactAvailable/);
   assert.doesNotMatch(adminList, /decryptSensitiveText/);
-  assert.doesNotMatch(adminList, /mutateStateDocument/);
+  assert.doesNotMatch(adminList, /mutateOpcOrderStore/);
 });
 
 test("OPC admin downloads require recent reauthentication, integrity checks, and auditing", async () => {

@@ -309,6 +309,16 @@ export async function publishFrontierSeasonReward(season: string, now = new Date
   });
 }
 
+export class FrontierSubmissionConflictError extends Error {
+  readonly code: "PAST_CHAMPION" | "ALREADY_VERIFIED";
+
+  constructor(code: "PAST_CHAMPION" | "ALREADY_VERIFIED", message: string) {
+    super(message);
+    this.name = "FrontierSubmissionConflictError";
+    this.code = code;
+  }
+}
+
 export async function createPendingSubmission(input: {
   owner: string;
   repo: string;
@@ -347,9 +357,13 @@ export async function createPendingSubmission(input: {
   };
 
   await mutateStore((store) => {
-    if (store.championRepositories.includes(repository.toLowerCase())) throw new Error("该仓库已成为往届季度冠军，不能再次参赛。");
+    if (store.championRepositories.includes(repository.toLowerCase())) {
+      throw new FrontierSubmissionConflictError("PAST_CHAMPION", "该仓库已成为往届季度冠军，不能再次参赛。");
+    }
     const existingVerified = store.submissions.find((item) => item.season === season.code && item.repository.toLowerCase() === repository.toLowerCase() && item.status !== "pending" && item.status !== "rejected");
-    if (existingVerified) throw new Error("该仓库已经通过本赛季验证，无需重复报名。");
+    if (existingVerified) {
+      throw new FrontierSubmissionConflictError("ALREADY_VERIFIED", "该仓库已经通过本赛季验证，无需重复报名。");
+    }
     store.submissions = store.submissions.filter((item) => !(item.season === season.code && item.repository.toLowerCase() === repository.toLowerCase() && (item.status === "pending" || item.status === "rejected")));
     store.submissions.push(submission);
   });

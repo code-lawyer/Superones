@@ -11,7 +11,7 @@ test("paper checkout presents only the enabled paper path and a disabled electro
     readFile(path.join(root, "components", "opc-order-entry.tsx"), "utf8"),
     readFile(path.join(root, "lib", "opc-checkout-agreement.ts"), "utf8"),
     readFile(path.join(root, "app", "api", "opc", "orders", "route.ts"), "utf8"),
-    readFile(path.join(root, "lib", "opc-order-store.ts"), "utf8"),
+    readFile(path.join(root, "lib", "opc-orders", "model.ts"), "utf8"),
   ]);
   assert.match(entry, /<button type="button" disabled>电子签约<\/button>/);
   assert.match(entry, /<button type="button" aria-pressed="true">纸质签约<\/button>/);
@@ -60,7 +60,7 @@ test("paper order cancellation closes the bound Alipay trade before changing loc
   const [route, payment, store, consoleSource] = await Promise.all([
     readFile(path.join(root, "app", "api", "admin", "opc", "orders", "[id]", "cancel", "route.ts"), "utf8"),
     readFile(path.join(root, "lib", "opc-payment-config.ts"), "utf8"),
-    readFile(path.join(root, "lib", "opc-order-store.ts"), "utf8"),
+    readFile(path.join(root, "lib", "opc-orders", "refund.ts"), "utf8"),
     readFile(path.join(root, "app", "admin", "admin-console.tsx"), "utf8"),
   ]);
   assert.match(route, /requireOpcAlipayConfiguration/);

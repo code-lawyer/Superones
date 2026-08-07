@@ -1,7 +1,7 @@
 ---
 type: traceability
 status: active
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # Vault2077 实现追踪矩阵
@@ -73,7 +73,7 @@ updated: 2026-08-05
 | 无 MCP、无本地增量 | done | 当前规范与榜单模块一致，旧 SiC 写接口已删除 |
 | 每日 `08:25` 内容通道 | done | workflow 已配置；周论文每次读取本周全集并按 API upvotes 本地重排 |
 | 周论文中文编辑门禁 | done | 统一采集保留周次/排名/票数；只有带 zh-CN 编辑标记和当前版本的结果才可作为中文成品 |
-| 来源目录计数与状态一致 | done | SiC 注册表为 34=26 approved+7 retired+1 pending_review；目录与注册表同次修订 |
+| 来源目录计数与状态一致 | done | SiC 注册表为 40=20 approved+19 retired+1 pending_review；目录与注册表同次修订 |
 | 来源目录字段级一致 | partial | 来源 bundle 已执行新闻/档案去重；仍需把全部字段和 institutional news 注册表纳入文档自动校验 |
 
 ### 边境计划
@@ -132,7 +132,7 @@ updated: 2026-08-05
 
 ## 5. 推荐推进顺序
 
-1. 确认阿里云 RDS 不是不支持日志备份的基础系列；在同 VPC、支持 PITR 的 RDS 执行迁移，启用 TLS、自动/日志备份、PITR、删除保护和监控，完成隔离恢复演练。
+1. 当前 RDS 已确认启用 SSL、自动/日志备份并返回本地时间点恢复区间；下一步开启删除保护和监控，从真实时间点完成隔离恢复演练并记录 RPO/RTO，若实际韧性不足再升级高可用多可用区。
 2. 安装 Nginx、Web、采集 worker 与 Frontier timer，接入退出码/新鲜度/积压告警，验证公网内部路由、伪造头和服务器 IP 绕过失败。
 3. 演练 GitHub 投递瞬时失败、schedule 漏跑补跑、管线签名轮换和敏感数据密钥轮换。
 4. 用目标 Vault/SiC 提供方做容量、预算耗尽、主备切换和持续积压测试，保存版本审计证据。

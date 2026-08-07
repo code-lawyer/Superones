@@ -1,7 +1,7 @@
 ---
 type: adr
 status: accepted
-updated: 2026-08-05
+updated: 2026-08-06
 amends: ADR-0014, ADR-0018
 ---
 
@@ -47,7 +47,7 @@ paid_pending_contract|paid -> refund_pending -> refunded
 
 ## 模块与接口
 
-订单生命周期由一个深模块承载，公开路由、支付宝通知、付款返回页和后台不得各自复制普通状态判断。该模块的主要外部接口暴露：
+订单生命周期由 `lib/opc-orders/` 这一个深模块承载；“一个模块”指共同的业务 interface、状态不变量和持久化 seam，不等于一个源文件。能力实现可以分为 checkout、signature、payment、refund 和 admin 文件，调用方只能使用这些业务 interface 或外部提供方编排 interface，不得引用内部存储、读取状态文档或直接赋值订单字段。公开路由、支付宝通知、付款返回页和后台不得各自复制普通状态判断。该模块的主要外部 interface 包括：
 
 - `createCheckout`：验证公开服务和协议确认，创建待付款订单并返回支付会话；
 - `readResumedOrder`：校验摘要式恢复凭证并返回当前公开状态；新的短期支付会话由恢复路由通过同一支付订单读取接口创建；

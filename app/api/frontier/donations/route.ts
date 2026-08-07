@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
     const season = currentSeason();
     return NextResponse.json({ id: donation.id, season: season.code, seasonName: season.name, status: donation.status }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "暂时无法提交奖品。" }, { status: 500 });
+    console.error("Frontier prize donation failed", {
+      errorType: error instanceof Error ? error.name : "unknown",
+    });
+    return NextResponse.json({ error: "暂时无法提交奖品。" }, { status: 500 });
   }
 }

@@ -11,7 +11,9 @@ import { verifyOpcEsignTemplates, type OpcEsignTemplateProbe } from "./opc-esign
 const reservedPreflightReference = "OPC-20991231-F0E1D2C3B4A5";
 
 export type OpcProviderPreflightResult = {
-  esign: OpcEsignTemplateProbe[];
+  esign:
+    | { status: "disabled"; templates: [] }
+    | { status: "ok"; templates: OpcEsignTemplateProbe[] };
   alipay: {
     gatewayHost: string;
     mode: "page" | "wap" | "both";
@@ -38,7 +40,10 @@ export async function verifyOpcProviders(
   const configuration = readOpcAlipayConfiguration(environment);
   if (!configuration) throw new Error("支付宝开放平台配置无效或不完整。");
 
-  const esign = await (dependencies.verifyEsignTemplates ?? verifyOpcEsignTemplates)(environment, fetcher);
+  const esignEnabled = environment.VAULT2077_OPC_ESIGN_ENABLED === "true";
+  const esignTemplates = esignEnabled
+    ? await (dependencies.verifyEsignTemplates ?? verifyOpcEsignTemplates)(environment, fetcher)
+    : [];
   const queryResult = await (dependencies.queryAlipayTrade ?? queryOpcAlipayTrade)(
     reservedPreflightReference,
     configuration,
@@ -54,7 +59,9 @@ export async function verifyOpcProviders(
   }
 
   return {
-    esign,
+    esign: esignEnabled
+      ? { status: "ok", templates: esignTemplates }
+      : { status: "disabled", templates: [] },
     alipay: {
       gatewayHost: new URL(configuration.gateway).hostname,
       mode: configuration.mode,

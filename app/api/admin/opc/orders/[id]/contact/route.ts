@@ -6,7 +6,7 @@ import {
   configuredAdminReauthenticationUrl,
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
-import { getAdminOpcContactExport } from "@/lib/opc-order-store";
+import { getAdminOpcContactExport } from "@/lib/opc-orders/admin";
 import { recordAuditEvent } from "@/lib/security-audit";
 
 export const runtime = "nodejs";
