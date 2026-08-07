@@ -103,6 +103,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - `vault_editorial` 处理 information、roadside 和 Vault 事件编排。
 - `sic_editorial` 独立处理 SiC 技术长文与研究材料。
 - 两个 profile 分别配置主提供方、可选备用、并发、批量、超时和熔断，不随机分流，也不并行生成后择优。
+- SiC 对提供方协议无效响应先在当前小批次内重试，再递归拆分定位；DNS、TLS、请求超时、额度和确定性 HTTP 错误等基础设施故障仍退出当前 worker，由 inbox 统一指数退避，避免一个偶发非 JSON 响应让整个大批次从头重做。
 - rankings 与 Frontier 的确定性核验、观察、排行和结算不进入模型。
 - information 保留最近 30 天；roadside、SiC 和平台榜按来源保留最近成功快照；事件保存不可变证据副本。
 

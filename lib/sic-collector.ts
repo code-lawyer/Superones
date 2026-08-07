@@ -1,7 +1,10 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { isEditorialInfrastructureError } from "./editorial-failure.ts";
+import {
+  isEditorialInfrastructureError,
+  isFatalEditorialInfrastructureError,
+} from "./editorial-failure.ts";
 import {
   createEditorialProfileClient,
   loadEditorialProfileConfig,
@@ -233,7 +236,7 @@ async function enrichItems(
     try {
       return await complete();
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       return complete();
     }
@@ -249,7 +252,7 @@ async function enrichItems(
       if (missing.length === 0) return results;
       if (missing.length < batch.length) return [...results, ...await recoverEditorialBatch(missing)];
     } catch (error) {
-      if (isEditorialInfrastructureError(error)) throw error;
+      if (isFatalEditorialInfrastructureError(error)) throw error;
       if (batch.length === 1) {
         console.error("SiC 编辑降级到单条后仍失败。", {
           id: batch[0].id,

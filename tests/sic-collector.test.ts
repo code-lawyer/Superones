@@ -313,6 +313,94 @@ test("SiC model infrastructure failures escape source degradation so the inbox c
   );
 });
 
+test("SiC retries an invalid provider response locally before failing the inbox batch", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-invalid-response-retry-"));
+  const previous = {
+    dataDirectory: process.env.VAULT2077_DATA_DIR,
+    databaseUrl: process.env.VAULT2077_DATABASE_URL,
+    fallbackDatabaseUrl: process.env.DATABASE_URL,
+    baseUrl: process.env.VAULT2077_SIC_LLM_BASE_URL,
+    apiKey: process.env.VAULT2077_SIC_LLM_API_KEY,
+    model: process.env.VAULT2077_SIC_LLM_MODEL,
+    fetch: globalThis.fetch,
+  };
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  process.env.VAULT2077_SIC_LLM_BASE_URL = "https://model.example/v1";
+  process.env.VAULT2077_SIC_LLM_API_KEY = "test-key";
+  process.env.VAULT2077_SIC_LLM_MODEL = "test-model";
+  let requests = 0;
+  const canonicalId = "provider-recovery";
+  const editorialId = createHash("sha256").update(canonicalId).digest("hex");
+  globalThis.fetch = async () => {
+    requests += 1;
+    if (requests === 1) return new Response("temporary gateway body", { status: 200 });
+    return Response.json({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            items: [{
+              id: editorialId,
+              translatedTitle: "提供方响应已恢复",
+              description: "无效响应后，本地重试成功取得结构化编辑结果。",
+              contentSummary: "第一次响应不是 JSON。第二次响应满足协议，因此无需让整个采集批次进入长时间退避。",
+            }],
+          }),
+        },
+      }],
+    });
+  };
+  context.after(async () => {
+    if (previous.dataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous.dataDirectory;
+    if (previous.databaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previous.databaseUrl;
+    if (previous.fallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previous.fallbackDatabaseUrl;
+    if (previous.baseUrl === undefined) delete process.env.VAULT2077_SIC_LLM_BASE_URL;
+    else process.env.VAULT2077_SIC_LLM_BASE_URL = previous.baseUrl;
+    if (previous.apiKey === undefined) delete process.env.VAULT2077_SIC_LLM_API_KEY;
+    else process.env.VAULT2077_SIC_LLM_API_KEY = previous.apiKey;
+    if (previous.model === undefined) delete process.env.VAULT2077_SIC_LLM_MODEL;
+    else process.env.VAULT2077_SIC_LLM_MODEL = previous.model;
+    globalThis.fetch = previous.fetch;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const collectedAt = "2026-08-07T00:00:00.000Z";
+  const stored = await ingestSicAcquisitionContent({
+    version: 1,
+    snapshotId: "snapshot:invalid-response-retry",
+    collectedAt,
+    items: [{
+      id: canonicalId,
+      sourceId: "google-research-blog",
+      group: "documents",
+      sourceName: "Google Research Blog",
+      publisher: "Google Research",
+      title: "Provider recovery fixture",
+      summary: "Provider recovery fixture.",
+      sourceMaterial: "Provider recovery fixture.",
+      url: "https://research.google/blog/provider-recovery-fixture/",
+      publishedAt: collectedAt,
+      collectedAt,
+      canonicalId,
+      provenanceStatus: "declared",
+    }],
+    reports: [{
+      sourceId: "google-research-blog",
+      status: "success",
+      collectedAt,
+      itemCount: 1,
+    }],
+  }, globalThis.fetch);
+
+  assert.equal(requests, 2);
+  assert.equal(stored.items.length, 1);
+  assert.equal(stored.items[0].translatedTitle, "提供方响应已恢复");
+});
+
 test("bootstrap selection keeps the newest real item even outside the daily window", () => {
   const candidates = sicCollectorTestUtils.xmlEntries(rssSource, `
     <rss><channel>
