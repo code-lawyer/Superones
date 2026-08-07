@@ -1,0 +1,19 @@
+# Reject requests that do not use one of Vault2077's declared hostnames.
+# Keep this file loaded before the named public and administration sites.
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+
+    # Older distribution Nginx builds may not support ssl_reject_handshake.
+    # Reuse the public certificate only to complete TLS, then close without a
+    # response so an IP address or unknown SNI can never reach the application.
+    ssl_certificate /etc/letsencrypt/live/superones.top/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/superones.top/privkey.pem;
+    return 444;
+}

@@ -23,6 +23,10 @@ const nginxEdgeErrorSecurity = await readFile(
   new URL("../deploy/nginx/vault2077-edge-error-security.conf.example", import.meta.url),
   "utf8",
 );
+const nginxDefaultReject = await readFile(
+  new URL("../deploy/nginx/vault2077-default-reject.conf.example", import.meta.url),
+  "utf8",
+);
 const workerTimer = await readFile(
   new URL("../deploy/systemd/vault2077-acquisition-worker.timer", import.meta.url),
   "utf8",
@@ -173,6 +177,10 @@ test("the public proxy exposes only the two cross-border routes and the domestic
   assert.match(nginx, /Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;/);
   assert.match(nginxEdgeErrorSecurity, /Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'" always;/);
   assert.match(nginxEdgeErrorSecurity, /X-Content-Type-Options "nosniff" always;/);
+  assert.match(nginxDefaultReject, /listen 80 default_server;/);
+  assert.match(nginxDefaultReject, /listen 443 ssl default_server;/);
+  assert.match(nginxDefaultReject, /server_name _;/);
+  assert.match(nginxDefaultReject, /return 444;/);
   assert.match(workerTimer, /OnCalendar=\*:0\/5/);
   assert.match(workerTimer, /Persistent=true/);
   assert.match(frontierTimer, /08,10,12,14,16,18,20,22:45:00 Asia\/Shanghai/);
