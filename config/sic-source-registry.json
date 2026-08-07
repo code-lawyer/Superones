@@ -262,7 +262,7 @@
       "publisher": "Microsoft Research",
       "kind": "official_channel",
       "homeUrl": "https://www.youtube.com/@MicrosoftResearch",
-      "endpoint": "https://www.youtube.com/feeds/videos.xml?channel_id=UCFtEEv80fQVKkD4h1PF-Xqw",
+      "endpoint": "https://www.youtube.com/feeds/videos.xml?channel_id=UCCb9_Kn8F_Opb3UCGm-lILQ",
       "admissionRule": "完整接入该官方频道发布的全部新视频。",
       "rationale": "官方研究讲座、学术活动与研究人员演讲可转化为连续的公开学习入口。"
     },
@@ -298,7 +298,7 @@
       "publisher": "Stanford Institute for Human-Centered AI",
       "kind": "official_channel",
       "homeUrl": "https://www.youtube.com/@StanfordHAI",
-      "endpoint": "https://www.youtube.com/feeds/videos.xml?channel_id=UC-EnprmCZ3OXyAoG7vjVNCA",
+      "endpoint": "https://www.youtube.com/feeds/videos.xml?channel_id=UChugFTK0KyrES9terTid8vA",
       "admissionRule": "完整接入该官方频道发布的全部新视频。",
       "rationale": "顶尖大学官方 AI 机构，系统呈现公开课程、研究报告与技术及社会议题讲座。"
     },
@@ -310,7 +310,7 @@
       "publisher": "MIT Computer Science and Artificial Intelligence Laboratory",
       "kind": "official_channel",
       "homeUrl": "https://www.youtube.com/@MITCSAIL",
-      "endpoint": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfplsUBZ2IZitni1qzsjnRQ",
+      "endpoint": "https://www.youtube.com/feeds/videos.xml?channel_id=UCBpxspUNl1Th33XbugiHJzw",
       "admissionRule": "完整接入该官方频道发布的全部新视频。",
       "rationale": "覆盖机器人、视觉、AI systems 与计算机科学研究演讲，补足产业机构的视角。"
     },

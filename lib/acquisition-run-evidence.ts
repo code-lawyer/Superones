@@ -34,27 +34,66 @@ export type AcquisitionRunManifest = {
 const manifestName = "run-manifest.json";
 const reportName = "acquisition-report.json";
 const credentialName = "(?:api[_-]?key|access[_-]?key(?:[_-]?(?:id|secret))?|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|private[_-]?key|authorization|cookie|session[_-]?(?:id|token)|token)";
-const sensitiveEvidenceRules = [
-  { id: "authorization-header", pattern: /Authorization\s*:\s*(?:Basic|Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/iu },
+const highConfidenceSensitiveEvidenceRules = [
   { id: "private-key", pattern: /-----BEGIN (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY-----/u },
   { id: "postgres-credentials", pattern: /\bpostgresql(?:\+\w+)?:\/\/(?!\[REDACTED\]@)[^@\s]+@/iu },
   { id: "url-userinfo", pattern: /\bhttps?:\/\/[^/@\s:]+:[^/@\s]+@/iu },
+  { id: "provider-credential", pattern: /\b(?:gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|LTAI[A-Za-z0-9]{12,})\b/u },
+] as const;
+const contextualSensitiveEvidenceRules = [
+  { id: "authorization-header", pattern: /Authorization\s*:\s*(?:Basic|Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/iu },
   { id: "credential-json-field", pattern: new RegExp(`"${credentialName}"\\s*:\\s*"(?!\\[REDACTED\\])[^"\\r\\n]{8,}"`, "iu") },
   { id: "credential-assignment", pattern: new RegExp(`\\b${credentialName}\\b\\s*(?:=|:)\\s*["']?(?!\\[REDACTED\\])[^\\s;,"']{8,}`, "iu") },
   { id: "credential-query", pattern: new RegExp(`[?&]${credentialName}=(?!%5BREDACTED%5D|\\[REDACTED\\])[^&#\\s]{8,}`, "iu") },
-  { id: "provider-credential", pattern: /\b(?:gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|LTAI[A-Za-z0-9]{12,})\b/u },
   { id: "cookie-header", pattern: /\b(?:Set-Cookie|Cookie)\s*:\s*\S+/iu },
 ] as const;
 
+const publicContentFields = new Set([
+  "content",
+  "description",
+  "originalAuthor",
+  "originalContent",
+  "originalPublisher",
+  "originalTitle",
+  "sourceMaterial",
+  "summary",
+  "title",
+  "transcript",
+]);
+
+function maskPublicContent(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(maskPublicContent);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [
+    key,
+    publicContentFields.has(key) ? "[PUBLIC_CONTENT]" : maskPublicContent(child),
+  ]));
+}
+
+function contextualScanBody(body: string) {
+  try {
+    return JSON.stringify(maskPublicContent(JSON.parse(body)));
+  } catch {
+    return body;
+  }
+}
+
 type SensitiveEvidenceFinding = {
   path: string;
-  ruleId: (typeof sensitiveEvidenceRules)[number]["id"];
+  ruleId:
+    | (typeof highConfidenceSensitiveEvidenceRules)[number]["id"]
+    | (typeof contextualSensitiveEvidenceRules)[number]["id"];
 };
 
 function sensitiveEvidenceFindings(files: ReadonlyMap<string, string>): SensitiveEvidenceFinding[] {
-  return [...files].flatMap(([filePath, body]) => sensitiveEvidenceRules
-    .filter(({ pattern }) => pattern.test(body))
-    .map(({ id }) => ({ path: filePath, ruleId: id })));
+  return [...files].flatMap(([filePath, body]) => [
+    ...highConfidenceSensitiveEvidenceRules
+      .filter(({ pattern }) => pattern.test(body))
+      .map(({ id }) => ({ path: filePath, ruleId: id })),
+    ...contextualSensitiveEvidenceRules
+      .filter(({ pattern }) => pattern.test(contextualScanBody(body)))
+      .map(({ id }) => ({ path: filePath, ruleId: id })),
+  ]);
 }
 
 function assertSensitiveEvidenceSafe(files: ReadonlyMap<string, string>) {

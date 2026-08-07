@@ -586,3 +586,45 @@ Second abstract paragraph.</summary>
   assert.equal(entries[0].weeklyRank, 3);
   assert.equal(entries[0].weeklyUpvotes, 42);
 });
+
+test("Hugging Face paper verification falls back between both approved arXiv API origins", async () => {
+  const source: SicSource = {
+    ...rssSource,
+    id: "hugging-face-daily-papers",
+    group: "papers",
+    kind: "official_api",
+    homeUrl: "https://huggingface.co/papers",
+    endpoint: "https://huggingface.co/api/daily_papers",
+    allowedRedirectOrigins: ["https://arxiv.org", "https://export.arxiv.org"],
+  };
+  const discoveries = new Map([["2607.12345", {
+    id: "2607.12345",
+    discoveryUrl: "https://huggingface.co/papers/2607.12345",
+    upvotes: 42,
+    rankingWeek: "2026-W31",
+    weeklyRank: 1,
+  }]]);
+  const requested: string[] = [];
+  const entries = await sicCollectorTestUtils.collectArxivBatch(
+    source,
+    async (url) => {
+      requested.push(url);
+      if (url.startsWith("https://export.arxiv.org")) throw new Error("temporary timeout");
+      return new Response(`
+        <feed><entry>
+          <id>http://arxiv.org/abs/2607.12345v1</id>
+          <title>Verified Paper</title>
+          <summary>Verified abstract.</summary>
+          <published>2026-07-22T00:00:00Z</published>
+        </entry></feed>
+      `, { status: 200 });
+    },
+    ["2607.12345"],
+    discoveries,
+  );
+  assert.deepEqual(requested.map((url) => new URL(url).origin), [
+    "https://export.arxiv.org",
+    "https://arxiv.org",
+  ]);
+  assert.equal(entries[0].canonicalId, "arxiv:2607.12345");
+});

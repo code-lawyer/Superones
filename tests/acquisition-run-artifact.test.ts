@@ -185,6 +185,34 @@ test("artifact validation allows public email addresses in collected content", a
   await assert.doesNotReject(validateAcquisitionRunEvidence(root));
 });
 
+test("delivery preflight allows credential-shaped examples inside public source content", () => {
+  assert.doesNotThrow(() => validateAcquisitionPayloadForDelivery(
+    "acquisition-batches/public-documentation.json",
+    JSON.stringify({
+      records: [{
+        payload: {
+          originalTitle: "Authentication documentation",
+          originalContent: [
+            "Authorization: Bearer example-documentation-token",
+            "Cookie: session=example-cookie-value",
+            "api_key=example-api-key-value",
+          ].join("\n"),
+        },
+      }],
+    }),
+  ));
+});
+
+test("delivery preflight still rejects high-confidence credentials inside public source content", () => {
+  assert.throws(
+    () => validateAcquisitionPayloadForDelivery(
+      "acquisition-batches/public-leak.json",
+      JSON.stringify({ records: [{ payload: { originalContent: "ghp_1234567890abcdefghijklmnopqrstuvwxyz" } }] }),
+    ),
+    /provider-credential/,
+  );
+});
+
 test("artifact validation rejects common credential encodings with safe diagnostics", async (context) => {
   const samples = [
     "api_key=abcdefghijklmnop",

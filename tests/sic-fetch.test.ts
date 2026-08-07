@@ -34,3 +34,20 @@ test("bounded fetch does not retry a permanent client error", async () => {
   );
   assert.equal(calls, 1);
 });
+
+test("bounded fetch may retry a source-specific transient status", async () => {
+  let calls = 0;
+  const result = await fetchTextBounded("https://www.youtube.com/feeds/videos.xml", {}, {
+    attempts: 2,
+    retryDelayMs: 0,
+    retryStatuses: [404],
+    fetcher: async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response("temporarily missing", { status: 404 })
+        : new Response("healthy", { status: 200 });
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.text, "healthy");
+});

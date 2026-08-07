@@ -6,6 +6,7 @@ type BoundedFetchOptions = {
   fetcher?: (input: string, init?: RequestInit) => Promise<Response>;
   attempts?: number;
   retryDelayMs?: number;
+  retryStatuses?: number[];
 };
 
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -76,7 +77,17 @@ export async function fetchTextBounded(
 ) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const attempts = Math.max(1, Math.min(3, options.attempts ?? 3));
-  const retryableStatuses = new Set([403, 408, 425, 429, 500, 502, 503, 504]);
+  const retryableStatuses = new Set([
+    403,
+    408,
+    425,
+    429,
+    500,
+    502,
+    503,
+    504,
+    ...(options.retryStatuses ?? []),
+  ]);
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const releaseHost = await acquireHost(url);
     const controller = new AbortController();

@@ -30,6 +30,18 @@ test("SiC source registry contains the approved fixed source catalog", () => {
   assert.ok((sources.find((source) => source.id === "claude-blog")?.excludedTitlePatterns?.length ?? 0) > 0);
   assert.equal(sources.find((source) => source.id === "follow-builders-blogs")?.status, "approved");
   assert.equal(sources.find((source) => source.id === "follow-builders-podcasts")?.status, "approved");
+  assert.equal(
+    sources.find((source) => source.id === "microsoft-research-video")?.endpoint,
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCCb9_Kn8F_Opb3UCGm-lILQ",
+  );
+  assert.equal(
+    sources.find((source) => source.id === "stanford-hai-video")?.endpoint,
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UChugFTK0KyrES9terTid8vA",
+  );
+  assert.equal(
+    sources.find((source) => source.id === "mit-csail-video")?.endpoint,
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCBpxspUNl1Th33XbugiHJzw",
+  );
   assert.ok(sources.every((source) => source.rationale.length > 0));
   assert.ok(sources.every((source) => source.endpoint.startsWith("https://")));
 });

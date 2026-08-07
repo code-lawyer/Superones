@@ -20,6 +20,13 @@ const SIC_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
+type SourceFetchOptions = {
+  timeoutMs?: number;
+  attempts?: number;
+  retryDelayMs?: number;
+  retryStatuses?: number[];
+};
+
 type Candidate = {
   title: string;
   url: string;
@@ -628,6 +635,36 @@ function arxivEntries(payload: string, discoveries: Map<string, HuggingFacePaper
   });
 }
 
+function arxivQueryUrls(ids: string[]) {
+  return ["https://export.arxiv.org", "https://arxiv.org"].map((origin) => {
+    const query = new URL("/api/query", origin);
+    query.searchParams.set("id_list", ids.join(","));
+    query.searchParams.set("max_results", String(ids.length));
+    return query.toString();
+  });
+}
+
+async function collectArxivBatch(
+  source: SicSource,
+  fetcher: Fetcher,
+  ids: string[],
+  discoveries: Map<string, HuggingFacePaperDiscovery>,
+) {
+  const failures: string[] = [];
+  for (const endpoint of arxivQueryUrls(ids)) {
+    try {
+      const verified = await fetchText(fetcher, endpoint, source, {
+        timeoutMs: 30_000,
+        attempts: 1,
+      });
+      return arxivEntries(verified, discoveries);
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : "请求失败");
+    }
+  }
+  throw new Error(`arXiv 官方 API 均暂时不可用：${failures.join("；").slice(0, 240)}`);
+}
+
 async function collectHuggingFacePapers(
   source: SicSource,
   fetcher: Fetcher,
@@ -656,20 +693,7 @@ async function collectHuggingFacePapers(
   for (let offset = 0; offset < ids.length; offset += 20) {
     if (offset > 0) await new Promise((resolve) => setTimeout(resolve, 3_200));
     const batchIds = ids.slice(offset, offset + 20);
-    const query = new URL("https://export.arxiv.org/api/query");
-    query.searchParams.set("id_list", batchIds.join(","));
-    query.searchParams.set("max_results", String(batchIds.length));
-    let verified = "";
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        verified = await fetchText(fetcher, query.toString(), source);
-        break;
-      } catch (error) {
-        if (attempt === 1) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 4_000));
-      }
-    }
-    candidates.push(...arxivEntries(verified, discoveries));
+    candidates.push(...await collectArxivBatch(source, fetcher, batchIds, discoveries));
   }
   return candidates;
 }
@@ -724,7 +748,12 @@ function pageMetadata(source: SicSource, payload: string, url: string): Candidat
   };
 }
 
-async function fetchText(fetcher: Fetcher, url: string, source: SicSource) {
+async function fetchText(
+  fetcher: Fetcher,
+  url: string,
+  source: SicSource,
+  options: SourceFetchOptions = {},
+) {
   const requested = new URL(url);
   if (!approvedOrigins(source).has(requested.origin)) throw new Error("请求地址不属于获批来源域名。");
   const { response, text: payload } = await fetchTextBounded(
@@ -737,7 +766,7 @@ async function fetchText(fetcher: Fetcher, url: string, source: SicSource) {
       },
       redirect: "follow",
     },
-    { fetcher, timeoutMs: 20_000, maxBytes: 8 * 1024 * 1024 },
+    { fetcher, timeoutMs: 20_000, maxBytes: 8 * 1024 * 1024, ...options },
   );
   const final = new URL(response.url || url);
   if (final.protocol !== "https:" || !approvedOrigins(source).has(final.origin)) {
@@ -755,7 +784,14 @@ async function collectSource(
   const endpoint = source.id === "hugging-face-daily-papers"
     ? huggingFaceWeeklyEndpoint(source, collectedAt)
     : source.endpoint;
-  const payload = await fetchText(fetcher, endpoint, source);
+  const payload = await fetchText(
+    fetcher,
+    endpoint,
+    source,
+    source.kind === "official_channel"
+      ? { retryStatuses: [404], retryDelayMs: 1_000 }
+      : {},
+  );
   const windowFrom = runMode === "bootstrap"
     ? undefined
     : new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
@@ -1008,6 +1044,8 @@ export const sicCollectorTestUtils = {
   datedIndexEntries,
   huggingFacePaperRecords,
   arxivEntries,
+  arxivQueryUrls,
+  collectArxivBatch,
   rankHuggingFacePaperRecords,
   selectCandidates,
   completeCandidates,
