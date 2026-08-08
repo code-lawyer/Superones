@@ -96,12 +96,13 @@ Nginx 的公开主机只允许两个精确内部路由：
 
 `received → processing → processed`，失败进入 `retryable` 或 `quarantined`。
 
-worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 迟到提交；瞬时失败最多六次指数退避。成功记录保留 30 天，隔离记录保留 180 天。发布业务状态和批次完成状态在同一事务提交，避免页面读到半批结果。
+worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 迟到提交；瞬时失败最多六次指数退避。单轮 worker 固定使用 45 分钟处理预算，达到截止时间后停止领取新批次，SiC 无效响应恢复也使用同一截止时间，预算耗尽时回滚并交给 inbox 退避。成功记录保留 30 天，隔离记录保留 180 天。发布业务状态和批次完成状态在同一事务提交，避免页面读到半批结果。
 
 ### 4.3 编辑与公开状态
 
 - `vault_editorial` 处理 information、roadside 和 Vault 事件编排。
 - `sic_editorial` 独立处理 SiC 技术长文与研究材料。
+- 普通结构化编辑显式发送 Chat Completions `thinking.type=disabled`；只有任务合同明确要求推理时才开启，并用顶层 `reasoning_effort` 表达强度。处理审计记录任务策略和强度，不记录提示正文、回复或凭证。
 - 两个 profile 分别配置主提供方、可选备用、并发、批量、超时和熔断，不随机分流，也不并行生成后择优。
 - SiC 对提供方协议无效响应先在当前小批次内重试，再递归拆分定位；DNS、TLS、请求超时、额度和确定性 HTTP 错误等基础设施故障仍退出当前 worker，由 inbox 统一指数退避，避免一个偶发非 JSON 响应让整个大批次从头重做。
 - rankings 与 Frontier 的确定性核验、观察、排行和结算不进入模型。

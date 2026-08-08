@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import {
+  EditorialInfrastructureError,
   isEditorialInfrastructureError,
   isFatalEditorialInfrastructureError,
 } from "./editorial-failure.ts";
@@ -175,7 +176,7 @@ function editorialItems(value: unknown, expectedIds: Set<string>) {
 
 async function enrichItems(
   items: SicRawContentItem[],
-  options: { requireCompleteEditorial?: boolean } = {},
+  options: { requireCompleteEditorial?: boolean; editorialDeadlineAt?: number } = {},
 ) {
   const stored = await getSicStoredContent();
   const previousByIdentity = new Map(stored.items.map((item) => [sicContentIdentityKey(item), item]));
@@ -214,29 +215,41 @@ async function enrichItems(
   await Promise.all(Array.from({ length: Math.min(4, pending.length) }, materialWorker));
 
   const editorialById = new Map<string, SicEditorial>();
+  const assertEditorialDeadline = () => {
+    if (options.editorialDeadlineAt !== undefined && Date.now() >= options.editorialDeadlineAt) {
+      throw new EditorialInfrastructureError(
+        "SiC 编辑已达到本轮时间预算；剩余内容交给 inbox 退避重试。",
+        "MODEL_RUN_DEADLINE_EXCEEDED",
+      );
+    }
+  };
   const requestEditorialBatch = async (batch: typeof pending) => {
-    const complete = () => client.completeJson({
-      task: "sic-latest-source-editorial",
-      schemaVersion: "1",
-      instruction: [
-        "为每条固定来源的最新更新生成面向普通技术读者的中文编辑结果。",
-        "输出 JSON：{\"items\":[{\"id\":\"...\",\"translatedTitle\":\"简洁准确的中文标题\",\"description\":\"一句话说明这次更新讲什么\",\"contentSummary\":\"两到三句话概括核心内容、方法或讨论重点\"}]}。",
-        "保留产品名、模型名和必要英文术语；不得补造原始资料没有的结论。translatedTitle 不超过 36 个汉字，description 不超过 70 个汉字，contentSummary 不超过 220 个汉字。",
-      ].join("\n"),
-      input: batch.map((item) => ({
-        id: item.id,
-        group: item.group,
-        sourceName: item.sourceName,
-        originalTitle: item.title,
-        sourceSummary: item.summary,
-        sourceMaterial: materialById.get(item.id) || item.summary,
-        publishedAt: item.publishedAt,
-      })),
-    });
+    const complete = () => {
+      assertEditorialDeadline();
+      return client.completeJson({
+        task: "sic-latest-source-editorial",
+        schemaVersion: "1",
+        instruction: [
+          "为每条固定来源的最新更新生成面向普通技术读者的中文编辑结果。",
+          "输出 JSON：{\"items\":[{\"id\":\"...\",\"translatedTitle\":\"简洁准确的中文标题\",\"description\":\"一句话说明这次更新讲什么\",\"contentSummary\":\"两到三句话概括核心内容、方法或讨论重点\"}]}。",
+          "保留产品名、模型名和必要英文术语；不得补造原始资料没有的结论。translatedTitle 不超过 36 个汉字，description 不超过 70 个汉字，contentSummary 不超过 220 个汉字。",
+        ].join("\n"),
+        input: batch.map((item) => ({
+          id: item.id,
+          group: item.group,
+          sourceName: item.sourceName,
+          originalTitle: item.title,
+          sourceSummary: item.summary,
+          sourceMaterial: materialById.get(item.id) || item.summary,
+          publishedAt: item.publishedAt,
+        })),
+      });
+    };
     try {
       return await complete();
     } catch (error) {
       if (isFatalEditorialInfrastructureError(error)) throw error;
+      assertEditorialDeadline();
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       return complete();
     }
@@ -1011,10 +1024,10 @@ function validateRawCollection(value: unknown, options: {
 export async function ingestSicAcquisitionContent(
   value: unknown,
   _fetcher: Fetcher,
-  options: { activeSourceIds?: string[] } = {},
+  options: { activeSourceIds?: string[]; editorialDeadlineAt?: number } = {},
 ) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
-  const enriched = await enrichItems(packet.items);
+  const enriched = await enrichItems(packet.items, { editorialDeadlineAt: options.editorialDeadlineAt });
   const items = enriched
     .filter(hasCurrentEditorial)
     .map(({ sourceMaterial: _sourceMaterial, ...item }) => item as SicContentItem);

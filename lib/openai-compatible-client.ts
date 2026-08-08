@@ -28,6 +28,7 @@ export type JsonCompletion = {
   schemaVersion: string;
   instruction: string;
   input: unknown;
+  thinking?: "disabled" | "enabled";
 };
 
 export class ModelNotConfiguredError extends EditorialInfrastructureError {
@@ -218,11 +219,12 @@ export function createOpenAICompatibleClient(config: OpenAICompatibleConfig, fet
           headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             model: config.model,
-            temperature: 0.1,
+            ...(request.thinking === "enabled" ? {} : { temperature: 0.1 }),
             response_format: { type: "json_object" },
+            thinking: { type: request.thinking ?? "disabled" },
             ...(config.maxTokens ? { max_tokens: config.maxTokens } : {}),
-            ...(config.reasoningEffort
-              ? { reasoning: { effort: config.reasoningEffort, exclude: true } }
+            ...(config.reasoningEffort && request.thinking === "enabled"
+              ? { reasoning_effort: config.reasoningEffort }
               : {}),
             ...(config.providerOrder?.length || config.providerSort
               ? {
@@ -332,6 +334,10 @@ export function createEditorialProfileClient(
         model: selected?.model ?? null,
         schemaVersion: request.schemaVersion,
         requestNumber: requests,
+        thinking: request.thinking ?? "disabled",
+        reasoningEffort: request.thinking === "enabled"
+          ? selected?.reasoningEffort ?? null
+          : null,
       },
     });
   }

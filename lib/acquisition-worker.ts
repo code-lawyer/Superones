@@ -30,7 +30,7 @@ export type AcquisitionProcessingResult = {
 
 export type AcquisitionBatchProcessor = (
   batch: AcquisitionBatch,
-  work: Pick<AcquisitionWorkItem, "payloadHash" | "attempt">,
+  work: Pick<AcquisitionWorkItem, "payloadHash" | "attempt"> & { deadlineAt?: number },
 ) => Promise<AcquisitionProcessingResult>;
 
 export type AcquisitionWorkerInbox = {
@@ -50,10 +50,16 @@ export function createAcquisitionWorker(input: {
   inbox: AcquisitionWorkerInbox;
   processBatch: AcquisitionBatchProcessor;
   runAtomically?: typeof withPersistenceTransaction;
+  runBudgetMs?: number;
+  clock?: () => number;
 }) {
   const runAtomically = input.runAtomically ?? withPersistenceTransaction;
+  const clock = input.clock ?? Date.now;
+  const configuredRunBudgetMs = input.runBudgetMs ?? 45 * 60 * 1000;
+  const runBudgetMs = Math.max(1, Math.min(50 * 60 * 1000, Math.floor(configuredRunBudgetMs)));
   async function run(maxBatches = 8) {
     const limit = Math.max(1, Math.min(50, Math.floor(maxBatches)));
+    const deadlineAt = clock() + runBudgetMs;
     const attemptedBatchIds = new Set<string>();
     const processed: Array<{
       batchId: string;
@@ -82,20 +88,22 @@ export function createAcquisitionWorker(input: {
     }> = [];
 
     for (let index = 0; index < limit; index += 1) {
+      if (clock() >= deadlineAt) break;
       const work = await input.inbox.claimNext(attemptedBatchIds);
       if (!work) break;
       attemptedBatchIds.add(work.batch.batchId);
-      const startedAt = Date.now();
+      const startedAt = clock();
       try {
         const result = await runAtomically(async () => {
           const processed = await input.processBatch(work.batch, {
             payloadHash: work.payloadHash,
             attempt: work.attempt,
+            deadlineAt,
           });
           await input.inbox.complete(work.batch.batchId, work.claimToken);
           return processed;
         });
-        const durationMs = Date.now() - startedAt;
+        const durationMs = clock() - startedAt;
         processed.push({
           batchId: work.batch.batchId,
           runId: work.batch.runId,
@@ -114,7 +122,7 @@ export function createAcquisitionWorker(input: {
           });
         }
       } catch (error) {
-        const durationMs = Date.now() - startedAt;
+        const durationMs = clock() - startedAt;
         const disposition = error instanceof AcquisitionQuarantineError
           ? "quarantined"
           : "retryable";

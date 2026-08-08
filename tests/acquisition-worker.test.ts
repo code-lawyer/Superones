@@ -111,6 +111,41 @@ test("worker does not retry the same failed batch again during one run", async (
   assert.equal(result.failed.length, 1);
 });
 
+test("worker stops claiming new batches after its fixed run deadline", async () => {
+  const queue: AcquisitionWorkItem[] = [
+    { batch: batch("batch:within-budget"), payloadHash: "f".repeat(64), rawPayload: "{}", attempt: 1, claimToken: "claim-within-budget" },
+    { batch: batch("batch:after-budget"), payloadHash: "0".repeat(64), rawPayload: "{}", attempt: 1, claimToken: "claim-after-budget" },
+  ];
+  let now = 1_000;
+  const processed: string[] = [];
+  const worker = createAcquisitionWorker({
+    runBudgetMs: 100,
+    clock: () => now,
+    inbox: {
+      async claimNext() {
+        return queue.shift() ?? null;
+      },
+      async complete() {},
+      async fail() {
+        return "retryable";
+      },
+      async stats() {
+        return { received: queue.length, processing: 0, processed: processed.length, retryable: 0, quarantined: 0 };
+      },
+    },
+    async processBatch(value, work) {
+      assert.equal(work.deadlineAt, 1_100);
+      processed.push(value.batchId);
+      now = 1_101;
+      return { information: 1 };
+    },
+  });
+
+  await worker.run(2);
+  assert.deepEqual(processed, ["batch:within-budget"]);
+  assert.equal(queue.length, 1);
+});
+
 test("worker quarantines deterministic processing failures without retrying", async () => {
   const work = {
     batch: batch("batch:invalid-record"),

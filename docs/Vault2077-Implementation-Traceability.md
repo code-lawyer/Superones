@@ -24,7 +24,7 @@ updated: 2026-08-06
 | 运营后台 | partial | 原生 Passkey 的引导、注册、登录、五分钟再认证、恢复与撤销，以及 PostgreSQL 可撤销会话、同源写请求防护、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；资讯、事件、SiC、榜单与逐条纠错处置均不进入后台；真实认证器、TLS 与防火墙绕过测试仍待目标环境验收 |
 | 统一采集批次/inbox | done | 四 lane、带 key ID 的签名密钥环、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
 | 四采集通道 | done | `collect-content.yml` 按白天低频节奏支持四通道；采集 job 与 PR/push/每日质量门禁已拆分，Node 模块独占签名和有界重试 |
-| 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、积压健康阈值和限速清理已实现；编辑基础设施故障会回滚并自动重试，四个 Node service 已允许运行时所需 `AF_NETLINK`；待重部署后的退出码告警和积压恢复演练 |
+| 境内采集 worker | partial | 独立 CLI、每五分钟 systemd service/timer、45 分钟单轮处理预算、积压健康阈值和限速清理已实现；编辑基础设施故障或时间预算耗尽会回滚并自动重试，四个 Node service 已允许运行时所需 `AF_NETLINK`；待重部署后的退出码告警和积压恢复演练 |
 | 上线基线与初始化回填 | partial | 显式 bootstrap、SiC 每 approved 来源最近一条、Vault 30 天窗口、有界批次和同合同幂等已实现；尚未在生产修订执行并保存逐来源证据 |
 | 频道编辑配置 | partial | 双配置路由、独立并发/批量/超时/熔断、主/受控备用、300/200 生产预算基线及真实部署探针已实现；配置门禁拒绝错误 MiMo 域名，基础设施故障不会再误标 processed；待重部署后保存真实提供方探针、容量、长积压和切换审计证据 |
 | 内容单一主路由 | done | HN/Lobsters 已退出运行时；Follow Builders X/Blogs/Podcasts 中央 feed 被默认信任并分别进入 roadside、SiC documents/podcasts；不设本地来源审核，feed 失败隔离且不阻断 workflow |
@@ -108,7 +108,7 @@ updated: 2026-08-06
 | 静态质量门 | done | Next 16 使用 ESLint CLI，Python 使用 Ruff；两者进入 GitHub workflow，vendored Horizon 排除 |
 | 备份恢复演练 | missing | 无日期、RPO/RTO 和恢复结果 |
 | 监控告警 | partial | 受保护 `/api/internal/health` 已覆盖迁移、inbox、内容新鲜度、榜单 stale、Frontier 回退和编辑配置；待接入目标告警平台并演练 |
-| 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、超时、熔断和备用配置已实现，额度无限且 PostgreSQL 支持并发 worker；尚缺目标容量和持续积压演练 |
+| 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、超时、熔断和备用配置已实现；普通结构化任务显式关闭 thinking，任务级开启使用官方 Chat Completions 字段，审计记录策略；额度无限且 PostgreSQL 支持并发 worker，尚缺目标容量和持续积压演练 |
 | 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、任何已退役 OIDC 变量和旧共享模型 |
 | 生产依赖安全 | done | Next.js 固定为 16.2.11，PostCSS/Sharp 覆盖到修复版本；`npm audit --omit=dev --audit-level=high` 为 0 漏洞 |
 

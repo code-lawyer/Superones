@@ -36,12 +36,39 @@ test("OpenAI-compatible client uses chat completions and parses JSON content", a
   assert.equal(requestedUrl, "https://llm.example.com/v1/chat/completions");
   assert.equal(requestedBody.model, "model-a");
   assert.deepEqual(requestedBody.response_format, { type: "json_object" });
+  assert.deepEqual(requestedBody.thinking, { type: "disabled" });
   assert.deepEqual(requestedBody.provider, {
     sort: "throughput",
     require_parameters: true,
     allow_fallbacks: true,
   });
   assert.deepEqual(result, { translatedTitle: "标题" });
+});
+
+test("OpenAI-compatible client uses the official thinking fields when reasoning is enabled", async () => {
+  let requestedBody: Record<string, unknown> = {};
+  const fakeFetch: typeof fetch = async (_input, init) => {
+    requestedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return Response.json({ choices: [{ message: { content: "{}" } }] });
+  };
+  const client = createOpenAICompatibleClient({
+    baseUrl: "https://llm.example.com/v1",
+    apiKey: "secret",
+    model: "model-a",
+    timeoutMs: 5_000,
+    reasoningEffort: "high",
+  }, fakeFetch);
+  await client.completeJson({
+    task: "reasoning-test",
+    schemaVersion: "v1",
+    instruction: "return JSON",
+    input: {},
+    thinking: "enabled",
+  });
+  assert.deepEqual(requestedBody.thinking, { type: "enabled" });
+  assert.equal(requestedBody.reasoning_effort, "high");
+  assert.equal("reasoning" in requestedBody, false);
+  assert.equal("temperature" in requestedBody, false);
 });
 
 test("editorial profiles load scoped OpenRouter provider routing", () => {

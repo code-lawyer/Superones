@@ -100,7 +100,7 @@ Frontier 生产开放配置：
 | `vault_editorial` | information、roadside、Vault 事件编排 | 主提供方、受控备用、队列、并发、超时、熔断 |
 | `sic_editorial` | sic 内容 | 主提供方、受控备用、队列、并发、超时、熔断 |
 
-两个配置都只在境内持有凭证，均须记录提供方、模型、提示和处理版本。生产基线为 `vault_editorial=300`、`sic_editorial=200`，也可显式设为 `unlimited`；无论哪种额度都必须使用有界并发、超时、连续三次瞬时失败后 60 秒熔断及 inbox 指数退避。DNS、TLS、HTTP、额度耗尽或无法取得成功 completion 属于编辑基础设施故障：整个数据库事务回滚，批次进入 `retryable`，不得被内容隔离误标为 `processed`。成功 completion 的正文不是约定 JSON/Schema 时先原地重试一次；批量响应仍无效则降级为逐条编辑，单条响应仍无效才隔离该条并允许同批合格记录发布。rankings 以及 Frontier 的确定性核验、观察、排名和结算不得使用编辑模型。
+两个配置都只在境内持有凭证，均须记录提供方、模型、提示和处理版本。普通结构化编辑固定显式发送 `thinking.type=disabled`；只有任务合同明确要求推理时才发送 `thinking.type=enabled`，可选强度使用 Chat Completions 顶层 `reasoning_effort`，不得使用非官方的嵌套 `reasoning` 字段。生产基线为 `vault_editorial=300`、`sic_editorial=200`，也可显式设为 `unlimited`；无论哪种额度都必须使用有界并发、超时、连续三次瞬时失败后 60 秒熔断及 inbox 指数退避。worker 单轮固定使用 45 分钟处理预算；达到截止时间后停止领取新批次，SiC 无效响应的本地重试和拆批也必须退出并让事务回滚，不能依靠放大 systemd 超时吸收故障。DNS、TLS、HTTP、额度耗尽、时间预算耗尽或无法取得成功 completion 属于编辑基础设施故障：整个数据库事务回滚，批次进入 `retryable`，不得被内容隔离误标为 `processed`。成功 completion 的正文不是约定 JSON/Schema 时先原地重试一次；批量响应仍无效则降级为逐条编辑，单条响应仍无效才隔离该条并允许同批合格记录发布。rankings 以及 Frontier 的确定性核验、观察、排名和结算不得使用编辑模型。
 
 变量分别使用 `VAULT2077_VAULT_LLM_*` 与 `VAULT2077_SIC_LLM_*` 前缀；主配置包含 `BASE_URL`、`API_KEY`、`MODEL`、`TIMEOUT_MS`、`CONCURRENCY`、`BATCH_ITEMS`，可选的 `MAX_REQUESTS_PER_RUN` 缺省或设为 `unlimited` 表示无限额度。受控备用使用各自的 `FALLBACK_BASE_URL`、`FALLBACK_API_KEY`、`FALLBACK_MODEL` 与 `FALLBACK_TIMEOUT_MS`。旧 `VAULT2077_LLM_*` 只作为非生产迁移期本地预览兼容层，生产会拒绝只提供旧配置。
 

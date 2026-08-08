@@ -401,6 +401,76 @@ test("SiC retries an invalid provider response locally before failing the inbox 
   assert.equal(stored.items[0].translatedTitle, "提供方响应已恢复");
 });
 
+test("SiC stops invalid-response recovery when the worker deadline is exhausted", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-editorial-deadline-"));
+  const previous = {
+    dataDirectory: process.env.VAULT2077_DATA_DIR,
+    databaseUrl: process.env.VAULT2077_DATABASE_URL,
+    fallbackDatabaseUrl: process.env.DATABASE_URL,
+    baseUrl: process.env.VAULT2077_SIC_LLM_BASE_URL,
+    apiKey: process.env.VAULT2077_SIC_LLM_API_KEY,
+    model: process.env.VAULT2077_SIC_LLM_MODEL,
+    fetch: globalThis.fetch,
+  };
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  process.env.VAULT2077_SIC_LLM_BASE_URL = "https://model.example/v1";
+  process.env.VAULT2077_SIC_LLM_API_KEY = "test-key";
+  process.env.VAULT2077_SIC_LLM_MODEL = "test-model";
+  globalThis.fetch = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    return new Response("invalid provider body", { status: 200 });
+  };
+  context.after(async () => {
+    if (previous.dataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previous.dataDirectory;
+    if (previous.databaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previous.databaseUrl;
+    if (previous.fallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previous.fallbackDatabaseUrl;
+    if (previous.baseUrl === undefined) delete process.env.VAULT2077_SIC_LLM_BASE_URL;
+    else process.env.VAULT2077_SIC_LLM_BASE_URL = previous.baseUrl;
+    if (previous.apiKey === undefined) delete process.env.VAULT2077_SIC_LLM_API_KEY;
+    else process.env.VAULT2077_SIC_LLM_API_KEY = previous.apiKey;
+    if (previous.model === undefined) delete process.env.VAULT2077_SIC_LLM_MODEL;
+    else process.env.VAULT2077_SIC_LLM_MODEL = previous.model;
+    globalThis.fetch = previous.fetch;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const collectedAt = "2026-08-07T00:00:00.000Z";
+  await assert.rejects(
+    ingestSicAcquisitionContent({
+      version: 1,
+      snapshotId: "snapshot:editorial-deadline",
+      collectedAt,
+      items: [{
+        id: "editorial-deadline",
+        sourceId: "google-research-blog",
+        group: "documents",
+        sourceName: "Google Research Blog",
+        publisher: "Google Research",
+        title: "Editorial deadline fixture",
+        summary: "Editorial deadline fixture.",
+        sourceMaterial: "Editorial deadline fixture.",
+        url: "https://research.google/blog/editorial-deadline-fixture/",
+        publishedAt: collectedAt,
+        collectedAt,
+        canonicalId: "editorial-deadline",
+        provenanceStatus: "declared",
+      }],
+      reports: [{
+        sourceId: "google-research-blog",
+        status: "success",
+        collectedAt,
+        itemCount: 1,
+      }],
+    }, globalThis.fetch, { editorialDeadlineAt: Date.now() + 10 }),
+    /SiC 编辑已达到本轮时间预算/,
+  );
+});
+
 test("bootstrap selection keeps the newest real item even outside the daily window", () => {
   const candidates = sicCollectorTestUtils.xmlEntries(rssSource, `
     <rss><channel>
