@@ -45,7 +45,7 @@ test("runtime bundle uses deterministic content groups and excludes misplaced so
   )));
   assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "github-user-events"));
   assert.ok(bundle.sources.every((source: { channelType: string }) => source.channelType !== "podcast"));
-  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "information").length, 17);
+  assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "information").length, 16);
   assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "documents").length, 0);
   assert.equal(bundle.sources.filter((source: { contentGroup: string }) => source.contentGroup === "roadside").length, 36);
   assert.ok(bundle.sources
@@ -92,6 +92,11 @@ test("runtime bundle excludes mainland origin platforms without filtering conten
     && source.reason === "upstream_blocks_unattended_github_actions"
   )));
   assert.ok(bundle.sources.every((source: { id: string }) => source.id !== "source-90b028b6f17d93e0"));
+  assert.ok(bundle.pending.some((source: { id: string; reason: string }) => (
+    source.id === "source-005c4a4acd4db3b9"
+    && source.reason === "retired_content_mismatch_and_unreliable_feed"
+  )));
+  assert.ok(bundle.sources.every((source: { id: string }) => source.id !== "source-005c4a4acd4db3b9"));
 });
 
 test("video-only YouTube channels never enter the registry or runtime bundle", () => {

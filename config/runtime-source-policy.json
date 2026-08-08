@@ -20,6 +20,11 @@
       "id": "source-90b028b6f17d93e0",
       "reason": "upstream_blocks_unattended_github_actions",
       "note": "Docker's official RSS endpoint returned HTTP 403 after all retry attempts in repeated GitHub Actions runs. Keep the channel in the registry, but do not claim it is a healthy active source until Docker exposes a stable unattended machine-readable endpoint."
+    },
+    {
+      "id": "source-005c4a4acd4db3b9",
+      "reason": "retired_content_mismatch_and_unreliable_feed",
+      "note": "freeCodeCamp primarily publishes programming tutorials rather than Vault's approved AI news materials. Its official RSS was slow or timed out during source audits and later returned HTTP 525 in scheduled collection and repeated probes. Restore only through a new source-governance review."
     }
   ]
 }

@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "revision": "source-bundle-e3cd54924fbb582c",
-  "generatedAt": "2026-08-03T00:35:11.237Z",
+  "revision": "source-bundle-d75e1d73a2a3e80f",
+  "generatedAt": "2026-08-08T07:58:06.136Z",
   "registryGeneratedAt": "2026-07-22T14:02:45.177Z",
   "registryAuditedAt": "2026-07-22T15:51:02.486Z",
   "policy": "Approved direct publications and project releases enter information; verified direct people enter roadside. Follow Builders central feeds are trusted as upstream source selection and are consumed without a local admission, deduplication, or content-review layer. Protocol, freshness, capacity, HTTPS, and provenance checks remain mandatory. Hacker News and Lobsters are retired. Deep research, engineering publications, and podcasts enter SiC. GitHub user activity is not published speech. Unresolved canonical URLs are quarantined.",
   "counts": {
-    "active": 53,
-    "pending": 398,
-    "rss": 41,
+    "active": 52,
+    "pending": 399,
+    "rss": 40,
     "structured": 12,
-    "information": 17,
+    "information": 16,
     "documents": 0,
     "roadside": 36,
     "statements": 35,
@@ -69,54 +69,6 @@
         "format": "feed",
         "entryCount": 4,
         "observedTitle": "ByteByteGo Newsletter"
-      }
-    },
-    {
-      "id": "source-005c4a4acd4db3b9",
-      "identity": "feed:https://www.freecodecamp.org/news/rss",
-      "name": "freeCodeCamp.org",
-      "role": "媒体",
-      "ownerEntity": "entity:freecodecamp",
-      "publisherKind": "editorial_media",
-      "evidenceNature": "reported_analysis",
-      "classificationConfidence": "high",
-      "classificationSource": "curated_entity:freecodecamp",
-      "language": "unknown",
-      "primaryLanguage": "en",
-      "geography": "US",
-      "channelType": "article",
-      "channelIdentifier": "https://www.freecodecamp.org/news/rss",
-      "evidenceEligible": true,
-      "contentCapability": "feed-content",
-      "discoveredFrom": [
-        {
-          "repository": "ginobefun/BestBlogs",
-          "path": "BestBlogs_RSS_Articles.opml",
-          "upstreamValue": "https://www.freecodecamp.org/news/rss/"
-        }
-      ],
-      "sourceStream": "information",
-      "contentGroup": "information",
-      "itemKind": "article",
-      "provenanceRole": "canonical",
-      "provenanceStatus": "verified",
-      "originPlatform": "web",
-      "authorityTier": null,
-      "endpoint": "https://www.freecodecamp.org/news/rss/",
-      "connector": "rss",
-      "aggregator": null,
-      "validation": {
-        "status": "usable",
-        "checkedAt": "2026-07-22T14:04:14.029Z",
-        "httpStatus": 200,
-        "finalUrl": "https://www.freecodecamp.org/news/rss/",
-        "contentType": "application/xml",
-        "latencyMs": 6074,
-        "bytesInspected": 262144,
-        "valid": true,
-        "format": "feed",
-        "entryCount": 6,
-        "observedTitle": ""
       }
     },
     {
@@ -848,7 +800,7 @@
       "aggregator": "rsshub.bestblogs.dev",
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-08-03T00:35:11.226Z",
+        "checkedAt": "2026-08-08T07:58:06.110Z",
         "finalUrl": "https://rsshub.bestblogs.dev/anthropic/news"
       }
     },
@@ -889,7 +841,7 @@
       "aggregator": null,
       "validation": {
         "status": "usable",
-        "checkedAt": "2026-08-03T00:35:11.225Z",
+        "checkedAt": "2026-08-08T07:58:06.108Z",
         "finalUrl": "https://openai.com/news/rss.xml"
       }
     },
@@ -9221,6 +9173,59 @@
         }
       ],
       "reason": "mainland_origin_platform"
+    },
+    {
+      "id": "source-005c4a4acd4db3b9",
+      "identity": "feed:https://www.freecodecamp.org/news/rss",
+      "name": "freeCodeCamp.org",
+      "role": "媒体",
+      "ownerEntity": "entity:freecodecamp",
+      "publisherKind": "editorial_media",
+      "evidenceNature": "reported_analysis",
+      "classificationConfidence": "high",
+      "classificationSource": "curated_entity:freecodecamp",
+      "language": "unknown",
+      "primaryLanguage": "en",
+      "geography": "US",
+      "channelType": "article",
+      "channelIdentifier": "https://www.freecodecamp.org/news/rss",
+      "evidenceEligible": true,
+      "contentCapability": "feed-content",
+      "discoveredFrom": [
+        {
+          "repository": "ginobefun/BestBlogs",
+          "path": "BestBlogs_RSS_Articles.opml",
+          "upstreamValue": "https://www.freecodecamp.org/news/rss/"
+        }
+      ],
+      "sourceStream": "information",
+      "contentGroup": "information",
+      "itemKind": "article",
+      "provenanceRole": "canonical",
+      "provenanceStatus": "verified",
+      "originPlatform": "web",
+      "authorityTier": null,
+      "endpoints": [
+        {
+          "url": "https://www.freecodecamp.org/news/rss/",
+          "connector": "rss",
+          "requiresAuth": false,
+          "validation": {
+            "status": "usable",
+            "checkedAt": "2026-07-22T14:04:14.029Z",
+            "httpStatus": 200,
+            "finalUrl": "https://www.freecodecamp.org/news/rss/",
+            "contentType": "application/xml",
+            "latencyMs": 6074,
+            "bytesInspected": 262144,
+            "valid": true,
+            "format": "feed",
+            "entryCount": 6,
+            "observedTitle": ""
+          }
+        }
+      ],
+      "reason": "retired_content_mismatch_and_unreliable_feed"
     },
     {
       "id": "source-891627565e02d8a1",
