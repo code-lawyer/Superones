@@ -1,9 +1,11 @@
+import { headers } from "next/headers";
 import {
   HomeExperience,
   type HomeExperienceData,
 } from "@/components/home-experience";
 import "./home.css";
 import { formatNumber } from "@/lib/number-format";
+import { HOME_BRAND_INTRO_INLINE_SCRIPT } from "@/lib/home-brand-intro";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
 import { getFrontierSeasonLaunchState } from "@/lib/frontier-store";
@@ -40,13 +42,15 @@ function compactDateTime(value: string | null | undefined) {
 
 export default async function HomePage() {
   const frontierSeason = seasonForDate(new Date());
-  const [content, rankingBoards, sicContent, frontierRanking, frontierLaunchState] = await Promise.all([
+  const [requestHeaders, content, rankingBoards, sicContent, frontierRanking, frontierLaunchState] = await Promise.all([
+    headers(),
     getCachedPublicContent(),
     getCachedDirectRankingBoards().catch(() => []),
     getCachedSicContent().catch(() => null),
     getCachedFrontierRanking(frontierSeason.code).catch(() => ({ rankings: [], updatedAt: null })),
     getFrontierSeasonLaunchState(frontierSeason.code).catch(() => ({ writesEnabled: false })),
   ]);
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
   const githubToday = rankingBoards.find((board) => board.id === "github:today");
   const latestEvents = [...content.events].sort(compareEventsNewest);
   const opcEntries = [
@@ -142,5 +146,10 @@ export default async function HomePage() {
     },
   };
 
-  return <HomeExperience data={homeData} />;
+  return (
+    <>
+      <script nonce={nonce} dangerouslySetInnerHTML={{ __html: HOME_BRAND_INTRO_INLINE_SCRIPT }} />
+      <HomeExperience data={homeData} />
+    </>
+  );
 }

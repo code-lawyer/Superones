@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-08-06
+updated: 2026-08-09
 ---
 
 # Vault2077 文档权威索引
@@ -69,6 +69,7 @@ updated: 2026-08-06
 
 ## 支持性方案
 
+- [容器化与跨服务器重布置远期目标](Vault2077-Containerized-Deployment-Portability-Plan.md)：记录 Docker 应用运行时、同域名换机、PostgreSQL 跨云迁移、单写割接与回滚的远期验收目标；尚未改变当前 tar.gz/systemd 部署合同。
 - [OPC 开发计划](Vault2077-OPC-Development-Plan.md)：内容已吸收到 OPC 规格，保留实施分解。
 - [OPC 全额预付与纸质合同线上实施方案](Vault2077-OPC-Prepaid-Paper-Contract-Implementation-Plan.md)：落实 ADR-0019 的线上页面、协议、订单、支付、退款、后台与迁移方案；不包含线下寄送和纸质核验。
 - [OPC 页面设计提案](Vault2077-OPC-Page-Design-Proposal.md)：已被 OPC 规格取代。
@@ -81,7 +82,7 @@ updated: 2026-08-06
 - 项目审计：[2026-07-24 深层次项目审计](Vault2077-Deep-Audit-2026-07-24.md)
 - 阿里云部署：[中国大陆阿里云部署官方事实底稿（2026-07-31）](research/Vault2077-Aliyun-Mainland-Deployment-Official-Facts-2026-07-31.md)
 - 合规调研：[中国大陆互联网公司审批、许可与备案地图](research/china-internet-licenses.md)
-- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)、[上海起步审批与备案适用范围审计](Vault2077-OPC-Shanghai-Startup-Approvals-Scope-Audit.md)、[审批备案之外的高普适标准服务研究](Vault2077-OPC-Standardizable-Services-Beyond-Filings-Research.md)、[下单后、付款前电子服务协议签署可行性调研](research/opc-esign-feasibility.md)、[e签宝技术流程与操作责任清单](research/opc-esign-integration-operator-checklist.md)、[e签宝价格与低客量替代方案（2026-08-05）](research/esign-pricing-and-low-volume-options-2026-08-05.md)、[纸质合同与付款流程合规评估（2026-08-05）](research/opc-paper-contract-payment-compliance-2026-08-05.md)
+- OPC 调研：[中国大陆 OPC 基础设施需求研究](Vault2077-OPC-Infrastructure-China-Needs-Research.md)、[上海及长三角起步审批、备案与市场报价研究](Vault2077-OPC-Shanghai-Startup-Approvals-Research.md)、[上海起步审批与备案适用范围审计](Vault2077-OPC-Shanghai-Startup-Approvals-Scope-Audit.md)、[审批备案之外的高普适标准服务研究](Vault2077-OPC-Standardizable-Services-Beyond-Filings-Research.md)、[OPC 证照与备案代办服务优先级研究（2026-08-07）](research/opc-license-service-priority-2026-08-07.md)、[中国主流云厂商互联网备案与许可证服务边界（2026-08-07）](research/cloud-provider-internet-filing-boundaries-2026-08-07.md)、[下单后、付款前电子服务协议签署可行性调研](research/opc-esign-feasibility.md)、[e签宝技术流程与操作责任清单](research/opc-esign-integration-operator-checklist.md)、[e签宝价格与低客量替代方案（2026-08-05）](research/esign-pricing-and-low-volume-options-2026-08-05.md)、[纸质合同与付款流程合规评估（2026-08-05）](research/opc-paper-contract-payment-compliance-2026-08-05.md)
 - 媒体存储：[游骑兵头像存储决策](Vault2077-Ranger-Avatar-Storage-Decision-2026-07-31.md)
 - 信息与采集：[Information Pipeline Research](Vault2077-Information-Pipeline-Research.md)、[Collector Architecture Research](Vault2077-Collector-Architecture-Research.md)、[Collector Adoption Decision](Vault2077-Collector-Adoption-Decision.md)
 - 来源治理：[Source Taxonomy Report](Vault2077-Source-Taxonomy-Report.md)、[Source Inventory](Vault2077-Source-Inventory.md)、[Current Source Inventory Report](Vault2077-Current-Source-Inventory-Report.md)、[Source Audit Research](Vault2077-Source-Audit-Research.md)、[Source Audit Report](Vault2077-Source-Audit-Report.md)、[Glance Source Absorption Audit](Vault2077-Glance-Source-Absorption-Audit.md)、[Akta News Signals 信源审计](Vault2077-Akta-Source-Audit.md)、[Horizon 信息源审计](Vault2077-Horizon-Source-Audit.md)、[TrendRadar 信源与管线审查](Vault2077-TrendRadar-Source-Audit.md)、[Follow Builders 替换 HN/Lobsters 可行性研究](Vault2077-Follow-Builders-Roadside-Replacement-Research.md)、[Latent Space 信息源可信度审核](research/latent-space-source-audit-2026-08-02.md)
