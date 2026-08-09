@@ -1,10 +1,63 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import {
+  claimHomeBrandIntroInBrowser,
+  HOME_BRAND_INTRO_MAX_DURATION_MS,
+  scheduleHomeBrandIntroSettlement,
+} from "@/lib/home-brand-intro";
 
 export function HomeRefinedHero() {
   const [manifestoOpen, setManifestoOpen] = useState(false);
   const revealButtonRef = useRef<HTMLButtonElement>(null);
+  const issueRef = useRef<HTMLSpanElement>(null);
+  const introEffectGenerationRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const effectGeneration = ++introEffectGenerationRef.current;
+    const root = document.documentElement;
+    const introState = root.dataset.homeBrandIntro ?? claimHomeBrandIntroInBrowser();
+    root.dataset.homeBrandIntro = introState;
+
+    if (introState !== "play") return;
+
+    function settleIntro() {
+      root.dataset.homeBrandIntro = "settled";
+    }
+
+    function settleHiddenIntro() {
+      if (document.visibilityState === "hidden") settleIntro();
+    }
+
+    function settleIssuedIntro(event: AnimationEvent) {
+      if (event.animationName === "home-brand-issue") settleIntro();
+    }
+
+    if (
+      document.visibilityState === "hidden"
+      || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      settleIntro();
+      return;
+    }
+
+    const issue = issueRef.current;
+    const timeoutId = window.setTimeout(settleIntro, HOME_BRAND_INTRO_MAX_DURATION_MS);
+    issue?.addEventListener("animationend", settleIssuedIntro);
+    document.addEventListener("visibilitychange", settleHiddenIntro);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      issue?.removeEventListener("animationend", settleIssuedIntro);
+      document.removeEventListener("visibilitychange", settleHiddenIntro);
+      scheduleHomeBrandIntroSettlement(
+        (callback) => window.queueMicrotask(callback),
+        introEffectGenerationRef,
+        effectGeneration,
+        settleIntro,
+      );
+    };
+  }, []);
 
   function closeManifesto() {
     setManifestoOpen(false);
@@ -16,7 +69,23 @@ export function HomeRefinedHero() {
       <div className="home-refined-hero__main">
         <div className="home-refined-hero__identity">
           <p className="mono">for you，Superones</p>
-          <h1>Vault2077</h1>
+          <h1 className="home-brand" aria-label="Vault2077">
+            <span className="home-brand__visual" aria-hidden="true">
+              <span className="home-brand__vault">
+                <span className="home-brand__char">V</span>
+                <span className="home-brand__char">a</span>
+                <span className="home-brand__char">u</span>
+                <span className="home-brand__char">l</span>
+                <span className="home-brand__char">t</span>
+              </span>
+              <span ref={issueRef} className="home-brand__issue">
+                <span className="home-brand__char">2</span>
+                <span className="home-brand__char">0</span>
+                <span className="home-brand__char">7</span>
+                <span className="home-brand__char">7</span>
+              </span>
+            </span>
+          </h1>
           <button
             ref={revealButtonRef}
             className="home-refined-hero__reveal"

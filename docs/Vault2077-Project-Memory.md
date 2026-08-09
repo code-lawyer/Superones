@@ -1,7 +1,7 @@
 ---
 type: project-memory
 status: active
-updated: 2026-08-07
+updated: 2026-08-09
 ---
 
 # Vault2077 项目长期记忆
@@ -149,6 +149,12 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - `vault2077-opc-order-maintenance.timer`：每分钟。
 
 生产构建不能复用当前 Windows `node_modules` 或 Sharp 原生依赖，必须在与目标服务器同 CPU 架构的 Linux 环境完成。
+
+### 6.1 负责人确认的远期容器化与可移植性目标
+
+2026-08-09，负责人确认将 Docker 化和跨服务器重布置作为项目远期开发目标。目标是在 `superones.top`、`admin.superones.top` 和 `media.superones.top` 不变时，以同一不可变 Linux 镜像运行 Web 和境内一次性任务，并可把计算节点迁移到另一台服务器或另一家中国大陆云厂商；PostgreSQL 同时跨云时，采用同大版本全量、增量追平、短时停写割接和显式回滚点，禁止新旧数据库双写。
+
+该目标目前尚未实现，不改变本节前述 tar.gz、`/srv/vault2077/releases`、宿主机 Node 和 systemd 的当前生产合同，也不构成当前首发阻塞项。第一阶段优先保留宿主机 Nginx、TLS、systemd timers、journald 与 logrotate，只把应用运行时放入容器；数据库和对象存储继续位于容器外。正式实施前必须接受 ADR，并同步系统交付规格、上线清单和运行手册。完整目标、阶段与验收标准见 [容器化与跨服务器重布置远期目标](Vault2077-Containerized-Deployment-Portability-Plan.md)。
 
 ## 7. 基础设施事实表
 
