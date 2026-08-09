@@ -257,7 +257,7 @@ export function createOpcAlipayPaymentUrl(
       body: `${order.serviceCode} · ${order.serviceRevision}`.slice(0, 128),
       total_amount: order.paymentAmount.decimal,
       timeout_express: "30m",
-      time_expire: `${timeParts.year}-${timeParts.month}-${timeParts.day} ${timeParts.hour}:${timeParts.minute}`,
+      time_expire: `${timeParts.year}-${timeParts.month}-${timeParts.day} ${timeParts.hour}:${timeParts.minute}:00`,
     },
   });
   const parsed = new URL(paymentUrl);

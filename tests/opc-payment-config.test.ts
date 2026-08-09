@@ -47,7 +47,7 @@ test("OPC Alipay checkout uses the official page-pay link and server-owned amoun
   assert.equal(parsed.searchParams.get("method"), "alipay.trade.page.pay");
   assert.equal(bizContent.out_trade_no, "OPC-20260728-ABCDEF123456");
   assert.equal(bizContent.total_amount, "1980.00");
-  assert.match(bizContent.time_expire, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  assert.match(bizContent.time_expire, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   assert.equal(bizContent.seller_id, configuration.sellerId);
   assert.equal(parsed.searchParams.get("notify_url"), "https://vault2077.test/api/opc/alipay/notify");
   assert.deepEqual(catalogPriceToAlipayAmount("人民币 12,800 元"), {
