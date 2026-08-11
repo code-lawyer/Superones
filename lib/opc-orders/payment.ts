@@ -1,14 +1,69 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import type { OpcAlipayAmount, OpcAlipayQueryResult } from "../opc-payment-config.ts";
+import { alipayDecimalToAmount, type OpcAlipayAmount, type OpcAlipayQueryResult } from "../opc-payment-config.ts";
+import { encryptSensitiveText } from "../sensitive-data.ts";
 import {
+  assertExpectedUpdatedAt,
+  ensureBankTransferPaymentArtifacts,
   ensurePaperPaymentArtifacts,
   mutateOpcOrderStore,
   publicOrder,
   readOpcOrderStore,
   validResumeToken,
 } from "./internal-store.ts";
+
+export function normalizeOpcBankTransactionId(value: string) {
+  return value.trim().toUpperCase();
+}
+
+export async function verifyOpcBankTransfer(input: {
+  id: string;
+  expectedUpdatedAt: string;
+  amountDecimal: string;
+  bankTransactionId: string;
+  payerName: string;
+  paidAt: string;
+}) {
+  const amount = alipayDecimalToAmount(input.amountDecimal);
+  const transactionId = normalizeOpcBankTransactionId(input.bankTransactionId);
+  const payerName = input.payerName.trim();
+  const paidAt = new Date(input.paidAt);
+  if (!amount) throw new Error("银行入账金额格式无效。");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{5,79}$/.test(transactionId)) throw new Error("银行流水号格式无效。");
+  if (payerName.length < 2 || payerName.length > 160) throw new Error("付款户名格式无效。");
+  if (!Number.isFinite(paidAt.getTime()) || paidAt.getTime() > Date.now() + 5 * 60_000) throw new Error("银行入账时间无效。");
+
+  return mutateOpcOrderStore((store) => {
+    const order = store.orders.find((candidate) => candidate.id === input.id);
+    if (!order) throw new Error("OPC 订单不存在。");
+    assertExpectedUpdatedAt(order, input.expectedUpdatedAt);
+    if (order.payment.provider !== "bank_transfer" || order.signatureMethod !== "online") {
+      throw new Error("该订单不是线下对公转账订单。");
+    }
+    if (order.status !== "awaiting_payment") throw new Error("该订单当前不能确认到账。");
+    if (amount.minorUnits !== order.payment.amount.minorUnits) throw new Error("银行入账金额与订单固定金额不一致。");
+    if (paidAt.getTime() < new Date(order.createdAt).getTime()) {
+      throw new Error("银行入账时间早于订单创建时间，需重新核对。");
+    }
+    if (store.orders.some((candidate) => candidate.id !== order.id && candidate.payment.tradeNo === transactionId)) {
+      throw new Error("该银行流水号已绑定其他订单。");
+    }
+    if (!order.payment.accountName || !order.payment.accountNumber || !order.payment.offlineProfileRevision) {
+      throw new Error("订单缺少企业收款资料快照。");
+    }
+    const verifiedAt = new Date().toISOString();
+    order.payment.tradeNo = transactionId;
+    order.payment.tradeStatus = "BANK_VERIFIED";
+    order.payment.payerNameEncrypted = encryptSensitiveText(payerName);
+    order.payment.checkedAt = verifiedAt;
+    order.paidAt = paidAt.toISOString();
+    order.status = "paid";
+    order.updatedAt = verifiedAt;
+    ensureBankTransferPaymentArtifacts(order, order.paidAt, verifiedAt, transactionId);
+    return publicOrder(order);
+  });
+}
 
 export async function applyOpcAlipayTradeResult(input: {
   reference: string;
@@ -23,6 +78,7 @@ export async function applyOpcAlipayTradeResult(input: {
   return mutateOpcOrderStore((store) => {
     const order = store.orders.find((value) => value.reference === input.reference);
     if (!order) throw new Error("OPC 订单不存在。");
+    if (order.payment.provider !== "alipay") throw new Error("该 OPC 订单不接受支付宝交易证据。");
     if (!input.appId || (order.payment.appId && input.appId !== order.payment.appId)) {
       throw new Error("支付宝交易应用 ID 与 OPC 订单绑定应用不一致。");
     }
@@ -105,6 +161,7 @@ export async function claimOpcPublicPaymentQuery(reference: string, minimumInter
   return mutateOpcOrderStore((store) => {
     const order = store.orders.find((value) => value.reference === reference);
     if (!order) throw new Error("OPC 订单不存在。");
+    if (order.payment.provider !== "alipay") return false;
     if (order.status !== "awaiting_payment" && order.status !== "payment_exception") return false;
     const now = new Date();
     const lastAttempt = order.payment.checkedAt ? new Date(order.payment.checkedAt).getTime() : 0;
@@ -148,6 +205,7 @@ export async function claimNextOpcPaymentNotification() {
       serviceCode: order.serviceCode,
       amount: order.payment.amount,
       paidAt: order.paidAt!,
+      provider: order.payment.provider,
       tradeNo: order.payment.tradeNo!,
     };
   });

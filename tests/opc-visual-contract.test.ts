@@ -213,17 +213,30 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(orderPage, /<OpcFeeNotePopover/);
   assert.doesNotMatch(orderPage, /<details|opc-order-page__fee-note/);
   assert.match(orderPage, /className="opc-order-page__workspace"/);
-  assert.match(orderPage, /<h1>确认服务，<br \/>先付款，再寄送合同。<\/h1>/);
+  assert.match(orderPage, /<h1>确认服务，<br \/>再决定何时付款。<\/h1>/);
   assert.doesNotMatch(orderPage, /<dd>\{service\.revision\}<\/dd>|目录版本/);
-  assert.match(orderEntry, />电子签约<\/button>/);
-  assert.match(orderEntry, /<button type="button" disabled>电子签约<\/button>/);
-  assert.match(orderEntry, /<button type="button" aria-pressed="true">纸质签约<\/button>/);
-  assert.doesNotMatch(orderEntry, /筹备中|当前可用/);
+  assert.match(orderEntry, /<button type="button" disabled>线上付款 · 暂未开放<\/button>/);
+  assert.match(orderEntry, /<button type="button" disabled aria-pressed="true">线下付款 · 对公转账<\/button>/);
   assert.match(orderEntry, /X-Vault2077-Public-Request/);
-  assert.match(orderEntry, /window\.location\.assign\(body\.paymentUrl\)/);
+  assert.doesNotMatch(orderEntry, /window\.location\.assign|paymentUrl/);
   assert.match(orderEntry, /sessionStorage\.setItem\(`vault2077:opc:resume:/);
-  assert.match(orderEntry, /recipientName, deliveryPhone, province, city, district, addressLine/);
+  assert.match(orderEntry, /vault2077:opc:last-order/);
+  assert.match(orderEntry, /\/opc\/payment\/return\?order=/);
+  assert.match(orderEntry, /查看付款状态与凭证/);
+  assert.match(orderEntry, /企业收款账户/);
+  assert.match(orderEntry, /点击查看协议/);
+  assert.match(orderEntry, /下载 PDF/);
+  assert.match(orderEntry, /联系人二维码/);
+  assert.doesNotMatch(orderEntry, /recipientName|deliveryPhone|addressLine/);
   assert.match(orderEntry, /agreementAccepted/);
+  assert.match(orderEntry, /agreementTriggerRef/);
+  assert.match(orderEntry, /agreementPanelRef/);
+  assert.match(orderEntry, /event\.key === "Escape"/);
+  assert.match(orderEntry, /event\.key !== "Tab"/);
+  assert.match(orderEntry, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(orderEntry, /agreementTriggerRef\.current\?\.focus\(\)/);
+  assert.match(orderEntry, /className="opc-order-entry__consent-copy"/);
+  assert.doesNotMatch(orderEntry, /<label[^>]*>[^<]*<button/);
   assert.match(orderEntry, /href="\/terms"/);
   assert.match(orderEntry, /href="\/privacy"/);
   assert.doesNotMatch(orderEntry, /openRequest|setExpanded|scrollIntoView|目录版本|服务修订/);
@@ -246,9 +259,28 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(styles, /\.opc-fee-note__popover\s*\{[\s\S]*?position:\s*absolute/);
   assert.match(styles, /\.opc-reading-pane__body > section::before\s*\{[\s\S]*?height:\s*3px[\s\S]*?background:\s*var\(--carbon\)/);
   assert.match(styles, /\.opc-order-page__workspace\s*\{[\s\S]*?grid-template-columns:/);
+  assert.doesNotMatch(styles, /box-shadow:\s*0 30px 90px/);
   assert.doesNotMatch(styles, /OPC \/ Service register working prototype|OPC \/ Three-column service desk|OPC service blueprint|opc-service-chapter|opc-service-field|opc-universal-order|opc-order-entry__closed/);
   assert.match(opcPage, /const orderingAvailable = opcOrderEntryAvailable\(\)/);
   assert.match(opcPage, /orderingAvailable=\{orderingAvailable\}/);
+});
+
+test("OPC design authority describes the current offline bank-transfer journey", async () => {
+  const [product, surface, adminSpec] = await Promise.all([
+    readFile(path.join(root, "PRODUCT.md"), "utf8"),
+    readFile(path.join(root, ".impeccable", "surfaces", "app-opc-order-page-tsx.md"), "utf8"),
+    readFile(path.join(root, "docs", "Vault2077-Admin-Operations-Spec.md"), "utf8"),
+  ]);
+
+  assert.match(product, /同页展示企业收款账户、服务协议和联系人二维码/);
+  assert.match(product, /企业银行实际入账记录/);
+  assert.doesNotMatch(product, /登记订单并跳转独立付款页面/);
+  assert.match(surface, /Visitor mode: Operate/);
+  assert.match(surface, /生成唯一订单号和同值付款附言/);
+  assert.match(surface, /核验后.*查看状态并下载付款凭证/);
+  assert.doesNotMatch(surface, /前往托管签署页面|签署完成后返回站内核验/);
+  assert.match(adminSpec, /结构化到账证据表单/);
+  assert.match(adminSpec, /银行流水号、付款户名和北京时间入账时间/);
 });
 
 test("general public copy avoids messaging handles while OPC may identify its payment provider", async () => {

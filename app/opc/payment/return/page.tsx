@@ -18,8 +18,8 @@ export default async function OpcPaymentReturnPage({
     <PageIntro
       code="OPC / PAYMENT RECEIPT"
       title="付款结果与凭证"
-      lead="系统以支付宝服务器通知和主动交易查询为准，核对商户身份、交易号及订单固定金额后生成付款完成凭证。"
-      meta="ALIPAY / SERVER-SIDE VERIFICATION"
+      lead="系统按订单约定的付款渠道核对收款主体、交易流水及固定金额，确认到账后生成付款完成凭证。"
+      meta="PAYMENT / SERVER-SIDE VERIFICATION"
     />
     <ChannelRibbon identity="SUPERONES" slogan="ALL IS ONE. ONE IS ALL." />
     <main className="shell opc-payment-return">

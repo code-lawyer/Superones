@@ -19,6 +19,7 @@ function validEnvironment() {
     VAULT2077_FRONTIER_WRITES_ENABLED: "true",
     VAULT2077_OPC_PAYMENTS_ENABLED: "true",
     VAULT2077_OPC_PAPER_CHECKOUT_ENABLED: "true",
+    VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED: "false",
     VAULT2077_OPC_PAYMENT_EMAIL_ENABLED: "true",
     VAULT2077_SMTP_HOST: "smtp.163.com",
     VAULT2077_SMTP_PORT: "465",
@@ -161,6 +162,7 @@ test("production configuration gate allows OPC payments to remain safely closed"
     ...validEnvironment(),
     VAULT2077_OPC_PAYMENTS_ENABLED: "false",
     VAULT2077_OPC_PAPER_CHECKOUT_ENABLED: "false",
+    VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED: "false",
     VAULT2077_OPC_PAYMENT_EMAIL_ENABLED: "false",
     VAULT2077_OPC_ESIGN_ENABLED: "false",
     VAULT2077_ALIPAY_APP_ID: "",
@@ -188,6 +190,16 @@ test("production configuration gate warns when both editorial channels share a p
   const report = validateProductionConfiguration(environment);
   assert.equal(report.ok, true);
   assert.ok(report.warnings.some((issue) => issue.includes("故障隔离")));
+});
+
+test("production configuration gate allows offline bank transfer while online payments stay closed", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_OPC_PAYMENTS_ENABLED: "false",
+    VAULT2077_OPC_PAPER_CHECKOUT_ENABLED: "false",
+    VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED: "true",
+  });
+  assert.equal(report.ok, true, report.errors.join("\n"));
 });
 
 test("production configuration gate rejects the known invalid MiMo API hostname", () => {

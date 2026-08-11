@@ -32,16 +32,19 @@ export async function processOpcPaymentNotifications({
   for (; processed < Math.max(1, Math.min(maximum, 100)); processed += 1) {
     const claim = await claimNextOpcPaymentNotification();
     if (!claim) break;
+    const isBankTransfer = claim.provider === "bank_transfer";
     const lines = [
-      "OPC 订单已完成支付宝付款核验。",
+      isBankTransfer
+        ? "OPC 订单已完成企业银行到账核验。"
+        : "OPC 订单已完成支付宝付款核验。",
       "",
       `订单号：${claim.reference}`,
       `服务：${claim.serviceName}（${claim.serviceCode}）`,
       `金额：人民币 ${claim.amount.decimal} 元`,
       `付款时间：${claim.paidAt}`,
-      `支付宝交易号：${claim.tradeNo}`,
+      `${isBankTransfer ? "银行流水号" : "支付宝交易号"}：${claim.tradeNo}`,
       "",
-      "完整客户、签约方和寄送资料仅在受保护的管理后台查看：",
+      "完整客户、签约方和订单资料仅在受保护的管理后台查看：",
       `${ADMIN_ORIGIN}/admin#opc-order-${encodeURIComponent(claim.reference)}`,
     ];
     try {

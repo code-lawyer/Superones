@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-27T12:02:57.543Z",
+  "generatedAt": "2026-08-11T03:09:14.153Z",
   "title": "Design System: Vault2077",
   "extensions": {
     "colorMeta": {
@@ -347,6 +347,14 @@
       "css": ".ds-home-entry { display: block; padding: 15px 24px; background: transparent; color: var(--carbon, #11120f); font-family: \"Manrope Variable\", \"Noto Sans SC\", sans-serif; text-decoration: none; transition: background-color 170ms ease, color 170ms ease; } .ds-home-meta { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--ash, #62645e); font-size: 8px; font-style: normal; font-weight: 500; letter-spacing: .035em; } .ds-home-meta i { font-style: normal; } .ds-home-entry > strong { display: block; font-size: 18px; line-height: 1.38; transition: transform 170ms cubic-bezier(.2,.7,.2,1); } .ds-home-entry > small { display: block; margin-top: 8px; overflow: hidden; color: var(--graphite, #3f413d); font-size: 12px; line-height: 1.62; text-overflow: ellipsis; white-space: nowrap; } .ds-home-entry:hover, .ds-home-entry:focus-visible { background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); outline: 2px solid var(--carbon, #11120f); outline-offset: -3px; } .ds-home-entry:hover > strong, .ds-home-entry:focus-visible > strong { transform: translateX(4px); } .ds-home-entry:hover .ds-home-meta, .ds-home-entry:hover > small, .ds-home-entry:focus-visible .ds-home-meta, .ds-home-entry:focus-visible > small { color: #d8d9d3; }"
     },
     {
+      "name": "Homepage Brand Issuance",
+      "kind": "custom",
+      "refersTo": "homepage-brand-issuance",
+      "description": "首页唯一的静态身份反色例外：语义上只读一次完整 Vault2077，视觉上由纸面 Vault 与碳黑签发牌 2077 组成。",
+      "html": "<h1 class=\"ds-home-brand\" aria-label=\"Vault2077\"><span aria-hidden=\"true\"><span>Vault</span><span class=\"ds-home-brand__issue\">2077</span></span></h1>",
+      "css": ".ds-home-brand { margin: 0; color: var(--carbon, #11120f); font-family: \"Manrope Variable\", monospace; font-size: clamp(58px, 10vw, 112px); font-weight: 650; letter-spacing: -.04em; line-height: .88; white-space: nowrap; } .ds-home-brand > span { display: inline-flex; max-width: 100%; align-items: baseline; } .ds-home-brand__issue { display: inline-flex; margin-left: .015em; padding: .035em .1em .075em; background: var(--carbon, #11120f); color: var(--paper-bright, #fbfbf8); font-variant-numeric: tabular-nums; }"
+    },
+    {
       "name": "OPC Service Item",
       "kind": "custom",
       "refersTo": "registry-row-focus",
@@ -373,7 +381,7 @@
       },
       {
         "name": "The Rare Reversal Rule",
-        "body": "大面积碳黑反色只用于明确选中、聚焦或章节转换；它的稀缺性就是强调效果。",
+        "body": "大面积碳黑反色只用于明确选中、聚焦或章节转换；唯一的静态身份例外是首页 `2077` 品牌签发牌。它不可交互、不可复用于普通标题或状态，反色的稀缺性仍然构成强调效果。",
         "section": "colors"
       },
       {
@@ -408,7 +416,7 @@
       },
       {
         "name": "The Viewport-True Reversal Boundary Rule",
-        "body": "行级、目录级和频道级反色必须由真实按钮、链接或可聚焦记录行自身承载，背景、点击命中区和键盘焦点区共享同一个盒模型边界。最左栏从真实分割线延展到视口左缘，最右栏从真实分割线延展到视口右缘，中间栏只在两侧真实分割线之间延展；窄屏折叠为单栏后整行抵达两侧视口边缘。`.shell`、内容容器和 gutter 都不是页面边缘；文字通过控件自身内边距保留内容栅格。不得使用超出命中区的伪元素、100vmax 阴影、裁剪溢出或覆盖层制造反色范围。",
+        "body": "行级、目录级和频道级的反色状态必须由真实的按钮、链接或可聚焦记录行自身承载：反色背景、点击命中区和键盘焦点区共享同一个盒模型边界。栏目处于当前布局平面的最左侧时，该元素必须从栏位内侧的真实分割线延展到视口左缘；处于最右侧时，必须从真实分割线延展到视口右缘；中间栏位只在两侧真实分割线之间延展。多栏在窄屏折叠为单栏后，整行反色必须同时抵达两侧视口边缘。文字仍以元素自身的内边距对齐内容栅格。`.shell`、内容容器和 gutter 都不是页面边缘。不得借助超出命中区域的伪元素、`100vmax` 阴影、裁剪溢出或覆盖层制造更大的反色面；应扩展控件本身的宽度、外边距和内边距，且不得越过不属于该栏目结构的分割线。具有自身完整边框的紧凑操作按钮不强制延展。",
         "section": "layout"
       },
       {
@@ -422,7 +430,7 @@
       "Do 让选中、焦点与活动状态覆盖完整结构范围，并维持清楚对比度。",
       "Do 保持中文标题、正文、数据标签各自明确的字体角色。",
       "Do 在移动端重组网格，保留主要阅读、操作和状态。",
-      "Do 让运动服从操作反馈，并完整遵循 `prefers-reduced-motion`。",
+      "Do 让运动服从操作反馈，并完整遵循 `prefers-reduced-motion`；减弱动效时保留即时反色、边框和状态文案，不使用全局极短时长清除所有反馈。",
       "Do 让行级反色的视觉范围、点击范围与键盘焦点范围严格重合；外侧栏必须贴住视口物理边缘，内部栏必须严格停在真实分割线。"
     ],
     "donts": [
@@ -432,7 +440,7 @@
       "Don't 依靠环境阴影制造层级，或让内容块漂浮在纸面上。",
       "Don't 为普通列表滥用超大标题、整栏反色或复杂动效。",
       "Don't 用颜色作为唯一状态信号，或在真实长文本下制造横向溢出。",
-      "Don't 把 `.shell` 的 gutter、内容容器外沿或栅格留白误当作页面边缘；也不要用 100vmax 阴影、脱离控件的伪元素或裁剪溢出制造跨栏反色背景。"
+      "Don't 把 `.shell` 的 gutter、内容容器外沿或栅格留白误当作页面边缘；也不要用 `100vmax` 阴影、脱离控件的伪元素或裁剪溢出，让反色背景先于控件本身出现或跨越无关栏目。"
     ]
   }
 }

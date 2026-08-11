@@ -61,9 +61,9 @@ type OpcOrder = {
   serviceName: string;
   serviceRevision: string;
   quotedPrice: string;
-  signatureMethod: "paper" | "electronic";
+  signatureMethod: "paper" | "electronic" | "online";
   payment: {
-    provider: "alipay";
+    provider: "alipay" | "bank_transfer";
     amount: {
       currency: "CNY";
       minorUnits: number;
@@ -76,6 +76,15 @@ type OpcOrder = {
     requestCreatedAt: string | null;
     notifiedAt: string | null;
     checkedAt: string | null;
+    offlineProfileRevision: string | null;
+    accountName: string | null;
+    bankName: string | null;
+    branchName: string | null;
+    accountNumber: string | null;
+    cnapsCode: string | null;
+    transferMemo: string | null;
+    agreementSha256: string | null;
+    contactQrSha256: string | null;
   };
   contactAvailable: boolean;
   signature: {
@@ -125,6 +134,16 @@ type OpcOrderDossier = {
   refund: OpcOrder["refund"];
   notifications: OpcOrder["notifications"];
   auditTrail: Array<{ occurredAt: string; actorHash: string; action: string; result: "success" | "rejected" | "failed"; reason: string | null; diff: Record<string, unknown> }>;
+};
+
+type BankVerificationField = "bankTransactionId" | "payerName" | "paidAt" | "evidenceConfirmed";
+type BankVerificationDraft = {
+  orderId: string;
+  bankTransactionId: string;
+  payerName: string;
+  paidAt: string;
+  evidenceConfirmed: boolean;
+  errors: Partial<Record<BankVerificationField, string>>;
 };
 
 type AdminLoginMode = "passkey" | "local-password";
@@ -193,6 +212,14 @@ async function jsonMessage(response: Response) {
   return body;
 }
 
+function bankPaidAtToBeijingIso(value: string) {
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(trimmed)) return null;
+  const timestamp = `${trimmed.length === 16 ? `${trimmed}:00` : trimmed}+08:00`;
+  const parsed = new Date(timestamp);
+  return Number.isFinite(parsed.getTime()) ? timestamp : null;
+}
+
 export function AdminConsole() {
   const [submissions, setSubmissions] = useState<Submission[] | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
@@ -201,6 +228,7 @@ export function AdminConsole() {
   const [contentState, setContentState] = useState<ContentState | null>(null);
   const [orders, setOrders] = useState<OpcOrder[]>([]);
   const [opcDossiers, setOpcDossiers] = useState<Record<string, OpcOrderDossier>>({});
+  const [bankVerificationDraft, setBankVerificationDraft] = useState<BankVerificationDraft | null>(null);
   const [passkeys, setPasskeys] = useState<AdminPasskeyCredential[]>([]);
   const [password, setPassword] = useState("");
   const [enrollmentToken, setEnrollmentToken] = useState("");
@@ -569,6 +597,87 @@ export function AdminConsole() {
     }
   }
 
+  function openBankVerification(order: OpcOrder) {
+    setError("");
+    setNotice("");
+    setBankVerificationDraft({
+      orderId: order.id,
+      bankTransactionId: "",
+      payerName: "",
+      paidAt: "",
+      evidenceConfirmed: false,
+      errors: {},
+    });
+    requestAnimationFrame(() => document.getElementById(`bank-transaction-${order.id}`)?.focus());
+  }
+
+  function closeBankVerification(order: OpcOrder) {
+    setBankVerificationDraft(null);
+    requestAnimationFrame(() => document.getElementById(`verify-bank-${order.id}`)?.focus());
+  }
+
+  function updateBankVerification(field: Exclude<BankVerificationField, "evidenceConfirmed">, value: string) {
+    setBankVerificationDraft((current) => current ? {
+      ...current,
+      [field]: field === "bankTransactionId" ? value.toUpperCase() : value,
+      errors: { ...current.errors, [field]: undefined },
+    } : current);
+  }
+
+  async function verifyOpcBankTransfer(event: FormEvent<HTMLFormElement>, order: OpcOrder) {
+    event.preventDefault();
+    const draft = bankVerificationDraft;
+    if (!draft || draft.orderId !== order.id) return;
+    const bankTransactionId = draft.bankTransactionId.trim().toUpperCase();
+    const payerName = draft.payerName.trim();
+    const paidAt = bankPaidAtToBeijingIso(draft.paidAt);
+    const errors: BankVerificationDraft["errors"] = {};
+    if (!/^[A-Z0-9][A-Z0-9._/-]{5,79}$/.test(bankTransactionId)) errors.bankTransactionId = "请填写 6–80 位银行流水号，可使用字母、数字、点、斜线、连字符或下划线。";
+    if (payerName.length < 2 || payerName.length > 160) errors.payerName = "请按银行回单填写 2–160 字的付款户名。";
+    if (!paidAt || new Date(paidAt).getTime() > Date.now() + 5 * 60_000) errors.paidAt = "请填写有效且不晚于当前时间五分钟的北京时间。";
+    if (!draft.evidenceConfirmed) errors.evidenceConfirmed = "请确认已逐项核对企业银行实际入账记录。";
+    if (Object.keys(errors).length > 0) {
+      setBankVerificationDraft({ ...draft, errors });
+      const first = (["bankTransactionId", "payerName", "paidAt", "evidenceConfirmed"] as const).find((field) => errors[field]);
+      const focusTarget = first ? {
+        bankTransactionId: `bank-transaction-${order.id}`,
+        payerName: `bank-payerName-${order.id}`,
+        paidAt: `bank-paidAt-${order.id}`,
+        evidenceConfirmed: `bank-evidenceConfirmed-${order.id}`,
+      }[first] : null;
+      if (focusTarget) requestAnimationFrame(() => document.getElementById(focusTarget)?.focus());
+      return;
+    }
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/admin/opc/orders/${encodeURIComponent(order.id)}/verify-bank-transfer`, {
+        method: "POST",
+        headers: adminMutationHeaders,
+        body: JSON.stringify({
+          expectedUpdatedAt: order.updatedAt,
+          amountDecimal: order.payment.amount.decimal,
+          bankTransactionId,
+          payerName,
+          paidAt,
+        }),
+      });
+      await jsonMessage(response);
+      await load();
+      setBankVerificationDraft(null);
+      setNotice(`订单 ${order.reference} 的银行到账已核验。`);
+    } catch (cause) {
+      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
+        setReauthenticationRequired(true);
+        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
+      }
+      setError(cause instanceof Error ? cause.message : "银行到账核验失败。");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function reconcileOpcSignature(order: OpcOrder) {
     if (!window.confirm(`确认查询订单 ${order.reference} 的实时签署状态？查询结果会写入审计记录。`)) return;
     setPending(true);
@@ -821,8 +930,8 @@ export function AdminConsole() {
       <section className="admin-donations admin-opc-orders" id="admin-opc-orders" aria-labelledby="admin-opc-orders-title">
         <div className="admin-section-heading">
           <p className="eyebrow mono">OPC / ORDER OPERATIONS</p>
-          <h2 id="admin-opc-orders-title">签约订单与到账核验</h2>
-          <p className="form-note">纸质签约订单先形成固定金额待付款订单；到账后进入纸质合同门禁。付款服务通知会自动更新到账状态，浏览器返回页面不作为到账依据。</p>
+          <h2 id="admin-opc-orders-title">订单与到账核验</h2>
+          <p className="form-note">线上付款暂时关闭；线下订单以企业银行实际入账记录为准。管理员重新验证身份后，按固定金额、付款户名、流水号和入账时间确认到账。</p>
         </div>
         <div className="admin-donation-list">
           {orders.length === 0 ? <p className="ranking-empty">当前没有 OPC 订单。</p> : orders.map((order) => (
@@ -831,8 +940,8 @@ export function AdminConsole() {
                 <p className="mono muted">{order.reference} / {opcOrderStatusLabels[order.status]}</p>
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
-                <p>签约方式 {order.signatureMethod === "paper" ? "纸质签约" : "电子签约"}</p>
-                <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.channel === "wap" ? "手机付款页面" : order.payment.channel === "page" ? "电脑付款页面" : "尚未发起付款"}</p>
+                <p>协议方式 {order.signatureMethod === "paper" ? "纸质签约" : order.signatureMethod === "online" ? "在线确认协议" : "电子签约"}</p>
+                <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.provider === "bank_transfer" ? "线下对公转账" : order.payment.channel === "wap" ? "支付宝手机付款页面" : order.payment.channel === "page" ? "支付宝电脑付款页面" : "尚未发起付款"}</p>
                 <p>签约资料 {order.contactAvailable ? "已加密保存，重新验证后可导出" : "已按保留期清除"}</p>
               </div>
               <div className="admin-donation-meta">
@@ -853,9 +962,9 @@ export function AdminConsole() {
                 <span className="mono">合同归档 {order.signature.archive.status === "archived" && order.signature.archive.sha256 ? "已归档" : order.signature.provider === "legacy" ? "历史订单无电子归档" : order.signature.archive.status === "failed" ? "归档失败" : "待归档"}</span>
                 {order.signature.archive.archivedAt ? <time className="mono">归档时间 {new Date(order.signature.archive.archivedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.signature.archive.retainUntil ? <time className="mono">至少保留至 {new Date(order.signature.archive.retainUntil).toLocaleDateString("zh-CN")}</time> : null}
-                </> : <span className="mono">纸质合同门禁 {order.status === "paid_pending_contract" ? "待确认" : order.status === "refund_pending" || order.status === "refunded" ? "未通过，已进入退款" : order.status === "paid" || order.status === "completed" ? "已通过" : "待付款"}</span>}
-                <span className="mono">付款交易号 {order.payment.tradeNo ?? "—"}</span>
-                <span className="mono">收款商户 PID {order.payment.sellerId ?? "尚未绑定"}</span>
+                </> : order.signatureMethod === "paper" ? <span className="mono">纸质合同门禁 {order.status === "paid_pending_contract" ? "待确认" : order.status === "refund_pending" || order.status === "refunded" ? "未通过，已进入退款" : order.status === "paid" || order.status === "completed" ? "已通过" : "待付款"}</span> : <span className="mono">协议版本 {order.payment.offlineProfileRevision ?? "—"}</span>}
+                <span className="mono">{order.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号"} {order.payment.tradeNo ?? "—"}</span>
+                {order.payment.provider === "alipay" ? <span className="mono">收款商户 PID {order.payment.sellerId ?? "尚未绑定"}</span> : null}
                 {order.payment.notifiedAt ? <time className="mono">通知 {new Date(order.payment.notifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.payment.checkedAt ? <time className="mono">查询 {new Date(order.payment.checkedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.paymentReceipt ? <span className="mono">付款凭证 {order.paymentReceipt.receiptNumber}</span> : null}
@@ -873,13 +982,18 @@ export function AdminConsole() {
                 </> : null}
                 {order.status === "awaiting_payment" ? (
                   <>
-                    <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>查询付款状态</button>
-                    <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
+                    {order.payment.provider === "bank_transfer" ? <>
+                      <button id={`verify-bank-${order.id}`} className="text-action" type="button" disabled={pending} aria-expanded={bankVerificationDraft?.orderId === order.id} aria-controls={`bank-verification-${order.id}`} onClick={() => openBankVerification(order)}>确认银行到账</button>
+                      <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消未付款订单</button>
+                    </> : <>
+                      <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>查询支付宝付款状态</button>
+                      <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
+                    </>}
                   </>
                 ) : null}
                 {order.status === "paid" ? (
                   <>
-                    <button className="text-link" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>复查付款状态</button>
+                    {order.payment.provider === "alipay" ? <button className="text-link" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>复查支付宝付款状态</button> : null}
                     <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "completed")}>标记交付完成</button>
                     {order.signatureMethod === "paper" ? <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>支付宝原路全额退款</button> : null}
                   </>
@@ -890,6 +1004,49 @@ export function AdminConsole() {
                 </> : null}
                 {order.status === "refund_pending" ? <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>继续核验全额退款</button> : null}
               </div>
+              {bankVerificationDraft?.orderId === order.id ? (
+                <form id={`bank-verification-${order.id}`} className="admin-bank-verification" onSubmit={(event) => void verifyOpcBankTransfer(event, order)} noValidate>
+                  <header>
+                    <p className="eyebrow mono">BANK EVIDENCE / 到账证据</p>
+                    <h4>核对企业银行实际入账记录</h4>
+                    <p>仅在银行端已经看到真实入账后提交。系统会锁定订单版本、固定金额、付款户名、流水号和北京时间，并留下不可变审计记录。</p>
+                  </header>
+                  <dl className="admin-bank-verification__summary" aria-label="本次到账核验摘要">
+                    <div><dt>订单号</dt><dd>{order.reference}</dd></div>
+                    <div><dt>固定金额</dt><dd>人民币 {order.payment.amount.decimal} 元</dd></div>
+                    <div><dt>收款户名</dt><dd>{order.payment.accountName ?? "订单缺少账户快照"}</dd></div>
+                    <div><dt>收款银行</dt><dd>{order.payment.bankName ?? "订单缺少银行快照"}</dd></div>
+                  </dl>
+                  <div className="admin-bank-verification__fields">
+                    <div className="form-field">
+                      <label htmlFor={`bank-transaction-${order.id}`}>银行流水号</label>
+                      <input id={`bank-transaction-${order.id}`} value={bankVerificationDraft.bankTransactionId} onChange={(event) => updateBankVerification("bankTransactionId", event.target.value)} maxLength={80} autoComplete="off" aria-invalid={Boolean(bankVerificationDraft.errors.bankTransactionId)} aria-describedby={bankVerificationDraft.errors.bankTransactionId ? `bank-transaction-error-${order.id}` : `bank-transaction-hint-${order.id}`} />
+                      <p id={`bank-transaction-hint-${order.id}`}>系统会统一为大写并拒绝已绑定其他订单的流水号。</p>
+                      {bankVerificationDraft.errors.bankTransactionId ? <p id={`bank-transaction-error-${order.id}`} className="form-error">{bankVerificationDraft.errors.bankTransactionId}</p> : null}
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor={`bank-payerName-${order.id}`}>付款户名</label>
+                      <input id={`bank-payerName-${order.id}`} value={bankVerificationDraft.payerName} onChange={(event) => updateBankVerification("payerName", event.target.value)} maxLength={160} autoComplete="off" aria-invalid={Boolean(bankVerificationDraft.errors.payerName)} aria-describedby={bankVerificationDraft.errors.payerName ? `bank-payer-error-${order.id}` : undefined} />
+                      {bankVerificationDraft.errors.payerName ? <p id={`bank-payer-error-${order.id}`} className="form-error">{bankVerificationDraft.errors.payerName}</p> : null}
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor={`bank-paidAt-${order.id}`}>银行入账时间（北京时间）</label>
+                      <input id={`bank-paidAt-${order.id}`} type="datetime-local" step="1" value={bankVerificationDraft.paidAt} onChange={(event) => updateBankVerification("paidAt", event.target.value)} aria-invalid={Boolean(bankVerificationDraft.errors.paidAt)} aria-describedby={bankVerificationDraft.errors.paidAt ? `bank-paidAt-error-${order.id}` : `bank-paidAt-hint-${order.id}`} />
+                      <p id={`bank-paidAt-hint-${order.id}`}>按银行回单填写，系统固定按 UTC+08:00 解释。</p>
+                      {bankVerificationDraft.errors.paidAt ? <p id={`bank-paidAt-error-${order.id}`} className="form-error">{bankVerificationDraft.errors.paidAt}</p> : null}
+                    </div>
+                  </div>
+                  <div className="admin-bank-verification__confirmation">
+                    <input id={`bank-evidenceConfirmed-${order.id}`} type="checkbox" checked={bankVerificationDraft.evidenceConfirmed} onChange={(event) => setBankVerificationDraft((current) => current ? { ...current, evidenceConfirmed: event.target.checked, errors: { ...current.errors, evidenceConfirmed: undefined } } : current)} aria-invalid={Boolean(bankVerificationDraft.errors.evidenceConfirmed)} aria-describedby={bankVerificationDraft.errors.evidenceConfirmed ? `bank-confirm-error-${order.id}` : undefined} />
+                    <label htmlFor={`bank-evidenceConfirmed-${order.id}`}>我已逐项核对企业银行实际入账记录，确认金额、付款户名、流水号和入账时间均与本订单一致。</label>
+                    {bankVerificationDraft.errors.evidenceConfirmed ? <p id={`bank-confirm-error-${order.id}`} className="form-error">{bankVerificationDraft.errors.evidenceConfirmed}</p> : null}
+                  </div>
+                  <footer>
+                    <button className="text-action" type="submit" disabled={pending}>{pending ? "正在确认到账…" : "提交到账核验"}</button>
+                    <button className="text-link" type="button" disabled={pending} onClick={() => closeBankVerification(order)}>取消并保留订单状态</button>
+                  </footer>
+                </form>
+              ) : null}
             </article>
           ))}
         </div>
@@ -918,7 +1075,7 @@ function OpcDossierView({ dossier }: { dossier: OpcOrderDossier }) {
     ["完整寄送地址", dossier.delivery ? `${dossier.delivery.province}${dossier.delivery.city}${dossier.delivery.district}${dossier.delivery.addressLine}` : "—"],
     ["服务范围", dossier.service.scope],
     ["服务边界", dossier.service.boundary],
-    ["支付宝交易号", dossier.payment.tradeNo ?? "—"],
+    [dossier.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号", dossier.payment.tradeNo ?? "—"],
     ["付款凭证", dossier.paymentReceipt?.receiptNumber ?? "—"],
     ["凭证金额", dossier.paymentReceipt ? `人民币 ${dossier.paymentReceipt.payment.amount.decimal} 元` : "—"],
     ["凭证付款方", dossier.paymentReceipt ? dossier.paymentReceipt.customer.organizationName || dossier.paymentReceipt.customer.name : "—"],

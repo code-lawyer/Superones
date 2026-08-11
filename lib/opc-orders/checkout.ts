@@ -24,6 +24,7 @@ import {
   OpcOrderIdempotencyConflictError,
   type OpcCheckoutAgreement,
   type OpcOrderContact,
+  type OpcOfflinePaymentSnapshot,
   type OpcPaperDelivery,
 } from "./model.ts";
 
@@ -41,9 +42,11 @@ export async function createOpcOrder(input: {
   serviceBoundary: string;
   contact: OpcOrderContact;
   signer: OpcSignerParty;
-  signatureMethod?: "paper" | "electronic";
+  signatureMethod?: "paper" | "electronic" | "online";
   delivery?: OpcPaperDelivery;
   agreement?: OpcCheckoutAgreement;
+  paymentProvider?: "alipay" | "bank_transfer";
+  offlinePaymentSnapshot?: OpcOfflinePaymentSnapshot;
 }) {
   const signatureMethod = input.signatureMethod ?? "electronic";
   if (signatureMethod === "paper") {
@@ -54,6 +57,17 @@ export async function createOpcOrder(input: {
       || createHash("sha256").update(input.agreement.text).digest("hex") !== input.agreement.sha256
     ) {
       throw new Error("纸质签约订单缺少有效的在线协议证据。");
+    }
+  }
+  if (signatureMethod === "online") {
+    if (
+      input.paymentProvider !== "bank_transfer"
+      || !input.offlinePaymentSnapshot
+      || !input.agreement
+      || input.agreement.text.length < 200
+      || createHash("sha256").update(input.agreement.text).digest("hex") !== input.agreement.sha256
+    ) {
+      throw new Error("线下转账订单缺少有效的在线协议或付款资料快照。");
     }
   }
   const paymentAmount = catalogPriceToAlipayAmount(input.quotedPrice);
@@ -104,7 +118,7 @@ export async function createOpcOrder(input: {
       serviceScope: input.serviceScope,
       serviceBoundary: input.serviceBoundary,
       payment: {
-        provider: "alipay",
+        provider: input.paymentProvider === "bank_transfer" ? "bank_transfer" : "alipay",
         amount: paymentAmount,
         appId: null,
         sellerId: null,
@@ -114,6 +128,16 @@ export async function createOpcOrder(input: {
         requestCreatedAt: null,
         notifiedAt: null,
         checkedAt: null,
+        offlineProfileRevision: input.offlinePaymentSnapshot?.revision ?? null,
+        accountName: input.offlinePaymentSnapshot?.account.name ?? null,
+        bankName: input.offlinePaymentSnapshot?.account.bankName ?? null,
+        branchName: input.offlinePaymentSnapshot?.account.branchName ?? null,
+        accountNumber: input.offlinePaymentSnapshot?.account.accountNumber ?? null,
+        cnapsCode: input.offlinePaymentSnapshot?.account.cnapsCode ?? null,
+        transferMemo: input.paymentProvider === "bank_transfer" ? reference : null,
+        agreementSha256: input.offlinePaymentSnapshot?.agreementSha256 ?? null,
+        contactQrSha256: input.offlinePaymentSnapshot?.contactQrSha256 ?? null,
+        payerNameEncrypted: null,
       },
       paymentReceipt: null,
       notifications: [],
@@ -128,8 +152,8 @@ export async function createOpcOrder(input: {
       resumeTokenKeyId: resumeCredential.keyId,
       resumeTokenExpiresAt: resumeCredential.expiresAt,
       signature: {
-        provider: "mock",
-        status: "preparing",
+        provider: signatureMethod === "online" ? "legacy" : "mock",
+        status: signatureMethod === "online" ? "completed" : "preparing",
         flowId: null,
         fileId: null,
         templateId: null,
@@ -137,7 +161,7 @@ export async function createOpcOrder(input: {
         createdAt: timestamp,
         notifiedAt: null,
         checkedAt: null,
-        completedAt: null,
+        completedAt: signatureMethod === "online" ? timestamp : null,
         failureReason: null,
         preparationClaimId: null,
         preparationLeaseExpiresAt: null,
@@ -145,19 +169,19 @@ export async function createOpcOrder(input: {
         archiveLeaseExpiresAt: null,
         callbackEventHashes: [],
         archive: {
-          status: "pending",
+          status: signatureMethod === "online" ? "archived" : "pending",
           objectKey: null,
           manifestKey: null,
           sha256: null,
           sizeBytes: null,
           verifiedAt: null,
-          archivedAt: null,
+          archivedAt: signatureMethod === "online" ? timestamp : null,
           retainUntil: null,
           evidence: [],
           failureReason: null,
         },
       },
-      status: signatureMethod === "paper" ? "awaiting_payment" : "awaiting_signature",
+      status: signatureMethod === "paper" || signatureMethod === "online" ? "awaiting_payment" : "awaiting_signature",
       createdAt: timestamp,
       updatedAt: timestamp,
       paidAt: null,
@@ -176,6 +200,7 @@ export async function getOpcOrderPaymentOrder(reference: string): Promise<OpcAli
   const store = await readOpcOrderStore();
   const order = store.orders.find((value) => value.reference === reference);
   if (!order) throw new Error("OPC 订单不存在。");
+  if (order.payment.provider !== "alipay") throw new Error("该 OPC 订单不使用支付宝付款。");
   if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
   return {
     reference: order.reference,
@@ -195,6 +220,7 @@ export async function recordOpcPaymentRequest(
   return mutateOpcOrderStore((store) => {
     const order = store.orders.find((value) => value.reference === reference);
     if (!order) throw new Error("OPC 订单不存在。");
+    if (order.payment.provider !== "alipay") throw new Error("该 OPC 订单不使用支付宝付款。");
     if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
     if (!/^\d{16,32}$/.test(appId)) throw new Error("支付宝应用 ID 格式无效。");
     if (!/^\d{16,32}$/.test(sellerId)) throw new Error("支付宝商户 PID 格式无效。");

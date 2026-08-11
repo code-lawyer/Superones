@@ -1,0 +1,12 @@
+{
+  "revision": "REPLACE-YYYYMMDD-01",
+  "account": {
+    "name": "上海睿诚明达咨询管理有限公司",
+    "bankName": "REPLACE-开户银行",
+    "branchName": "REPLACE-开户支行",
+    "accountNumber": "REPLACE-企业银行账号",
+    "cnapsCode": ""
+  },
+  "agreementFile": "service-agreement.pdf",
+  "contactQrFile": "contact-qr.png"
+}

@@ -61,6 +61,7 @@ test("payment notification worker sends exactly one administrator email", async 
     assert.equal(messages[0].to, "lanzhouda@163.com");
     assert.match(messages[0].subject, /OPC.*付款/);
     assert.match(messages[0].text, /1980\.00/);
+    assert.match(messages[0].text, /支付宝交易号/);
     assert.doesNotMatch(messages[0].text, /13800138000|buyer@example\.com|测试路 3 号|邮件联系人/);
     assert.match(messages[0].text, /https:\/\/admin\.superones\.top\/admin#opc-order-OPC-/);
     assert.match(messages[0].messageId, /^<payment-confirmed-[0-9a-f-]+@superones\.top>$/);

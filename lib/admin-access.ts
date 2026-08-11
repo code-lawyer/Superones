@@ -1,6 +1,6 @@
 import "server-only";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import { adminCookieName, adminCookieOptions } from "./admin-auth.ts";
 import {
   assertAdminHost,

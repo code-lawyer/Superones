@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-06
+updated: 2026-08-10
 ---
 
 # Vault2077 部署配置手册
@@ -123,7 +123,22 @@ Frontier 生产开放配置：
 
 Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入。应用 RAM 身份只授予该前缀的对象写入和元数据读取能力。上传上限为 5MB，Nginx 当前 `client_max_body_size 8m` 足以容纳 multipart 开销；如果修改任一侧上限，必须同步校验浏览器、应用路由和 Nginx。生产启用前验证 CNAME/TLS、320/800 WebP、发布前 HEAD、`Cache-Control: public, max-age=31536000, immutable`、替换、撤回、无引用对象清理和费用告警。
 
-### OPC 纸质签约线上订单
+### OPC 线下对公转账订单
+
+| 变量/资源 | 说明 |
+| --- | --- |
+| `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` | 新线下付款公开入口开关；真实资料发布、银行到账核验和浏览器验收前保持 `false` |
+| `VAULT2077_OPC_PAYMENTS_ENABLED` | 线上支付宝开关；线下付款入口开放时必须保持 `false` |
+| `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED` | 旧纸质/支付宝入口开关；线下付款入口开放时必须保持 `false` |
+| `VAULT2077_OPC_RESUME_TOKEN_KEYS` / `VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID` | 线下订单同样使用独立可轮换恢复令牌密钥环 |
+| `/srv/vault2077/shared/opc-offline-payment/` | `payment-profile.json`、`service-agreement.pdf`、`contact-qr.png` 的受控替换暂存目录，不是运行时事实源 |
+| `npm run opc:publish-offline-payment-profile -- <目录>` | 校验三个文件并作为单一修订发布到 PostgreSQL；输出不包含银行账号 |
+
+企业账户、协议 PDF 和联系人二维码的生产事实源是 PostgreSQL 状态文档。现有公开头像 OSS 只允许 `rangers/*`，私有合同 OSS 只允许 `opc-contracts/*`，不得为付款资料扩大权限或混用 Bucket。替换与回滚按 [OPC 线下付款资料替换与启用手册](Vault2077-OPC-Offline-Payment-Operations-Manual.md) 执行。
+
+页面在转账前同页显示企业账户、协议查看/下载和无介绍的联系人二维码。付款资料修订不得静默覆盖，资产请求必须匹配当前 SHA-256。后台确认到账要求最近五分钟再认证，并提交订单固定金额、付款户名、唯一银行流水号、入账时间和预期版本；流水号在保存、判重和审计前统一规范化，付款户名加密，审计只保存流水指纹。尚未到账的银行订单可在同一再认证门禁下取消并进入 90 天清理。线下退款自动闭环未完成前不能通过支付宝接口或普通状态修改宣称已退款。
+
+### OPC 纸质签约线上订单（既有订单兼容）
 
 | 变量 | 说明 |
 | --- | --- |

@@ -1,10 +1,12 @@
 ---
 type: plan
-status: active
-updated: 2026-08-05
+status: superseded
+updated: 2026-08-10
 ---
 
 # OPC 全额预付与纸质合同线上实施方案
+
+> 新公开订单已由 ADR-0020 改为在线确认协议与线下对公转账；本文仅保留既有 ADR-0019 订单的历史实现背景。
 
 ## 1. 目标
 

@@ -285,6 +285,9 @@ export function validateProductionConfiguration(
   if (!["true", "false"].includes(environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED ?? "")) {
     errors.push("VAULT2077_OPC_PAPER_CHECKOUT_ENABLED 必须明确设为 true 或 false。");
   }
+  if (!["true", "false"].includes(environment.VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED ?? "")) {
+    errors.push("VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED 必须明确设为 true 或 false。");
+  }
   if (!["true", "false"].includes(environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED ?? "")) {
     errors.push("VAULT2077_OPC_PAYMENT_EMAIL_ENABLED 必须明确设为 true 或 false。");
   } else if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED === "true") {
@@ -296,6 +299,17 @@ export function validateProductionConfiguration(
     }
     if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED !== "true") {
       errors.push("纸质签约入口开放时必须同时启用付款邮件通知。");
+    }
+  }
+  if (environment.VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED === "true") {
+    if (environment.VAULT2077_OPC_PAYMENTS_ENABLED !== "false") {
+      errors.push("线下付款入口开放时，线上支付宝付款开关必须保持关闭。");
+    }
+    if (environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED !== "false") {
+      errors.push("线下付款入口开放时，旧纸质签约付款入口必须保持关闭。");
+    }
+    if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED !== "true") {
+      errors.push("线下付款入口开放时必须启用到账通知邮件 worker。");
     }
   }
   if (!["true", "false"].includes(environment.VAULT2077_OPC_ESIGN_ENABLED ?? "")) {
@@ -328,6 +342,7 @@ export function validateProductionConfiguration(
   if (
     environment.VAULT2077_OPC_ESIGN_ENABLED === "true"
     || environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED === "true"
+    || environment.VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED === "true"
   ) {
     configuredSecrets.push(...validateKeyring(
       environment,

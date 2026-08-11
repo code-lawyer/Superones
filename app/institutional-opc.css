@@ -1663,13 +1663,27 @@
   accent-color: var(--carbon);
 }
 
-.opc-order-entry__consent label {
+.opc-order-entry__consent-copy {
+  min-width: 0;
+}
+
+.opc-order-entry__consent-copy label,
+.opc-order-entry__consent-copy p {
   color: var(--graphite);
   font-size: var(--type-small);
   line-height: 1.7;
 }
 
-.opc-order-entry__consent label a {
+.opc-order-entry__consent-copy label {
+  font-weight: 600;
+}
+
+.opc-order-entry__consent-copy p {
+  margin: 4px 0 0;
+}
+
+.opc-order-entry__consent-copy a,
+.opc-order-entry__consent-copy button {
   margin-inline: .25em;
   border-bottom: 1px solid currentColor;
 }
@@ -1686,7 +1700,14 @@
   margin-top: 8px;
 }
 
-.opc-order-entry__form footer > a {
+.opc-order-entry__form footer > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.opc-order-entry__form footer > div > a {
   min-height: 46px;
   border: 0;
   border-bottom: 1px solid currentColor;
@@ -1943,6 +1964,300 @@
   cursor: not-allowed;
 }
 
+.opc-order-entry__signature-methods button[aria-pressed="true"]:disabled {
+  border-color: var(--carbon);
+  background: var(--carbon);
+  color: var(--paper-bright);
+  opacity: 1;
+  cursor: default;
+}
+
+.opc-offline-payment {
+  margin-bottom: clamp(42px, 6vw, 72px);
+  border-top: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  padding: 34px 0;
+}
+
+.opc-offline-payment > header .mono,
+.opc-offline-payment__grid .mono,
+.opc-offline-order-created > .mono {
+  margin: 0 0 12px;
+  color: var(--ash);
+  font-size: var(--type-label);
+}
+
+.opc-offline-payment > header h3,
+.opc-offline-order-created h3 {
+  max-width: 18ch;
+  margin: 0 0 30px;
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.14;
+}
+
+.opc-offline-payment__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, .8fr);
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.opc-offline-payment__grid > * {
+  min-width: 0;
+  margin: 0;
+  padding: 26px;
+}
+
+.opc-offline-payment__account {
+  grid-row: span 2;
+  border-right: 1px solid var(--rule);
+}
+
+.opc-offline-payment__agreement {
+  border-bottom: 1px solid var(--rule);
+}
+
+.opc-offline-payment__grid h4 {
+  margin: 0 0 18px;
+  font-size: var(--type-body-large);
+}
+
+.opc-offline-payment__account dl,
+.opc-offline-order-created dl {
+  margin: 0;
+}
+
+.opc-offline-payment__account dl > div,
+.opc-offline-order-created dl > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 16px;
+  border-top: 1px solid var(--rule);
+  padding: 12px 0;
+}
+
+.opc-offline-payment__account dt,
+.opc-offline-order-created dt {
+  color: var(--ash);
+  font-size: var(--type-note);
+}
+
+.opc-offline-payment__account dd,
+.opc-offline-order-created dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.opc-offline-payment__number {
+  font-family: var(--font-mono);
+  letter-spacing: .035em;
+}
+
+.opc-offline-payment__agreement > p:not(.mono) {
+  color: var(--graphite);
+  line-height: 1.7;
+}
+
+.opc-offline-payment__agreement > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 22px;
+}
+
+.opc-offline-payment__agreement button,
+.opc-offline-payment__agreement a,
+.opc-inline-link {
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  padding: 0 0 4px;
+  background: transparent;
+  color: var(--carbon);
+  font: inherit;
+  cursor: pointer;
+}
+
+.opc-offline-payment__qr {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.opc-offline-payment__qr img {
+  width: min(100%, 220px);
+  height: auto;
+  border: 1px solid var(--rule);
+  background: var(--paper-bright);
+}
+
+.opc-offline-payment__qr figcaption {
+  color: var(--ash);
+  font-size: var(--type-note);
+}
+
+.opc-offline-order-created {
+  border: 1px solid var(--carbon);
+  padding: clamp(26px, 4vw, 44px);
+  background: var(--paper);
+}
+
+.opc-offline-order-created > p:not(.mono) {
+  max-width: 52ch;
+  color: var(--graphite);
+  line-height: 1.75;
+}
+
+.opc-offline-order-created__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-top: 18px;
+}
+
+.opc-offline-order-created__actions > a {
+  display: inline-block;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 4px;
+}
+
+.opc-agreement-modal {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--carbon) 72%, transparent);
+}
+
+.opc-agreement-modal__panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(960px, 100%);
+  max-height: min(88vh, 900px);
+  border: 1px solid var(--carbon);
+  background: var(--paper-bright);
+}
+
+.opc-agreement-modal__panel > header,
+.opc-agreement-modal__panel > footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 22px 26px;
+}
+
+.opc-agreement-modal__panel > header {
+  border-bottom: 1px solid var(--carbon);
+}
+
+.opc-agreement-modal__panel > header .mono {
+  margin: 0 0 8px;
+  color: var(--ash);
+  font-size: var(--type-label);
+}
+
+.opc-agreement-modal__panel > header h3 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 34px);
+}
+
+.opc-agreement-modal__panel > header button {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--carbon);
+  border-radius: 0;
+  background: transparent;
+  color: var(--carbon);
+  font-size: 28px;
+}
+
+.opc-agreement-modal__body {
+  overflow: auto;
+  padding: 26px;
+}
+
+.opc-offline-payment__asset-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  padding: 16px 0;
+}
+
+.opc-offline-payment__asset-error p {
+  margin: 0;
+  color: var(--carbon);
+}
+
+.opc-offline-payment__asset-error button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  border: 1px solid var(--carbon);
+  border-radius: 0;
+  padding: 8px 14px;
+  background: var(--carbon);
+  color: var(--paper-bright);
+  font: inherit;
+  font-weight: 650;
+}
+
+.opc-agreement-modal__body section {
+  max-width: 72ch;
+  margin-bottom: 28px;
+}
+
+.opc-agreement-modal__body h4 {
+  margin: 0 0 10px;
+  font-size: var(--type-body-large);
+}
+
+.opc-agreement-modal__body p {
+  color: var(--graphite);
+  line-height: 1.8;
+}
+
+#opc-agreement-modal-description {
+  max-width: 68ch;
+  margin: 0 0 28px;
+}
+
+.opc-agreement-modal__body iframe {
+  width: 100%;
+  min-height: 560px;
+  border: 1px solid var(--rule);
+  background: var(--paper-bright);
+}
+
+.opc-agreement-modal__panel > footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--carbon);
+}
+
+.opc-agreement-modal__panel > footer a,
+.opc-agreement-modal__panel > footer button {
+  min-height: 46px;
+  border: 1px solid var(--carbon);
+  border-radius: 0;
+  padding: 10px 18px;
+  background: var(--carbon);
+  color: var(--paper-bright);
+  font: inherit;
+}
+
+.opc-agreement-modal__panel > footer a {
+  display: inline-flex;
+  align-items: center;
+}
+
 .opc-order-entry__delivery-heading,
 .opc-order-entry__agreement-copy {
   grid-column: 1 / -1;
@@ -2067,6 +2382,42 @@
 
   .opc-payment-receipt {
     padding: 24px 18px;
+  }
+
+  .opc-offline-payment__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .opc-offline-payment__account {
+    grid-row: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .opc-offline-payment__qr {
+    justify-items: center;
+  }
+
+  .opc-offline-payment__asset-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .opc-agreement-modal {
+    padding: 8px;
+  }
+
+  .opc-agreement-modal__panel {
+    max-height: 96vh;
+  }
+
+  .opc-agreement-modal__body iframe {
+    min-height: 420px;
+  }
+
+  .opc-agreement-modal__panel > footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
@@ -2357,9 +2708,13 @@
     display: grid;
   }
 
-  .opc-order-entry__form footer > a,
+  .opc-order-entry__form footer > div,
   .opc-order-entry__form footer button:last-child {
     width: 100%;
+  }
+
+  .opc-order-entry__form footer > div {
+    display: grid;
   }
 
   .opc-order-entry__payment figure {

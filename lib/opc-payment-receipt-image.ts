@@ -20,7 +20,7 @@ export type OpcPaymentReceiptView = {
   };
   service: { code: string; name: string; revision: string; outcome: string; scope: string; boundary: string };
   payment: {
-    provider: "alipay";
+    provider: "alipay" | "bank_transfer";
     amount: { currency: "CNY"; minorUnits: number; decimal: string };
     paidAt: string;
     tradeNo: string;
@@ -39,14 +39,14 @@ export async function downloadOpcPaymentReceiptPng(receipt: OpcPaymentReceiptVie
   if (!context) throw new Error("当前浏览器无法生成付款凭证图片。");
   const rows: Array<[string, string]> = [
     ["订单号", receipt.reference],
-    ["付款状态", "支付宝付款已由服务器核验"],
+    ["付款状态", receipt.payment.provider === "bank_transfer" ? "企业银行到账已由后台核验" : "支付宝付款已由服务器核验"],
     ["服务事项", `${receipt.service.name}（${receipt.service.code} / ${receipt.service.revision}）`],
     ["服务成果", receipt.service.outcome],
     ["服务范围", receipt.service.scope],
     ["服务边界", receipt.service.boundary],
     ["付款金额", `人民币 ${receipt.payment.amount.decimal} 元`],
-    ["付款方式", "支付宝"],
-    ["支付宝交易号", receipt.payment.tradeNo],
+    ["付款方式", receipt.payment.provider === "bank_transfer" ? "线下对公转账" : "支付宝"],
+    [receipt.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号", receipt.payment.tradeNo],
     ["付款时间", formatReceiptDate(receipt.payment.paidAt)],
     ["我方名称", receipt.operator.name],
     ["统一社会信用代码", receipt.operator.creditCode],
@@ -54,7 +54,7 @@ export async function downloadOpcPaymentReceiptPng(receipt: OpcPaymentReceiptVie
     ["付款方统一社会信用代码", receipt.customer.organizationCreditCode || "—"],
     ["法定代表人", receipt.customer.legalRepresentativeName || "—"],
     ["联系人", `${receipt.customer.contactName} / ${receipt.customer.maskedPhone}`],
-    ["合同寄送地址", receipt.customer.maskedDeliveryAddress],
+    ...(receipt.customer.maskedDeliveryAddress ? [["合同寄送地址", receipt.customer.maskedDeliveryAddress] as [string, string]] : []),
     ["凭证生成时间", formatReceiptDate(receipt.generatedAt)],
   ];
   context.font = "500 29px system-ui, sans-serif";
@@ -94,7 +94,7 @@ export async function downloadOpcPaymentReceiptPng(receipt: OpcPaymentReceiptVie
   }
   context.font = "600 24px system-ui, sans-serif";
   context.fillStyle = "#181817";
-  context.fillText("本凭证不是发票，也不替代双方正式纸质合同。", 96, y + 22);
+  context.fillText("本凭证不是发票；到账核验及订单协议以系统留存记录为准。", 96, y + 22);
   context.font = "22px system-ui, sans-serif";
   context.fillStyle = "#555550";
   context.fillText(`凭证页面网址：${canonicalOpcPaymentReceiptUrl(receipt)}`, 96, y + 72);

@@ -30,6 +30,19 @@ export type OpcCheckoutAgreement = {
   acceptedAt: string;
 };
 
+export type OpcOfflinePaymentSnapshot = {
+  revision: string;
+  account: {
+    name: string;
+    bankName: string;
+    branchName: string;
+    accountNumber: string;
+    cnapsCode: string;
+  };
+  agreementSha256: string;
+  contactQrSha256: string;
+};
+
 export type StoredOpcPaymentReceipt = {
   receiptId: string;
   receiptNumber: string;
@@ -62,7 +75,7 @@ export type StoredOpcPaymentReceipt = {
     boundary: string;
   };
   payment: {
-    provider: "alipay";
+    provider: "alipay" | "bank_transfer";
     amount: OpcAlipayAmount;
     paidAt: string;
     tradeNo: string;

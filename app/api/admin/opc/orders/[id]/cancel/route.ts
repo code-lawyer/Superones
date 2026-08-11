@@ -7,6 +7,7 @@ import {
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import {
+  cancelAwaitingOpcBankTransferOrder,
   cancelAwaitingOpcOrderWithProviderEvidence,
   type OpcPaymentCancellationEvidence,
 } from "@/lib/opc-orders/refund";
@@ -42,6 +43,22 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (!order || order.status !== "awaiting_payment") {
       await recordAuditEvent({ ...audit, result: "rejected", reason: "order-not-awaiting-payment" });
       return authenticatedAdminResponse(access, NextResponse.json({ error: "该订单当前不是待付款状态。" }, { status: 409 }));
+    }
+    if (order.payment.provider === "bank_transfer") {
+      const updated = await withPersistenceTransaction(async () => {
+        const result = await cancelAwaitingOpcBankTransferOrder(id, body.expectedUpdatedAt as string);
+        await recordAuditEvent({
+          ...audit,
+          result: "success",
+          diff: {
+            reference: result.reference,
+            status: result.status,
+            cancellationEvidence: "bank-transfer-not-yet-verified",
+          },
+        });
+        return result;
+      });
+      return authenticatedAdminResponse(access, NextResponse.json({ order: updated }));
     }
     const configuration = requireOpcAlipayConfiguration();
     if (order.payment.appId !== configuration.appId || order.payment.sellerId !== configuration.sellerId) {

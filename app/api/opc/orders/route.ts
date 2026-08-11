@@ -1,14 +1,10 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { buildOpcPaperCheckoutAgreement } from "@/lib/opc-checkout-agreement";
-import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
+import { buildOpcOfflineCheckoutAgreement } from "@/lib/opc-offline-checkout-agreement";
+import { readPublishedOpcOfflinePaymentProfile } from "@/lib/opc-offline-payment-profile";
+import { createOpcOrder } from "@/lib/opc-orders/checkout";
 import { OpcOrderIdempotencyConflictError } from "@/lib/opc-orders/model";
 import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
-import {
-  createOpcAlipayPaymentUrl,
-  requireOpcAlipayConfiguration,
-  selectOpcAlipayChannel,
-} from "@/lib/opc-payment-config";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 
@@ -67,17 +63,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    if (process.env.NODE_ENV === "production" && process.env.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED !== "true") {
-      return NextResponse.json({ error: "纸质签约付款入口未开放。" }, { status: 503 });
+    if (process.env.NODE_ENV === "production" && process.env.VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED !== "true") {
+      return NextResponse.json({ error: "线下付款入口未开放。" }, { status: 503 });
     }
-    const configuration = requireOpcAlipayConfiguration();
+    const profile = await readPublishedOpcOfflinePaymentProfile();
+    if (!profile) return NextResponse.json({ error: "企业收款资料尚未发布。" }, { status: 503 });
+
     const body = await readBoundedJson(request);
     const idempotencyKey = cleanText(body.idempotencyKey, 80);
     const serviceSlug = cleanText(body.serviceSlug, 80).toLowerCase();
     const expectedServiceRevision = cleanText(body.serviceRevision, 80);
     const expectedAgreementVersion = cleanText(body.agreementVersion, 80);
     const expectedAgreementSha256 = cleanText(body.agreementSha256, 64).toLowerCase();
+    const expectedProfileRevision = cleanText(body.paymentProfileRevision, 80);
     const signatureMethod = body.signatureMethod;
+    const paymentMethod = body.paymentMethod;
     const serviceKind = body.serviceKind;
     const name = cleanText(body.name, 60);
     const phone = cleanText(body.phone, 40);
@@ -89,17 +89,13 @@ export async function POST(request: NextRequest) {
     const organizationName = cleanText(body.organizationName, 160);
     const organizationCreditCode = cleanText(body.organizationCreditCode, 32).toUpperCase();
     const legalRepresentativeName = cleanText(body.legalRepresentativeName, 60);
-    const recipientName = cleanText(body.recipientName, 60);
-    const deliveryPhone = cleanText(body.deliveryPhone, 40);
-    const province = cleanText(body.province, 40);
-    const city = cleanText(body.city, 40);
-    const district = cleanText(body.district, 60);
-    const addressLine = cleanText(body.addressLine, 240);
     const agreementAccepted = body.agreementAccepted === true;
 
     if (
       !/^[0-9a-f-]{36}$/i.test(idempotencyKey)
-      || signatureMethod !== "paper"
+      || signatureMethod !== "online"
+      || paymentMethod !== "offline_bank_transfer"
+      || expectedProfileRevision !== profile.revision
       || (serviceKind !== "infrastructure" && serviceKind !== "specialty")
       || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(serviceSlug)
       || name.length < 2
@@ -113,14 +109,8 @@ export async function POST(request: NextRequest) {
         || !/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(organizationCreditCode)
         || legalRepresentativeName.length < 2
       ))
-      || recipientName.length < 2
-      || !validPhone(deliveryPhone)
-      || province.length < 2
-      || city.length < 2
-      || district.length < 1
-      || addressLine.length < 4
     ) {
-      return NextResponse.json({ error: "请完整填写签约方、联系人、纸质合同寄送地址并确认付款规则。" }, { status: 400 });
+      return NextResponse.json({ error: "请完整填写付款方和联系人信息，并确认当前版本的服务协议与线下付款规则。" }, { status: 400 });
     }
 
     const catalog = await readPublishedServiceCatalog();
@@ -130,49 +120,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "该服务当前不接受新订单。" }, { status: 409 });
     }
 
-    const paymentChannel = selectOpcAlipayChannel(body.paymentChannel, configuration);
-    const lifecycle = createOpcOrderLifecycle({
-      payments: {
-        async createSession(order, channel) {
-          const paymentOrder = {
-            reference: order.reference,
-            serviceCode: order.serviceCode,
-            serviceName: order.serviceName,
-            serviceRevision: order.serviceRevision,
-            paymentAmount: order.amount,
-          };
-          return {
-            url: createOpcAlipayPaymentUrl(paymentOrder, channel, configuration),
-            channel,
-            appId: configuration.appId,
-            sellerId: configuration.sellerId,
-            amount: order.amount,
-          };
-        },
-      },
-    });
     const acceptedAt = new Date().toISOString();
-    const agreement = buildOpcPaperCheckoutAgreement({
-      code: service.code,
-      name: service.name,
-      revision: service.revision,
-      price: service.price,
-      period: service.period,
-      outcome: service.outcome,
-      scope: service.includes.join("；"),
-      boundary: service.boundary,
-    });
+    const agreement = buildOpcOfflineCheckoutAgreement(service, profile);
     const agreementSha256 = createHash("sha256").update(agreement.text).digest("hex");
     if (
       expectedServiceRevision !== service.revision
       || expectedAgreementVersion !== agreement.version
       || expectedAgreementSha256 !== agreementSha256
     ) {
-      return NextResponse.json({ error: "服务价格、范围或付款协议已经更新，请刷新页面后重新核对并确认。" }, { status: 409 });
+      return NextResponse.json({ error: "服务价格、范围、付款资料或协议已经更新，请刷新页面后重新核对。" }, { status: 409 });
     }
-    const checkout = await lifecycle.createCheckout({
+
+    const order = await createOpcOrder({
       idempotencyKey,
-      signatureMethod,
+      signatureMethod: "online",
+      paymentProvider: "bank_transfer",
       serviceKind,
       serviceSlug,
       serviceCode: service.code,
@@ -192,7 +154,6 @@ export async function POST(request: NextRequest) {
         organizationCreditCode: signerType === "organization" ? organizationCreditCode : "",
         legalRepresentativeName: signerType === "organization" ? legalRepresentativeName : "",
       },
-      delivery: { recipientName, phone: deliveryPhone, province, city, district, addressLine },
       agreement: {
         version: agreement.version,
         title: agreement.title,
@@ -200,16 +161,19 @@ export async function POST(request: NextRequest) {
         sha256: agreementSha256,
         acceptedAt,
       },
-      paymentChannel,
+      offlinePaymentSnapshot: {
+        revision: profile.revision,
+        account: profile.account,
+        agreementSha256: profile.agreement.sha256,
+        contactQrSha256: profile.contactQr.sha256,
+      },
     });
-    if (!checkout.order.resumeToken) throw new Error("订单恢复凭证未生成。");
+    if (!order.resumeToken) throw new Error("订单恢复凭证未生成。");
     const response = NextResponse.json({
-      order: checkout.order,
-      paymentUrl: checkout.paymentUrl,
-      resumeToken: checkout.order.resumeToken,
-      expiresInMinutes: 30,
+      order,
+      resumeToken: order.resumeToken,
     }, { status: 201 });
-    response.cookies.set("vault2077_opc_resume", checkout.order.resumeToken, {
+    response.cookies.set("vault2077_opc_resume", order.resumeToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -222,10 +186,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof RangeError) return NextResponse.json({ error: message }, { status: 413 });
     if (error instanceof SyntaxError) return NextResponse.json({ error: message }, { status: 400 });
     if (error instanceof OpcOrderIdempotencyConflictError) return NextResponse.json({ error: message }, { status: 409 });
-    if (message.includes("尚未完成生产配置") || message.includes("在线付款当前未开放")) {
-      return NextResponse.json({ error: "付款服务尚未完成配置，当前不能创建订单。" }, { status: 503 });
-    }
-    console.error("OPC paper order creation failed", { errorType: error instanceof Error ? error.name : "unknown" });
-    return NextResponse.json({ error: "订单暂时无法创建，请稍后重试。" }, { status: 500 });
+    console.error("OPC offline order creation failed", { errorType: error instanceof Error ? error.name : "unknown" });
+    return NextResponse.json({ error: "线下付款单暂时无法创建，请稍后重试。" }, { status: 500 });
   }
 }

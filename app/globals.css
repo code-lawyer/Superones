@@ -1116,6 +1116,125 @@ h3 {
   gap: 22px;
 }
 
+.admin-bank-verification {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 24px;
+  margin-top: 8px;
+  border-top: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  padding: 24px 0;
+}
+
+.admin-bank-verification > header {
+  max-width: 72ch;
+}
+
+.admin-bank-verification > header .eyebrow {
+  margin: 0 0 8px;
+}
+
+.admin-bank-verification > header h4 {
+  margin: 0 0 10px;
+  font-size: clamp(22px, 3vw, 34px);
+}
+
+.admin-bank-verification > header > p:last-child {
+  margin: 0;
+  color: var(--graphite);
+  line-height: 1.7;
+}
+
+.admin-bank-verification__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+}
+
+.admin-bank-verification__summary > div {
+  min-width: 0;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 14px;
+}
+
+.admin-bank-verification__summary dt {
+  margin-bottom: 6px;
+  color: var(--ash);
+  font-size: var(--type-note);
+}
+
+.admin-bank-verification__summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.admin-bank-verification__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.admin-bank-verification__fields .form-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.admin-bank-verification__confirmation {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: start;
+  padding: 18px;
+  background: var(--paper);
+}
+
+.admin-bank-verification__confirmation input {
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  accent-color: var(--carbon);
+}
+
+.admin-bank-verification__confirmation label {
+  color: var(--graphite);
+  line-height: 1.7;
+}
+
+.admin-bank-verification__confirmation .form-error {
+  grid-column: 2;
+  margin: 0;
+}
+
+.admin-bank-verification > footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .admin-bank-verification__summary,
+  .admin-bank-verification__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-bank-verification__summary,
+  .admin-bank-verification__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-bank-verification > footer {
+    display: grid;
+  }
+}
+
 .admin-reauth-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.7fr);

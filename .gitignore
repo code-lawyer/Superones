@@ -21,6 +21,7 @@ data/opc-service-catalog.json
 data/ranger-media/
 data/admin-passkeys.json
 data/opc-orders.json
+data/opc-offline-payment-profile.json
 data/admin-sessions.json
 data/corrections.json
 data/security-audit.jsonl
@@ -33,6 +34,8 @@ config/feed-sources.json
 collector/.venv/
 __pycache__/
 *.py[cod]
+output/
+tmp/
 
 # Production deployment credentials and locally assembled release archives
 MIMO.pem

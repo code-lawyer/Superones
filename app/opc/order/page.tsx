@@ -4,7 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
 import { OpcOrderEntry } from "@/components/opc-order-entry";
-import { buildOpcPaperCheckoutAgreement } from "@/lib/opc-checkout-agreement";
+import { buildOpcOfflineCheckoutAgreement } from "@/lib/opc-offline-checkout-agreement";
+import { readPublishedOpcOfflinePaymentProfile } from "@/lib/opc-offline-payment-profile";
 import { opcOrderEntryAvailable } from "@/lib/opc-order-availability";
 import { getCachedPublishedServiceCatalog } from "@/lib/public-read-cache";
 
@@ -38,16 +39,9 @@ export default async function OpcOrderPage({
 
   const view = service.kind === "infrastructure" ? "infrastructure" : "specialties";
   const returnHref = `/opc?view=${view}&service=${encodeURIComponent(service.slug)}`;
-  const checkoutAgreement = buildOpcPaperCheckoutAgreement({
-    code: service.code,
-    name: service.name,
-    revision: service.revision,
-    price: service.price,
-    period: service.period,
-    outcome: service.outcome,
-    scope: service.includes.join("；"),
-    boundary: service.boundary,
-  });
+  const paymentProfile = await readPublishedOpcOfflinePaymentProfile();
+  if (!paymentProfile) notFound();
+  const checkoutAgreement = buildOpcOfflineCheckoutAgreement(service, paymentProfile);
   const agreementSha256 = createHash("sha256").update(checkoutAgreement.text).digest("hex");
   return (
     <div className="shell opc-order-page">
@@ -57,8 +51,8 @@ export default async function OpcOrderPage({
           <Link href={returnHref}>← 返回服务详情</Link>
         </div>
         <div className="opc-order-page__introduction">
-          <h1>确认服务，<br />先付款，再寄送合同。</h1>
-          <p>核对服务名称、固定金额与服务范围，选择纸质签约并填写付款方、联系人和合同寄送地址；提交后进入支付宝官方付款页面。</p>
+          <h1>确认服务，<br />再决定何时付款。</h1>
+          <p>企业账户、服务协议和联系人二维码在同一页展示。你可以先扫码沟通确认，再按固定金额自行对公转账。</p>
         </div>
       </header>
 
@@ -89,7 +83,7 @@ export default async function OpcOrderPage({
               <dd>{service.period}</dd>
             </div>
           </dl>
-          <p className="opc-order-page__delivery-note">固定金额支付 · 纸质合同寄送 · 原路全额退款</p>
+          <p className="opc-order-page__delivery-note">线上付款暂时关闭 · 线下对公转账 · 到账后人工核验</p>
         </aside>
 
         <OpcOrderEntry
@@ -97,6 +91,7 @@ export default async function OpcOrderPage({
           returnHref={returnHref}
           checkoutAgreement={checkoutAgreement}
           agreementSha256={agreementSha256}
+          paymentProfile={paymentProfile}
         />
       </div>
     </div>

@@ -10,10 +10,10 @@ import {
 
 type PublicOrderStatus = "awaiting_payment" | "payment_exception" | "paid_pending_contract" | "paid" | "refund_pending" | "completed" | "cancelled" | "refunded";
 const orderStatusLabels: Record<PublicOrderStatus, string> = {
-  awaiting_payment: "等待支付宝付款核验",
+  awaiting_payment: "等待付款核验",
   payment_exception: "付款已见但订单仍需人工核验",
   paid_pending_contract: "已付款，待寄送及确认纸质合同",
-  paid: "纸质合同已确认，服务可按合同开始",
+  paid: "付款已核验，服务可按订单协议开始",
   refund_pending: "支付宝全额退款处理中",
   completed: "服务订单已完成",
   cancelled: "订单已取消",
@@ -23,6 +23,7 @@ const orderStatusLabels: Record<PublicOrderStatus, string> = {
 export function OpcPaymentReceipt({ reference }: { reference: string | null }) {
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [orderStatus, setOrderStatus] = useState<PublicOrderStatus | null>(null);
+  const [paymentProvider, setPaymentProvider] = useState<"alipay" | "bank_transfer" | null>(null);
   const [state, setState] = useState<"verifying" | "ready" | "status" | "missing" | "error">(reference ? "verifying" : "missing");
   const [error, setError] = useState("");
   const [downloaded, setDownloaded] = useState(false);
@@ -36,8 +37,9 @@ export function OpcPaymentReceipt({ reference }: { reference: string | null }) {
       body: JSON.stringify({ token }),
       cache: "no-store",
     });
-    const body = await response.json().catch(() => null) as { receipt?: PaymentReceipt; orderStatus?: PublicOrderStatus; error?: unknown } | null;
+    const body = await response.json().catch(() => null) as { receipt?: PaymentReceipt; orderStatus?: PublicOrderStatus; paymentProvider?: "alipay" | "bank_transfer"; error?: unknown } | null;
     setOrderStatus(body?.orderStatus ?? null);
+    setPaymentProvider(body?.paymentProvider ?? null);
     if (response.status === 202) {
       if (body?.orderStatus === "cancelled" || body?.orderStatus === "payment_exception") {
         setState("status");
@@ -121,18 +123,18 @@ export function OpcPaymentReceipt({ reference }: { reference: string | null }) {
     setDownloaded(true);
   }
 
-  if (state === "missing") return <div className="opc-payment-return__status"><h2>订单号待确认</h2><p>请从支付宝付款完成后的返回页面查看凭证。</p><Link href="/opc">返回 OPC 服务台</Link></div>;
+  if (state === "missing") return <div className="opc-payment-return__status"><h2>订单号待确认</h2><p>请从订单付款状态页面查看凭证。</p><Link href="/opc">返回 OPC 服务台</Link></div>;
   if (state === "error") return <div className="opc-payment-return__status"><h2>付款状态暂未确认</h2><p role="alert">{error}</p><button type="button" onClick={() => void retryVerification()}>重新核验</button></div>;
   if (state === "status" && orderStatus === "cancelled") return <div className="opc-payment-return__status"><h2>订单已关闭</h2><p>该订单已经取消，不能继续付款。</p><Link href="/opc">返回 OPC 服务台</Link></div>;
   if (state === "status" && orderStatus === "payment_exception") return <div className="opc-payment-return__status"><h2>付款需要人工核验</h2><p>系统已发现付款证据，但尚未通过订单金额或收款身份核验。请勿重复付款。</p><Link href="/legal">联系运营方处理</Link></div>;
-  if (state === "status") return <div className="opc-payment-return__status"><h2>尚未确认付款</h2><p>支付宝暂未返回可核验的成功交易。你可以继续付款或重新核验。</p><div><button type="button" onClick={() => void continuePayment()}>继续付款</button><button type="button" onClick={() => void retryVerification()}>重新核验</button></div></div>;
-  if (!receipt) return <div className="opc-payment-return__status" aria-live="polite"><h2>正在核验支付宝付款</h2><p>服务器正在核对交易号、商户身份和固定订单金额，请勿重复付款。</p></div>;
+  if (state === "status") return <div className="opc-payment-return__status"><h2>尚未确认付款</h2><p>{paymentProvider === "bank_transfer" ? "企业银行到账尚未由工作人员核验。请勿重复转账；如需确认，可使用付款页的联系人二维码沟通。" : "支付宝暂未返回可核验的成功交易。你可以继续付款或重新核验。"}</p><div>{paymentProvider === "alipay" ? <button type="button" onClick={() => void continuePayment()}>继续付款</button> : null}<button type="button" onClick={() => void retryVerification()}>重新核验</button></div></div>;
+  if (!receipt) return <div className="opc-payment-return__status" aria-live="polite"><h2>正在核验付款</h2><p>{paymentProvider === "bank_transfer" ? "等待工作人员按企业银行入账记录核对固定金额与流水号。" : "服务器正在核对支付宝交易号、商户身份和固定订单金额，请勿重复付款。"}</p></div>;
 
   return <article className="opc-payment-receipt">
     <header>
       <p className="mono">PAYMENT RECEIPT / {receipt.receiptNumber}</p>
       <h2>付款完成凭证</h2>
-      <p>该凭证由服务器在支付宝交易验签并核对固定金额后生成。</p>
+      <p>{receipt.payment.provider === "bank_transfer" ? "该凭证由后台按企业银行实际入账记录核对固定金额和流水号后生成。" : "该凭证由服务器在支付宝交易验签并核对固定金额后生成。"}</p>
       {orderStatus ? <p className="opc-payment-receipt__order-status" aria-live="polite">当前订单状态：{orderStatusLabels[orderStatus]}</p> : null}
     </header>
     <ReceiptSection title="订单与服务" rows={[
@@ -144,10 +146,10 @@ export function OpcPaymentReceipt({ reference }: { reference: string | null }) {
       ["服务边界", receipt.service.boundary],
     ]} />
     <ReceiptSection title="付款" rows={[
-      ["付款状态", receipt.paymentStatus === "verified_paid" ? "支付宝付款已由服务器核验" : "—"],
+      ["付款状态", receipt.paymentStatus === "verified_paid" ? (receipt.payment.provider === "bank_transfer" ? "企业银行到账已由后台核验" : "支付宝付款已由服务器核验") : "—"],
       ["金额", `人民币 ${receipt.payment.amount.decimal} 元`],
-      ["渠道", "支付宝"],
-      ["支付宝交易号", receipt.payment.tradeNo],
+      ["渠道", receipt.payment.provider === "bank_transfer" ? "线下对公转账" : "支付宝"],
+      [receipt.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号", receipt.payment.tradeNo],
       ["付款时间", formatDate(receipt.payment.paidAt)],
     ]} />
     <ReceiptSection title="交易双方" rows={[
@@ -157,10 +159,10 @@ export function OpcPaymentReceipt({ reference }: { reference: string | null }) {
       ["付款方统一社会信用代码", receipt.customer.organizationCreditCode || "—"],
       ["法定代表人", receipt.customer.legalRepresentativeName || "—"],
       ["联系人", `${receipt.customer.contactName} / ${receipt.customer.maskedPhone}`],
-      ["合同寄送地址", receipt.customer.maskedDeliveryAddress],
+      ...(receipt.customer.maskedDeliveryAddress ? [["合同寄送地址", receipt.customer.maskedDeliveryAddress] as [string, string]] : []),
     ]} />
     <footer>
-      <p>本凭证不是发票，也不替代双方正式纸质合同。</p>
+      <p>本凭证不是发票；到账核验及订单协议以系统留存记录为准。</p>
       <p>{canonicalOpcPaymentReceiptUrl(receipt)} · {receipt.operator.icpNumber}</p>
       <button type="button" onClick={() => void downloadReceiptImage()}>{downloaded ? "付款凭证图片已下载" : "下载付款凭证截图（PNG）"}</button>
     </footer>

@@ -1,7 +1,7 @@
 ---
 type: project-memory
 status: active
-updated: 2026-08-09
+updated: 2026-08-10
 ---
 
 # Vault2077 项目长期记忆
@@ -13,7 +13,7 @@ updated: 2026-08-09
 Vault2077 是面向超级个体与一人公司的公开网站，固定包含四个一级频道：
 
 - Vault 信息流：资讯瀑布、永久事件簿、路边信息和可追溯证据。
-- OPC 服务台：结构化服务目录、游骑兵档案、无账号纸质签约订单、支付宝付款/退款和后台履约。
+- OPC 服务台：结构化服务目录、游骑兵档案、无账号在线确认订单、线下对公转账及后台到账核验；既有支付宝／纸质订单继续保留历史处理能力。
 - SiC 学院：论文、档案、课程、播客和平台原生榜。
 - 边境计划：公开 GitHub 仓库报名、挑战、观察、排行、奖励与结算。
 
@@ -27,7 +27,7 @@ Vault2077 是面向超级个体与一人公司的公开网站，固定包含四�
 | 采集 | Node 统一编排；Python 3.12 feed collector；vendored Horizon 只作为隔离采集依赖 |
 | 数据库 | PostgreSQL；生产使用 RDS；`pg` 连接池基线为每进程 4 个连接 |
 | 对象存储 | `ali-oss`；公开头像 Bucket 与未来电子合同私有 Bucket 严格分离 |
-| 支付/通知 | `alipay-sdk`、`nodemailer`；当前首发路径是纸质签约和全额预付 |
+| 支付/通知 | 当前新订单使用线下对公转账与 `nodemailer` 到账通知；`alipay-sdk` 只保留既有支付宝订单查询/退款能力 |
 | 身份 | `@simplewebauthn/server` 与浏览器端 WebAuthn；可撤销服务器会话 |
 | 反向代理/进程 | Nginx、systemd、journald、logrotate |
 | CI | GitHub Actions：质量检查、Linux 构建发布包、四通道境外采集 |
@@ -114,16 +114,18 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 
 ### 4.5 OPC
 
-公开服务目录只读取后台发布的结构化快照。当前订单主路径是：确认在线订单及预付款协议完整快照 → 创建固定金额待付款订单 → 支付宝服务器证据核验 → `paid_pending_contract` → 后台纸质合同门禁 → `paid`；未完成合同时走稳定请求号的全额原路退款。
+公开服务目录只读取后台发布的结构化快照。2026-08-10 接受 ADR-0020 后，新订单主路径改为：同页展示企业账户、协议 PDF 与联系人二维码 → 在线确认协议并生成固定金额订单/付款附言 → 用户自行线下对公转账 → 最近五分钟再认证的后台按金额、付款户名、唯一银行流水和时间核验 → `paid` → `completed`。线上支付宝和旧纸质入口保持关闭；既有 ADR-0019 支付宝订单仍按原状态机保存，不迁移或交叉采信证据。
 
-支付宝异步通知不等待邮件。首次真实到账在同一事务创建唯一付款凭证和 outbox；`vault2077-opc-order-maintenance.timer` 每分钟发送脱敏通知、重试稳定 Message-ID，并执行联系方式分层保留清理。e 签宝代码保留但当前纸质签约首发应保持关闭；未来启用时必须先验收独立私有合同 Bucket 和长期保留规则。
+付款资料以一个修订存入 PostgreSQL `opc-offline-payment-profile` 状态文档，冻结账户、PDF 与二维码哈希；`/srv/vault2077/shared/opc-offline-payment/` 仅作替换暂存，通过 `opc:publish-offline-payment-profile` 原子发布。现有头像和私有合同 OSS 权限不扩大。负责人已于 2026-08-11 提供并确认真实企业账户、联系人二维码，完成首版协议业务审阅并授权上线测试；在目标 VPS 完成资料发布、release 部署和生产验收前，线下付款开关仍保持关闭。
+
+首次银行到账核验在同一事务创建唯一付款凭证和 outbox；付款户名加密，审计只留流水指纹。`vault2077-opc-order-maintenance.timer` 继续发送脱敏通知并执行联系人保留清理。线下退款自动闭环尚未实现，不得用支付宝退款或普通状态写入冒充退款完成。e 签宝代码保留但当前入口关闭；未来启用仍须验收独立私有合同 Bucket 和长期保留规则。
 
 ## 5. 数据与安全模型
 
 生产状态有两种 PostgreSQL 形态：
 
 - 专用关系表：迁移记录、采集 inbox、不可变审计、登录节流、持久限流和后台会话。
-- `vault2077_state_documents` JSONB 文档：content、SiC、direct rankings、Frontier、公开任务、OPC 服务目录、OPC 订单、Passkey、纠错和 GitHub cache。写入使用行锁、版本递增和事务。
+- `vault2077_state_documents` JSONB 文档：content、SiC、direct rankings、Frontier、公开任务、OPC 服务目录、OPC 订单、OPC 线下付款资料、Passkey、纠错和 GitHub cache。写入使用行锁、版本递增和事务。
 
 本地没有数据库 URL 时，开发环境使用 `data/*.json` 文件适配器。生产缺 RDS 时必须失败，不能静默回退文件或 bootstrap 演示数据。
 

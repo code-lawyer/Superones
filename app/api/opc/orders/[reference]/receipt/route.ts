@@ -39,10 +39,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
     }
     try {
       const receipt = await lifecycle.readPaymentReceipt({ reference, resumeToken: token });
-      return NextResponse.json({ receipt, orderStatus: order.status }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ receipt, orderStatus: order.status, paymentProvider: order.paymentProvider }, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
       if (error instanceof Error && error.message.includes("尚未生成")) {
-        return NextResponse.json({ status: "verifying", orderStatus: order.status }, { status: 202, headers: { "Cache-Control": "no-store" } });
+        return NextResponse.json({ status: "verifying", orderStatus: order.status, paymentProvider: order.paymentProvider }, { status: 202, headers: { "Cache-Control": "no-store" } });
       }
       throw error;
     }

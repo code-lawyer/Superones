@@ -6,29 +6,28 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("paper checkout presents only the enabled paper path and a disabled electronic path", async () => {
+test("offline checkout presents one bank-transfer path and a disabled online-payment path", async () => {
   const [entry, agreement, route, store] = await Promise.all([
     readFile(path.join(root, "components", "opc-order-entry.tsx"), "utf8"),
-    readFile(path.join(root, "lib", "opc-checkout-agreement.ts"), "utf8"),
+    readFile(path.join(root, "lib", "opc-offline-checkout-agreement.ts"), "utf8"),
     readFile(path.join(root, "app", "api", "opc", "orders", "route.ts"), "utf8"),
     readFile(path.join(root, "lib", "opc-orders", "model.ts"), "utf8"),
   ]);
-  assert.match(entry, /<button type="button" disabled>电子签约<\/button>/);
-  assert.match(entry, /<button type="button" aria-pressed="true">纸质签约<\/button>/);
-  assert.doesNotMatch(entry, /筹备中|当前可用/);
-  assert.match(entry, /paymentChannel/);
-  assert.match(entry, /recipientName, deliveryPhone, province, city, district, addressLine/);
-  assert.match(entry, /downloadOpcAgreement/);
+  assert.match(entry, /<button type="button" disabled>线上付款 · 暂未开放<\/button>/);
+  assert.match(entry, /<button type="button" disabled aria-pressed="true">线下付款 · 对公转账<\/button>/);
+  assert.match(entry, /企业收款账户/);
+  assert.match(entry, /联系人二维码/);
+  assert.match(entry, /下载 PDF/);
+  assert.doesNotMatch(entry, /recipientName|deliveryPhone|addressLine|window\.location\.assign/);
   assert.match(entry, /serviceRevision: service\.revision/);
   assert.match(entry, /agreementSha256/);
   assert.match(entry, /aria-describedby/);
-  assert.match(agreement, /服务尚未开始/);
-  assert.match(agreement, /违约与责任/);
-  assert.match(agreement, /法律适用与争议解决/);
-  assert.match(agreement, /buildOpcPaperCheckoutAgreement/);
-  assert.match(agreement, /提交订单时.*协议成立/);
-  assert.match(agreement, /承运人首次揽收记录/);
-  assert.match(route, /buildOpcPaperCheckoutAgreement/);
+  assert.match(agreement, /buildOpcOfflineCheckoutAgreement/);
+  assert.match(agreement, /用户勾选同意并提交订单后，订单及协议成立/);
+  assert.match(agreement, /企业银行账户实际入账记录/);
+  assert.match(route, /buildOpcOfflineCheckoutAgreement/);
+  assert.match(route, /paymentProvider: "bank_transfer"/);
+  assert.match(route, /offlinePaymentSnapshot/);
   assert.match(route, /text: agreement\.text/);
   assert.match(store, /text: string/);
 });
@@ -79,12 +78,15 @@ test("paper order cancellation closes the bound Alipay trade before changing loc
   assert.match(consoleSource, /\/cancel/);
 });
 
-test("privacy policy discloses paper-order fields and actual retention periods", async () => {
+test("privacy policy discloses legacy paper and current offline bank-order fields", async () => {
   const privacy = await readFile(path.join(root, "app", "privacy", "page.tsx"), "utf8");
   assert.match(privacy, /统一社会信用代码/);
   assert.match(privacy, /法定代表人/);
   assert.match(privacy, /纸质合同收件人/);
   assert.match(privacy, /省、市、区和详细地址/);
+  assert.match(privacy, /线下对公转账/);
+  assert.match(privacy, /付款户名/);
+  assert.match(privacy, /银行流水号/);
   assert.match(privacy, /未付款取消满 90 天/);
   assert.match(privacy, /已付款订单完成或退款满 24 个月/);
 });

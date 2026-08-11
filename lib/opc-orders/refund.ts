@@ -12,6 +12,7 @@ export async function beginOpcFullRefund(id: string, reason: string, expectedUpd
     const order = store.orders.find((value) => value.id === id);
     if (!order) throw new Error("OPC 订单不存在。");
     assertExpectedUpdatedAt(order, expectedUpdatedAt);
+    if (order.payment.provider !== "alipay") throw new Error("线下转账订单不能通过支付宝原路退款。");
     if (order.refund?.status === "succeeded" || order.status === "refunded") {
       return { alreadyRefunded: true as const, order: publicOrder(order), request: null };
     }
@@ -92,6 +93,27 @@ export async function completeOpcFullRefund(input: {
 export type OpcPaymentCancellationEvidence =
   | { provider: "alipay"; kind: "provider_closed"; providerTradeStatus: "TRADE_CLOSED" }
   | { provider: "alipay"; kind: "expired_not_found"; requestCreatedAt: string; linkExpiredAt: string };
+
+export async function cancelAwaitingOpcBankTransferOrder(id: string, expectedUpdatedAt: string) {
+  return mutateOpcOrderStore((store) => {
+    const order = store.orders.find((value) => value.id === id);
+    if (!order) throw new Error("OPC 订单不存在。");
+    assertExpectedUpdatedAt(order, expectedUpdatedAt);
+    if (
+      order.payment.provider !== "bank_transfer"
+      || order.signatureMethod !== "online"
+      || order.status !== "awaiting_payment"
+      || order.payment.tradeNo
+    ) {
+      throw new Error("只有尚未确认到账的线下转账订单可以取消。");
+    }
+    const timestamp = new Date().toISOString();
+    order.status = "cancelled";
+    order.cancelledAt = timestamp;
+    order.updatedAt = timestamp;
+    return publicOrder(order);
+  });
+}
 
 export async function cancelAwaitingOpcOrderWithProviderEvidence(
   id: string,

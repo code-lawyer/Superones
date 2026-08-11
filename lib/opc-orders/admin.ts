@@ -41,8 +41,10 @@ export async function listAdminOpcOrders() {
         idempotencyHash: _idempotencyHash,
         requestFingerprint: _requestFingerprint,
         notifications: storedNotifications,
+        payment: storedPayment,
         ...record
       } = order;
+      const { payerNameEncrypted: _payerNameEncrypted, ...payment } = storedPayment;
       const {
         preparationClaimId: _preparationClaimId,
         preparationLeaseExpiresAt: _preparationLeaseExpiresAt,
@@ -52,7 +54,7 @@ export async function listAdminOpcOrders() {
         ...signature
       } = storedSignature;
       const notifications = storedNotifications.map(({ claimId: _claimId, leaseExpiresAt: _leaseExpiresAt, ...event }) => event);
-      return { ...record, notifications, signature, contactAvailable };
+      return { ...record, payment, notifications, signature, contactAvailable };
     });
 }
 
@@ -60,9 +62,10 @@ export async function getAdminOpcOrderDossier(id: string) {
   const store = await readOpcOrderStore();
   const order = store.orders.find((value) => value.id === id);
   if (!order) throw new Error("OPC 订单不存在。");
+  const { payerNameEncrypted: _payerNameEncrypted, ...payment } = order.payment;
   return {
     ...publicOrder(order),
-    payment: order.payment,
+    payment,
     paymentReceipt: order.paymentReceipt,
     notifications: order.notifications.map(({ claimId: _claimId, leaseExpiresAt: _leaseExpiresAt, ...event }) => event),
     checkoutAgreement: order.checkoutAgreement,
@@ -82,6 +85,7 @@ export async function getAdminOpcOrderSensitiveDossier(id: string) {
   const order = store.orders.find((value) => value.id === id);
   if (!order) throw new Error("OPC 订单不存在。");
   if (!order.contactEncrypted || !order.signerEncrypted) throw new Error("订单敏感资料已按保留期清除。");
+  const { payerNameEncrypted, ...payment } = order.payment;
   return {
     ...publicOrder(order),
     service: {
@@ -101,7 +105,10 @@ export async function getAdminOpcOrderSensitiveDossier(id: string) {
     delivery: order.deliveryEncrypted
       ? JSON.parse(decryptSensitiveText(order.deliveryEncrypted)) as OpcPaperDelivery
       : null,
-    payment: order.payment,
+    payment: {
+      ...payment,
+      payerName: payerNameEncrypted ? decryptSensitiveText(payerNameEncrypted) : "",
+    },
     paymentReceipt: order.paymentReceipt,
     checkoutAgreement: order.checkoutAgreement,
     refund: order.refund,

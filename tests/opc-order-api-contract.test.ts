@@ -21,29 +21,50 @@ test("OPC order endpoint enforces its public-write security boundary", async () 
   assert.match(route, /status: 409/);
 });
 
-test("OPC order endpoint trusts the published service snapshot, not client pricing", async () => {
+test("OPC offline order endpoint trusts published service and payment-profile snapshots, not client pricing", async () => {
   const route = await readFile(path.join(root, "app", "api", "opc", "orders", "route.ts"), "utf8");
 
   assert.match(route, /readPublishedServiceCatalog/);
   assert.match(route, /service\.status !== "[^"]+"/);
   assert.match(route, /serviceRevision: service\.revision/);
   assert.match(route, /quotedPrice: service\.price/);
-  assert.match(route, /createOpcOrderLifecycle/);
+  assert.match(route, /readPublishedOpcOfflinePaymentProfile/);
+  assert.match(route, /createOpcOrder/);
   assert.match(route, /const signatureMethod = body\.signatureMethod/);
-  assert.match(route, /signatureMethod !== "paper"/);
-  assert.match(route, /signatureMethod,/);
-  assert.match(route, /createOpcAlipayPaymentUrl/);
+  assert.match(route, /signatureMethod !== "online"/);
+  assert.match(route, /paymentMethod !== "offline_bank_transfer"/);
+  assert.match(route, /paymentProvider: "bank_transfer"/);
+  assert.match(route, /expectedProfileRevision !== profile\.revision/);
+  assert.match(route, /offlinePaymentSnapshot/);
   assert.match(route, /agreementSha256/);
   assert.match(route, /serviceScope: service\.includes\.join/);
   assert.match(route, /serviceBoundary: service\.boundary/);
-  assert.doesNotMatch(route, /createOpcEsignFlow|bindOpcSignatureFlow/);
+  assert.doesNotMatch(route, /createOpcEsignFlow|bindOpcSignatureFlow|createOpcAlipayPaymentUrl/);
   assert.doesNotMatch(route, /body\.(?:price|quotedPrice)/);
   assert.match(route, /expectedServiceRevision !== service\.revision/);
   assert.match(route, /expectedAgreementVersion !== agreement\.version/);
   assert.match(route, /expectedAgreementSha256 !== agreementSha256/);
-  assert.match(route, /console\.error\("OPC paper order creation failed"/);
-  assert.match(route, /error: "订单暂时无法创建，请稍后重试。"/);
+  assert.match(route, /console\.error\("OPC offline order creation failed"/);
+  assert.match(route, /error: "线下付款单暂时无法创建，请稍后重试。"/);
   assert.doesNotMatch(route, /NextResponse\.json\(\{ error: message \}, \{ status \}\)/);
+});
+
+test("OPC offline page shows company account, agreement, and contact QR together before transfer", async () => {
+  const [page, entry] = await Promise.all([
+    readFile(path.join(root, "app", "opc", "order", "page.tsx"), "utf8"),
+    readFile(path.join(root, "components", "opc-order-entry.tsx"), "utf8"),
+  ]);
+
+  assert.match(page, /readPublishedOpcOfflinePaymentProfile/);
+  assert.match(page, /paymentProfile=\{paymentProfile\}/);
+  assert.match(entry, /企业收款账户/);
+  assert.match(entry, /点击查看协议/);
+  assert.match(entry, /下载 PDF/);
+  assert.match(entry, /联系人二维码/);
+  assert.match(entry, /线上付款 · 暂未开放/);
+  assert.match(entry, /线下付款 · 对公转账/);
+  assert.match(entry, /paymentMethod: "offline_bank_transfer"/);
+  assert.doesNotMatch(entry, /recipientName|deliveryPhone|addressLine|window\.location\.assign/);
 });
 
 test("OPC Alipay notification verifies provider identity before marking an order paid", async () => {
@@ -93,6 +114,7 @@ test("OPC order contacts remain encrypted outside the reauthenticated export", a
   assert.match(adminList, /readOpcOrderStore\(\)/);
   assert.match(adminList, /contactAvailable/);
   assert.doesNotMatch(adminList, /decryptSensitiveText/);
+  assert.match(adminList, /payerNameEncrypted: _payerNameEncrypted/);
   assert.doesNotMatch(adminList, /mutateOpcOrderStore/);
 });
 
@@ -108,6 +130,46 @@ test("OPC admin downloads require recent reauthentication, integrity checks, and
   assert.match(contractRoute, /createHash\("sha256"\)/);
   assert.match(contractRoute, /actualSha256 !== archive\.sha256/);
   assert.match(contactRoute, /\/\^\[=\+\\-@\]\//);
+});
+
+test("OPC bank-transfer verification requires reauthentication, exact evidence, and auditing", async () => {
+  const route = await readFile(path.join(root, "app", "api", "admin", "opc", "orders", "[id]", "verify-bank-transfer", "route.ts"), "utf8");
+  const payment = await readFile(path.join(root, "lib", "opc-orders", "payment.ts"), "utf8");
+  const adminConsole = await readFile(path.join(root, "app", "admin", "admin-console.tsx"), "utf8");
+  const bankVerificationBehavior = adminConsole.slice(
+    adminConsole.indexOf("function openBankVerification"),
+    adminConsole.indexOf("async function reconcileOpcSignature"),
+  );
+  const bankVerificationUi = adminConsole.slice(
+    adminConsole.indexOf("<form id={`bank-verification-"),
+    adminConsole.indexOf("function OpcDossierView"),
+  );
+
+  assert.match(route, /authenticateAdminRequest/);
+  assert.match(route, /hasRecentAdminReauthentication/);
+  assert.match(route, /withPersistenceTransaction/);
+  assert.match(route, /recordAuditEvent/);
+  assert.match(route, /bankTransactionId/);
+  assert.match(route, /transactionFingerprint/);
+  assert.doesNotMatch(route, /diff:\s*\{[\s\S]*?payerName/);
+  assert.match(payment, /order\.payment\.provider !== "bank_transfer"/);
+  assert.match(payment, /amount\.minorUnits !== order\.payment\.amount\.minorUnits/);
+  assert.match(payment, /candidate\.payment\.tradeNo === transactionId/);
+  assert.match(payment, /payerNameEncrypted = encryptSensitiveText/);
+  assert.match(bankVerificationUi, /type="datetime-local"/);
+  assert.match(bankVerificationUi, /银行流水号/);
+  assert.match(bankVerificationUi, /付款户名/);
+  assert.match(bankVerificationUi, /我已逐项核对企业银行实际入账记录/);
+  assert.match(bankVerificationUi, /className="admin-bank-verification"/);
+  assert.doesNotMatch(bankVerificationBehavior, /window\.prompt/);
+});
+
+test("OPC unpaid bank-transfer cancellation uses its own evidence-safe branch", async () => {
+  const route = await readFile(path.join(root, "app", "api", "admin", "opc", "orders", "[id]", "cancel", "route.ts"), "utf8");
+  assert.match(route, /order\.payment\.provider === "bank_transfer"/);
+  assert.match(route, /cancelAwaitingOpcBankTransferOrder/);
+  assert.match(route, /withPersistenceTransaction/);
+  assert.match(route, /recordAuditEvent/);
 });
 
 test("admin responses containing protected data are never cacheable", async () => {

@@ -36,7 +36,7 @@ import {
 } from "./model.ts";
 
 type StoredOpcPayment = {
-  provider: "alipay";
+  provider: "alipay" | "bank_transfer";
   amount: OpcAlipayAmount;
   appId: string | null;
   sellerId: string | null;
@@ -46,6 +46,16 @@ type StoredOpcPayment = {
   requestCreatedAt: string | null;
   notifiedAt: string | null;
   checkedAt: string | null;
+  offlineProfileRevision: string | null;
+  accountName: string | null;
+  bankName: string | null;
+  branchName: string | null;
+  accountNumber: string | null;
+  cnapsCode: string | null;
+  transferMemo: string | null;
+  agreementSha256: string | null;
+  contactQrSha256: string | null;
+  payerNameEncrypted: string | null;
 };
 
 export type StoredOpcOrder = {
@@ -67,7 +77,7 @@ export type StoredOpcOrder = {
   paymentReceipt: StoredOpcPaymentReceipt | null;
   notifications: StoredOpcNotification[];
   refund: StoredOpcRefund | null;
-  signatureMethod: "paper" | "electronic";
+  signatureMethod: "paper" | "electronic" | "online";
   checkoutAgreement: OpcCheckoutAgreement | null;
   contactEncrypted: string | null;
   signerEncrypted: string | null;
@@ -124,7 +134,7 @@ function parseStoredPayment(order: LegacyStoredOpcOrder): StoredOpcPayment {
       : catalogPriceToAlipayAmount(order.quotedPrice ?? "");
   if (!amount) throw new Error("OPC 订单记录缺少有效的人民币支付金额。");
   return {
-    provider: "alipay",
+    provider: order.payment?.provider === "bank_transfer" ? "bank_transfer" : "alipay",
     amount,
     appId: order.payment?.appId ?? null,
     sellerId: order.payment?.sellerId ?? order.alipaySellerId ?? null,
@@ -134,6 +144,16 @@ function parseStoredPayment(order: LegacyStoredOpcOrder): StoredOpcPayment {
     requestCreatedAt: order.payment?.requestCreatedAt ?? order.paymentRequestCreatedAt ?? null,
     notifiedAt: order.payment?.notifiedAt ?? order.paymentNotifiedAt ?? null,
     checkedAt: order.payment?.checkedAt ?? order.paymentCheckedAt ?? null,
+    offlineProfileRevision: order.payment?.offlineProfileRevision ?? null,
+    accountName: order.payment?.accountName ?? null,
+    bankName: order.payment?.bankName ?? null,
+    branchName: order.payment?.branchName ?? null,
+    accountNumber: order.payment?.accountNumber ?? null,
+    cnapsCode: order.payment?.cnapsCode ?? null,
+    transferMemo: order.payment?.transferMemo ?? null,
+    agreementSha256: order.payment?.agreementSha256 ?? null,
+    contactQrSha256: order.payment?.contactQrSha256 ?? null,
+    payerNameEncrypted: order.payment?.payerNameEncrypted ?? null,
   };
 }
 
@@ -255,9 +275,11 @@ export function orderRequestFingerprint(input: {
   quotedPrice: string;
   contact: OpcOrderContact;
   signer: OpcSignerParty;
-  signatureMethod?: "paper" | "electronic";
+  signatureMethod?: "paper" | "electronic" | "online";
   delivery?: OpcPaperDelivery;
   agreement?: OpcCheckoutAgreement;
+  paymentProvider?: "alipay" | "bank_transfer";
+  offlinePaymentSnapshot?: import("./model.ts").OpcOfflinePaymentSnapshot;
 }) {
   const agreement = input.agreement
     ? { version: input.agreement.version, sha256: input.agreement.sha256 }
@@ -272,6 +294,8 @@ export function orderRequestFingerprint(input: {
     contact: input.contact,
     signer: input.signer,
     signatureMethod: input.signatureMethod ?? "electronic",
+    paymentProvider: input.paymentProvider ?? "alipay",
+    offlinePaymentSnapshot: input.offlinePaymentSnapshot ?? null,
     delivery: input.delivery ?? null,
     // acceptedAt is server-generated request metadata, not part of the
     // customer's semantic checkout intent. Retrying the same request must not
@@ -329,6 +353,8 @@ export function publicOrder(order: StoredOpcOrder) {
     serviceName: order.serviceName,
     quotedPrice: order.quotedPrice,
     paymentAmount: order.payment.amount,
+    paymentProvider: order.payment.provider,
+    transferMemo: order.payment.transferMemo,
     signatureStatus: order.signature.status,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
@@ -374,7 +400,18 @@ function maskDeliveryAddress(delivery: OpcPaperDelivery | null) {
   return `${delivery.province}${delivery.city}${delivery.district}******`;
 }
 
-export function ensurePaperPaymentArtifacts(order: StoredOpcOrder, timestamp: string, tradeNo: string) {
+function ensureOpcPaymentArtifacts(
+  order: StoredOpcOrder,
+  paidAt: string,
+  tradeNo: string,
+  options: {
+    provider: "alipay" | "bank_transfer";
+    receiptNumberPrefix: "PAY" | "BANK";
+    maskedDeliveryAddress: string;
+    generatedAt?: string;
+  },
+) {
+  const generatedAt = options.generatedAt ?? paidAt;
   if (!order.paymentReceipt) {
     const contact = order.contactEncrypted
       ? JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact
@@ -389,15 +426,12 @@ export function ensurePaperPaymentArtifacts(order: StoredOpcOrder, timestamp: st
           organizationCreditCode: "",
           legalRepresentativeName: "",
         };
-    const delivery = order.deliveryEncrypted
-      ? JSON.parse(decryptSensitiveText(order.deliveryEncrypted)) as OpcPaperDelivery
-      : null;
     const snapshot = {
       receiptId: randomUUID(),
-      receiptNumber: `V2077-PAY-${order.reference.slice(4)}`,
+      receiptNumber: `V2077-${options.receiptNumberPrefix}-${order.reference.slice(4)}`,
       reference: order.reference,
       paymentStatus: "verified_paid" as const,
-      generatedAt: timestamp,
+      generatedAt,
       operator: {
         name: LEGAL_OPERATOR_NAME,
         creditCode: LEGAL_OPERATOR_CREDIT_CODE,
@@ -412,7 +446,7 @@ export function ensurePaperPaymentArtifacts(order: StoredOpcOrder, timestamp: st
         legalRepresentativeName: signer.legalRepresentativeName,
         contactName: contact.name,
         maskedPhone: maskPhone(contact.phone || signer.phone),
-        maskedDeliveryAddress: maskDeliveryAddress(delivery),
+        maskedDeliveryAddress: options.maskedDeliveryAddress,
       },
       service: {
         code: order.serviceCode,
@@ -423,9 +457,9 @@ export function ensurePaperPaymentArtifacts(order: StoredOpcOrder, timestamp: st
         boundary: order.serviceBoundary,
       },
       payment: {
-        provider: "alipay" as const,
+        provider: options.provider,
         amount: order.payment.amount,
-        paidAt: timestamp,
+        paidAt,
         tradeNo,
       },
     };
@@ -442,13 +476,38 @@ export function ensurePaperPaymentArtifacts(order: StoredOpcOrder, timestamp: st
       recipient: PRODUCTION_ADMIN_EMAIL,
       status: "pending",
       attempts: 0,
-      nextAttemptAt: timestamp,
+      nextAttemptAt: generatedAt,
       sentAt: null,
       lastError: null,
       claimId: null,
       leaseExpiresAt: null,
     });
   }
+}
+
+export function ensurePaperPaymentArtifacts(order: StoredOpcOrder, timestamp: string, tradeNo: string) {
+  const delivery = order.deliveryEncrypted
+    ? JSON.parse(decryptSensitiveText(order.deliveryEncrypted)) as OpcPaperDelivery
+    : null;
+  ensureOpcPaymentArtifacts(order, timestamp, tradeNo, {
+    provider: "alipay",
+    receiptNumberPrefix: "PAY",
+    maskedDeliveryAddress: maskDeliveryAddress(delivery),
+  });
+}
+
+export function ensureBankTransferPaymentArtifacts(
+  order: StoredOpcOrder,
+  paidAt: string,
+  verifiedAt: string,
+  transactionId: string,
+) {
+  ensureOpcPaymentArtifacts(order, paidAt, transactionId, {
+    provider: "bank_transfer",
+    receiptNumberPrefix: "BANK",
+    maskedDeliveryAddress: "",
+    generatedAt: verifiedAt,
+  });
 }
 
 export function validResumeToken(order: StoredOpcOrder, token: string) {

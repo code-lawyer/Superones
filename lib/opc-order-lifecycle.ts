@@ -16,6 +16,7 @@ import {
   claimOpcPublicPaymentQuery,
   getOpcPaymentReceipt,
   recordOpcAlipayQuery,
+  verifyOpcBankTransfer,
 } from "./opc-orders/payment.ts";
 import {
   beginOpcFullRefund,
@@ -116,6 +117,9 @@ export function createOpcOrderLifecycle(dependencies: {
     },
     async applyPaymentEvidence(input: Parameters<typeof applyOpcAlipayTradeResult>[0]) {
       return applyOpcAlipayTradeResult(input);
+    },
+    async verifyBankTransfer(input: Parameters<typeof verifyOpcBankTransfer>[0]) {
+      return verifyOpcBankTransfer(input);
     },
     async readPaymentReceipt(input: { reference: string; resumeToken: string }) {
       return getOpcPaymentReceipt(input.reference, input.resumeToken);
