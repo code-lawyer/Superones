@@ -84,8 +84,9 @@ export type StoredOpcPaymentReceipt = {
 
 export type StoredOpcNotification = {
   eventId: string;
-  eventType: "payment_confirmed";
-  recipient: string;
+  eventType: "order_created" | "payment_confirmed";
+  audience: "administrator" | "customer";
+  recipient: string | null;
   status: "pending" | "sending" | "sent" | "failed";
   attempts: number;
   nextAttemptAt: string;

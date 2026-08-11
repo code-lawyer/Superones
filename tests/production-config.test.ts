@@ -21,11 +21,11 @@ function validEnvironment() {
     VAULT2077_OPC_PAPER_CHECKOUT_ENABLED: "true",
     VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED: "false",
     VAULT2077_OPC_PAYMENT_EMAIL_ENABLED: "true",
-    VAULT2077_SMTP_HOST: "smtp.163.com",
+    VAULT2077_SMTP_HOST: "smtpdm.aliyun.com",
     VAULT2077_SMTP_PORT: "465",
-    VAULT2077_SMTP_USER: "opc-notifier@163.com",
+    VAULT2077_SMTP_USER: "orders@notify.superones.top",
     VAULT2077_SMTP_PASSWORD: "smtp-production-authorization-code",
-    VAULT2077_SMTP_FROM: "opc-notifier@163.com",
+    VAULT2077_SMTP_FROM: "orders@notify.superones.top",
     VAULT2077_OPC_ESIGN_ENABLED: "true",
     VAULT2077_OPC_ESIGN_PROVIDER: "esign",
     VAULT2077_ESIGN_APP_ID: "5110000000000001",
@@ -200,6 +200,24 @@ test("production configuration gate allows offline bank transfer while online pa
     VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED: "true",
   });
   assert.equal(report.ok, true, report.errors.join("\n"));
+});
+
+test("production configuration gate requires OPC mail to come from the SUPERONES domain", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_SMTP_FROM: "opc-notifier@163.com",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("superones.top")));
+});
+
+test("production configuration gate requires the SMTP identity to match the sender", () => {
+  const report = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_SMTP_USER: "another@notify.superones.top",
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((issue) => issue.includes("SMTP 用户名必须与发件地址一致")));
 });
 
 test("production configuration gate rejects the known invalid MiMo API hostname", () => {

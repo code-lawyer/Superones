@@ -168,7 +168,7 @@ export function OpcOrderEntry({
     }
     if (name.trim().length < 2) next.name = "请填写联系人姓名。";
     if (!validPhone(phone)) next.phone = "请填写有效的中国大陆手机号。";
-    if (email.trim() && !isValidEmail(email.trim())) next.email = "请填写有效邮箱。";
+    if (!isValidEmail(email.trim())) next.email = "请填写用于接收订单和到账通知的有效邮箱。";
     if (!agreementAccepted) next.agreementAccepted = "请阅读并确认服务协议与线下付款规则。";
     setErrors(next);
     const first = fieldOrder.find((field) => next[field]);
@@ -313,7 +313,7 @@ export function OpcOrderEntry({
 
             <Field id="name" label="联系人姓名" value={name} setValue={(value) => updateField("name", () => setName(value))} error={errors.name} disabled={pending} autoComplete="name" />
             <Field id="phone" label="联系人手机号" value={phone} setValue={(value) => updateField("phone", () => setPhone(value))} error={errors.phone} disabled={pending} type="tel" autoComplete="tel" />
-            <Field id="email" label="邮箱（可选）" value={email} setValue={(value) => updateField("email", () => setEmail(value))} error={errors.email} disabled={pending} type="email" autoComplete="email" />
+            <Field id="email" label="通知邮箱" value={email} setValue={(value) => updateField("email", () => setEmail(value))} error={errors.email} disabled={pending} type="email" autoComplete="email" required />
             <Field id="wechat" label="即时通讯账号（可选）" value={wechat} setValue={setWechat} disabled={pending} />
 
             <div className="form-field opc-order-entry__note">
@@ -376,7 +376,7 @@ export function OpcOrderEntry({
   );
 }
 
-function Field({ id, label, value, setValue, error, disabled, type = "text", autoComplete, maxLength = 160 }: {
+function Field({ id, label, value, setValue, error, disabled, type = "text", autoComplete, maxLength = 160, required = false }: {
   id: string;
   label: string;
   value: string;
@@ -386,12 +386,13 @@ function Field({ id, label, value, setValue, error, disabled, type = "text", aut
   type?: string;
   autoComplete?: string;
   maxLength?: number;
+  required?: boolean;
 }) {
   const inputId = `opc-order-${id}`;
   const errorId = `${inputId}-error`;
   return <div className="form-field">
     <label htmlFor={inputId}>{label}</label>
-    <input id={inputId} type={type} autoComplete={autoComplete} maxLength={maxLength} value={value} onChange={(event) => setValue(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} disabled={disabled} />
+    <input id={inputId} type={type} autoComplete={autoComplete} maxLength={maxLength} value={value} onChange={(event) => setValue(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} disabled={disabled} required={required} />
     {error ? <p id={errorId} className="form-error">{error}</p> : null}
   </div>;
 }

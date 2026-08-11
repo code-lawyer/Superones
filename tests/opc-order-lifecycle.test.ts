@@ -123,7 +123,7 @@ test("paper checkout starts a fixed-amount awaiting-payment order", async () => 
   }
 });
 
-test("verified payment creates one receipt and one notification event", async () => {
+test("verified payment creates one receipt and separate customer and administrator notification events", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-paid-lifecycle-"));
   const previousEnvironment = {
     dataDir: process.env.VAULT2077_DATA_DIR,
@@ -222,7 +222,7 @@ test("verified payment creates one receipt and one notification event", async ()
       operatorCreditCode: "91310000MAC3G0M33G",
       customerName: "上海测试科技有限公司",
       amount: "1980.00",
-      notificationEvents: 1,
+      notificationEvents: 2,
     });
 
     await assert.rejects(

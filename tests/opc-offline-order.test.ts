@@ -41,7 +41,7 @@ test("offline bank-transfer checkout creates an online-agreement order without p
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "测试联系人", phone: "13800138000", email: "", wechat: "", note: "" },
+      contact: { name: "测试联系人", phone: "13800138000", email: "first@example.com", wechat: "", note: "" },
       signer: {
         type: "individual", name: "测试联系人", phone: "13800138000",
         organizationName: "", organizationCreditCode: "", legalRepresentativeName: "",
@@ -94,7 +94,13 @@ test("offline bank-transfer checkout creates an online-agreement order without p
     assert.equal(paid.paymentReceipt?.payment.tradeNo, "BANK-20260810-000001");
     assert.equal(paid.paymentReceipt?.payment.paidAt, paidAt);
     assert.equal(paid.paymentReceipt?.generatedAt, paid.payment.checkedAt);
-    assert.equal(paid.notifications[0]?.nextAttemptAt, paid.payment.checkedAt);
+    const paymentNotifications = paid.notifications.filter(
+      (event: StoredOpcOrder["notifications"][number]) => event.eventType === "payment_confirmed",
+    );
+    assert.equal(paymentNotifications.length, 2);
+    assert.ok(paymentNotifications.every(
+      (event: StoredOpcOrder["notifications"][number]) => event.nextAttemptAt === paid.payment.checkedAt,
+    ));
     const duplicateOrder = await checkout.createOpcOrder({
       idempotencyKey: "1a7eb1fa-52b5-47b7-8f0b-50da456329c6",
       signatureMethod: "online",
@@ -109,7 +115,7 @@ test("offline bank-transfer checkout creates an online-agreement order without p
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "第二联系人", phone: "13900139000", email: "", wechat: "", note: "" },
+      contact: { name: "第二联系人", phone: "13900139000", email: "second@example.com", wechat: "", note: "" },
       signer: {
         type: "individual", name: "第二联系人", phone: "13900139000",
         organizationName: "", organizationCreditCode: "", legalRepresentativeName: "",
@@ -207,7 +213,10 @@ test("offline bank-transfer checkout creates an online-agreement order without p
     }
     const rejectedOrder = (await storeModule.readOpcOrderStore()).orders.find((candidate: { id: string }) => candidate.id === duplicateStored.id)!;
     assert.equal(rejectedOrder.status, "awaiting_payment");
-    assert.equal(rejectedOrder.notifications.length, 0);
+    assert.equal(rejectedOrder.notifications.length, 2);
+    assert.ok(rejectedOrder.notifications.every(
+      (event: StoredOpcOrder["notifications"][number]) => event.eventType === "order_created",
+    ));
     const notification = await payment.claimNextOpcPaymentNotification();
     assert.equal(notification?.provider, "bank_transfer");
   } finally {
@@ -254,7 +263,7 @@ test("unpaid bank-transfer orders can be cancelled and enter the 90-day privacy 
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "取消联系人", phone: "13800138000", email: "", wechat: "", note: "" },
+      contact: { name: "取消联系人", phone: "13800138000", email: "cancel@example.com", wechat: "", note: "" },
       signer: { type: "individual", name: "取消联系人", phone: "13800138000", organizationName: "", organizationCreditCode: "", legalRepresentativeName: "" },
       agreement: { version: "opc-offline-bank-transfer-v1", title: "OPC 服务订单及线下对公转账协议", text: agreementText, sha256: createHash("sha256").update(agreementText).digest("hex"), acceptedAt: "2026-08-10T12:00:00.000Z" },
       offlinePaymentSnapshot: {

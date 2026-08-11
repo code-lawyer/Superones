@@ -48,6 +48,10 @@ VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false
 VAULT2077_OPC_PAYMENT_EMAIL_ENABLED=true
 ```
 
+生产事务邮件必须使用 `superones.top` 或其子域发件地址，SMTP 用户名必须与 From 一致。当前推荐保留根域已有飞书邮箱，使用阿里云邮件推送独立子域 `notify.superones.top`：在企业实名阿里云账号开通华东邮件推送，添加发信域并把控制台当时生成的 SPF、DKIM、DMARC、MX 和所有权记录原样加入该子域；不得删除或覆盖根域飞书 MX/SPF。全部验证通过后创建触发型地址 `orders@notify.superones.top` 和独立 SMTP 密码，生产配置使用 `smtpdm.aliyun.com:465`、同名 user/from，并把密码只写入 VPS root-only 环境。若严格要求 `orders@superones.top`，应复用现有飞书公共邮箱的 `smtp.feishu.cn:465` 与专用密码，不迁移根域 MX。完整官方依据见[同域事务邮件调研](research/domain-transactional-email-superones-2026-08-11.md)。
+
+启用前先向一个外部测试用户邮箱和 `lanzhouda@163.com` 各发送真实测试。用户应收到下单与到账摘要并只链接公开订单状态页；负责人应在下单和到账时收到脱敏摘要并只链接独立管理域名。四类事件必须各发送一次，失败重试不得生成新的 Message-ID。邮件不得嵌入联系人二维码、微信/QQ、完整联系人、付款户名、企业银行账号或恢复凭证。
+
 先发布付款资料，再部署包含线下付款代码的 release，运行 `npm run deploy:check`、数据库迁移、health 和后台验收。Nginx 必须使用随 release 提供的精确协议 PDF location，先通过 `nginx -t`，再确认该 PDF 只有一个 `X-Frame-Options: SAMEORIGIN`、弹窗可预览且跨站嵌入失败；二维码和其他页面仍须为 `DENY`。确认企业户名、账号、协议弹窗预览/下载、二维码、移动端布局和后台到账核验全部通过后，负责人明确 Go 才可把 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` 改为 `true` 并重启 Web。线上支付宝开关必须继续为 `false`；该开关只禁止新建支付宝付款，不得删除生产中既有的支付宝 APPID、PID、私钥和支付宝公钥，因为历史支付宝订单仍需验真、查询、关单和退款。
 
 ## 4. 到账核验

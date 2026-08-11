@@ -27,7 +27,7 @@ Vault2077 是面向超级个体与一人公司的公开网站，固定包含四�
 | 采集 | Node 统一编排；Python 3.12 feed collector；vendored Horizon 只作为隔离采集依赖 |
 | 数据库 | PostgreSQL；生产使用 RDS；`pg` 连接池基线为每进程 4 个连接 |
 | 对象存储 | `ali-oss`；公开头像 Bucket 与未来电子合同私有 Bucket 严格分离 |
-| 支付/通知 | 当前新订单使用线下对公转账与 `nodemailer` 到账通知；`alipay-sdk` 只保留既有支付宝订单查询/退款能力 |
+| 支付/通知 | 当前新订单使用线下对公转账；`nodemailer` 通过同域 SMTP 异步发送用户/负责人下单与到账通知，`alipay-sdk` 只保留既有支付宝订单查询/退款能力 |
 | 身份 | `@simplewebauthn/server` 与浏览器端 WebAuthn；可撤销服务器会话 |
 | 反向代理/进程 | Nginx、systemd、journald、logrotate |
 | CI | GitHub Actions：质量检查、Linux 构建发布包、四通道境外采集 |
@@ -114,7 +114,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 
 ### 4.5 OPC
 
-公开服务目录只读取后台发布的结构化快照。2026-08-10 接受 ADR-0020 后，新订单主路径改为：同页展示企业账户、协议 PDF 与联系人二维码 → 在线确认协议并生成固定金额订单/付款附言 → 用户自行线下对公转账 → 最近五分钟再认证的后台按金额、付款户名、唯一银行流水和时间核验 → `paid` → `completed`。线上支付宝和旧纸质入口保持关闭；`VAULT2077_OPC_PAYMENTS_ENABLED` 只控制新支付宝订单创建，既有 ADR-0019 支付宝订单仍使用已配置的支付宝身份完成通知验真、主动查询、关单和退款，不迁移或交叉采信证据。
+公开服务目录只读取后台发布的结构化快照。2026-08-10 接受 ADR-0020 后，新订单主路径改为：同页展示企业账户、协议 PDF 与联系人二维码 → 填写必需通知邮箱、在线确认协议并生成固定金额订单/付款附言 → 用户自行线下对公转账 → 最近五分钟再认证的后台按金额、付款户名、唯一银行流水和时间核验 → `paid` → `completed`。订单创建和到账确认各在业务事务内写入面向用户/负责人的两个 outbox 事件，由境内 timer 通过 `superones.top` 或其子域发件地址异步投递；SMTP 失败不改变业务事实。线上支付宝和旧纸质入口保持关闭；`VAULT2077_OPC_PAYMENTS_ENABLED` 只控制新支付宝订单创建，既有 ADR-0019 支付宝订单仍使用已配置的支付宝身份完成通知验真、主动查询、关单和退款，不迁移或交叉采信证据。
 
 付款资料以一个修订存入 PostgreSQL `opc-offline-payment-profile` 状态文档，冻结账户、PDF 与二维码哈希；`/srv/vault2077/shared/opc-offline-payment/` 仅作替换暂存，通过 `opc:publish-offline-payment-profile` 原子发布。现有头像和私有合同 OSS 权限不扩大。负责人已于 2026-08-11 提供并确认真实企业账户、联系人二维码，完成首版协议业务审阅并授权上线测试；在目标 VPS 完成资料发布、release 部署和生产验收前，线下付款开关仍保持关闭。
 
@@ -232,7 +232,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - GitHub：境内服务端只读 token；境外 workflow 使用自身 ephemeral token 和四个投递 Secrets。
 - 编辑模型：DeepSeek Vault profile 的 base URL/key/model；MiMo SiC profile 的 base URL/key/model；主备、额度、限速、并发和预算边界。当前基线是 `api.deepseek.com/v1` + `deepseek-v4-flash`，以及 `api.xiaomimimo.com/v1` + `mimo-v2.5`。
 - 支付宝：App ID、seller/PID、PKCS8 应用私钥、支付宝公钥、生产网关、异步通知配置、查询/退款权限，以及真实小额支付和全额退款授权。
-- 邮件：SMTP host/port/user/password/from，并确认 owner 收件地址和测试发送授权。
+- 邮件：SMTP host/port/user/password/from；用户名与 From 必须一致且 From 属于 `superones.top` 或其子域，回复地址和负责人通知固定为 `lanzhouda@163.com`。推荐使用不改变根域飞书 MX 的阿里云邮件推送子域 `notify.superones.top`，正式启用前完成 SPF/DKIM/DMARC、用户/负责人四类真实投递和重试验收。
 - e 签宝：当前保持关闭；未来启用才需要 App ID/Secret、模板、印章、签署位置和回调配置。
 
 ### 8.6 必须由负责人提供或完成的业务数据

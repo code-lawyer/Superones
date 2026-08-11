@@ -2,6 +2,8 @@ import "server-only";
 
 import nodemailer from "nodemailer";
 import type { OpcPaymentEmailSender } from "./opc-payment-notifications.ts";
+import { PRODUCTION_ADMIN_EMAIL } from "./admin-profile.ts";
+import { PUBLIC_DOMAIN } from "./legal-profile.ts";
 
 type OpcPaymentEmailConfiguration = {
   host: string;
@@ -21,7 +23,17 @@ export function opcPaymentEmailConfigurationErrors(
   if (!Number.isInteger(port) || port < 1 || port > 65_535) errors.push("SMTP 端口无效。");
   if (!environment.VAULT2077_SMTP_USER?.trim()) errors.push("SMTP 用户名未配置。");
   if (!environment.VAULT2077_SMTP_PASSWORD?.trim()) errors.push("SMTP 授权码或密码未配置。");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(environment.VAULT2077_SMTP_FROM?.trim() ?? "")) errors.push("SMTP 发件地址无效。");
+  const from = environment.VAULT2077_SMTP_FROM?.trim().toLowerCase() ?? "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from)) {
+    errors.push("SMTP 发件地址无效。");
+  } else {
+    const domain = from.slice(from.lastIndexOf("@") + 1);
+    if (domain !== PUBLIC_DOMAIN && !domain.endsWith(`.${PUBLIC_DOMAIN}`)) {
+      errors.push(`SMTP 发件地址必须使用 ${PUBLIC_DOMAIN} 或其子域。`);
+    }
+  }
+  const user = environment.VAULT2077_SMTP_USER?.trim().toLowerCase() ?? "";
+  if (user && from && user !== from) errors.push("SMTP 用户名必须与发件地址一致。");
   return errors;
 }
 
@@ -54,6 +66,7 @@ export function createOpcPaymentEmailSender(): OpcPaymentEmailSender {
     async send(message) {
       await transporter.sendMail({
         from: configuration.from,
+        replyTo: PRODUCTION_ADMIN_EMAIL,
         to: message.to,
         subject: message.subject,
         text: message.text,

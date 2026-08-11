@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       || !agreementAccepted
       || (signerType !== "individual" && signerType !== "organization")
       || !validPhone(phone)
-      || (email && !validEmail(email))
+      || !validEmail(email)
       || (signerType === "organization" && (
         organizationName.length < 2
         || !/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(organizationCreditCode)

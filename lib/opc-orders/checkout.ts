@@ -7,6 +7,7 @@ import {
   type OpcAlipayPaymentOrder,
 } from "../opc-payment-config.ts";
 import { encryptSensitiveText } from "../sensitive-data.ts";
+import { PRODUCTION_ADMIN_EMAIL } from "../admin-profile.ts";
 import type { OpcSignerParty } from "../opc-esign.ts";
 import {
   createResumeCredential,
@@ -69,6 +70,9 @@ export async function createOpcOrder(input: {
     ) {
       throw new Error("线下转账订单缺少有效的在线协议或付款资料快照。");
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.contact.email.trim())) {
+      throw new Error("线下转账订单需要有效邮箱以接收订单和到账通知。");
+    }
   }
   const paymentAmount = catalogPriceToAlipayAmount(input.quotedPrice);
   if (!paymentAmount) throw new Error("服务公开价格无法转换为支付宝订单金额。");
@@ -101,9 +105,10 @@ export async function createOpcOrder(input: {
     const now = new Date();
     const timestamp = now.toISOString();
     const reference = uniqueOrderReference(store);
+    const orderId = randomUUID();
     const resumeCredential = createResumeCredential(reference, now);
     const order: StoredOpcOrder = {
-      id: randomUUID(),
+      id: orderId,
       reference,
       idempotencyHash: requestHash,
       requestFingerprint,
@@ -140,7 +145,36 @@ export async function createOpcOrder(input: {
         payerNameEncrypted: null,
       },
       paymentReceipt: null,
-      notifications: [],
+      notifications: signatureMethod === "online" && input.paymentProvider === "bank_transfer"
+        ? [
+            {
+              eventId: `order-created:administrator:${orderId}`,
+              eventType: "order_created" as const,
+              audience: "administrator" as const,
+              recipient: PRODUCTION_ADMIN_EMAIL,
+              status: "pending" as const,
+              attempts: 0,
+              nextAttemptAt: timestamp,
+              sentAt: null,
+              lastError: null,
+              claimId: null,
+              leaseExpiresAt: null,
+            },
+            ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.contact.email.trim()) ? [{
+              eventId: `order-created:customer:${orderId}`,
+              eventType: "order_created" as const,
+              audience: "customer" as const,
+              recipient: null,
+              status: "pending" as const,
+              attempts: 0,
+              nextAttemptAt: timestamp,
+              sentAt: null,
+              lastError: null,
+              claimId: null,
+              leaseExpiresAt: null,
+            }] : []),
+          ]
+        : [],
       refund: null,
       signatureMethod,
       checkoutAgreement: input.agreement ?? null,

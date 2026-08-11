@@ -207,6 +207,9 @@ const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
           } : null,
           notifications: (order.notifications ?? []).map((event) => ({
             ...event,
+            eventType: event.eventType === "order_created" ? "order_created" : "payment_confirmed",
+            audience: event.audience === "customer" ? "customer" : "administrator",
+            recipient: typeof event.recipient === "string" ? event.recipient : null,
             claimId: event.claimId ?? null,
             leaseExpiresAt: event.leaseExpiresAt ?? null,
           })),
@@ -412,10 +415,10 @@ function ensureOpcPaymentArtifacts(
   },
 ) {
   const generatedAt = options.generatedAt ?? paidAt;
+  const contact = order.contactEncrypted
+    ? JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact
+    : { name: "", phone: "", email: "", wechat: "", note: "" };
   if (!order.paymentReceipt) {
-    const contact = order.contactEncrypted
-      ? JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact
-      : { name: "", phone: "", email: "", wechat: "", note: "" };
     const signer = order.signerEncrypted
       ? JSON.parse(decryptSensitiveText(order.signerEncrypted)) as OpcSignerParty
       : {
@@ -473,7 +476,27 @@ function ensureOpcPaymentArtifacts(
     order.notifications.push({
       eventId,
       eventType: "payment_confirmed",
+      audience: "administrator",
       recipient: PRODUCTION_ADMIN_EMAIL,
+      status: "pending",
+      attempts: 0,
+      nextAttemptAt: generatedAt,
+      sentAt: null,
+      lastError: null,
+      claimId: null,
+      leaseExpiresAt: null,
+    });
+  }
+  const customerEventId = `payment-confirmed:customer:${order.id}`;
+  if (
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim())
+    && !order.notifications.some((event) => event.eventId === customerEventId)
+  ) {
+    order.notifications.push({
+      eventId: customerEventId,
+      eventType: "payment_confirmed",
+      audience: "customer",
+      recipient: null,
       status: "pending",
       attempts: 0,
       nextAttemptAt: generatedAt,

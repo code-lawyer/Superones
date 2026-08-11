@@ -2,7 +2,9 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { alipayDecimalToAmount, type OpcAlipayAmount, type OpcAlipayQueryResult } from "../opc-payment-config.ts";
-import { encryptSensitiveText } from "../sensitive-data.ts";
+import { decryptSensitiveText, encryptSensitiveText } from "../sensitive-data.ts";
+import { PRODUCTION_ADMIN_EMAIL } from "../admin-profile.ts";
+import type { OpcOrderContact } from "./model.ts";
 import {
   assertExpectedUpdatedAt,
   ensureBankTransferPaymentArtifacts,
@@ -198,7 +200,15 @@ export async function claimNextOpcPaymentNotification() {
         && (!candidate.leaseExpiresAt || new Date(candidate.leaseExpiresAt).getTime() <= now.getTime());
       return due && (candidate.status === "pending" || candidate.status === "failed" || expiredLease);
     });
-    if (!event || !order.paymentReceipt) return null;
+    if (!event || (event.eventType === "payment_confirmed" && !order.paymentReceipt)) return null;
+    const recipient = event.audience === "customer"
+      ? (() => {
+          if (!order.contactEncrypted) return "";
+          const contact = JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact;
+          return contact.email.trim().toLowerCase();
+        })()
+      : event.recipient ?? PRODUCTION_ADMIN_EMAIL;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return null;
     const claimId = randomUUID();
     event.status = "sending";
     event.attempts += 1;
@@ -208,14 +218,18 @@ export async function claimNextOpcPaymentNotification() {
     return {
       claimId,
       eventId: event.eventId,
-      recipient: event.recipient,
+      eventType: event.eventType,
+      audience: event.audience,
+      recipient,
       reference: order.reference,
       serviceName: order.serviceName,
       serviceCode: order.serviceCode,
       amount: order.payment.amount,
-      paidAt: order.paidAt!,
+      createdAt: order.createdAt,
+      transferMemo: order.payment.transferMemo,
+      paidAt: order.paidAt,
       provider: order.payment.provider,
-      tradeNo: order.payment.tradeNo!,
+      tradeNo: order.payment.tradeNo,
     };
   });
 }

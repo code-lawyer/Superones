@@ -87,6 +87,8 @@ test("privacy policy discloses legacy paper and current offline bank-order field
   assert.match(privacy, /线下对公转账/);
   assert.match(privacy, /付款户名/);
   assert.match(privacy, /银行流水号/);
+  assert.match(privacy, /用于接收订单及到账通知的邮箱/);
+  assert.match(privacy, /境内事务邮件服务商/);
   assert.match(privacy, /未付款取消满 90 天/);
   assert.match(privacy, /已付款订单完成或退款满 24 个月/);
 });
