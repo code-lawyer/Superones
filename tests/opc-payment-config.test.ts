@@ -6,6 +6,8 @@ import {
   createOpcAlipayPaymentUrl,
   opcOrderingAvailable,
   readOpcAlipayConfiguration,
+  requireOpcAlipayConfiguration,
+  requireOpcAlipayHistoryConfiguration,
   verifyOpcAlipayNotification,
 } from "../lib/opc-payment-config.ts";
 import {
@@ -24,6 +26,24 @@ test("OPC Alipay configuration accepts only official gateways and valid RSA keys
     NODE_ENV: "production",
     VAULT2077_ALIPAY_GATEWAY: "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
   }), null);
+});
+
+test("closing new Alipay checkout preserves configuration for historical order processing", () => {
+  const environment = {
+    ...validTestAlipayEnvironment(),
+    NODE_ENV: "production",
+    VAULT2077_OPC_PAYMENTS_ENABLED: "false",
+  };
+
+  assert.equal(opcOrderingAvailable(environment), false);
+  assert.throws(
+    () => requireOpcAlipayConfiguration(environment),
+    /在线付款当前未开放/,
+  );
+  assert.equal(
+    requireOpcAlipayHistoryConfiguration(environment).sellerId,
+    validTestAlipayEnvironment().VAULT2077_ALIPAY_SELLER_ID,
+  );
 });
 
 test("OPC Alipay checkout uses the official page-pay link and server-owned amount", () => {

@@ -2183,6 +2183,11 @@
   padding: 26px;
 }
 
+.opc-agreement-modal__body:focus-visible {
+  outline: 2px solid var(--carbon);
+  outline-offset: -4px;
+}
+
 .opc-offline-payment__asset-error {
   display: flex;
   align-items: center;

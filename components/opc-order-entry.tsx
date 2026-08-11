@@ -357,7 +357,7 @@ export function OpcOrderEntry({
               </div>
               <button type="button" aria-label="关闭协议" data-agreement-initial-focus onClick={closeAgreement}>×</button>
             </header>
-            <div className="opc-agreement-modal__body">
+            <div className="opc-agreement-modal__body" role="region" tabIndex={0} aria-label="协议正文与 PDF 预览">
               <p id="opc-agreement-modal-description">请阅读当前服务订单和线下对公转账约定；下方同时提供完整 PDF 预览与下载。</p>
               {checkoutAgreement.sections.map((section) => <section key={section.title}>
                 <h4>{section.title}</h4>

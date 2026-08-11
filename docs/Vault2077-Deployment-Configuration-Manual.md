@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-10
+updated: 2026-08-11
 ---
 
 # Vault2077 部署配置手册
@@ -128,7 +128,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 | 变量/资源 | 说明 |
 | --- | --- |
 | `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` | 新线下付款公开入口开关；真实资料发布、银行到账核验和浏览器验收前保持 `false` |
-| `VAULT2077_OPC_PAYMENTS_ENABLED` | 线上支付宝开关；线下付款入口开放时必须保持 `false` |
+| `VAULT2077_OPC_PAYMENTS_ENABLED` | 新建线上支付宝付款开关；线下付款入口开放时必须保持 `false`，不影响既有支付宝订单验真、查询、关单和退款 |
 | `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED` | 旧纸质/支付宝入口开关；线下付款入口开放时必须保持 `false` |
 | `VAULT2077_OPC_RESUME_TOKEN_KEYS` / `VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID` | 线下订单同样使用独立可轮换恢复令牌密钥环 |
 | `/srv/vault2077/shared/opc-offline-payment/` | `payment-profile.json`、`service-agreement.pdf`、`contact-qr.png` 的受控替换暂存目录，不是运行时事实源 |
@@ -136,7 +136,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 企业账户、协议 PDF 和联系人二维码的生产事实源是 PostgreSQL 状态文档。现有公开头像 OSS 只允许 `rangers/*`，私有合同 OSS 只允许 `opc-contracts/*`，不得为付款资料扩大权限或混用 Bucket。替换与回滚按 [OPC 线下付款资料替换与启用手册](Vault2077-OPC-Offline-Payment-Operations-Manual.md) 执行。
 
-页面在转账前同页显示企业账户、协议查看/下载和无介绍的联系人二维码。付款资料修订不得静默覆盖，资产请求必须匹配当前 SHA-256。后台确认到账要求最近五分钟再认证，并提交订单固定金额、付款户名、唯一银行流水号、入账时间和预期版本；流水号在保存、判重和审计前统一规范化，付款户名加密，审计只保存流水指纹。尚未到账的银行订单可在同一再认证门禁下取消并进入 90 天清理。线下退款自动闭环未完成前不能通过支付宝接口或普通状态修改宣称已退款。
+页面在转账前同页显示企业账户、协议查看/下载和无介绍的联系人二维码。付款资料修订不得静默覆盖，资产请求必须匹配当前 SHA-256 并使用 `Cache-Control: no-store`；PDF 以内联响应供弹窗预览，同源下载入口显式下载。应用与 Nginx 仅在协议 PDF 精确路径把 `X-Frame-Options` 设为 `SAMEORIGIN`，其他路径继续为 `DENY`；生产验收必须确认本站弹窗可预览、跨站嵌入失败且不存在重复冲突的响应头。后台确认到账要求最近五分钟再认证，并提交订单固定金额、付款户名、唯一银行流水号、入账时间、预期版本及服务端强制的逐项核对确认；订单缺账户、银行、支行、账号、附言或 PDF/二维码摘要时拒绝。流水号在保存、判重和审计前统一规范化，付款户名加密，审计只保存流水指纹。尚未到账的银行订单可在同一再认证门禁下取消并进入 90 天清理。线下退款自动闭环未完成前不能通过支付宝接口或普通状态修改宣称已退款。
 
 ### OPC 纸质签约线上订单（既有订单兼容）
 
@@ -187,7 +187,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 | 变量 | 说明 |
 | --- | --- |
-| `VAULT2077_OPC_PAYMENTS_ENABLED` | `false` 时关闭真实付款写入口；支付、查询、全额退款和退款查询全部验收后才能改为 `true` |
+| `VAULT2077_OPC_PAYMENTS_ENABLED` | `false` 时仅关闭新支付宝付款请求；既有支付宝订单仍可使用下列保留配置完成通知验真、主动查询、关单和退款 |
 | `VAULT2077_ALIPAY_APP_ID` | 支付宝开放平台中已上线网页/移动应用的 APPID |
 | `VAULT2077_ALIPAY_SELLER_ID` | 收款商户 PID，用于异步通知中的商户身份二次核对 |
 | `VAULT2077_ALIPAY_PRIVATE_KEY` | 应用 RSA2 私钥；只进入服务器密钥管理，不得提交 Git、写日志或传到浏览器；环境变量可使用 PEM 原文或把换行写成 `\n` |
@@ -203,7 +203,7 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 2. 在应用中添加“电脑网站支付”和/或“手机网站支付”，按业务需要完成签约与应用上线。开发中应用不能调用生产能力。
 3. 在“开发设置 → 接口加签方式”选择 RSA2。推荐使用支付宝密钥工具生成应用密钥对：应用私钥只保存在服务器密钥管理；应用公钥上传开放平台；从开放平台复制对应的“支付宝公钥”用于验签。不要把应用公钥误填成支付宝公钥。
 4. 先用沙箱 APPID、沙箱网关和沙箱密钥完成联调。沙箱通知地址也必须从公网通过 HTTPS 访问，本地开发应使用受控测试域名或临时 HTTPS 隧道。
-5. 生产密钥通过部署平台 Secret、systemd `EnvironmentFile` 或等价密钥管理注入。接入前保持 `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false` 与 `VAULT2077_OPC_PAYMENTS_ENABLED=false`；`VAULT2077_OPC_ESIGN_ENABLED` 继续为 `false`。运行 `npm run deploy:check` 时，纸质订单只检查在线协议、支付/退款、持久化、加密与审计，不检查 e 签宝。
+5. 生产密钥通过部署平台 Secret、systemd `EnvironmentFile` 或等价密钥管理注入。接入前保持 `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false` 与 `VAULT2077_OPC_PAYMENTS_ENABLED=false`；`VAULT2077_OPC_ESIGN_ENABLED` 继续为 `false`。关闭新支付宝付款后不得删除既有 APPID、PID、应用私钥和支付宝公钥，否则历史订单将失去验真、查询、关单和退款能力。运行 `npm run deploy:check` 时，纸质订单只检查在线协议、支付/退款、持久化、加密与审计，不检查 e 签宝。
 6. 上线前完成一笔最小金额端到端交易：确认在线协议并创建“待付款”订单；跳转支付宝官方收银台；异步通知或主动查询把订单更新为“已付款待合同确认”；后台记录合同门禁通过后才进入可履约状态。
 7. 再完成一笔真实小额退款闭环：后台使用稳定退款请求号发起原交易全额退款；模拟超时后先查原请求，确认重复请求幂等、失败保持“退款处理中”、支付宝确认后才显示“已全额退款”。同时验证错误签名、APPID/PID 不匹配、订单号/金额不一致和通知乱序均不能错误推进状态。浏览器 `return_url` 只展示“核验中”，不得直接改订单状态。
 

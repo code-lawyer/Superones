@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { buildOpcOfflineCheckoutAgreement } from "@/lib/opc-offline-checkout-agreement";
 import { readPublishedOpcOfflinePaymentProfile } from "@/lib/opc-offline-payment-profile";
+import { readBoundedJsonBody } from "@/lib/bounded-json-body";
 import { createOpcOrder } from "@/lib/opc-orders/checkout";
 import { OpcOrderIdempotencyConflictError } from "@/lib/opc-orders/model";
 import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
@@ -39,16 +40,6 @@ function sameOriginRequest(request: NextRequest) {
   }
 }
 
-async function readBoundedJson(request: NextRequest) {
-  const raw = await request.text();
-  if (Buffer.byteLength(raw, "utf8") > maximumBodyBytes) throw new RangeError("订单内容超过大小限制。");
-  try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    throw new SyntaxError("订单内容不是有效 JSON。");
-  }
-}
-
 export async function POST(request: NextRequest) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maximumBodyBytes) {
@@ -69,7 +60,7 @@ export async function POST(request: NextRequest) {
     const profile = await readPublishedOpcOfflinePaymentProfile();
     if (!profile) return NextResponse.json({ error: "企业收款资料尚未发布。" }, { status: 503 });
 
-    const body = await readBoundedJson(request);
+    const body = await readBoundedJsonBody(request, maximumBodyBytes);
     const idempotencyKey = cleanText(body.idempotencyKey, 80);
     const serviceSlug = cleanText(body.serviceSlug, 80).toLowerCase();
     const expectedServiceRevision = cleanText(body.serviceRevision, 80);

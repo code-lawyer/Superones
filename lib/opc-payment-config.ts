@@ -184,14 +184,26 @@ export function opcOrderingAvailable(
   return enabled && readOpcAlipayConfiguration(environment) !== null;
 }
 
-export function requireOpcAlipayConfiguration() {
-  const enabled = process.env.NODE_ENV === "production"
-    ? process.env.VAULT2077_OPC_PAYMENTS_ENABLED === "true"
-    : process.env.VAULT2077_OPC_PAYMENTS_ENABLED !== "false";
+export function requireOpcAlipayHistoryConfiguration(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  const configuration = readOpcAlipayConfiguration(environment);
+  if (!configuration) {
+    throw new Error("支付宝历史订单处理配置不完整，当前不能验真、查询、关单或退款。");
+  }
+  return configuration;
+}
+
+export function requireOpcAlipayConfiguration(
+  environment: Record<string, string | undefined> = process.env,
+) {
+  const enabled = environment.NODE_ENV === "production"
+    ? environment.VAULT2077_OPC_PAYMENTS_ENABLED === "true"
+    : environment.VAULT2077_OPC_PAYMENTS_ENABLED !== "false";
   if (!enabled) {
     throw new Error("OPC 在线付款当前未开放。");
   }
-  const configuration = readOpcAlipayConfiguration();
+  const configuration = readOpcAlipayConfiguration(environment);
   if (!configuration) {
     throw new Error("支付宝开放平台尚未完成生产配置，当前不能创建支付订单。");
   }
@@ -269,7 +281,7 @@ export function createOpcAlipayPaymentUrl(
 
 export function verifyOpcAlipayNotification(
   notification: Record<string, string>,
-  configuration = requireOpcAlipayConfiguration(),
+  configuration = requireOpcAlipayHistoryConfiguration(),
 ): OpcAlipayNotification {
   const sdk = createAlipaySdk(configuration);
   if (!sdk.checkNotifySignV2(notification)) throw new Error("支付宝异步通知验签失败。");
@@ -300,7 +312,7 @@ export function verifyOpcAlipayNotification(
 
 export async function queryOpcAlipayTrade(
   reference: string,
-  configuration = requireOpcAlipayConfiguration(),
+  configuration = requireOpcAlipayHistoryConfiguration(),
 ): Promise<OpcAlipayQueryResult> {
   const sdk = createAlipaySdk(configuration);
   const result = await sdk.exec("alipay.trade.query", {
@@ -360,7 +372,7 @@ export async function queryOpcAlipayTrade(
 
 export async function closeOpcAlipayTrade(
   reference: string,
-  configuration = requireOpcAlipayConfiguration(),
+  configuration = requireOpcAlipayHistoryConfiguration(),
 ): Promise<OpcAlipayCloseResult> {
   if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(reference)) throw new Error("OPC 支付宝关单订单号无效。");
   const sdk = createAlipaySdk(configuration);
@@ -389,7 +401,7 @@ export async function closeOpcAlipayTrade(
 
 export async function requestOpcAlipayFullRefund(
   request: OpcAlipayRefundRequest,
-  configuration = requireOpcAlipayConfiguration(),
+  configuration = requireOpcAlipayHistoryConfiguration(),
 ): Promise<OpcAlipayRefundResult> {
   if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(request.reference)) throw new Error("OPC 退款订单号无效。");
   if (!/^\d{16,64}$/.test(request.tradeNo)) throw new Error("支付宝退款交易号无效。");
@@ -432,7 +444,7 @@ export async function requestOpcAlipayFullRefund(
 
 export async function queryOpcAlipayRefund(
   request: Pick<OpcAlipayRefundRequest, "reference" | "tradeNo" | "refundRequestNo" | "amount">,
-  configuration = requireOpcAlipayConfiguration(),
+  configuration = requireOpcAlipayHistoryConfiguration(),
 ): Promise<OpcAlipayRefundResult> {
   const sdk = createAlipaySdk(configuration);
   const result = await sdk.exec("alipay.trade.fastpay.refund.query", {

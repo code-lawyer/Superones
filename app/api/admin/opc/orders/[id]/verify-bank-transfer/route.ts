@@ -50,6 +50,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       await recordAuditEvent({ ...audit, result: "rejected", reason: "bank-evidence-required" });
       return authenticatedAdminResponse(access, NextResponse.json({ error: "请完整填写银行入账证据并刷新订单版本。" }, { status: 400 }));
     }
+    if (body.evidenceConfirmed !== true) {
+      await recordAuditEvent({ ...audit, result: "rejected", reason: "bank-evidence-confirmation-required" });
+      return authenticatedAdminResponse(access, NextResponse.json({ error: "请确认已逐项核对企业银行实际入账记录。" }, { status: 400 }));
+    }
     const normalizedTransactionId = normalizeOpcBankTransactionId(body.bankTransactionId);
     const transactionFingerprint = createHash("sha256").update(normalizedTransactionId).digest("hex").slice(0, 12);
     const order = await withPersistenceTransaction(async () => {

@@ -23,14 +23,13 @@ async function respond(
   ) {
     return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
-  const disposition = kind === "agreement" ? "attachment" : "inline";
   const asciiName = kind === "agreement" ? "OPC-service-agreement.pdf" : `OPC-contact-qr.${asset.mediaType.split("/")[1]}`;
   return new Response(includeBody ? new Uint8Array(asset.bytes) : null, {
     headers: {
       "Content-Type": asset.mediaType,
       "Content-Length": String(asset.bytes.length),
-      "Content-Disposition": `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`,
-      "Cache-Control": "public, max-age=300, must-revalidate",
+      "Content-Disposition": `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`,
+      "Cache-Control": "no-store",
       "ETag": `"${asset.sha256}"`,
       "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow, noarchive",

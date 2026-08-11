@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readBoundedTextBody } from "@/lib/bounded-json-body";
 import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
 import { verifyOpcAlipayNotification } from "@/lib/opc-payment-config";
 
@@ -35,10 +36,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const raw = await request.text();
-    if (Buffer.byteLength(raw, "utf8") > maximumNotificationBytes) {
-      return textResponse("failure", 413);
-    }
+    const raw = await readBoundedTextBody(request, maximumNotificationBytes, "支付宝通知超过大小限制。");
     const notification = verifyOpcAlipayNotification(parseNotification(raw));
     await lifecycle.applyPaymentEvidence({
       reference: notification.reference,
@@ -51,6 +49,7 @@ export async function POST(request: NextRequest) {
     });
     return textResponse("success");
   } catch (error) {
+    if (error instanceof RangeError) return textResponse("failure", 413);
     console.error("OPC Alipay notification rejected", error instanceof Error ? error.message : "unknown");
     return textResponse("failure", 400);
   }

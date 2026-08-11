@@ -661,6 +661,7 @@ export function AdminConsole() {
           bankTransactionId,
           payerName,
           paidAt,
+          evidenceConfirmed: true,
         }),
       });
       await jsonMessage(response);

@@ -13,7 +13,8 @@ test("OPC order endpoint enforces its public-write security boundary", async () 
   assert.match(route, /sec-fetch-site/);
   assert.match(route, /VAULT2077_PUBLIC_ORIGIN/);
   assert.match(route, /maximumBodyBytes = 24_576/);
-  assert.match(route, /Buffer\.byteLength\(raw, "utf8"\)/);
+  assert.match(route, /readBoundedJsonBody\(request, maximumBodyBytes\)/);
+  assert.doesNotMatch(route, /request\.text\(\)/);
   assert.match(route, /withinDurableRateLimit\(`opc-orders:\$\{clientHash\}`, 6/);
   assert.match(route, /website/);
   assert.match(route, /agreementAccepted/);
@@ -63,8 +64,20 @@ test("OPC offline page shows company account, agreement, and contact QR together
   assert.match(entry, /联系人二维码/);
   assert.match(entry, /线上付款 · 暂未开放/);
   assert.match(entry, /线下付款 · 对公转账/);
+  assert.match(entry, /className="opc-agreement-modal__body" role="region" tabIndex=\{0\} aria-label="协议正文与 PDF 预览"/);
   assert.match(entry, /paymentMethod: "offline_bank_transfer"/);
   assert.doesNotMatch(entry, /recipientName|deliveryPhone|addressLine|window\.location\.assign/);
+});
+
+test("the public edge permits only the agreement PDF to render in a same-origin frame", async () => {
+  const nginx = await readFile(path.join(root, "deploy", "nginx", "vault2077.conf.example"), "utf8");
+  const agreementLocation = nginx.slice(
+    nginx.indexOf("location = /api/opc/offline-payment/assets/agreement"),
+    nginx.indexOf("location / {"),
+  );
+  assert.match(agreementLocation, /proxy_hide_header X-Frame-Options/);
+  assert.match(agreementLocation, /add_header X-Frame-Options "SAMEORIGIN" always/);
+  assert.doesNotMatch(agreementLocation, /frame-ancestors \*/);
 });
 
 test("OPC Alipay notification verifies provider identity before marking an order paid", async () => {
@@ -150,6 +163,7 @@ test("OPC bank-transfer verification requires reauthentication, exact evidence, 
   assert.match(route, /withPersistenceTransaction/);
   assert.match(route, /recordAuditEvent/);
   assert.match(route, /bankTransactionId/);
+  assert.match(route, /body\.evidenceConfirmed !== true/);
   assert.match(route, /transactionFingerprint/);
   assert.doesNotMatch(route, /diff:\s*\{[\s\S]*?payerName/);
   assert.match(payment, /order\.payment\.provider !== "bank_transfer"/);
@@ -160,6 +174,7 @@ test("OPC bank-transfer verification requires reauthentication, exact evidence, 
   assert.match(bankVerificationUi, /银行流水号/);
   assert.match(bankVerificationUi, /付款户名/);
   assert.match(bankVerificationUi, /我已逐项核对企业银行实际入账记录/);
+  assert.match(bankVerificationBehavior, /evidenceConfirmed: true/);
   assert.match(bankVerificationUi, /className="admin-bank-verification"/);
   assert.doesNotMatch(bankVerificationBehavior, /window\.prompt/);
 });

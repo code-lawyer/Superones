@@ -3,11 +3,21 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import nextConfig from "../next.config.ts";
 
 const onePixelPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64",
 );
+
+test("only the agreement PDF may be embedded by the same public origin", async () => {
+  assert.ok(nextConfig.headers);
+  const rules = await nextConfig.headers();
+  const general = rules.find((rule) => rule.source === "/(.*)");
+  const agreement = rules.find((rule) => rule.source === "/api/opc/offline-payment/assets/agreement");
+  assert.equal(general?.headers.find((header) => header.key === "X-Frame-Options")?.value, "DENY");
+  assert.equal(agreement?.headers.find((header) => header.key === "X-Frame-Options")?.value, "SAMEORIGIN");
+});
 
 test("offline payment profile publishes one immutable account, agreement PDF, and contact QR snapshot", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-offline-payment-profile-"));
@@ -112,9 +122,9 @@ test("offline payment assets require the current immutable SHA-256 version", asy
 
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-type"), "application/pdf");
-    assert.equal(response.headers.get("cache-control"), "public, max-age=300, must-revalidate");
+    assert.equal(response.headers.get("cache-control"), "no-store");
     assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow, noarchive");
-    assert.match(response.headers.get("content-disposition") ?? "", /OPC/);
+    assert.match(response.headers.get("content-disposition") ?? "", /^inline;.*OPC/);
     assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0, 5).toString(), "%PDF-");
     assert.equal(headResponse.status, 200);
     assert.equal((await headResponse.arrayBuffer()).byteLength, 0);

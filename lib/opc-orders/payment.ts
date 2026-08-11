@@ -49,7 +49,16 @@ export async function verifyOpcBankTransfer(input: {
     if (store.orders.some((candidate) => candidate.id !== order.id && candidate.payment.tradeNo === transactionId)) {
       throw new Error("该银行流水号已绑定其他订单。");
     }
-    if (!order.payment.accountName || !order.payment.accountNumber || !order.payment.offlineProfileRevision) {
+    if (
+      !order.payment.offlineProfileRevision
+      || !order.payment.accountName
+      || !order.payment.bankName
+      || !order.payment.branchName
+      || !order.payment.accountNumber
+      || order.payment.transferMemo !== order.reference
+      || !/^[a-f0-9]{64}$/.test(order.payment.agreementSha256 ?? "")
+      || !/^[a-f0-9]{64}$/.test(order.payment.contactQrSha256 ?? "")
+    ) {
       throw new Error("订单缺少企业收款资料快照。");
     }
     const verifiedAt = new Date().toISOString();

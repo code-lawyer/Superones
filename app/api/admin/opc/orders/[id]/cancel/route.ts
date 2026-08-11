@@ -17,7 +17,7 @@ import {
   closeOpcAlipayTrade,
   OpcAlipayProviderError,
   queryOpcAlipayTrade,
-  requireOpcAlipayConfiguration,
+  requireOpcAlipayHistoryConfiguration,
 } from "@/lib/opc-payment-config";
 import { recordAuditEvent } from "@/lib/security-audit";
 import { withPersistenceTransaction } from "@/lib/state-document-store";
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       });
       return authenticatedAdminResponse(access, NextResponse.json({ order: updated }));
     }
-    const configuration = requireOpcAlipayConfiguration();
+    const configuration = requireOpcAlipayHistoryConfiguration();
     if (order.payment.appId !== configuration.appId || order.payment.sellerId !== configuration.sellerId) {
       await recordAuditEvent({ ...audit, result: "rejected", reason: "bound-alipay-configuration-mismatch" });
       return authenticatedAdminResponse(access, NextResponse.json({ error: "该订单绑定的支付宝应用或商户与当前配置不一致，不能使用当前凭证取消。" }, { status: 409 }));

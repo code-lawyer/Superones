@@ -1,7 +1,7 @@
 ---
 type: adr
 status: accepted
-updated: 2026-08-10
+updated: 2026-08-11
 supersedes: ADR-0019 for new public orders
 amends: ADR-0014
 ---
@@ -22,7 +22,7 @@ OPC 新公开订单把原“电子签约／纸质签约”选择改为“线上�
 
 企业账户、协议 PDF 和二维码作为一个版本化付款资料快照发布。生产事实源是 PostgreSQL `vault2077_state_documents` 中的 `opc-offline-payment-profile`，不得在请求时直接从 VPS 文件或现有 OSS Bucket 读取。VPS 固定目录 `/srv/vault2077/shared/opc-offline-payment/` 只作为受控替换暂存区；发布命令校验经营主体、账号、文件签名和大小后，把三个文件原子发布为同一修订。现有公开头像 Bucket 的 RAM 策略只允许 `rangers/*`，私有合同 Bucket 只允许 `opc-contracts/*`，本决策不扩大任一权限，也不把付款资料混入它们。
 
-修订号是付款资料内容的不可变身份：相同修订和相同内容可安全幂等重放，相同修订不得覆盖不同账户或资产。公开 PDF／二维码 URL 必须携带 SHA-256，资产路由只在该摘要与当前修订一致时返回内容；旧页面在资料更新后必须失败并提示刷新，不能把旧账户与新资产混合展示。
+修订号是付款资料内容的不可变身份：相同修订和相同内容可安全幂等重放，相同修订不得覆盖不同账户或资产。公开 PDF／二维码 URL 必须携带 SHA-256，资产路由只在该摘要与当前修订一致时返回内容并使用 `Cache-Control: no-store`；PDF 以内联响应支持协议弹窗预览，下载由同源链接显式触发。应用和公网边缘只对协议 PDF 的精确路径返回 `X-Frame-Options: SAMEORIGIN`，其他页面与二维码继续使用 `DENY`，不得放宽为跨站或通配嵌入。旧页面在资料更新后必须失败并提示刷新，不能把旧账户与新资产混合展示。
 
 订单保存不可变服务快照、固定人民币金额、在线协议正文/版本/SHA-256/确认时间、付款资料修订号、企业账户快照、PDF SHA-256、二维码 SHA-256、加密付款方与联系人，以及恢复凭证摘要。后续替换公开资料不改变历史订单。
 
@@ -52,7 +52,7 @@ awaiting_payment -> paid -> completed
 /srv/vault2077/shared/opc-offline-payment/contact-qr.png
 ```
 
-发布命令是 `npm run opc:publish-offline-payment-profile -- /srv/vault2077/shared/opc-offline-payment`。运行输出只包含修订号、发布时间和两个 SHA-256，不输出企业银行账号。替换时先完整覆盖暂存目录中的三个文件并使用新修订号，再运行发布命令；失败时旧修订继续服务。同一修订仅允许相同内容幂等重放，内容变化而修订号未升级时发布必须失败。公开入口只有在资料已发布且 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED=true` 时开放，同时必须保持 `VAULT2077_OPC_PAYMENTS_ENABLED=false` 与 `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false`。
+发布命令是 `npm run opc:publish-offline-payment-profile -- /srv/vault2077/shared/opc-offline-payment`。运行输出只包含修订号、发布时间和两个 SHA-256，不输出企业银行账号。替换时先完整覆盖暂存目录中的三个文件并使用新修订号，再运行发布命令；失败时旧修订继续服务。同一修订仅允许相同内容幂等重放，内容变化而修订号未升级时发布必须失败。公开入口只有在资料已发布且 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED=true` 时开放，同时必须保持 `VAULT2077_OPC_PAYMENTS_ENABLED=false` 与 `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false`。`VAULT2077_OPC_PAYMENTS_ENABLED` 只禁止创建新的支付宝付款请求；既有支付宝订单的通知验真、主动查询、关单和退款必须继续使用保留的生产配置。
 
 首版 PDF 是业务草案，上线前仍需负责人结合实际服务、退款、开票和法律意见复核。代码不得把草案描述为正式法律意见或已经签署的付款凭证。
 

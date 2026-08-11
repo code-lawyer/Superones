@@ -31,7 +31,15 @@ const nextConfig: NextConfig = {
       });
     }
 
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      {
+        // The checkout renders the immutable agreement PDF in a same-origin
+        // iframe. Keep every other application route non-embeddable.
+        source: "/api/opc/offline-payment/assets/agreement",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
+    ];
   },
 };
 

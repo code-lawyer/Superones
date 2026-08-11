@@ -62,7 +62,7 @@ test("paper order cancellation closes the bound Alipay trade before changing loc
     readFile(path.join(root, "lib", "opc-orders", "refund.ts"), "utf8"),
     readFile(path.join(root, "app", "admin", "admin-console.tsx"), "utf8"),
   ]);
-  assert.match(route, /requireOpcAlipayConfiguration/);
+  assert.match(route, /requireOpcAlipayHistoryConfiguration/);
   assert.match(route, /order\.payment\.appId !== configuration\.appId/);
   assert.match(route, /order\.payment\.sellerId !== configuration\.sellerId/);
   assert.match(route, /queryOpcAlipayTrade/);

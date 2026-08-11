@@ -175,19 +175,36 @@ test("offline bank-transfer checkout creates an online-agreement order without p
       payerName: "第二联系人",
       paidAt: duplicateStored.createdAt,
     }), /订单状态已经变化/);
-    const removeAccountSnapshot = (store: { orders: StoredOpcOrder[] }) => {
-      const target = store.orders.find((candidate) => candidate.id === duplicateStored.id)!;
-      target.payment.accountNumber = null;
-    };
-    await storeModule.mutateOpcOrderStore(removeAccountSnapshot);
-    await assert.rejects(() => payment.verifyOpcBankTransfer({
-      id: duplicateStored.id,
-      expectedUpdatedAt: duplicateStored.updatedAt,
-      amountDecimal: "1980.00",
-      bankTransactionId: "BANK-20260810-MISSING-SNAPSHOT",
-      payerName: "第二联系人",
-      paidAt: duplicateStored.createdAt,
-    }), /缺少企业收款资料快照/);
+    const requiredSnapshotFields = [
+      "offlineProfileRevision",
+      "accountName",
+      "bankName",
+      "branchName",
+      "accountNumber",
+      "transferMemo",
+      "agreementSha256",
+      "contactQrSha256",
+    ] as const;
+    for (const [index, field] of requiredSnapshotFields.entries()) {
+      let original: string | null = null;
+      await storeModule.mutateOpcOrderStore((store: { orders: StoredOpcOrder[] }) => {
+        const target = store.orders.find((candidate) => candidate.id === duplicateStored.id)!;
+        original = target.payment[field];
+        target.payment[field] = null;
+      });
+      await assert.rejects(() => payment.verifyOpcBankTransfer({
+        id: duplicateStored.id,
+        expectedUpdatedAt: duplicateStored.updatedAt,
+        amountDecimal: "1980.00",
+        bankTransactionId: `BANK-20260810-MISSING-${String(index).padStart(2, "0")}`,
+        payerName: "第二联系人",
+        paidAt: duplicateStored.createdAt,
+      }), /缺少企业收款资料快照/);
+      await storeModule.mutateOpcOrderStore((store: { orders: StoredOpcOrder[] }) => {
+        const target = store.orders.find((candidate) => candidate.id === duplicateStored.id)!;
+        target.payment[field] = original;
+      });
+    }
     const rejectedOrder = (await storeModule.readOpcOrderStore()).orders.find((candidate: { id: string }) => candidate.id === duplicateStored.id)!;
     assert.equal(rejectedOrder.status, "awaiting_payment");
     assert.equal(rejectedOrder.notifications.length, 0);

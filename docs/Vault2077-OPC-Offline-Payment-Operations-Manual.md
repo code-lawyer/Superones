@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-10
+updated: 2026-08-11
 ---
 
 # OPC 线下付款资料替换与启用手册
@@ -48,7 +48,7 @@ VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false
 VAULT2077_OPC_PAYMENT_EMAIL_ENABLED=true
 ```
 
-先发布付款资料，再部署包含线下付款代码的 release，运行 `npm run deploy:check`、数据库迁移、health 和后台验收。确认企业户名、账号、协议弹窗/下载、二维码、移动端布局和后台到账核验全部通过后，负责人明确 Go 才可把 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` 改为 `true` 并重启 Web。线上支付宝开关必须继续为 `false`。
+先发布付款资料，再部署包含线下付款代码的 release，运行 `npm run deploy:check`、数据库迁移、health 和后台验收。Nginx 必须使用随 release 提供的精确协议 PDF location，先通过 `nginx -t`，再确认该 PDF 只有一个 `X-Frame-Options: SAMEORIGIN`、弹窗可预览且跨站嵌入失败；二维码和其他页面仍须为 `DENY`。确认企业户名、账号、协议弹窗预览/下载、二维码、移动端布局和后台到账核验全部通过后，负责人明确 Go 才可把 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` 改为 `true` 并重启 Web。线上支付宝开关必须继续为 `false`；该开关只禁止新建支付宝付款，不得删除生产中既有的支付宝 APPID、PID、私钥和支付宝公钥，因为历史支付宝订单仍需验真、查询、关单和退款。
 
 ## 4. 到账核验
 
