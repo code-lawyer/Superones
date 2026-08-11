@@ -232,7 +232,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - GitHub：境内服务端只读 token；境外 workflow 使用自身 ephemeral token 和四个投递 Secrets。
 - 编辑模型：DeepSeek Vault profile 的 base URL/key/model；MiMo SiC profile 的 base URL/key/model；主备、额度、限速、并发和预算边界。当前基线是 `api.deepseek.com/v1` + `deepseek-v4-flash`，以及 `api.xiaomimimo.com/v1` + `mimo-v2.5`。
 - 支付宝：App ID、seller/PID、PKCS8 应用私钥、支付宝公钥、生产网关、异步通知配置、查询/退款权限，以及真实小额支付和全额退款授权。
-- 邮件：SMTP host/port/user/password/from；用户名与 From 必须一致且 From 属于 `superones.top` 或其子域，回复地址和负责人通知固定为 `lanzhouda@163.com`。推荐使用不改变根域飞书 MX 的阿里云邮件推送子域 `notify.superones.top`，正式启用前完成 SPF/DKIM/DMARC、用户/负责人四类真实投递和重试验收。
+- 邮件：SMTP host/port/user/password/from；用户名与 From 必须一致且 From 属于 `superones.top` 或其子域，回复地址和负责人通知固定为 `lanzhouda@163.com`。生产首发已选用飞书公共邮箱 `orders@superones.top` 与 `smtp.feishu.cn:465`，不迁移根域 MX；专用密码只进入 VPS root-only 环境。若后续需要独立投递声誉、退信治理或统计，再迁移到阿里云邮件推送子域 `notify.superones.top`。正式业务验收仍需覆盖用户/负责人四类真实投递和重试。
 - e 签宝：当前保持关闭；未来启用才需要 App ID/Secret、模板、印章、签署位置和回调配置。
 
 ### 8.6 必须由负责人提供或完成的业务数据
