@@ -384,6 +384,9 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(styles, /\.opc-ranger-shelf\.has-active\s+\.opc-ranger-shelf__item\s*\{[\s\S]*?transition-duration:\s*1250ms, 1250ms/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__panel\s*\{[\s\S]*?visibility:\s*visible[\s\S]*?transition-duration:\s*560ms, 0s[\s\S]*?transition-delay:\s*380ms, 0s/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__portrait\s+\.opc-ranger-portrait__image\s*\{[\s\S]*?transition-duration:\s*700ms, 1450ms/);
+  assert.match(styles, /\.opc-ranger-shelf__portrait::after\s*\{[\s\S]*?background:\s*linear-gradient\([\s\S]*?transparent 0%[\s\S]*?pointer-events:\s*none/);
+  assert.match(styles, /\.opc-ranger-shelf__portrait figcaption\s*\{[\s\S]*?padding:\s*0[\s\S]*?background:\s*transparent[\s\S]*?text-shadow:/);
+  assert.doesNotMatch(styles, /\.opc-ranger-shelf__portrait figcaption\s*\{[^}]*background:\s*color-mix/);
   assert.match(styles, /@media \(max-width:\s*620px\)[\s\S]*?\.opc-ranger-shelf__pager--next span\s*\{[\s\S]*?width:\s*2px[\s\S]*?height:\s*52px[\s\S]*?background:\s*currentColor/);
   assert.match(styles, /@media \(max-width:\s*1100px\)[\s\S]*?\.opc-service-browser__content--rangers\s*\{\s*padding:\s*0/);
   assert.match(styles, /@media \(max-width:\s*820px\)[\s\S]*?\.opc-service-browser__content--rangers\s*\{\s*padding:\s*0/);
