@@ -203,11 +203,13 @@ export function OpcWorkspace({
       </aside>
 
       <section
-        className="opc-service-browser__content"
+        className={view === "rangers"
+          ? "opc-service-browser__content opc-service-browser__content--rangers"
+          : "opc-service-browser__content"}
         aria-label={`${viewCopy[view].title}详情`}
       >
         {view === "rangers"
-          ? <RangerWall profiles={rangers} mediaOrigin={rangerMediaOrigin} />
+          ? <RangerShelf profiles={rangers} mediaOrigin={rangerMediaOrigin} />
           : selectedService
             ? <ServiceReadingPane
               service={selectedService}
@@ -428,39 +430,137 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
   </article>;
 }
 
-function RangerWall({ profiles, mediaOrigin }: { profiles: RangerProfile[]; mediaOrigin: string }) {
-  const representedIdentities = new Set(profiles.map((profile) => profile.identity));
-  const templateIdentities = rangerIdentities.filter((identity) => !representedIdentities.has(identity));
+type RangerShelfEntry = {
+  key: string;
+  identity: (typeof rangerIdentities)[number];
+  profile: RangerProfile | null;
+};
+
+const RANGER_SHELF_PAGE_SIZE = 6;
+
+function RangerShelf({ profiles, mediaOrigin }: { profiles: RangerProfile[]; mediaOrigin: string }) {
+  const entries = rangerIdentities.reduce<RangerShelfEntry[]>((result, identity) => {
+    const matchingProfiles = profiles.filter((profile) => profile.identity === identity);
+    if (matchingProfiles.length > 0) {
+      result.push(...matchingProfiles.map((profile) => ({ key: `profile-${profile.slug}`, identity, profile })));
+    } else {
+      result.push({ key: `template-${identity}`, identity, profile: null });
+    }
+    return result;
+  }, []);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+  const previousPagerRef = useRef<HTMLButtonElement>(null);
+  const nextPagerRef = useRef<HTMLButtonElement>(null);
+  const pendingPagerFocusRef = useRef<"previous" | "next" | null>(null);
+  const pageCount = Math.max(1, Math.ceil(entries.length / RANGER_SHELF_PAGE_SIZE));
+  const pageStart = pageIndex * RANGER_SHELF_PAGE_SIZE;
+  const visibleEntries = entries.slice(pageStart, pageStart + RANGER_SHELF_PAGE_SIZE);
+  const fillerCount = Math.max(0, RANGER_SHELF_PAGE_SIZE - visibleEntries.length);
+  const canPageBackward = pageIndex > 0;
+  const canPageForward = pageIndex < pageCount - 1;
+
+  useEffect(() => {
+    const preferredDirection = pendingPagerFocusRef.current;
+    if (!preferredDirection) return;
+
+    const preferredPager = preferredDirection === "next" ? nextPagerRef.current : previousPagerRef.current;
+    const fallbackPager = preferredDirection === "next" ? previousPagerRef.current : nextPagerRef.current;
+    (preferredPager ?? fallbackPager)?.focus();
+    pendingPagerFocusRef.current = null;
+  }, [pageIndex]);
+
+  const turnPage = (nextPage: number) => {
+    pendingPagerFocusRef.current = nextPage > pageIndex ? "next" : "previous";
+    setActiveKey(null);
+    setPageIndex(nextPage);
+  };
+
   return <section className="opc-ranger-wall">
-    <header>
-      <p className="mono">RANGER ASSOCIATION / PORTRAIT WALL</p>
-      <h2>{profiles.length > 0 ? "找到具体的人。" : "顾问档案模板。"}</h2>
-      <p>{profiles.length > 0
-        ? "按身份浏览外部独立专家。没有真实档案的身份继续保留模板位置，待本人授权资料发布后替换。"
-        : "按十类顾问身份保留版式位置。模板不代表真实顾问，不包含姓名或联系方式；本人授权档案发布后将替换对应位置。"}</p>
+    <header className="opc-ranger-wall__intro">
+      <h2>有些问题，不必一个人扛。</h2>
+      <p>认识能与你并肩解决问题的独立顾问。找到合适的人，直接开始对话。</p>
+      <small>游骑兵是外部独立顾问，合作由你们直接约定。</small>
     </header>
-    <div className="opc-ranger-wall__portraits">
-      {profiles.map((profile, index) => <Link className={`opc-ranger-portrait opc-ranger-portrait--${index}`} href={`/opc/rangers/${profile.slug}`} aria-label={`查看 ${profile.publicName} 的专家档案`} key={profile.slug}>
-        <RangerPortraitImage profile={profile} mediaOrigin={mediaOrigin} />
-        <span className="opc-ranger-portrait__copy"><strong>{profile.publicName}</strong><small>{profile.identity}</small></span>
-      </Link>)}
-      {templateIdentities.map((identity, index) => <article
-        className={`opc-ranger-portrait opc-ranger-portrait--placeholder opc-ranger-portrait--${(profiles.length + index) % rangerIdentities.length}`}
-        aria-label={`${identity}档案模板，等待本人授权资料`}
-        key={identity}
+    <div className={`opc-ranger-shelf-stage${canPageBackward && canPageForward ? " has-bidirectional-pagers" : ""}`}>
+      <div
+        className={activeKey ? "opc-ranger-shelf has-active" : "opc-ranger-shelf"}
+        role="list"
+        aria-label={`游骑兵姓名书架，第 ${pageIndex + 1} 页，共 ${pageCount} 页`}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "mouse") setActiveKey(null);
+        }}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setActiveKey(null);
+        }}
       >
-        <span className="opc-ranger-portrait__image" aria-hidden="true" />
-        <span className="opc-ranger-portrait__copy"><strong>档案待补充</strong><small>{identity}</small></span>
-      </article>)}
+        {visibleEntries.map((entry, index) => {
+          const entryIndex = pageStart + index;
+          const active = entry.key === activeKey;
+          const profile = entry.profile;
+          const publicName = profile?.publicName ?? "待公开";
+          const panelId = `opc-ranger-shelf-panel-${entryIndex}`;
+          return <article
+            className={`opc-ranger-shelf__item${active ? " is-active" : ""}${profile ? "" : " is-template"}`}
+            role="listitem"
+            key={entry.key}
+          >
+            <button
+              className="opc-ranger-shelf__spine"
+              type="button"
+              aria-expanded={active}
+              aria-controls={panelId}
+              aria-label={`查看${publicName}`}
+              onClick={() => setActiveKey(entry.key)}
+              onFocus={() => setActiveKey(entry.key)}
+              onPointerEnter={() => setActiveKey(entry.key)}
+            >
+              <strong>{publicName}</strong>
+            </button>
+            <div
+              className="opc-ranger-shelf__panel"
+              id={panelId}
+              aria-hidden={!active}
+            >
+              <figure className={`opc-ranger-shelf__portrait opc-ranger-portrait--${entryIndex % rangerIdentities.length}`}>
+                {profile
+                  ? <RangerPortraitImage profile={profile} mediaOrigin={mediaOrigin} />
+                  : <span className="opc-ranger-portrait__image" aria-hidden="true" />}
+                <figcaption>
+                  <span>{entry.identity}</span>
+                  <strong>{publicName}</strong>
+                </figcaption>
+              </figure>
+            </div>
+          </article>;
+        })}
+        {Array.from({ length: fillerCount }, (_, index) => (
+          <span className="opc-ranger-shelf__filler" aria-hidden="true" key={`filler-${index}`} />
+        ))}
+      </div>
+      {canPageBackward ? <button
+        ref={previousPagerRef}
+        className="opc-ranger-shelf__pager opc-ranger-shelf__pager--previous"
+        type="button"
+        aria-label="查看上一页顾问"
+        onClick={() => turnPage(pageIndex - 1)}
+      ><span aria-hidden="true" /></button> : null}
+      {canPageForward ? <button
+        ref={nextPagerRef}
+        className="opc-ranger-shelf__pager opc-ranger-shelf__pager--next"
+        type="button"
+        aria-label="查看更多顾问"
+        onClick={() => turnPage(pageIndex + 1)}
+      ><span aria-hidden="true" /></button> : null}
     </div>
   </section>;
 }
 
 function RangerPortraitImage({ profile, mediaOrigin }: { profile: RangerProfile; mediaOrigin: string }) {
   const source = profile.avatar
-    ? rangerAvatarPublicUrl(profile.avatar, "small", mediaOrigin)
+    ? rangerAvatarPublicUrl(profile.avatar, "large", mediaOrigin)
     : legacyRangerAvatarPublicUrl(profile.avatarUrl);
   return source
-    ? <Image className="opc-ranger-portrait__image opc-ranger-portrait__image--custom" src={source} width={320} height={320} loading="lazy" decoding="async" unoptimized alt="" />
+    ? <Image className="opc-ranger-portrait__image opc-ranger-portrait__image--custom" src={source} width={800} height={800} loading="lazy" decoding="async" unoptimized alt="" />
     : <span className="opc-ranger-portrait__image" aria-hidden="true" />;
 }

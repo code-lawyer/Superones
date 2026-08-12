@@ -336,7 +336,7 @@ test("OPC metadata contrast and shared touch targets stay accessible", async () 
   assert.match(styles, /\.footer-brand,\s*\n\.footer-nav a\s*\{[\s\S]*?min-height:\s*44px/);
 });
 
-test("OPC ranger portraits use compact modern formats with a PNG fallback", async () => {
+test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async () => {
   const styles = await readOpcStyles();
   const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
   const avif = await stat(path.join(root, "public", "opc", "ranger-portraits-v1.avif"));
@@ -346,11 +346,48 @@ test("OPC ranger portraits use compact modern formats with a PNG fallback", asyn
   assert.ok(avif.size < 100_000);
   assert.ok(webp.size < 100_000);
   assert.doesNotMatch(styles, /transition:[^;]*(?:padding-left|padding-bottom)/);
-  assert.match(workspace, /opc-ranger-portrait__copy/);
-  assert.match(workspace, /templateIdentities\.map/);
-  assert.match(workspace, /<strong>档案待补充<\/strong><small>\{identity\}<\/small>/);
-  assert.match(workspace, /模板不代表真实顾问，不包含姓名或联系方式/);
-  assert.match(styles, /\.opc-ranger-portrait--placeholder \.opc-ranger-portrait__image::after/);
+  assert.match(workspace, /opc-ranger-shelf/);
+  assert.match(workspace, /function RangerShelf/);
+  assert.doesNotMatch(workspace, /function RangerWall/);
+  assert.match(workspace, /const RANGER_SHELF_PAGE_SIZE = 6/);
+  assert.match(workspace, /visibleEntries = entries\.slice\(pageStart, pageStart \+ RANGER_SHELF_PAGE_SIZE\)/);
+  assert.match(workspace, /aria-label="查看更多顾问"/);
+  assert.match(workspace, /turnPage\(pageIndex \+ 1\)/);
+  assert.match(workspace, /pendingPagerFocusRef/);
+  assert.match(workspace, /\(preferredPager \?\? fallbackPager\)\?\.focus\(\)/);
+  assert.match(workspace, /ref=\{previousPagerRef\}/);
+  assert.match(workspace, /ref=\{nextPagerRef\}/);
+  assert.match(workspace, /canPageBackward && canPageForward \? " has-bidirectional-pagers"/);
+  assert.match(workspace, /<header className="opc-ranger-wall__intro">[\s\S]*?<div className=\{`opc-ranger-shelf-stage/);
+  assert.match(workspace, /<h2>有些问题，不必一个人扛。<\/h2>/);
+  assert.doesNotMatch(workspace, /下一位并肩的人|正在邀请|名单公开后|把鼠标移到名字上/);
+  assert.match(workspace, /onPointerEnter=\{\(\) => setActiveKey\(entry\.key\)\}/);
+  assert.match(workspace, /onPointerLeave=\{\(event\) => \{[\s\S]*?event\.pointerType === "mouse"[\s\S]*?setActiveKey\(null\)/);
+  assert.match(workspace, /aria-expanded=\{active\}/);
+  assert.match(workspace, /const publicName = profile\?\.publicName \?\? "待公开"/);
+  assert.match(workspace, /<strong>\{publicName\}<\/strong>/);
+  assert.doesNotMatch(workspace, /profile\.intro|profile\.tags\.slice\(0, 3\)/);
+  assert.match(workspace, /<span>\{entry\.identity\}<\/span>\s*<strong>\{publicName\}<\/strong>/);
+  assert.match(styles, /\.opc-service-browser__content--rangers\s*\{[\s\S]*?display:\s*flex[\s\S]*?padding:\s*0/);
+  assert.match(styles, /\.opc-ranger-wall\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex:\s*1[\s\S]*?flex-direction:\s*column/);
+  assert.match(styles, /\.opc-ranger-wall__intro\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--carbon\)/);
+  assert.match(styles, /\.opc-ranger-shelf-stage\s*\{[\s\S]*?display:\s*flex[\s\S]*?min-height:\s*clamp\(430px, 52dvh, 570px\)[\s\S]*?flex:\s*1/);
+  assert.match(styles, /\.opc-ranger-shelf\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex:\s*1[\s\S]*?border-bottom:\s*1px solid var\(--carbon\)/);
+  assert.match(styles, /\.opc-ranger-shelf__spine\s*\{[\s\S]*?justify-content:\s*center[\s\S]*?writing-mode:\s*vertical-rl/);
+  assert.match(styles, /\.opc-ranger-shelf__pager\s*\{[\s\S]*?border:\s*0[\s\S]*?background:\s*transparent/);
+  assert.match(styles, /\.opc-ranger-shelf__pager--next\s*\{[\s\S]*?right:\s*calc\(-1 \* min\(48px, calc\(var\(--gutter\) - 8px\)\)\)/);
+  assert.match(styles, /\.opc-ranger-shelf__pager--previous\s*\{[\s\S]*?right:\s*calc\(-1 \* min\(48px, calc\(var\(--gutter\) - 8px\)\)\)/);
+  const previousPagerRule = styles.match(/\.opc-ranger-shelf__pager--previous\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.doesNotMatch(previousPagerRule, /left:/);
+  assert.match(styles, /\.opc-ranger-shelf-stage\.has-bidirectional-pagers[\s\S]*?pager--previous[\s\S]*?top:\s*calc\(50% - 28px\)[\s\S]*?pager--next[\s\S]*?top:\s*calc\(50% \+ 28px\)/);
+  assert.match(styles, /\.opc-ranger-shelf__pager--next span\s*\{[\s\S]*?animation:\s*opc-ranger-next-cue/);
+  assert.match(styles, /\.opc-ranger-shelf__pager--previous span\s*\{[\s\S]*?animation:\s*opc-ranger-previous-cue/);
+  assert.match(styles, /@keyframes opc-ranger-previous-cue/);
+  assert.match(styles, /\.opc-ranger-shelf\.has-active\s+\.opc-ranger-shelf__item\s*\{[\s\S]*?transition-duration:\s*1250ms, 1250ms/);
+  assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__panel\s*\{[\s\S]*?visibility:\s*visible[\s\S]*?transition-duration:\s*560ms, 0s[\s\S]*?transition-delay:\s*380ms, 0s/);
+  assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__portrait\s+\.opc-ranger-portrait__image\s*\{[\s\S]*?transition-duration:\s*700ms, 1450ms/);
+  assert.match(styles, /@media \(max-width:\s*620px\)[\s\S]*?\.opc-ranger-shelf__pager--next span\s*\{[\s\S]*?width:\s*2px[\s\S]*?height:\s*52px[\s\S]*?background:\s*currentColor/);
+  assert.doesNotMatch(styles, /@container opc-reading[\s\S]*?\.opc-ranger-shelf__spine[\s\S]*?writing-mode:\s*horizontal-tb/);
 });
 
 test("OPC ranger profiles use the public dossier composition at every breakpoint", async () => {

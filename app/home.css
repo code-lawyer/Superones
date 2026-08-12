@@ -94,36 +94,36 @@
   display: inline-block;
 }
 
-.home-brand__vault .home-brand__char:nth-child(1) { --brand-delay: 70ms; }
-.home-brand__vault .home-brand__char:nth-child(2) { --brand-delay: 120ms; }
-.home-brand__vault .home-brand__char:nth-child(3) { --brand-delay: 170ms; }
-.home-brand__vault .home-brand__char:nth-child(4) { --brand-delay: 220ms; }
-.home-brand__vault .home-brand__char:nth-child(5) { --brand-delay: 270ms; }
-.home-brand__issue .home-brand__char:nth-child(1) { --brand-delay: 320ms; --issue-delay: 805ms; }
-.home-brand__issue .home-brand__char:nth-child(2) { --brand-delay: 370ms; --issue-delay: 870ms; }
-.home-brand__issue .home-brand__char:nth-child(3) { --brand-delay: 420ms; --issue-delay: 935ms; }
-.home-brand__issue .home-brand__char:nth-child(4) { --brand-delay: 470ms; --issue-delay: 1000ms; }
+.home-brand__vault .home-brand__char:nth-child(1) { --brand-delay: 100ms; }
+.home-brand__vault .home-brand__char:nth-child(2) { --brand-delay: 220ms; }
+.home-brand__vault .home-brand__char:nth-child(3) { --brand-delay: 340ms; }
+.home-brand__vault .home-brand__char:nth-child(4) { --brand-delay: 460ms; }
+.home-brand__vault .home-brand__char:nth-child(5) { --brand-delay: 580ms; }
+.home-brand__issue .home-brand__char:nth-child(1) { --brand-delay: 760ms; --issue-delay: 1680ms; }
+.home-brand__issue .home-brand__char:nth-child(2) { --brand-delay: 900ms; --issue-delay: 1850ms; }
+.home-brand__issue .home-brand__char:nth-child(3) { --brand-delay: 1040ms; --issue-delay: 2020ms; }
+.home-brand__issue .home-brand__char:nth-child(4) { --brand-delay: 1180ms; --issue-delay: 2190ms; }
 
 html[data-home-brand-intro="play"] .home-brand__char {
   opacity: 0;
   clip-path: inset(0 100% 0 0);
-  animation: home-brand-register 42ms cubic-bezier(.16, 1, .3, 1) var(--brand-delay) forwards;
+  animation: home-brand-register 220ms cubic-bezier(.16, 1, .3, 1) var(--brand-delay) forwards;
 }
 
 html[data-home-brand-intro="play"] .home-brand__issue {
   color: var(--carbon);
-  animation: home-brand-verify 150ms linear 600ms both;
+  animation: home-brand-verify 240ms steps(2, end) 1420ms both;
 }
 
 html[data-home-brand-intro="play"] .home-brand__issue .home-brand__char {
   animation:
-    home-brand-register 42ms cubic-bezier(.16, 1, .3, 1) var(--brand-delay) forwards,
+    home-brand-register 220ms cubic-bezier(.16, 1, .3, 1) var(--brand-delay) forwards,
     home-brand-issue-color 1ms steps(1, end) var(--issue-delay) forwards;
 }
 
 html[data-home-brand-intro="play"] .home-brand__issue::before {
   transform: scaleX(0);
-  animation: home-brand-issue 260ms cubic-bezier(.16, 1, .3, 1) 760ms forwards;
+  animation: home-brand-issue 720ms cubic-bezier(.16, 1, .3, 1) 1540ms forwards;
 }
 
 .home-refined-hero__reveal {

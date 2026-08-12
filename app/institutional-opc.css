@@ -282,6 +282,12 @@
   background: var(--paper);
 }
 
+.opc-service-browser__content--rangers {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+}
+
 .opc-reading-empty {
   display: grid;
   min-height: 660px;
@@ -326,61 +332,12 @@
 }
 
 .opc-ranger-wall {
-  max-width: 1180px;
-}
-
-.opc-ranger-wall > header {
-  margin-bottom: clamp(54px, 7vw, 104px);
-  margin-bottom: clamp(62px, 7vw, 92px);
-}
-
-.opc-ranger-wall > header > .mono {
-  margin-bottom: 36px;
-  color: var(--ash);
-  font-size: var(--type-label);
-  margin-bottom: 28px;
-}
-
-.opc-ranger-wall > header h2 {
-  margin-bottom: 20px;
-  font-size: clamp(58px, 7.5vw, 112px);
-  line-height: .98;
-  max-width: 760px;
-  font-size: clamp(54px, 6vw, 88px);
-}
-
-.opc-ranger-wall > header > p:last-child {
-  max-width: 640px;
-  margin-bottom: 0;
-  color: var(--graphite);
-  font-size: var(--type-body);
-}
-
-.opc-ranger-wall__portraits {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(28px, 3vw, 48px);
-  align-items: end;
-  gap: clamp(30px, 3.5vw, 54px) clamp(18px, 2.5vw, 38px);
-}
-
-.opc-ranger-portrait {
-  position: relative;
-  display: grid;
-  gap: 15px;
-  min-width: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--carbon);
-  text-align: left;
-  text-decoration: none;
-  transform: translateY(0) scale(1);
-  transform-origin: center bottom;
-  transition: transform 420ms cubic-bezier(.22, .78, .18, 1);
-  gap: 13px;
-  transition-duration: 380ms;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  max-width: none;
+  flex: 1;
+  flex-direction: column;
 }
 
 .opc-ranger-portrait__image {
@@ -417,36 +374,283 @@
 .opc-ranger-portrait--8 .opc-ranger-portrait__image { background-position: 75% 100%; }
 .opc-ranger-portrait--9 .opc-ranger-portrait__image { background-position: 100% 100%; }
 
-.opc-ranger-portrait:hover .opc-ranger-portrait__image,
-.opc-ranger-portrait:focus-visible .opc-ranger-portrait__image {
-  filter: grayscale(.15) contrast(1.02);
+.opc-ranger-shelf-stage {
+  position: relative;
+  display: flex;
+  min-height: clamp(430px, 52dvh, 570px);
+  flex: 1;
 }
 
-.opc-ranger-portrait:hover,
-.opc-ranger-portrait:focus-visible {
-  z-index: 2;
-  transform: translateY(-18px) scale(1.055);
-  transform: translateY(-14px) scale(1.04);
+.opc-ranger-shelf {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border-bottom: 1px solid var(--carbon);
+  background: var(--carbon);
 }
 
-.opc-ranger-portrait:focus-visible {
-  outline: 2px solid var(--carbon);
-  outline-offset: 6px;
-}
-
-.opc-ranger-portrait__copy {
+.opc-ranger-shelf__item,
+.opc-ranger-shelf__filler {
   display: grid;
-  gap: 3px;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 0;
+  border-right: 1px solid var(--rule);
+  background: var(--paper);
 }
 
-.opc-ranger-portrait__copy strong {
+.opc-ranger-shelf__item {
+  grid-template-columns: minmax(0, 1fr) 0;
+  transition:
+    flex-grow 560ms cubic-bezier(.16, 1, .3, 1),
+    grid-template-columns 560ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.opc-ranger-shelf.has-active .opc-ranger-shelf__item {
+  transition-duration: 1250ms, 1250ms;
+}
+
+.opc-ranger-shelf > :last-child {
+  border-right: 0;
+}
+
+.opc-ranger-shelf.has-active .opc-ranger-shelf__item:not(.is-active),
+.opc-ranger-shelf.has-active .opc-ranger-shelf__filler {
+  flex-grow: .62;
+}
+
+.opc-ranger-shelf__item.is-active {
+  grid-template-columns: 40px minmax(0, 1fr);
+  flex-grow: 8;
+}
+
+.opc-ranger-shelf__spine {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  padding: 24px 10px;
+  background: transparent;
+  color: var(--carbon);
+  cursor: pointer;
+  text-align: center;
+  writing-mode: vertical-rl;
+  transition:
+    width 560ms cubic-bezier(.16, 1, .3, 1),
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.opc-ranger-shelf__item.is-active .opc-ranger-shelf__spine {
+  width: 40px;
+  background: var(--carbon);
+  color: var(--paper-bright);
+  transition-duration: 1250ms, 180ms, 180ms;
+}
+
+.opc-ranger-shelf__spine strong {
+  overflow: hidden;
+  max-height: 100%;
+  font-size: clamp(12px, 1.15vw, 16px);
+  font-weight: 650;
+  letter-spacing: .12em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opc-ranger-shelf__spine:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 2px solid var(--carbon);
+  outline-offset: -4px;
+}
+
+.opc-ranger-shelf__item.is-active .opc-ranger-shelf__spine:focus-visible {
+  outline-color: var(--paper-bright);
+}
+
+.opc-ranger-shelf__panel {
+  overflow: hidden;
+  min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 240ms ease 0ms,
+    visibility 0s linear 540ms;
+}
+
+.opc-ranger-shelf__item.is-active .opc-ranger-shelf__panel {
+  opacity: 1;
+  visibility: visible;
+  transition-duration: 560ms, 0s;
+  transition-delay: 380ms, 0s;
+}
+
+.opc-ranger-shelf__portrait {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  background: var(--paper-bright);
+}
+
+.opc-ranger-shelf__portrait .opc-ranger-portrait__image {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
+  object-position: center 32%;
+  transition: filter 320ms ease, transform 620ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.opc-ranger-shelf__item.is-active .opc-ranger-shelf__portrait .opc-ranger-portrait__image {
+  filter: grayscale(.08) contrast(1.03);
+  transform: scale(1.012);
+  transition-duration: 700ms, 1450ms;
+}
+
+.opc-ranger-shelf__portrait figcaption {
+  position: absolute;
+  bottom: clamp(24px, 4vw, 58px);
+  left: clamp(24px, 4vw, 58px);
+  display: grid;
+  gap: 6px;
+  min-width: min(260px, 68%);
+  padding: 18px 20px 20px;
+  background: color-mix(in srgb, var(--carbon) 90%, transparent);
+  color: var(--paper-bright);
+  line-height: 1.15;
+}
+
+.opc-ranger-shelf__portrait figcaption span {
   font-size: var(--type-note);
+  font-weight: 500;
+}
+
+.opc-ranger-shelf__portrait figcaption strong {
+  font-family: var(--font-serif);
+  font-size: clamp(30px, 4vw, 58px);
   font-weight: 600;
 }
 
-.opc-ranger-portrait__copy small {
+.opc-ranger-shelf__item.is-template .opc-ranger-shelf__portrait .opc-ranger-portrait__image {
+  opacity: .34;
+  filter: grayscale(1) contrast(.78);
+}
+
+.opc-ranger-wall__intro {
+  border-bottom: 1px solid var(--carbon);
+  padding: clamp(44px, 5vw, 72px) clamp(34px, 6vw, 96px) clamp(38px, 4vw, 58px);
+}
+
+.opc-ranger-wall__intro h2 {
+  max-width: 840px;
+  margin-bottom: 24px;
+  font-size: clamp(46px, 5.8vw, 86px);
+  line-height: 1.02;
+}
+
+.opc-ranger-wall__intro p {
+  max-width: 600px;
+  margin-bottom: 30px;
+  color: var(--graphite);
+  font-size: var(--type-body);
+  line-height: 1.8;
+}
+
+.opc-ranger-wall__intro small {
   color: var(--ash);
-  font-size: var(--type-micro);
+  font-size: var(--type-note);
+}
+
+.opc-ranger-shelf__pager {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--carbon);
+  transform: translateY(-50%);
+}
+
+.opc-ranger-shelf__pager:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.opc-ranger-shelf__pager--previous {
+  right: calc(-1 * min(48px, calc(var(--gutter) - 8px)));
+}
+
+.opc-ranger-shelf__pager--next {
+  right: calc(-1 * min(48px, calc(var(--gutter) - 8px)));
+}
+
+.opc-ranger-shelf-stage.has-bidirectional-pagers .opc-ranger-shelf__pager--previous {
+  top: calc(50% - 28px);
+}
+
+.opc-ranger-shelf-stage.has-bidirectional-pagers .opc-ranger-shelf__pager--next {
+  top: calc(50% + 28px);
+}
+
+.opc-ranger-shelf__pager span {
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  transition: opacity 160ms ease;
+}
+
+.opc-ranger-shelf__pager--previous span {
+  border-right: 10px solid currentColor;
+  animation: opc-ranger-previous-cue 1.45s ease-in-out infinite;
+}
+
+.opc-ranger-shelf__pager--next span {
+  border-left: 10px solid currentColor;
+  animation: opc-ranger-next-cue 1.45s ease-in-out infinite;
+}
+
+.opc-ranger-shelf__pager:hover span {
+  opacity: 1;
+}
+
+@keyframes opc-ranger-next-cue {
+  0%, 100% {
+    opacity: .35;
+    transform: translateX(-2px);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(5px);
+  }
+}
+
+@keyframes opc-ranger-previous-cue {
+  0%, 100% {
+    opacity: .35;
+    transform: translateX(2px);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(-5px);
+  }
 }
 
 .opc-ranger-dossier {
@@ -921,10 +1125,6 @@
     grid-template-columns: 1fr;
   }
 
-  .opc-ranger-wall__portraits {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
 }
 
 @media (max-width: 820px) {
@@ -1133,20 +1333,97 @@
     padding-left: 0;
   }
 
-  .opc-ranger-wall__portraits {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 48px 22px;
+  .opc-ranger-shelf-stage {
+    min-height: clamp(390px, 58dvh, 500px);
   }
 
+  .opc-ranger-shelf__item.is-active {
+    grid-template-columns: 30px minmax(0, 1fr);
+    flex-grow: 10;
+  }
+
+  .opc-ranger-shelf__item.is-active .opc-ranger-shelf__spine {
+    width: 30px;
+  }
+
+  .opc-ranger-shelf__spine {
+    padding: 18px 6px;
+  }
+
+  .opc-ranger-shelf__spine strong {
+    font-size: 11px;
+    letter-spacing: .06em;
+  }
+
+  .opc-ranger-shelf__portrait figcaption {
+    right: 18px;
+    bottom: 18px;
+    left: 18px;
+    min-width: 0;
+    padding: 14px 16px 16px;
+  }
+
+  .opc-ranger-shelf__portrait figcaption strong {
+    font-size: clamp(30px, 10vw, 44px);
+  }
+
+  .opc-ranger-wall__intro {
+    padding: 38px var(--gutter) 32px;
+  }
+
+  .opc-ranger-wall__intro h2 {
+    font-size: clamp(40px, 12vw, 58px);
+  }
+
+  .opc-ranger-shelf__pager {
+    width: 36px;
+    height: 44px;
+  }
+
+  .opc-ranger-shelf__pager--previous {
+    right: 0;
+  }
+
+  .opc-ranger-shelf__pager--next {
+    right: 0;
+  }
+
+  .opc-ranger-shelf__pager--previous span,
+  .opc-ranger-shelf__pager--next span {
+    width: 2px;
+    height: 52px;
+    border: 0;
+    background: currentColor;
+  }
+
+  .opc-ranger-shelf__pager--previous span,
+  .opc-ranger-shelf__pager--next span {
+    animation-name: opc-ranger-rail-cue;
+    transform: translateX(17px);
+  }
+
+}
+
+@keyframes opc-ranger-rail-cue {
+  0%, 100% {
+    opacity: .32;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .opc-accordion__drawer,
   .opc-accordion__drawer > div,
-  .opc-ranger-portrait,
-  .opc-ranger-portrait__image {
+  .opc-ranger-shelf__item,
+  .opc-ranger-shelf__spine,
+  .opc-ranger-shelf__panel,
+  .opc-ranger-shelf__portrait .opc-ranger-portrait__image,
+  .opc-ranger-shelf__pager span {
     animation: none !important;
-    transition: none;
+    transition: none !important;
   }
 }
 
@@ -3208,33 +3485,6 @@
   font-size: var(--type-micro);
 }
 
-.opc-ranger-portrait--placeholder {
-  cursor: default;
-}
-
-.opc-ranger-portrait--placeholder:hover,
-.opc-ranger-portrait--placeholder:focus-within {
-  transform: none;
-}
-
-.opc-ranger-portrait--placeholder .opc-ranger-portrait__image {
-  opacity: .38;
-  filter: grayscale(1) contrast(.78);
-}
-
-.opc-ranger-portrait--placeholder .opc-ranger-portrait__image::after {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  padding: 5px 7px;
-  background: var(--paper-bright);
-  color: var(--carbon);
-  content: "TEMPLATE";
-  font-family: var(--font-mono);
-  font-size: var(--type-micro);
-  letter-spacing: .06em;
-}
-
 @media (max-width: 620px) {
   .opc-reading-pane > header {
     margin-bottom: 52px;
@@ -3338,7 +3588,7 @@
     border: 1px solid ButtonText;
   }
 
-  .opc-ranger-portrait--placeholder .opc-ranger-portrait__image {
+  .opc-ranger-shelf__item.is-template .opc-ranger-portrait__image {
     opacity: 1;
   }
 }
