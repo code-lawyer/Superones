@@ -237,10 +237,7 @@ export function OpcOrderEntry({
 
   return (
     <section className="opc-order-entry" aria-labelledby={`opc-order-${service.slug}`}>
-      <div className="opc-order-entry__signature-methods" role="group" aria-label="付款方式">
-        <button type="button" disabled>线上付款 · 暂未开放</button>
-        <button type="button" disabled aria-pressed="true">线下付款 · 对公转账</button>
-      </div>
+      <p className="opc-order-entry__payment-method">付款方式 · 线下对公转账</p>
 
       <section className="opc-offline-payment" aria-labelledby="opc-offline-payment-title">
         <header>

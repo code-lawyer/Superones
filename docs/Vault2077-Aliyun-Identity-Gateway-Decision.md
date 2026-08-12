@@ -6,7 +6,7 @@ updated: 2026-07-31
 
 # 阿里云轻量服务器与后台 OIDC 身份决策
 
-> 2026-07-31 更新：负责人明确不购买阿里云 IDaaS。本决策仅保留为已退役 OIDC 提案的历史说明，不再描述当前实现；OIDC 路由和配置已经从运行时代码删除。当前实现是项目内原生 Passkey，见 ADR-0012 与根目录 `Vault2077-Production-Deployment-Plan-2026-07-31.md`；上线前只剩真实设备、域名、TLS、RDS 和网络边界验收。
+> 2026-08-12 更新：负责人明确不购买阿里云 IDaaS。本决策仅保留为已退役 OIDC 提案的历史说明，不再描述当前实现；OIDC 路由和配置已经从运行时代码删除。当前实现是项目内原生 Passkey，见 ADR-0012 与 `Vault2077-Aliyun-Mainland-Production-Handoff.md`；上线前仍须按当前上线清单完成真实设备、域名、TLS、RDS 和网络边界验收。
 
 ## 1. 结论
 

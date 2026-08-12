@@ -1,12 +1,14 @@
 ---
 type: deployment-plan
-status: active
-updated: 2026-08-06
+status: superseded
+updated: 2026-08-12
 ---
 
 # Vault2077 生产部署方案（2026-08-06 更新）
 
-状态：执行基线
+> 本方案已被 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`、`docs/Vault2077-Deployment-Configuration-Manual.md` 与 ADR-0022 取代，只保留历史基础设施决策背景。不得按本文配置旧在线支付、执行发布顺序或判断当前 Go/No-Go。
+
+状态：历史方案（已废止）
 适用域名：`superones.top`、`admin.superones.top`、`media.superones.top`
 运营与收款主体：上海睿诚明达咨询管理有限公司
 备案号：沪ICP备2026003401号-1

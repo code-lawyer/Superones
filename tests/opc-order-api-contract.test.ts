@@ -65,8 +65,8 @@ test("OPC offline page shows company account, agreement, and contact QR together
   assert.match(entry, /点击查看协议/);
   assert.match(entry, /下载 PDF/);
   assert.match(entry, /联系人二维码/);
-  assert.match(entry, /线上付款 · 暂未开放/);
-  assert.match(entry, /线下付款 · 对公转账/);
+  assert.match(entry, /付款方式 · 线下对公转账/);
+  assert.doesNotMatch(entry, /线上付款|暂未开放/);
   assert.match(entry, /className="opc-agreement-modal__body" role="region" tabIndex=\{0\} aria-label="协议正文与 PDF 预览"/);
   assert.match(entry, /paymentMethod: "offline_bank_transfer"/);
   assert.doesNotMatch(entry, /recipientName|deliveryPhone|addressLine|window\.location\.assign/);

@@ -83,7 +83,7 @@ export default async function OpcOrderPage({
               <dd>{service.period}</dd>
             </div>
           </dl>
-          <p className="opc-order-page__delivery-note">线上付款暂时关闭 · 线下对公转账 · 到账后人工核验</p>
+          <p className="opc-order-page__delivery-note">线下对公转账 · 到账后人工核验</p>
         </aside>
 
         <OpcOrderEntry

@@ -591,10 +591,7 @@
   outline-offset: 2px;
 }
 
-.opc-ranger-shelf__pager--previous {
-  right: calc(-1 * min(48px, calc(var(--gutter) - 8px)));
-}
-
+.opc-ranger-shelf__pager--previous,
 .opc-ranger-shelf__pager--next {
   right: calc(-1 * min(48px, calc(var(--gutter) - 8px)));
 }
@@ -1380,10 +1377,7 @@
     height: 44px;
   }
 
-  .opc-ranger-shelf__pager--previous {
-    right: 0;
-  }
-
+  .opc-ranger-shelf__pager--previous,
   .opc-ranger-shelf__pager--next {
     right: 0;
   }
@@ -2216,37 +2210,13 @@
   font-weight: 600;
 }
 
-.opc-order-entry__signature-methods {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.opc-order-entry__payment-method {
   margin-bottom: 34px;
-}
-
-.opc-order-entry__signature-methods button {
-  min-height: 52px;
   border: 1px solid var(--carbon);
-  border-radius: 0;
-  background: var(--paper-bright);
-  color: var(--carbon);
-  font: inherit;
-  font-weight: 650;
-}
-
-.opc-order-entry__signature-methods button:disabled {
-  border-color: var(--rule);
-  background: var(--rule);
-  color: var(--graphite);
-  opacity: .68;
-  cursor: not-allowed;
-}
-
-.opc-order-entry__signature-methods button[aria-pressed="true"]:disabled {
-  border-color: var(--carbon);
   background: var(--carbon);
   color: var(--paper-bright);
-  opacity: 1;
-  cursor: default;
+  padding: 16px 18px;
+  font-weight: 650;
 }
 
 .opc-offline-payment {
@@ -2822,7 +2792,6 @@
 }
 
 @media (max-width: 640px) {
-  .opc-order-entry__signature-methods,
   .opc-payment-receipt dl > div {
     grid-template-columns: 1fr;
   }
@@ -2960,6 +2929,10 @@
     padding-inline: 42px;
   }
 
+  .opc-service-browser__content--rangers {
+    padding: 0;
+  }
+
   .opc-ranger-wall > header h2 {
     font-size: clamp(48px, 6vw, 72px);
   }
@@ -3058,6 +3031,10 @@
 
   .opc-service-browser__content {
     padding: 52px var(--gutter) 80px;
+  }
+
+  .opc-service-browser__content--rangers {
+    padding: 0;
   }
 
   .opc-reading-pane__fact-register {

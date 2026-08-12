@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # OPC 线下付款资料替换与启用手册
@@ -43,10 +43,11 @@ npm run opc:publish-offline-payment-profile -- /srv/vault2077/shared/opc-offline
 
 ```text
 VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED=false
-VAULT2077_OPC_PAYMENTS_ENABLED=false
 VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false
 VAULT2077_OPC_PAYMENT_EMAIL_ENABLED=true
 ```
+
+ADR-0022 已退役旧在线支付能力。生产环境、密码库导出和可用配置备份必须删除 `VAULT2077_OPC_PAYMENTS_ENABLED` 及全部 `VAULT2077_ALIPAY_*` 字段，不能用设置为 `false` 代替删除。
 
 生产事务邮件必须使用 `superones.top` 或其子域发件地址，SMTP 用户名必须与 From 一致。首发已经确认复用根域现有飞书邮箱：公共发件地址为 `orders@superones.top`，生产使用 `smtp.feishu.cn:465`、同名 user/from 与飞书生成的专用密码，回复地址固定为 `lanzhouda@163.com`；根域 MX 不迁移，专用密码只写入 VPS root-only 环境。若后续订单量、退信治理或投递统计需要独立通道，再迁移到不改动根域飞书 MX/SPF 的阿里云邮件推送子域 `notify.superones.top`，并按控制台当时生成的 SPF、DKIM、DMARC、MX 和所有权记录原样配置。完整官方依据见[同域事务邮件调研](research/domain-transactional-email-superones-2026-08-11.md)。
 

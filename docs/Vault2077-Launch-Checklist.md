@@ -1,7 +1,7 @@
 ---
 type: release-gate
 status: active
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # Vault2077 生产上线清单
@@ -72,7 +72,7 @@ updated: 2026-08-11
 - [ ] 最终生产变量通过 `npm run deploy:check`，输出不含 error，所有 warning 已记录解释。
 - [ ] `npm run docs:check`、`npm run lint`、`ruff check collector`、`npm run typecheck`、全部单元测试和生产构建通过。
 - [ ] 统一采集 inbox E2E 与内容发布 E2E 通过。
-- [ ] 首页、四频道、OPC 线上/线下付款选择、企业账户/协议/二维码同页、协议弹窗/PDF 下载、身份单独同意、下单、页脚退款申请和后台到账／退款 dossier 在 `360 / 768 / 1280 / 1440` 下完成键盘、焦点、错误和溢出检查；线上付款按钮明确“暂未开放”并保持禁用。
+- [ ] 首页、四频道、OPC 线下对公转账、企业账户/协议/二维码同页、协议弹窗/PDF 下载、身份单独同意、下单、页脚退款申请和后台到账／退款 dossier 在 `360 / 768 / 1280 / 1440` 下完成键盘、焦点、错误和溢出检查；公开页面没有已退役在线支付入口或恢复承诺。
 - [ ] 通道新鲜度、批次拒绝、各频道编辑配置的积压/并发/熔断/切换、隔离、任务延迟和发布延迟有监控与告警。
 - [ ] 境内 scheduler 已安装 `vault2077-frontier-tick.timer` 和 `vault2077-opc-order-maintenance.timer`；任务失败会告警，错过执行可补跑，OPC timer 每分钟处理邮件 outbox 与到期联系方式清除，邮件重试复用稳定 Message-ID。
 - [ ] GitHub schedule 漏跑的新鲜度告警与 `workflow_dispatch` 补跑完成演练；没有把 GitHub schedule 当作唯一可靠业务时钟。

@@ -59,6 +59,10 @@ const opcOrderMaintenanceService = await readFile(
   new URL("../deploy/systemd/vault2077-opc-order-maintenance.service", import.meta.url),
   "utf8",
 );
+const rangerMediaCleanupService = await readFile(
+  new URL("../deploy/systemd/vault2077-ranger-media-cleanup.service", import.meta.url),
+  "utf8",
+);
 const opcOrderMaintenanceTimer = await readFile(
   new URL("../deploy/systemd/vault2077-opc-order-maintenance.timer", import.meta.url),
   "utf8",
@@ -194,7 +198,7 @@ test("the public proxy exposes only the two cross-border routes and the domestic
 });
 
 test("production services emit a uniform journal event when systemd marks them failed", () => {
-  for (const service of [webService, workerService, frontierService, healthService, opcOrderMaintenanceService]) {
+  for (const service of [webService, workerService, frontierService, healthService, opcOrderMaintenanceService, rangerMediaCleanupService]) {
     assert.match(service, /^OnFailure=vault2077-failure-notify@%n\.service$/m);
   }
   assert.match(failureNotifier, /^ExecStart=\/usr\/bin\/logger --priority daemon\.err --tag vault2077-alert /m);

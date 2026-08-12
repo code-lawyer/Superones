@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-06
+updated: 2026-08-12
 ---
 
 # Vault2077 阿里云中国大陆生产部署与迁移 Handoff
@@ -24,7 +24,7 @@ updated: 2026-08-06
 | 管理后台 | `https://admin.superones.top` |
 | 公开媒体 | `https://media.superones.top` |
 | 管理员认证 | 原生 WebAuthn/Passkey；生产禁止本地共享密码和已退役 OIDC |
-| 支付 | 支付宝材料已完成；仍须在真实生产配置下完成小额支付、异步通知、查询和退款验收 |
+| 支付 | 旧在线渠道已按 ADR-0022 退役；当前只验收线下对公转账、银行到账核验、付款凭证、邮件与人工退款申请 |
 | Frontier | 全功能启用，但必须先在后台发布当季真实奖励文案并做真实仓库闭环 |
 | 纠错策略 | A：公开报告保持不可变，不建设审核/删改 UI；通过新报告和不可变审计补充纠正 |
 | 法务/备案 | 用户已确认完成；配置值仍须与代码锁定值逐字一致 |
@@ -32,12 +32,12 @@ updated: 2026-08-06
 
 ### 1.2 当前代码与资料状态
 
-- 生产配置门禁、数据库迁移、双域名 Nginx、systemd Web/Worker/Frontier/媒体清理任务、Passkey 注册、支付宝服务端验签、OSS 适配、健康检查和一次性 bootstrap 导入均已有实现。
-- 数据库最新迁移必须是 `0006_acquisition_reliability.sql`。
+- 生产配置门禁、数据库迁移、双域名 Nginx、systemd Web/Worker/Frontier/媒体清理任务、Passkey 注册、线下对公转账、OSS 适配、健康检查和一次性 bootstrap 导入均已有实现。
+- 数据库最新迁移必须是 `0007_retire_online_payment_channel.sql`。
 - bootstrap 清单当前可验证：information 132、roadside 728、events 4、SiC 156、ranking boards 5、ranking items 90。
-- 本地未保存生产 RDS、OSS、支付宝、GitHub、模型或 SSH 连接凭据；这是正确状态。不得为“方便迁移”把它们写进 Git、文档、聊天记录或发布包。
+- 本地未保存生产 RDS、OSS、GitHub、模型或 SSH 连接凭据；这是正确状态。不得为“方便迁移”把它们写进 Git、文档、聊天记录或发布包。旧在线支付身份和密钥必须从生产环境及可用配置备份中删除，不得迁移。
 - 当前 Windows 工作区不能直接产生可在 Linux 生产机复用的 `node_modules`、Sharp 原生依赖或最终发布包。生产构建必须在与服务器同 CPU 架构的 Linux 环境完成。
-- 真正的生产 bootstrap、Passkey 注册、OSS 联调、支付验收和浏览器验收尚未执行；在获得目标主机连接与生产密钥后才能完成。
+- 真正的生产 bootstrap、Passkey 注册、OSS 联调、线下付款验收和浏览器验收尚未执行；在获得目标主机连接与生产密钥后才能完成。
 
 ### 1.3 RDS 当前控制面事实与剩余门禁
 
@@ -130,7 +130,7 @@ ECS 安全组和主机防火墙基线如下：
 | 入方向 | TCP 443 | `0.0.0.0/0`、`::/0` | 公网 HTTPS |
 | 入方向 | TCP 3000 | 不放行 | Node 仅回环 |
 | 入方向 | TCP 5432 | 不放行 | RDS 不在 VPS 上监听 |
-| 出方向 | TCP 443 | 按业务需要 | OSS、GitHub 快速路径、模型、支付宝等 |
+| 出方向 | TCP 443 | 按业务需要 | OSS、GitHub 快速路径、模型和 SMTP 等当前运行依赖 |
 | 出方向 | RDS 端口 | RDS 私网地址 | PostgreSQL |
 
 服务器内若使用 UFW：
@@ -414,12 +414,18 @@ sudo chown -R vault2077:vault2077 /srv/vault2077/releases/<UTC时间>-<短SHA>
 sudo -u vault2077 test -f /srv/vault2077/releases/<UTC时间>-<短SHA>/.next/BUILD_ID
 ```
 
-第一次部署在启服务前建立链接；后续部署应先完成新 release 离线校验，再原子切换：
+记录本次候选目录，先停止所有业务 timer，后续门禁、提供方探针、迁移和 PostgreSQL 集成测试都必须以这个绝对路径运行：
 
 ```bash
-sudo ln -sfn /srv/vault2077/releases/<UTC时间>-<短SHA> /srv/vault2077/current.new
-sudo mv -Tf /srv/vault2077/current.new /srv/vault2077/current
+export RELEASE_DIR=/srv/vault2077/releases/<UTC时间>-<短SHA>
+sudo systemctl stop \
+  vault2077-acquisition-worker.timer \
+  vault2077-frontier-tick.timer \
+  vault2077-ranger-media-cleanup.timer \
+  vault2077-opc-order-maintenance.timer || true
 ```
+
+此时不得切换 `/srv/vault2077/current`。只有第 11.3 节的门禁、备份、迁移、幂等复跑与集成测试全部通过后才能原子切换；这样已安装的 timer 不会在迁移前从 `current` 运行新代码。
 
 保留至少前两个 release。不要自动删除当前或最近回滚版本。
 
@@ -475,7 +481,7 @@ VAULT2077_PIPELINE_ACTIVE_KEY_ID=2026-07
 - RDS URL、TLS、CA 和 pool；
 - OSS、公开/后台/媒体 origin；
 - 已确认 ICP、营业执照、法律邮箱和生效日；
-- 支付宝 App ID、卖家 ID、PKCS8 应用私钥、支付宝公钥、网关和支付模式；
+- 已发布的线下付款资料修订、订单恢复密钥环、事务邮件和银行到账核验所需配置；
 - 服务端只读 `GITHUB_TOKEN`；
 - Vault 和 SiC 两套独立编辑模型配置；
 - 全部密钥和采集限制。
@@ -485,27 +491,28 @@ VAULT2077_PIPELINE_ACTIVE_KEY_ID=2026-07
 ```dotenv
 VAULT2077_ALLOW_FILE_PREVIEW=false
 VAULT2077_TRUST_PROXY_HEADERS=true
-VAULT2077_OPC_PAYMENTS_ENABLED=false
+VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED=false
+VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false
 VAULT2077_FRONTIER_WRITES_ENABLED=false
 ```
 
-先以支付和 Frontier 写入关闭完成基础部署；真实支付宝闭环和真实 Frontier 奖励发布完成后，才把对应开关改成 `true` 并重启。这里的短暂关闭是部署阶段门禁，不是改变“全功能首发”决定。
+先以线下付款和 Frontier 写入关闭完成基础部署；真实银行到账、邮件、退款申请闭环和 Frontier 奖励发布完成后，才把对应开关改成 `true` 并重启。旧在线支付变量与密钥不得以 `false` 或空值保留，必须从生产环境和可用备份删除。
 
 `VAULT2077_DATA_DIR` 是本地预览变量，生产文件中应删除或留空；`VAULT2077_ADMIN_PASSWORD_HASH`、任何本地明文密码、旧 OIDC 变量、旧共享 `VAULT2077_LLM_*` 变量都必须删除/留空。
 
 ### 9.4 模型配置
 
-Vault 与 SiC 分别需要：HTTPS base URL、API key、明确模型名、超时、并发、批量大小和每轮最大请求数。不要把“自动选择模型”作为生产配置。
+Vault 与 SiC 分别需要：HTTPS base URL、API key、明确模型名、超时、并发和批量大小。请求额度缺省或显式设为 `unlimited`；实际处理边界由并发、批量与单轮 45 分钟预算控制。不要把“自动选择模型”作为生产配置。
 
 2026-08-02 已验证的大陆生产基线如下；API key 只写入 root-owned 环境文件：
 
 ```dotenv
 VAULT2077_VAULT_LLM_BASE_URL=https://api.deepseek.com/v1
 VAULT2077_VAULT_LLM_MODEL=deepseek-v4-flash
-VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN=300
+VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN=unlimited
 VAULT2077_SIC_LLM_BASE_URL=https://api.xiaomimimo.com/v1
 VAULT2077_SIC_LLM_MODEL=mimo-v2.5
-VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN=200
+VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN=unlimited
 ```
 
 `api.mimo.com` 是已知错误域名，生产配置门禁会直接拒绝。两个模型默认不显式设置 `REASONING_EFFORT`；这些结构化抽取、翻译和摘要任务先以默认推理行为运行，只有在保存质量/延迟/成本对照证据后才调整。
@@ -521,7 +528,7 @@ VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN=200
 仓库模板已经按外部 RDS、2C2G 运行基线和 `/srv/vault2077/current` 编写。安装：
 
 ```bash
-cd /srv/vault2077/current
+cd "${RELEASE_DIR}"
 sudo install -m 0644 deploy/systemd/vault2077-*.service /etc/systemd/system/
 sudo install -m 0644 deploy/systemd/vault2077-*.timer /etc/systemd/system/
 sudo systemd-analyze verify /etc/systemd/system/vault2077-*.service /etc/systemd/system/vault2077-*.timer
@@ -558,7 +565,7 @@ sudo systemctl reload nginx
 ```bash
 sudo systemd-run --unit=vault2077-deploy-check --wait --pipe --collect \
   --uid=vault2077 --gid=vault2077 \
-  --working-directory=/srv/vault2077/current \
+  --working-directory="${RELEASE_DIR}" \
   --property=EnvironmentFile=/etc/vault2077/production.env \
   --setenv=NODE_ENV=production \
   /opt/node/bin/npm run deploy:check
@@ -573,7 +580,7 @@ sudo systemd-run --unit=vault2077-deploy-check --wait --pipe --collect \
 ```bash
 sudo systemd-run --unit=vault2077-editorial-probe --wait --pipe --collect \
   --uid=vault2077 --gid=vault2077 \
-  --working-directory=/srv/vault2077/current \
+  --working-directory="${RELEASE_DIR}" \
   --property=EnvironmentFile=/etc/vault2077/production.env \
   --setenv=NODE_ENV=production \
   /opt/node/bin/npm run deploy:verify-editorial
@@ -588,7 +595,7 @@ sudo systemd-run --unit=vault2077-editorial-probe --wait --pipe --collect \
 ```bash
 sudo systemd-run --unit=vault2077-migrate --wait --pipe --collect \
   --uid=vault2077 --gid=vault2077 \
-  --working-directory=/srv/vault2077/current \
+  --working-directory="${RELEASE_DIR}" \
   --property=EnvironmentFile=/etc/vault2077/production.env \
   --setenv=NODE_ENV=production \
   /opt/node/bin/npm run db:migrate
@@ -601,13 +608,22 @@ sudo systemd-run --unit=vault2077-migrate --wait --pipe --collect \
 ```bash
 sudo systemd-run --unit=vault2077-pg-test --wait --pipe --collect \
   --uid=vault2077 --gid=vault2077 \
-  --working-directory=/srv/vault2077/current \
+  --working-directory="${RELEASE_DIR}" \
   --property=EnvironmentFile=/etc/vault2077/production.env \
   --setenv=NODE_ENV=production \
   /opt/node/bin/npm run test:postgres:integration
 ```
 
-验证 `vault2077_schema_migrations` 最新记录是 `0006_acquisition_reliability.sql`。不要手工修改迁移表，不要回滚 SQL 文件，也不要删除已有 migration。
+验证 `vault2077_schema_migrations` 最新记录是 `0007_retire_online_payment_channel.sql`。不要手工修改迁移表，不要回滚 SQL 文件，也不要删除已有 migration。
+
+门禁、探针、备份、迁移幂等复跑和 PostgreSQL 集成测试全部通过后，才原子切换 `current`：
+
+```bash
+sudo ln -sfn "${RELEASE_DIR}" /srv/vault2077/current.new
+sudo mv -Tf /srv/vault2077/current.new /srv/vault2077/current
+```
+
+切换后先启动并验收 Web；timer 保持停止，直到 health、四通道闭环与对应功能开关验收完成后再逐项恢复。
 
 ### 11.4 一次性 bootstrap
 
@@ -684,41 +700,20 @@ sudo systemd-run --unit=vault2077-admin-enroll --wait --pipe --collect \
 
 Passkey 未在真实 HTTPS 管理域名通过前，不能开放运营后台。浏览器可以使用安全钥匙/平台认证器的 PIN 码；ceremony 使用 `userVerification=required`，要求认证器实际完成 PIN 或生物验证并返回签名的 UV 标志，服务端同时执行底层与业务层复核。不要用 Nginx Basic Auth 或共享密码临时代替。
 
-## 14. 支付宝生产接入
+## 14. 线下对公转账生产启用
 
-### 14.1 配置
+旧在线支付已按 ADR-0022 退役。生产环境、密码库导出和可用配置备份中不得存在 `VAULT2077_OPC_PAYMENTS_ENABLED` 或任何 `VAULT2077_ALIPAY_*` 字段；`deploy:check` 必须拒绝其残留。
 
-在支付宝开放平台核对：App ID、签约产品、应用公钥/支付宝公钥类型、应用私钥 PKCS8、卖家 ID、应用网关/授权回调配置。生产环境使用：
+按[线下付款资料替换与启用手册](Vault2077-OPC-Offline-Payment-Operations-Manual.md)完成：
 
-```dotenv
-VAULT2077_ALIPAY_GATEWAY=https://openapi.alipay.com/gateway.do
-VAULT2077_ALIPAY_KEY_TYPE=PKCS8
-VAULT2077_ALIPAY_WEB_PAYMENT_MODE=both
-VAULT2077_OPC_PAYMENTS_ENABLED=false
-```
+1. 负责人复核并发布企业账户、v2 协议 PDF 与联系人二维码的单一不可变修订。
+2. 在桌面和移动端核对同页展示、协议弹窗/下载、二维码、固定金额订单和唯一付款附言。
+3. 使用负责人批准的真实银行转账完成一次到账核验；后台必须要求最近五分钟再认证、固定金额、付款户名、唯一流水号、入账时间和逐项确认。
+4. 验证下单/到账面向用户与负责人的四类邮件、稳定 Message-ID、失败重试、付款凭证和刷新恢复入口。
+5. 验证退款申请的订单号加恢复凭证授权、加密理由、单一负责人通知，以及“申请不等于退款完成”的公开语义。
+6. 保存脱敏证据；不得把企业银行账号、身份证、恢复凭证、二维码或 SMTP 密钥写入仓库。
 
-支付宝异步通知地址由代码生成：`https://superones.top/api/opc/alipay/notify`；返回地址为 `https://superones.top/opc/payment/return?...`。异步通知必须公网 HTTPS 可达，但支付成功判断只信任服务端验签、金额/商户/订单匹配和服务端查询，不信任浏览器回跳。
-
-### 14.2 上线门禁
-
-使用最低可行真实金额完成：
-
-1. 创建订单，确认订单号唯一、金额和商品正确。
-2. PC 和移动至少各完成一次真实支付。
-3. 验证异步通知重复投递幂等；伪造签名、错误金额、错误 seller/app ID 被拒绝。
-4. 验证浏览器关闭或回跳失败时，服务端查询仍能恢复正确状态。
-5. 完成一次全额退款，核对支付宝后台、应用订单状态和审计记录。
-6. 对账并保存脱敏证据；不得保存完整私钥、买家身份或支付凭证截图到仓库。
-
-全部通过后：
-
-```bash
-sudoedit /etc/vault2077/production.env
-# 把 VAULT2077_OPC_PAYMENTS_ENABLED 改为 true
-sudo systemctl restart vault2077-web.service
-```
-
-再跑生产配置检查、健康检查和一次小额支付。若出现订单状态异常，先把开关恢复 `false`，不要删除订单或手改支付状态。
+全部通过后，由负责人明确授权把 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` 改为 `true` 并重启 Web。出现异常时先恢复为 `false`，保留订单、付款凭证和审计，不删除记录或手改资金状态。
 
 ## 15. Frontier 全功能启用
 
@@ -749,7 +744,7 @@ GitHub Actions 只配置：
 - collector 所需的只读 GitHub token；
 - `VAULT2077_REQUIRE_DOMESTIC_DELIVERY=true`。
 
-它不得持有 RDS、后台会话、worker、health、支付宝、OSS 写入或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。
+它不得持有 RDS、后台会话、worker、health、线下付款/SMTP、OSS 写入或境内 LLM 密钥，也不得调用 `/api/internal/acquisition/process`。
 
 先在低 TTL/维护窗口逐通道完成一次真实 incremental：确认接收 `202`、inbox 入库、worker 消费、内容更新、审计记录、模型基础设施故障会变为 `retryable`、确定性坏记录才进入内容 quarantine，且重复包幂等。四通道 incremental 全部闭环后，才按 information → roadside → sic → rankings 逐通道触发一次 bootstrap；每次保存 GitHub run ID、batch ID、inbox 最终状态和内容计数。不要把 workflow 成功当作境内发布成功；两端证据都要看。
 
@@ -845,7 +840,7 @@ curl -i https://<服务器公网IP>:3000/
 - deploy check、迁移、bootstrap、health、timer 全绿。
 - Passkey 至少两个认证器和离线恢复码可用。
 - OSS 上传/读取/清理/版本永久删除演练完成。
-- 支付小额、重复通知、查询、退款完成，支付开关已启用。
+- 线下付款资料、真实银行到账、四类邮件、付款凭证和退款申请完成验收，线下付款开关已启用。
 - Frontier 真实奖励发布、仓库闭环和回退链路完成，写入开关已启用。
 - 境外采集到境内发布闭环完成。
 - Nginx 边界和浏览器 P0 矩阵完成。
@@ -865,10 +860,10 @@ curl -i https://<服务器公网IP>:3000/
 | 内容 | Vault/SiC 新鲜度、榜单 stale/partial | 按健康阈值告警 |
 | RDS | CPU、内存、连接、存储、慢 SQL、备份 | 存储/连接提前预警 |
 | OSS | 4xx/5xx、流量、请求数、费用 | 异常增长和拒绝告警 |
-| 支付 | 通知验签失败、待确认、退款失败、对账差异 | 立即人工核对 |
+| 线下付款 | 待付款积压、到账核验冲突、邮件重试、退款申请和对账差异 | 立即人工核对 |
 | 安全 | SSH、Nginx 限速、后台失败认证、RAM 拒绝 | 聚合异常来源 |
 
-日志不得记录：完整 Authorization、Passkey challenge、注册令牌、恢复码、数据库 URL、支付宝私钥、OSS Secret、模型 key 或原始隐私材料。systemd journal 设置容量/保留策略；阿里云日志服务接入若包含用户数据，先定义脱敏和访问控制。
+日志不得记录：完整 Authorization、Passkey challenge、注册令牌、恢复码、数据库 URL、企业银行账号、OSS Secret、模型 key 或原始隐私材料。systemd journal 设置容量/保留策略；阿里云日志服务接入若包含用户数据，先定义脱敏和访问控制。
 
 2C2G 首周重点观察 Web RSS、swap、数据库连接、P95 和 worker 峰值。持续 swap、Web RSS 接近 700 MB 或 worker 期间请求延迟显著上升时，优先升级 2C4G，不要先提高 pool 或 Node 堆上限。
 
@@ -891,7 +886,7 @@ sudo systemctl restart vault2077-web.service
 
 ### 20.2 功能止损
 
-- 支付故障：先设 `VAULT2077_OPC_PAYMENTS_ENABLED=false` 并重启，保留订单和回调证据。
+- 线下付款故障：先设 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED=false` 并重启，保留订单、付款凭证、邮件 outbox 和审计证据。
 - Frontier 写入故障：先设 `VAULT2077_FRONTIER_WRITES_ENABLED=false`；保留已发布奖励和审计，不手改榜单。
 - 采集故障：停止 acquisition timer；保留 inbox，修复后让幂等 worker 重试，不删除 quarantine。
 - OSS 故障：停止头像发布/清理；不要把生产临时切回 VPS 本地媒体真源。
@@ -929,7 +924,7 @@ sudo systemctl restart vault2077-web.service
 
 ## 22. 需要项目负责人亲自完成或授权的事项
 
-Codex 可以继续执行代码、配置模板、检查、迁移命令和验收，但以下事项需要负责人在阿里云/支付宝/域名/密码管理器中操作或明确授权：
+Codex 可以继续执行代码、配置模板、检查、迁移命令和验收，但以下事项需要负责人在阿里云、银行、域名或密码管理器中操作或明确授权：
 
 1. **完成 RDS 删除保护与 PITR 实际恢复**
 
@@ -961,9 +956,9 @@ Codex 可以继续执行代码、配置模板、检查、迁移命令和验收�
    原因：真实 AccessKey 与域名所有权只能在账户侧完成。
    步骤：按第 5 节创建策略和身份 → 保存 AccessKey 到密码管理器 → 绑定 `media.superones.top` → 上传测试 → 验证匿名读和越权拒绝 → 做测试 slug 永久删除演练。
 
-6. **填写生产秘密与模型/支付凭据**
+6. **填写生产秘密与模型/线下付款配置**
 
-   内容：在服务器 `/etc/vault2077/production.env` 填写 RDS、OSS、支付宝、GitHub、两套模型和八类独立秘密。
+   内容：在服务器 `/etc/vault2077/production.env` 填写 RDS、OSS、GitHub、两套模型、线下付款/事务邮件和彼此独立的秘密。
    原因：这些秘密当前不存在于工作区，也不应交给 Git。
    步骤：从 `.env.example` 逐项复制 → 密码管理器生成/读取 → `sudoedit` 写入 → 权限设为 root 0600 → 执行 `deploy:check` → 只报告缺失字段名，不回传实际值。
 
@@ -979,11 +974,11 @@ Codex 可以继续执行代码、配置模板、检查、迁移命令和验收�
    原因：金额、权益和兑现责任是业务承诺，不能由代码或助手臆定。
    步骤：后台填 4–200 字真实文案 → 复核赛季和兑现条件 → Passkey 再认证发布 → 测试仓库闭环 → 启用写入开关。
 
-9. **批准并执行真实支付/退款**
+9. **批准并执行真实银行到账/退款申请验收**
 
-   内容：指定最低测试金额、付款账户和退款验收人。
+   内容：指定测试订单、付款账户、真实转账窗口和退款申请验收人。
    原因：涉及真实资金和商户责任，必须由负责人授权。
-   步骤：支付开关先关闭 → 配置/验签检查 → 开启测试窗口 → PC/移动支付 → 重复通知/查询 → 全额退款 → 对账 → 正式启用。
+   步骤：线下付款开关先关闭 → 发布资料修订 → 创建订单并真实转账 → 后台到账核验 → 四类邮件/付款凭证/退款申请 → 对账 → 正式启用。
 
 10. **做最终 Go/No-Go 决定**
 
@@ -996,7 +991,7 @@ Codex 可以继续执行代码、配置模板、检查、迁移命令和验收�
 新接手者不要先从代码漫游。按以下顺序：
 
 1. 阅读本文和 [`docs/README.md`](README.md)。
-2. 阅读 [`Vault2077-Production-Deployment-Plan-2026-07-31.md`](../Vault2077-Production-Deployment-Plan-2026-07-31.md) 了解发布批次和当前剩余门禁。
+2. 阅读 [`Vault2077-Launch-Checklist.md`](Vault2077-Launch-Checklist.md) 与 [`Vault2077-Implementation-Traceability.md`](Vault2077-Implementation-Traceability.md) 了解当前剩余门禁与证据状态；旧生产部署方案只作历史背景。
 3. 阅读 [`Vault2077-Deployment-Configuration-Manual.md`](Vault2077-Deployment-Configuration-Manual.md) 了解全部环境变量。
 4. 阅读 [`Vault2077-Unified-Acquisition-Runbook.md`](Vault2077-Unified-Acquisition-Runbook.md) 了解跨境采集、inbox、Worker、Frontier 回退和健康检查。
 5. 阅读 [`Vault2077-Admin-Operations-Spec.md`](Vault2077-Admin-Operations-Spec.md) 与 [`Vault2077-OPC-Admin-Manual.md`](Vault2077-OPC-Admin-Manual.md) 了解 Passkey、发布、支付和头像操作。
@@ -1028,7 +1023,7 @@ Codex 可以继续执行代码、配置模板、检查、迁移命令和验收�
 满足以下条件才可把迁移标记为完成：
 
 - 新环境能从本文独立定位资源、配置、命令、负责人、回滚和证据；
-- 生产秘密只存在于阿里云/支付宝/GitHub/模型提供方和密码管理器的授权位置；
+- 生产秘密只存在于阿里云、GitHub、模型/邮件提供方和密码管理器的授权位置；旧在线支付密钥不存在于任何可用生产配置；
 - 相同 commit 的 Linux 发布包可重复构建，SHA-256 可验证；
 - 生产 RDS、OSS、Nginx、systemd、Passkey、支付、Frontier 和采集链路均按本文通过验收；
 - 公网不可访问 Node、RDS、health 和未授权内部路由；

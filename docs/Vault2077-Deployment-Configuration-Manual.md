@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # Vault2077 部署配置手册
@@ -128,29 +128,20 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 | 变量/资源 | 说明 |
 | --- | --- |
 | `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` | 新线下付款公开入口开关；真实资料发布、银行到账核验和浏览器验收前保持 `false` |
-| `VAULT2077_OPC_PAYMENTS_ENABLED` | 新建线上支付宝付款开关；线下付款入口开放时必须保持 `false`，不影响既有支付宝订单验真、查询、关单和退款 |
-| `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED` | 旧纸质/支付宝入口开关；线下付款入口开放时必须保持 `false` |
+| `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED` | 退役纸质/在线入口开关；生产固定为 `false` |
 | `VAULT2077_OPC_RESUME_TOKEN_KEYS` / `VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID` | 线下订单同样使用独立可轮换恢复令牌密钥环 |
 | `/srv/vault2077/shared/opc-offline-payment/` | `payment-profile.json`、`service-agreement.pdf`、`contact-qr.png` 的受控替换暂存目录，不是运行时事实源 |
 | `npm run opc:publish-offline-payment-profile -- <目录>` | 校验三个文件并作为单一修订发布到 PostgreSQL；输出不包含银行账号 |
 
 企业账户、协议 PDF 和联系人二维码的生产事实源是 PostgreSQL 状态文档。现有公开头像 OSS 只允许 `rangers/*`，私有合同 OSS 只允许 `opc-contracts/*`，不得为付款资料扩大权限或混用 Bucket。替换与回滚按 [OPC 线下付款资料替换与启用手册](Vault2077-OPC-Offline-Payment-Operations-Manual.md) 执行。
 
-页面在转账前同页显示企业账户、协议查看/下载和无介绍的联系人二维码。付款资料修订不得静默覆盖，资产请求必须匹配当前 SHA-256 并使用 `Cache-Control: no-store`；PDF 以内联响应供弹窗预览，同源下载入口显式下载。应用与 Nginx 仅在协议 PDF 精确路径把 `X-Frame-Options` 设为 `SAMEORIGIN`，其他路径继续为 `DENY`；生产验收必须确认本站弹窗可预览、跨站嵌入失败且不存在重复冲突的响应头。后台确认到账要求最近五分钟再认证，并提交订单固定金额、付款户名、唯一银行流水号、入账时间、预期版本及服务端强制的逐项核对确认；订单缺账户、银行、支行、账号、附言或 PDF/二维码摘要时拒绝。流水号在保存、判重和审计前统一规范化，付款户名加密，审计只保存流水指纹。尚未到账的银行订单可在同一再认证门禁下取消并进入 90 天清理。线下退款自动闭环未完成前不能通过支付宝接口或普通状态修改宣称已退款。
+页面在转账前同页显示企业账户、协议查看/下载和无介绍的联系人二维码。付款资料修订不得静默覆盖，资产请求必须匹配当前 SHA-256 并使用 `Cache-Control: no-store`；PDF 以内联响应供弹窗预览，同源下载入口显式下载。应用与 Nginx 仅在协议 PDF 精确路径把 `X-Frame-Options` 设为 `SAMEORIGIN`，其他路径继续为 `DENY`；生产验收必须确认本站弹窗可预览、跨站嵌入失败且不存在重复冲突的响应头。后台确认到账要求最近五分钟再认证，并提交订单固定金额、付款户名、唯一银行流水号、入账时间、预期版本及服务端强制的逐项核对确认；订单缺账户、银行、支行、账号、附言或 PDF/二维码摘要时拒绝。流水号在保存、判重和审计前统一规范化，付款户名加密，审计只保存流水指纹。尚未到账的银行订单可在同一再认证门禁下取消并进入 90 天清理。线下退款自动闭环未完成前不能通过外部支付接口或普通状态修改宣称已退款。
 
-### OPC 纸质签约线上订单（既有订单兼容）
+### 退役在线／纸质入口与历史凭证
 
-| 变量 | 说明 |
-| --- | --- |
-| `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED` | 当前纸质签约订单总开关；在线协议、支付、查询、全额退款、退款查询和后台审计未完成前保持 `false` |
-| 在线协议版本 | 由 `lib/opc-checkout-agreement.ts` 随代码发布；正文变更必须升级版本，订单冻结完整正文并计算 SHA-256，不使用可能与代码漂移的环境变量 |
-| `VAULT2077_OPC_RESUME_TOKEN_KEYS` / `VAULT2077_OPC_RESUME_TOKEN_ACTIVE_KEY_ID` | 独立、可轮换的订单恢复令牌密钥环；不得与数据加密、会话、支付或 OSS 密钥复用 |
-| `VAULT2077_OPC_PAYMENT_EMAIL_ENABLED` | 真实纸质付款入口开放时固定为 `true`；验真到账后通过 outbox 发送邮件 |
-| `VAULT2077_SMTP_HOST` / `VAULT2077_SMTP_PORT` | TLS SMTP 生产适配器；163 邮箱使用 `smtp.163.com:465`，程序按 465 端口启用隐式 TLS，其他端口强制 STARTTLS |
-| `VAULT2077_SMTP_USER` / `VAULT2077_SMTP_PASSWORD` | 服务器秘密管理中的 SMTP 凭证，不得写日志或返回浏览器 |
-| `VAULT2077_SMTP_FROM` | 已验证的发件邮箱地址；不得伪造未授权域名 |
+ADR-0022 之后，生产只运行线下对公转账。`VAULT2077_OPC_PAPER_CHECKOUT_ENABLED` 固定为 `false`；`VAULT2077_OPC_PAYMENTS_ENABLED` 与全部 `VAULT2077_ALIPAY_*` 字段必须从生产环境、密码库导出和可用配置备份中删除，`deploy:check` 会拒绝残留。既有历史记录只保留 `retired_online` 中性只读凭证，不提供通知验真、主动查询、恢复付款、关单或退款调用。恢复任何在线支付必须提出新 ADR 并以全新实现接入。
 
-纸质签约入口与电子签约开关独立。页面显示“电子签约”和“纸质签约”两个按钮，前者只使用灰色原生禁用状态，不显示额外状态文案；后者在纸质订单与支付宝门禁同时通过后可选。当前系统不配置物流、返寄、催办或纸质原件核验服务；后台只记录“合同门禁通过”或“发起全额退款”的线上结论。
+线下订单通知使用 `VAULT2077_OPC_PAYMENT_EMAIL_ENABLED`、`VAULT2077_SMTP_HOST` / `PORT` / `USER` / `PASSWORD` / `FROM`。生产入口开放时邮件开关固定为 `true`；SMTP 凭证只进入服务器秘密管理，不写日志或返回浏览器。
 
 当前线下对公转账订单必须填写有效通知邮箱。创建订单时，事务内分别生成用户与负责人 `order_created` outbox；首次核验到账时，分别生成用户与负责人 `payment_confirmed` outbox。负责人收件地址固定复用生产管理员身份 `lanzhouda@163.com`，用户收件地址只在 worker 领取事件时从加密联系人中解析，不复制到 outbox。负责人邮件只含脱敏摘要和受保护后台链接，用户邮件只含订单或到账摘要及公开订单入口；两者均不得发送完整联系方式、付款账户、二维码、即时通讯账号或恢复凭证。独立的 `vault2077-opc-order-maintenance.timer` 每分钟发送并重试，任一邮件失败不得改变订单或到账事实。开放前必须完成四类真实 TLS 投递、SPF/DKIM/DMARC、SMTP 暂时失败后的 outbox 重试和重复事件不重复发送测试。付款凭证上的我方名称、统一社会信用代码、规范网址和 ICP 备案号分别来自服务器锁定的法律档案与公开来源配置；缺少或不一致时付款入口关闭。
 

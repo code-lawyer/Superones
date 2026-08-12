@@ -393,6 +393,21 @@ export function validateProductionConfiguration(
     }
   }
 
+  for (const retiredPaymentVariable of [
+    "VAULT2077_OPC_PAYMENTS_ENABLED",
+    "VAULT2077_ALIPAY_APP_ID",
+    "VAULT2077_ALIPAY_SELLER_ID",
+    "VAULT2077_ALIPAY_PRIVATE_KEY",
+    "VAULT2077_ALIPAY_PUBLIC_KEY",
+    "VAULT2077_ALIPAY_KEY_TYPE",
+    "VAULT2077_ALIPAY_GATEWAY",
+    "VAULT2077_ALIPAY_WEB_PAYMENT_MODE",
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(environment, retiredPaymentVariable)) {
+      errors.push(`生产配置不得保留已退役的在线支付变量 ${retiredPaymentVariable}。`);
+    }
+  }
+
   const publicOrigin = parseHttpsOrigin(environment, "VAULT2077_PUBLIC_ORIGIN", errors);
   const adminOrigin = parseHttpsOrigin(environment, "VAULT2077_ADMIN_ORIGIN", errors);
   if (publicOrigin && publicOrigin !== PUBLIC_ORIGIN) {
@@ -457,8 +472,9 @@ export function validateProductionConfiguration(
     "VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN",
     "VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN",
   ]) {
-    if (environment[name]?.trim().toLowerCase() !== "unlimited") {
-      positiveInteger(environment, name, errors, 10_000);
+    const requestBudget = environment[name]?.trim().toLowerCase();
+    if (requestBudget && requestBudget !== "unlimited") {
+      errors.push(`${name} 在生产环境只能留空或设为 unlimited，处理上限由并发、批量和单轮时间预算控制。`);
     }
   }
 

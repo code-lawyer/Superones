@@ -1,5 +1,7 @@
 # Vault2077 正式上线执行计划书
 
+> 本计划是历史阶段材料；当前执行依据为 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`、`docs/Vault2077-Deployment-Configuration-Manual.md` 与 `docs/Vault2077-Launch-Checklist.md`。
+
 制定日期：2026-07-30
 更新说明：2026-07-31 起，具体基础设施规格、RDS 计费和免费管理员身份方案以 `Vault2077-Production-Deployment-Plan-2026-07-31.md` 为最新执行基线；本文其余功能门禁继续有效。
 范围确认更新：2026-07-30（OPC 服务与游骑兵采用后台渐进发布，不设首发数量下限）

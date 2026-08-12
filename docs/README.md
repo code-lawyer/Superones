@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # Vault2077 文档权威索引
@@ -53,13 +53,13 @@ updated: 2026-08-11
 - [ADR-0019：OPC 全额预付与纸质合同线上订单生命周期](adr/0019-opc-prepaid-paper-contract-checkout.md)
 - [ADR-0020：OPC 在线确认协议与线下对公转账](adr/0020-opc-offline-bank-transfer-checkout.md)
 - [ADR-0021：OPC 退款申请与签约身份信息](adr/0021-opc-refund-request-and-contract-identity.md)
+- [ADR-0022：退役旧在线支付接入](adr/0022-retire-online-payment-integration.md)
 
 ## 当前运行文档
 
 - [项目长期记忆与接管清单](Vault2077-Project-Memory.md)
 - [阿里云中国大陆生产部署与迁移 Handoff](Vault2077-Aliyun-Mainland-Production-Handoff.md)
 - [阿里云告警手动配置清单](Vault2077-Aliyun-Alert-Manual-Checklist.md)
-- [生产部署执行方案](../Vault2077-Production-Deployment-Plan-2026-07-31.md)
 - [统一采集运行手册](Vault2077-Unified-Acquisition-Runbook.md)
 - [GitHub Actions 向阿里云生产环境投递操作手册](Vault2077-GitHub-Actions-Aliyun-Delivery-Operations-Manual.md)
 - [境外采集运营交接](Vault2077-Overseas-Operator-Handoff.md)
@@ -75,6 +75,7 @@ updated: 2026-08-11
 - [OPC 开发计划](Vault2077-OPC-Development-Plan.md)：内容已吸收到 OPC 规格，保留实施分解。
 - [OPC 全额预付与纸质合同线上实施方案](Vault2077-OPC-Prepaid-Paper-Contract-Implementation-Plan.md)：已被 ADR-0020 取代，只保留既有 ADR-0019 订单的历史实现背景。
 - [负责人纸质结账启用手册](Vault2077-Owner-Paper-Checkout-Activation-Manual.md)：已被线下付款手册取代，只用于既有 ADR-0019 订单历史排障。
+- [2026-07-31 生产部署执行方案](../Vault2077-Production-Deployment-Plan-2026-07-31.md)：已被当前阿里云生产 Handoff 与部署配置手册取代，只保留当时的基础设施决策背景。
 - [OPC 页面设计提案](Vault2077-OPC-Page-Design-Proposal.md)：已被 OPC 规格取代。
 - [SiC 内容架构计划](Vault2077-SiC-Content-Architecture-Plan.md)：已被 SiC 规格取代。
 
@@ -103,4 +104,3 @@ updated: 2026-08-11
 - 接受 ADR 时，必须同步更新总规格、受影响专项规格、系统规格、追踪矩阵与上线清单。
 - 调研结论只有被吸收到规范文档后才生效。
 - 每次文档修订必须运行 `npm run docs:check`。
-- [ADR-0022：退役旧在线支付接入](adr/0022-retire-online-payment-integration.md)

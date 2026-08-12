@@ -1,5 +1,7 @@
 # Vault2077 上线负责人必办事项
 
+> 本清单已被 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`、`docs/Vault2077-Launch-Checklist.md` 与 ADR-0022 取代，只保留 2026-07-30 的历史责任分工，不得据此恢复旧在线支付或执行当前上线。
+
 日期：2026-07-30
 更新：2026-07-31（工程修复后）。基础设施规格和原生 Passkey 管理员方案以 `Vault2077-Production-Deployment-Plan-2026-07-31.md` 为最新执行基线。
 适用范围：只列必须由项目负责人申请、签约、购买、授权或作业务决定的事项。代码修复、门禁、文档与本地验证不重复分配给负责人。

@@ -139,7 +139,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - `build-release.yml`：仅手工触发；在 Ubuntu/Node 24 构建、裁剪开发依赖、产出 Linux x64 `tar.gz` 与 SHA-256，保留 14 天。
 - `collect-content.yml`：定时/手工采集并可靠投递；产物和运行证据保留 30 天。
 
-仓库目前没有自动部署 workflow，也没有在 push 后登录 VPS 的 CD。现行部署是：从 GitHub 构建并下载 Linux 发布包 → 核验 SHA-256 → 解压到 `/srv/vault2077/releases/<release-id>` → 保留并重用 root-only `/etc/vault2077/production.env` → 运行门禁、模型探针和迁移 → 切换 `/srv/vault2077/current` → 重启/回滚 systemd → 验证 health 与公网边界。
+仓库目前没有自动部署 workflow，也没有在 push 后登录 VPS 的 CD。现行部署是：从 GitHub 构建并下载 Linux 发布包 → 核验 SHA-256 → 解压到 `/srv/vault2077/releases/<release-id>` → 保留并重用 root-only `/etc/vault2077/production.env` → 停止业务 timers → 直接在新 release 绝对路径运行 `deploy:check`、模型探针、迁移和数据库集成测试 → 全部通过后原子切换 `/srv/vault2077/current` → 重启 Web → 验证 health 与四通道闭环 → 最后启用 timers／业务开关并公开切流。不得在门禁、探针或迁移前先切换 `current`。
 
 生产 systemd 单元：
 
@@ -169,7 +169,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 | VPS | 生产计算节点采用阿里云上海 ECS、Linux x86_64；Web 由 systemd 管理，Node 只监听回环 | 实例标识、规格、地址、SSH 身份、当前 release 和实时单元状态只保存在本机私有记忆 |
 | RDS | 生产使用 PostgreSQL 17；当前实例控制面支持 SSL、自动快照、日志备份和本地时间点恢复区间 | 精确实例、网络、备份与保护状态只保存在本机私有记忆；隔离恢复证据仍按上线门禁核验 |
 | OSS | 公开头像与未来电子合同使用相互隔离的 Bucket；头像只公开 `rangers/*`，电子合同保持私有长期保留 | 精确 Bucket、RAM 身份、版本/WORM 和实时证书状态只保存在本机私有记忆；按功能启用范围验收 |
-| 生产配置 | 生产环境文件固定为 `/etc/vault2077/production.env`、`root:root`、`0600` | 文件存在性、字段完整性、轮换时间和功能开关只保存在本机私有记忆并在发布前重查 |
+| 生产配置 | 生产环境文件固定为 `/etc/vault2077/production.env`、`root:root`、`0600`；旧在线支付变量不得存在，Vault/SiC 单轮请求额度只允许留空或 `unlimited` | 文件存在性、字段完整性、轮换时间和功能开关只保存在本机私有记忆并在发布前重查 |
 | Nginx/systemd | 仓库提供公开/管理双主机模板以及 Web、health、采集、Frontier、媒体清理和 OPC 维护单元 | 实际安装、启用、失败和告警状态属于实时运维事实，只保存在本机私有记忆 |
 
 旧文档把“RDS PostgreSQL Basic 一律不支持日志备份/PITR”写成绝对事实。2026-08-06 的真实控制面显示，当前 Basic 实例已启用日志备份并返回有效的本地时间点恢复区间，因此该绝对表述已经过时。数据库门禁现在是：开启删除保护、确认恢复窗口符合 RPO，并真正恢复到隔离实例验证 RTO 与数据可读性；不能只凭 API 状态判定通过。

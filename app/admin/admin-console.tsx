@@ -903,7 +903,7 @@ export function AdminConsole() {
         <div className="admin-section-heading">
           <p className="eyebrow mono">OPC / ORDER OPERATIONS</p>
           <h2 id="admin-opc-orders-title">订单与到账核验</h2>
-          <p className="form-note">线上付款暂时关闭；线下订单以企业银行实际入账记录为准。管理员重新验证身份后，按固定金额、付款户名、流水号和入账时间确认到账。</p>
+          <p className="form-note">旧在线支付已经退役；线下订单以企业银行实际入账记录为准。管理员重新验证身份后，按固定金额、付款户名、流水号和入账时间确认到账。</p>
         </div>
         <div className="admin-donation-list">
           {orders.length === 0 ? <p className="ranking-empty">当前没有 OPC 订单。</p> : orders.map((order) => (

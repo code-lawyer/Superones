@@ -53,6 +53,40 @@ test("production configuration rejects reopening retired paper checkout", () => 
   assert.ok(report.errors.some((issue) => issue.includes("已经退役")));
 });
 
+test("production configuration rejects every retired online payment variable", () => {
+  for (const retiredVariable of [
+    "VAULT2077_OPC_PAYMENTS_ENABLED",
+    "VAULT2077_ALIPAY_APP_ID",
+    "VAULT2077_ALIPAY_SELLER_ID",
+    "VAULT2077_ALIPAY_PRIVATE_KEY",
+    "VAULT2077_ALIPAY_PUBLIC_KEY",
+    "VAULT2077_ALIPAY_KEY_TYPE",
+    "VAULT2077_ALIPAY_GATEWAY",
+    "VAULT2077_ALIPAY_WEB_PAYMENT_MODE",
+  ]) {
+    const report = validateProductionConfiguration({ ...validEnvironment(), [retiredVariable]: "retired-value" });
+    assert.ok(report.errors.some((issue) => issue.includes(retiredVariable)), retiredVariable);
+  }
+
+  const emptyVariableReport = validateProductionConfiguration({
+    ...validEnvironment(),
+    VAULT2077_OPC_PAYMENTS_ENABLED: "",
+  });
+  assert.ok(emptyVariableReport.errors.some((issue) => issue.includes("VAULT2077_OPC_PAYMENTS_ENABLED")));
+});
+
+test("production editorial request budgets are unlimited", () => {
+  for (const budgetVariable of [
+    "VAULT2077_VAULT_LLM_MAX_REQUESTS_PER_RUN",
+    "VAULT2077_SIC_LLM_MAX_REQUESTS_PER_RUN",
+  ]) {
+    const unlimitedReport = validateProductionConfiguration({ ...validEnvironment(), [budgetVariable]: "unlimited" });
+    const finiteReport = validateProductionConfiguration({ ...validEnvironment(), [budgetVariable]: "300" });
+    assert.equal(unlimitedReport.errors.some((issue) => issue.includes(budgetVariable)), false);
+    assert.ok(finiteReport.errors.some((issue) => issue.includes(budgetVariable)));
+  }
+});
+
 test("production configuration requires the bank-transfer feature gate", () => {
   const report = validateProductionConfiguration({ ...validEnvironment(), VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED: "" });
   assert.ok(report.errors.some((issue) => issue.includes("OPC_OFFLINE_PAYMENT_ENABLED")));

@@ -215,8 +215,8 @@ test("OPC service brief keeps internal metadata private and links to one gated u
   assert.match(orderPage, /className="opc-order-page__workspace"/);
   assert.match(orderPage, /<h1>确认服务，<br \/>再决定何时付款。<\/h1>/);
   assert.doesNotMatch(orderPage, /<dd>\{service\.revision\}<\/dd>|目录版本/);
-  assert.match(orderEntry, /<button type="button" disabled>线上付款 · 暂未开放<\/button>/);
-  assert.match(orderEntry, /<button type="button" disabled aria-pressed="true">线下付款 · 对公转账<\/button>/);
+  assert.match(orderEntry, /<p className="opc-order-entry__payment-method">付款方式 · 线下对公转账<\/p>/);
+  assert.doesNotMatch(orderEntry, /线上付款|暂未开放/);
   assert.match(orderEntry, /X-Vault2077-Public-Request/);
   assert.doesNotMatch(orderEntry, /window\.location\.assign|paymentUrl/);
   assert.match(orderEntry, /sessionStorage\.setItem\(`vault2077:opc:resume:/);
@@ -375,10 +375,8 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(styles, /\.opc-ranger-shelf\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex:\s*1[\s\S]*?border-bottom:\s*1px solid var\(--carbon\)/);
   assert.match(styles, /\.opc-ranger-shelf__spine\s*\{[\s\S]*?justify-content:\s*center[\s\S]*?writing-mode:\s*vertical-rl/);
   assert.match(styles, /\.opc-ranger-shelf__pager\s*\{[\s\S]*?border:\s*0[\s\S]*?background:\s*transparent/);
-  assert.match(styles, /\.opc-ranger-shelf__pager--next\s*\{[\s\S]*?right:\s*calc\(-1 \* min\(48px, calc\(var\(--gutter\) - 8px\)\)\)/);
-  assert.match(styles, /\.opc-ranger-shelf__pager--previous\s*\{[\s\S]*?right:\s*calc\(-1 \* min\(48px, calc\(var\(--gutter\) - 8px\)\)\)/);
-  const previousPagerRule = styles.match(/\.opc-ranger-shelf__pager--previous\s*\{([^}]*)\}/)?.[1] ?? "";
-  assert.doesNotMatch(previousPagerRule, /left:/);
+  assert.match(styles, /\.opc-ranger-shelf__pager--previous,\s*\n\.opc-ranger-shelf__pager--next\s*\{[\s\S]*?right:\s*calc\(-1 \* min\(48px, calc\(var\(--gutter\) - 8px\)\)\)/);
+  assert.doesNotMatch(styles, /\.opc-ranger-shelf__pager--previous[^}]*left:/);
   assert.match(styles, /\.opc-ranger-shelf-stage\.has-bidirectional-pagers[\s\S]*?pager--previous[\s\S]*?top:\s*calc\(50% - 28px\)[\s\S]*?pager--next[\s\S]*?top:\s*calc\(50% \+ 28px\)/);
   assert.match(styles, /\.opc-ranger-shelf__pager--next span\s*\{[\s\S]*?animation:\s*opc-ranger-next-cue/);
   assert.match(styles, /\.opc-ranger-shelf__pager--previous span\s*\{[\s\S]*?animation:\s*opc-ranger-previous-cue/);
@@ -387,6 +385,8 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__panel\s*\{[\s\S]*?visibility:\s*visible[\s\S]*?transition-duration:\s*560ms, 0s[\s\S]*?transition-delay:\s*380ms, 0s/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__portrait\s+\.opc-ranger-portrait__image\s*\{[\s\S]*?transition-duration:\s*700ms, 1450ms/);
   assert.match(styles, /@media \(max-width:\s*620px\)[\s\S]*?\.opc-ranger-shelf__pager--next span\s*\{[\s\S]*?width:\s*2px[\s\S]*?height:\s*52px[\s\S]*?background:\s*currentColor/);
+  assert.match(styles, /@media \(max-width:\s*1100px\)[\s\S]*?\.opc-service-browser__content--rangers\s*\{\s*padding:\s*0/);
+  assert.match(styles, /@media \(max-width:\s*820px\)[\s\S]*?\.opc-service-browser__content--rangers\s*\{\s*padding:\s*0/);
   assert.doesNotMatch(styles, /@container opc-reading[\s\S]*?\.opc-ranger-shelf__spine[\s\S]*?writing-mode:\s*horizontal-tb/);
 });
 

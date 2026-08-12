@@ -1,6 +1,6 @@
 # Vault2077 全功能上线准备度审计（历史快照）
 
-> 本文记录 2026-07-30 当时的仓库状态，身份网关等结论已被后续原生 Passkey 决策取代，不应作为当前部署手册。当前执行依据为 `Vault2077-Production-Deployment-Plan-2026-07-31.md`、`Vault2077-Owner-Launch-Actions-2026-07-30.md` 与 `docs/Vault2077-Deployment-Configuration-Manual.md`。
+> 本文记录 2026-07-30 当时的仓库状态，不应作为当前部署手册。当前执行依据为 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`、`docs/Vault2077-Deployment-Configuration-Manual.md` 与 `docs/Vault2077-Launch-Checklist.md`。
 
 审计日期：2026-07-30
 审计对象：当前工作区（含未提交修改）
