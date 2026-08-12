@@ -18,6 +18,9 @@ test("OPC order endpoint enforces its public-write security boundary", async () 
   assert.match(route, /withinDurableRateLimit\(`opc-orders:\$\{clientHash\}`, 6/);
   assert.match(route, /website/);
   assert.match(route, /agreementAccepted/);
+  assert.match(route, /identityConsentAccepted/);
+  assert.match(route, /isValidPrcIdentityCard/);
+  assert.match(route, /identityDocumentNumber/);
   assert.match(route, /OpcOrderIdempotencyConflictError/);
   assert.match(route, /status: 409/);
 });
@@ -185,6 +188,28 @@ test("OPC unpaid bank-transfer cancellation uses its own evidence-safe branch", 
   assert.match(route, /cancelAwaitingOpcBankTransferOrder/);
   assert.match(route, /withPersistenceTransaction/);
   assert.match(route, /recordAuditEvent/);
+});
+
+test("OPC refund applications require the original order credential and remain private", async () => {
+  const [route, page, component, footer] = await Promise.all([
+    readFile(path.join(root, "app", "api", "opc", "refund-requests", "route.ts"), "utf8"),
+    readFile(path.join(root, "app", "opc", "refund", "page.tsx"), "utf8"),
+    readFile(path.join(root, "components", "opc-refund-request.tsx"), "utf8"),
+    readFile(path.join(root, "components", "site-footer.tsx"), "utf8"),
+  ]);
+  assert.match(footer, /href="\/opc\/refund"/);
+  assert.match(route, /x-vault2077-public-request/);
+  assert.match(route, /readBoundedJsonBody/);
+  assert.match(route, /vault2077_opc_resume/);
+  assert.match(route, /Cache-Control", "private, no-store"/);
+  assert.match(route, /lookupOpcRefundApplication/);
+  assert.match(route, /requestOpcRefundApplication/);
+  assert.match(component, /vault2077:opc:resume:/);
+  assert.match(component, /AbortController/);
+  assert.match(component, /refundRequestTimeoutMs = 20_000/);
+  assert.match(component, /提交申请不等于退款完成/);
+  assert.match(page, /OpcRefundRequest/);
+  assert.doesNotMatch(component, /identityDocumentNumber|bankAccount|payerName/);
 });
 
 test("admin responses containing protected data are never cacheable", async () => {

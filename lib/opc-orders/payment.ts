@@ -230,6 +230,7 @@ export async function claimNextOpcPaymentNotification() {
       paidAt: order.paidAt,
       provider: order.payment.provider,
       tradeNo: order.payment.tradeNo,
+      orderStatus: order.status,
     };
   });
 }

@@ -7,10 +7,13 @@ import { clearFieldError, isValidEmail } from "@/lib/client-form-validation";
 import type { buildOpcOfflineCheckoutAgreement } from "@/lib/opc-offline-checkout-agreement";
 import type { PublicOpcOfflinePaymentProfile } from "@/lib/opc-offline-payment-profile";
 import type { OpcService } from "@/lib/opc-catalog";
+import { isValidOpcOrderReference } from "@/lib/opc-order-reference";
+import { isValidPrcIdentityCard, normalizePrcIdentityCard } from "@/lib/prc-identity-card";
 
 type OrderField =
   | "name" | "phone" | "email"
-  | "organizationName" | "organizationCreditCode" | "legalRepresentativeName"
+  | "identityDocumentNumber" | "identityConsentAccepted"
+  | "organizationName" | "organizationCreditCode"
   | "agreementAccepted";
 type OrderErrors = Partial<Record<OrderField, string>>;
 type OfflineAgreement = ReturnType<typeof buildOpcOfflineCheckoutAgreement>;
@@ -29,8 +32,8 @@ type CreatedOrder = {
 };
 
 const fieldOrder: readonly OrderField[] = [
-  "organizationName", "organizationCreditCode", "legalRepresentativeName",
-  "name", "phone", "email", "agreementAccepted",
+  "organizationName", "organizationCreditCode",
+  "name", "phone", "identityDocumentNumber", "email", "agreementAccepted", "identityConsentAccepted",
 ];
 const orderRequestTimeoutMs = 20_000;
 const subscribeToSessionStorage = () => () => undefined;
@@ -43,7 +46,7 @@ const dialogFocusableSelector = [
 
 function readLastOrderReference() {
   const reference = sessionStorage.getItem("vault2077:opc:last-order");
-  return reference && /^OPC-\d{8}-[0-9A-F]{12}$/.test(reference) ? reference : null;
+  return reference && isValidOpcOrderReference(reference) ? reference : null;
 }
 
 function validPhone(value: string) {
@@ -67,12 +70,13 @@ export function OpcOrderEntry({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [identityDocumentNumber, setIdentityDocumentNumber] = useState("");
   const [wechat, setWechat] = useState("");
   const [note, setNote] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationCreditCode, setOrganizationCreditCode] = useState("");
-  const [legalRepresentativeName, setLegalRepresentativeName] = useState("");
   const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [identityConsentAccepted, setIdentityConsentAccepted] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [website, setWebsite] = useState("");
   const [errors, setErrors] = useState<OrderErrors>({});
@@ -164,12 +168,13 @@ export function OpcOrderEntry({
     if (signerType === "organization") {
       if (organizationName.trim().length < 2) next.organizationName = "请填写组织全称。";
       if (!/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(organizationCreditCode.trim().toUpperCase())) next.organizationCreditCode = "请填写有效的 18 位统一社会信用代码。";
-      if (legalRepresentativeName.trim().length < 2) next.legalRepresentativeName = "请填写法定代表人姓名。";
     }
-    if (name.trim().length < 2) next.name = "请填写联系人姓名。";
+    if (name.trim().length < 2) next.name = "请填写签约联系人的真实姓名。";
     if (!validPhone(phone)) next.phone = "请填写有效的中国大陆手机号。";
+    if (!isValidPrcIdentityCard(identityDocumentNumber)) next.identityDocumentNumber = "请填写有效的 18 位居民身份证号码。";
     if (!isValidEmail(email.trim())) next.email = "请填写用于接收订单和到账通知的有效邮箱。";
     if (!agreementAccepted) next.agreementAccepted = "请阅读并确认服务协议与线下付款规则。";
+    if (!identityConsentAccepted) next.identityConsentAccepted = "请单独确认签约身份信息的必要处理。";
     setErrors(next);
     const first = fieldOrder.find((field) => next[field]);
     if (first) requestAnimationFrame(() => document.getElementById(`opc-order-${first}`)?.focus());
@@ -201,9 +206,10 @@ export function OpcOrderEntry({
           agreementVersion: checkoutAgreement.version,
           agreementSha256,
           signerType,
-          name, phone, email, wechat, note,
-          organizationName, organizationCreditCode, legalRepresentativeName,
+          name, phone, email, identityDocumentNumber: normalizePrcIdentityCard(identityDocumentNumber), wechat, note,
+          organizationName, organizationCreditCode,
           agreementAccepted,
+          identityConsentAccepted,
           website,
         }),
       });
@@ -308,11 +314,11 @@ export function OpcOrderEntry({
             {signerType === "organization" ? <>
               <Field id="organizationName" label="组织全称" value={organizationName} setValue={(value) => updateField("organizationName", () => setOrganizationName(value))} error={errors.organizationName} disabled={pending} />
               <Field id="organizationCreditCode" label="统一社会信用代码" value={organizationCreditCode} setValue={(value) => updateField("organizationCreditCode", () => setOrganizationCreditCode(value.toUpperCase()))} error={errors.organizationCreditCode} disabled={pending} maxLength={18} />
-              <Field id="legalRepresentativeName" label="法定代表人姓名" value={legalRepresentativeName} setValue={(value) => updateField("legalRepresentativeName", () => setLegalRepresentativeName(value))} error={errors.legalRepresentativeName} disabled={pending} />
             </> : null}
 
-            <Field id="name" label="联系人姓名" value={name} setValue={(value) => updateField("name", () => setName(value))} error={errors.name} disabled={pending} autoComplete="name" />
-            <Field id="phone" label="联系人手机号" value={phone} setValue={(value) => updateField("phone", () => setPhone(value))} error={errors.phone} disabled={pending} type="tel" autoComplete="tel" />
+            <Field id="name" label={signerType === "organization" ? "法定代表人真实姓名" : "签约人真实姓名"} value={name} setValue={(value) => updateField("name", () => setName(value))} error={errors.name} disabled={pending} autoComplete="name" />
+            <Field id="phone" label={signerType === "organization" ? "法定代表人手机号" : "签约人手机号"} value={phone} setValue={(value) => updateField("phone", () => setPhone(value))} error={errors.phone} disabled={pending} type="tel" autoComplete="tel" />
+            <Field id="identityDocumentNumber" label="居民身份证号码" value={identityDocumentNumber} setValue={(value) => updateField("identityDocumentNumber", () => setIdentityDocumentNumber(normalizePrcIdentityCard(value)))} error={errors.identityDocumentNumber} disabled={pending} autoComplete="off" maxLength={18} />
             <Field id="email" label="通知邮箱" value={email} setValue={(value) => updateField("email", () => setEmail(value))} error={errors.email} disabled={pending} type="email" autoComplete="email" required />
             <Field id="wechat" label="即时通讯账号（可选）" value={wechat} setValue={setWechat} disabled={pending} />
 
@@ -333,6 +339,15 @@ export function OpcOrderEntry({
                 <p id="opc-order-consent-details"><button type="button" className="opc-inline-link" onClick={(event) => openAgreement(event.currentTarget)}>服务协议</button>、线下对公转账规则、<Link href="/terms">服务条款</Link>和<Link href="/privacy">隐私说明</Link>。</p>
               </div>
               {errors.agreementAccepted ? <p id="opc-order-agreementAccepted-error" className="form-error">{errors.agreementAccepted}</p> : null}
+            </div>
+
+            <div className="opc-order-entry__consent opc-order-entry__identity-consent">
+              <input id="opc-order-identityConsentAccepted" type="checkbox" checked={identityConsentAccepted} onChange={(event) => updateField("identityConsentAccepted", () => setIdentityConsentAccepted(event.target.checked))} aria-invalid={Boolean(errors.identityConsentAccepted)} aria-describedby={`opc-order-identity-consent-details${errors.identityConsentAccepted ? " opc-order-identityConsentAccepted-error" : ""}`} disabled={pending} />
+              <div className="opc-order-entry__consent-copy">
+                <label htmlFor="opc-order-identityConsentAccepted">我单独同意处理签约身份信息</label>
+                <p id="opc-order-identity-consent-details">姓名、手机号和居民身份证号码用于核验本订单签约主体。身份证号码加密保存，仅用于本订单的签约身份核验与依法留存，不用于营销、画像或与本订单无关的事项；姓名、手机号和邮箱还会用于订单履行及退款联系。详见<Link href="/privacy">隐私说明</Link>。</p>
+              </div>
+              {errors.identityConsentAccepted ? <p id="opc-order-identityConsentAccepted-error" className="form-error">{errors.identityConsentAccepted}</p> : null}
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { decryptSensitiveText } from "../sensitive-data.ts";
+import { maskPrcIdentityCard } from "../prc-identity-card.ts";
 import type { OpcSignerParty } from "../opc-esign.ts";
 import {
   assertExpectedUpdatedAt,
@@ -40,6 +41,7 @@ export async function listAdminOpcOrders() {
         signature: storedSignature,
         idempotencyHash: _idempotencyHash,
         requestFingerprint: _requestFingerprint,
+        refundApplication: storedRefundApplication,
         notifications: storedNotifications,
         payment: storedPayment,
         ...record
@@ -54,7 +56,10 @@ export async function listAdminOpcOrders() {
         ...signature
       } = storedSignature;
       const notifications = storedNotifications.map(({ claimId: _claimId, leaseExpiresAt: _leaseExpiresAt, ...event }) => event);
-      return { ...record, payment, notifications, signature, contactAvailable };
+      const refundApplication = storedRefundApplication
+        ? { status: storedRefundApplication.status, requestedAt: storedRefundApplication.requestedAt }
+        : null;
+      return { ...record, payment, notifications, signature, refundApplication, contactAvailable };
     });
 }
 
@@ -67,6 +72,9 @@ export async function getAdminOpcOrderDossier(id: string) {
     ...publicOrder(order),
     payment,
     paymentReceipt: order.paymentReceipt,
+    refundApplication: order.refundApplication
+      ? { status: order.refundApplication.status, requestedAt: order.refundApplication.requestedAt }
+      : null,
     notifications: order.notifications.map(({ claimId: _claimId, leaseExpiresAt: _leaseExpiresAt, ...event }) => event),
     checkoutAgreement: order.checkoutAgreement,
     timestamps: {
@@ -86,6 +94,8 @@ export async function getAdminOpcOrderSensitiveDossier(id: string) {
   if (!order) throw new Error("OPC 订单不存在。");
   if (!order.contactEncrypted || !order.signerEncrypted) throw new Error("订单敏感资料已按保留期清除。");
   const { payerNameEncrypted, ...payment } = order.payment;
+  const contact = JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact;
+  const { identityDocumentNumber, ...contactWithoutIdentityDocument } = contact;
   return {
     ...publicOrder(order),
     service: {
@@ -100,7 +110,10 @@ export async function getAdminOpcOrderSensitiveDossier(id: string) {
       scope: order.serviceScope,
       boundary: order.serviceBoundary,
     },
-    contact: JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact,
+    contact: {
+      ...contactWithoutIdentityDocument,
+      identityDocumentNumberMasked: identityDocumentNumber ? maskPrcIdentityCard(identityDocumentNumber) : "",
+    },
     signer: JSON.parse(decryptSensitiveText(order.signerEncrypted)) as OpcSignerParty,
     delivery: order.deliveryEncrypted
       ? JSON.parse(decryptSensitiveText(order.deliveryEncrypted)) as OpcPaperDelivery
@@ -112,6 +125,15 @@ export async function getAdminOpcOrderSensitiveDossier(id: string) {
     paymentReceipt: order.paymentReceipt,
     checkoutAgreement: order.checkoutAgreement,
     refund: order.refund,
+    refundApplication: order.refundApplication
+      ? {
+          status: order.refundApplication.status,
+          reason: order.refundApplication.reasonEncrypted
+            ? decryptSensitiveText(order.refundApplication.reasonEncrypted)
+            : "退款申请原因已按保留期清除。",
+          requestedAt: order.refundApplication.requestedAt,
+        }
+      : null,
     notifications: order.notifications.map(({ claimId: _claimId, leaseExpiresAt: _leaseExpiresAt, ...event }) => event),
     timestamps: {
       createdAt: order.createdAt,
@@ -181,10 +203,12 @@ export async function getAdminOpcContactExport(id: string) {
     const order = store.orders.find((value) => value.id === id);
     if (!order) throw new Error("OPC 订单不存在。");
     if (!order.contactEncrypted || !order.signerEncrypted) throw new Error("该订单的非合同联系方式已按 24 个月规则清除。");
+    const contact = JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact;
+    const { identityDocumentNumber: _identityDocumentNumber, ...contactWithoutIdentityDocument } = contact;
     return {
       reference: order.reference,
       serviceName: order.serviceName,
-      contact: JSON.parse(decryptSensitiveText(order.contactEncrypted)) as OpcOrderContact,
+      contact: contactWithoutIdentityDocument,
       signer: JSON.parse(decryptSensitiveText(order.signerEncrypted)) as OpcSignerParty,
     };
   });

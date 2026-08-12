@@ -9,6 +9,7 @@ import {
 import { encryptSensitiveText } from "../sensitive-data.ts";
 import { PRODUCTION_ADMIN_EMAIL } from "../admin-profile.ts";
 import type { OpcSignerParty } from "../opc-esign.ts";
+import { isValidPrcIdentityCard } from "../prc-identity-card.ts";
 import {
   createResumeCredential,
   idempotencyHash,
@@ -24,6 +25,7 @@ import {
 import {
   OpcOrderIdempotencyConflictError,
   type OpcCheckoutAgreement,
+  type OpcIdentityConsent,
   type OpcOrderContact,
   type OpcOfflinePaymentSnapshot,
   type OpcPaperDelivery,
@@ -46,6 +48,7 @@ export async function createOpcOrder(input: {
   signatureMethod?: "paper" | "electronic" | "online";
   delivery?: OpcPaperDelivery;
   agreement?: OpcCheckoutAgreement;
+  identityConsent?: OpcIdentityConsent;
   paymentProvider?: "alipay" | "bank_transfer";
   offlinePaymentSnapshot?: OpcOfflinePaymentSnapshot;
 }) {
@@ -72,6 +75,9 @@ export async function createOpcOrder(input: {
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.contact.email.trim())) {
       throw new Error("线下转账订单需要有效邮箱以接收订单和到账通知。");
+    }
+    if (!isValidPrcIdentityCard(input.contact.identityDocumentNumber ?? "") || !input.identityConsent) {
+      throw new Error("线下转账订单需要签约身份信息及单独授权证据。");
     }
   }
   const paymentAmount = catalogPriceToAlipayAmount(input.quotedPrice);
@@ -176,8 +182,10 @@ export async function createOpcOrder(input: {
           ]
         : [],
       refund: null,
+      refundApplication: null,
       signatureMethod,
       checkoutAgreement: input.agreement ?? null,
+      identityConsent: input.identityConsent ?? null,
       contactEncrypted: encryptSensitiveText(JSON.stringify(input.contact)),
       signerEncrypted: encryptSensitiveText(JSON.stringify(input.signer)),
       deliveryEncrypted: input.delivery ? encryptSensitiveText(JSON.stringify(input.delivery)) : null,

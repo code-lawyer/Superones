@@ -35,7 +35,20 @@ export async function processOpcPaymentNotifications({
     const isBankTransfer = claim.provider === "bank_transfer";
     const isCustomer = claim.audience === "customer";
     const isOrderCreated = claim.eventType === "order_created";
-    const lines = isOrderCreated
+    const isRefundRequested = claim.eventType === "refund_requested";
+    const lines = isRefundRequested
+      ? [
+          "收到一笔 OPC 退款申请。",
+          "",
+          `订单号：${claim.reference}`,
+          `服务：${claim.serviceName}（${claim.serviceCode}）`,
+          `金额：人民币 ${claim.amount.decimal} 元`,
+          `订单状态：${claim.orderStatus}`,
+          "",
+          "退款申请不代表已经退款。请在受保护的管理后台查看申请原因与原订单联系方式，再人工联系客户处理：",
+          `${ADMIN_ORIGIN}/admin#opc-order-${encodeURIComponent(claim.reference)}`,
+        ]
+      : isOrderCreated
       ? isCustomer
         ? [
             "您的 OPC 线下付款订单已创建。",
@@ -86,7 +99,9 @@ export async function processOpcPaymentNotifications({
     try {
       await sender.send({
         to: claim.recipient,
-        subject: isOrderCreated
+        subject: isRefundRequested
+          ? `【OPC 退款申请】${claim.reference} · ${claim.amount.decimal} 元`
+          : isOrderCreated
           ? isCustomer
             ? `【SUPERONES】订单已创建 · ${claim.reference}`
             : `【OPC 新订单】${claim.reference} · ${claim.amount.decimal} 元`

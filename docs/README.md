@@ -52,6 +52,7 @@ updated: 2026-08-11
 - [ADR-0018：OPC 已签合同私有归档](adr/0018-opc-signed-contract-private-archive.md)
 - [ADR-0019：OPC 全额预付与纸质合同线上订单生命周期](adr/0019-opc-prepaid-paper-contract-checkout.md)
 - [ADR-0020：OPC 在线确认协议与线下对公转账](adr/0020-opc-offline-bank-transfer-checkout.md)
+- [ADR-0021：OPC 退款申请与签约身份信息](adr/0021-opc-refund-request-and-contract-identity.md)
 
 ## 当前运行文档
 

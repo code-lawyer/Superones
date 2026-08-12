@@ -36,10 +36,10 @@ test("production callers use focused OPC order modules", async () => {
 });
 
 test("only the internal OPC order store owns persistence and schema migration", async () => {
-  const modules = ["checkout", "signature", "payment", "refund", "admin"];
+  const modules = ["checkout", "signature", "payment", "refund", "refund-application", "admin"];
   const internalStore = await readFile(path.join(root, "lib", "opc-orders", "internal-store.ts"), "utf8");
   assert.match(internalStore, /namespace: "opc-orders"/);
-  assert.match(internalStore, /version: 8/);
+  assert.match(internalStore, /version: 9/);
   assert.match(internalStore, /mutateStateDocument/);
   assert.match(internalStore, /readStateDocument/);
   for (const moduleName of modules) {

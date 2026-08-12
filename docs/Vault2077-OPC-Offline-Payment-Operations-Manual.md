@@ -19,7 +19,7 @@ VPS 固定目录：
 └── contact-qr.png
 ```
 
-仓库模板位于 `config/opc-offline-payment-profile.template.json`，首版协议生成脚本位于 `scripts/build-opc-offline-agreement-pdf.py`。本地首版输出位于 `output/pdf/OPC-服务订单及线下对公转账协议-v1.pdf`。
+仓库模板位于 `config/opc-offline-payment-profile.template.json`，协议生成脚本位于 `scripts/build-opc-offline-agreement-pdf.py`。当前包含签约身份与退款申请条款的本地输出位于 `output/pdf/OPC-服务订单及线下对公转账协议-v2.pdf`。从 v1 升级到 v2 必须先关闭线下付款入口，以新付款资料修订同时替换 PDF、账户配置和二维码并发布，再部署读取 v2 动态协议的 release，完成核验后重新开启；不得在开放期间混用两个版本。
 
 ## 2. 首次准备与替换
 

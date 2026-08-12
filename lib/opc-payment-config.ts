@@ -2,6 +2,7 @@ import "server-only";
 
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { AlipaySdk } from "alipay-sdk";
+import { isValidOpcOrderReference } from "./opc-order-reference.ts";
 
 export type OpcAlipayChannel = "page" | "wap";
 export type OpcAlipayMode = OpcAlipayChannel | "both";
@@ -290,7 +291,7 @@ export function verifyOpcAlipayNotification(
   if (notification.trade_status !== "TRADE_SUCCESS" && notification.trade_status !== "TRADE_FINISHED") {
     throw new Error("支付宝异步通知不是已支付状态。");
   }
-  if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(notification.out_trade_no ?? "")) {
+  if (!isValidOpcOrderReference(notification.out_trade_no ?? "")) {
     throw new Error("支付宝异步通知订单号无效。");
   }
   const amount = alipayDecimalToAmount(notification.total_amount ?? "");
@@ -374,7 +375,7 @@ export async function closeOpcAlipayTrade(
   reference: string,
   configuration = requireOpcAlipayHistoryConfiguration(),
 ): Promise<OpcAlipayCloseResult> {
-  if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(reference)) throw new Error("OPC 支付宝关单订单号无效。");
+  if (!isValidOpcOrderReference(reference)) throw new Error("OPC 支付宝关单订单号无效。");
   const sdk = createAlipaySdk(configuration);
   const result = await sdk.exec("alipay.trade.close", {
     bizContent: { out_trade_no: reference },
@@ -403,7 +404,7 @@ export async function requestOpcAlipayFullRefund(
   request: OpcAlipayRefundRequest,
   configuration = requireOpcAlipayHistoryConfiguration(),
 ): Promise<OpcAlipayRefundResult> {
-  if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(request.reference)) throw new Error("OPC 退款订单号无效。");
+  if (!isValidOpcOrderReference(request.reference)) throw new Error("OPC 退款订单号无效。");
   if (!/^\d{16,64}$/.test(request.tradeNo)) throw new Error("支付宝退款交易号无效。");
   if (!/^RF-[A-Z0-9]{10,40}$/.test(request.refundRequestNo)) throw new Error("支付宝退款请求号无效。");
   const sdk = createAlipaySdk(configuration);

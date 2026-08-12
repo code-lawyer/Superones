@@ -1,7 +1,7 @@
 import type { OpcService } from "./opc-catalog.ts";
 import type { PublicOpcOfflinePaymentProfile } from "./opc-offline-payment-profile.ts";
 
-export const OPC_OFFLINE_AGREEMENT_VERSION = "opc-offline-bank-transfer-v1";
+export const OPC_OFFLINE_AGREEMENT_VERSION = "opc-offline-bank-transfer-v2";
 
 export function buildOpcOfflineCheckoutAgreement(
   service: OpcService,
@@ -25,7 +25,14 @@ export function buildOpcOfflineCheckoutAgreement(
       title: "服务、取消与退款",
       paragraphs: [
         `服务结果为“${service.outcome}”，预计周期为“${service.period}”。服务范围和边界以服务目录、订单快照及双方后续书面确认为准。`,
-        "付款前可停止转账；付款后的取消与退款按服务是否启动、已完成工作、不可退成本和适用法律处理。获准退款原则上退回原付款账户或经核验的同名账户。",
+        "付款前可停止转账；付款后的取消与退款按服务是否启动、已完成工作、不可退成本和适用法律处理。用户可从网站页脚进入退款申请页，使用原订单凭证提交人工处理需求；提交申请不表示退款已经完成。获准退款原则上退回原付款账户或经核验的同名账户。",
+      ],
+    },
+    {
+      title: "签约身份信息与联系",
+      paragraphs: [
+        "用户应填写签约联系人的真实姓名、手机号和居民身份证号码。身份证号码采用字段加密，仅用于核验本订单签约主体和依法必要的合同留存，不用于营销、画像或与本订单无关的事项；姓名、手机号和邮箱还用于订单履行、必要交易通知及退款联系。",
+        "用户对居民身份证号码的处理作出单独确认。服务方不会在订单邮件、退款申请邮件、公开订单状态或普通后台摘要中展示居民身份证号码。",
       ],
     },
     {

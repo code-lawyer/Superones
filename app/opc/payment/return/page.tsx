@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { OpcPaymentReceipt } from "@/components/opc-payment-receipt";
 import { PageIntro } from "@/components/page-intro";
+import { isValidOpcOrderReference, normalizeOpcOrderReference } from "@/lib/opc-order-reference";
 
 export const metadata: Metadata = { title: "付款完成凭证 — OPC 服务台" };
 
@@ -11,8 +12,8 @@ export default async function OpcPaymentReturnPage({
   searchParams: Promise<{ order?: string; out_trade_no?: string }>;
 }) {
   const query = await searchParams;
-  const candidate = query.out_trade_no ?? query.order ?? "";
-  const reference = /^OPC-\d{8}-[0-9A-F]{12}$/.test(candidate) ? candidate : null;
+  const candidate = normalizeOpcOrderReference(query.out_trade_no ?? query.order ?? "");
+  const reference = isValidOpcOrderReference(candidate) ? candidate : null;
 
   return <>
     <PageIntro

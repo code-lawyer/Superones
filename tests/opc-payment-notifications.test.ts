@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 
 type NotificationSummary = {
-  eventType: "order_created" | "payment_confirmed";
+  eventType: "order_created" | "payment_confirmed" | "refund_requested";
   audience: "administrator" | "customer";
   status: string;
 };
@@ -44,9 +44,10 @@ test("offline checkout requires a deliverable customer email", async () => {
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "无邮箱联系人", phone: "13800138000", email: "", wechat: "", note: "" },
+      contact: { name: "无邮箱联系人", phone: "13800138000", email: "", wechat: "", note: "", identityDocumentNumber: "11010519491231002X" },
       signer: { type: "individual", name: "无邮箱联系人", phone: "13800138000", organizationName: "", organizationCreditCode: "", legalRepresentativeName: "" },
       agreement: { version: "opc-offline-bank-transfer-v1", title: "OPC 服务订单及线下对公转账协议", text: agreementText, sha256: createHash("sha256").update(agreementText).digest("hex"), acceptedAt: "2026-08-11T12:00:00.000Z" },
+      identityConsent: { version: "opc-contract-identity-consent-v1", acceptedAt: "2026-08-11T12:00:00.000Z" },
       offlinePaymentSnapshot: {
         revision: "offline-payment-2026-08-11-v1",
         account: { name: "上海睿诚明达咨询管理有限公司", bankName: "测试银行", branchName: "测试支行", accountNumber: "1234567890123456", cnapsCode: "" },
@@ -98,9 +99,10 @@ test("offline checkout asynchronously emails the customer and alerts the adminis
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "邮件联系人", phone: "13800138000", email: "buyer@example.com", wechat: "", note: "请电话联系" },
+      contact: { name: "邮件联系人", phone: "13800138000", email: "buyer@example.com", wechat: "", note: "请电话联系", identityDocumentNumber: "11010519491231002X" },
       signer: { type: "individual", name: "邮件联系人", phone: "13800138000", organizationName: "", organizationCreditCode: "", legalRepresentativeName: "" },
       agreement: { version: "opc-offline-bank-transfer-v1", title: "OPC 服务订单及线下对公转账协议", text: agreementText, sha256: createHash("sha256").update(agreementText).digest("hex"), acceptedAt: "2026-08-11T12:00:00.000Z" },
+      identityConsent: { version: "opc-contract-identity-consent-v1", acceptedAt: "2026-08-11T12:00:00.000Z" },
       offlinePaymentSnapshot: {
         revision: "offline-payment-2026-08-11-v1",
         account: { name: "上海睿诚明达咨询管理有限公司", bankName: "测试银行", branchName: "测试支行", accountNumber: "1234567890123456", cnapsCode: "" },

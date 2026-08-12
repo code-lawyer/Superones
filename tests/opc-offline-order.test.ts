@@ -7,6 +7,7 @@ import test from "node:test";
 import type { StoredOpcOrder } from "../lib/opc-orders/internal-store.ts";
 
 const agreementText = `OPC 服务订单及线下对公转账协议\n${"协议正文。".repeat(80)}`;
+const identityConsent = { version: "opc-contract-identity-consent-v1" as const, acceptedAt: "2026-08-11T12:00:00.000Z" };
 
 test("offline bank-transfer checkout creates an online-agreement order without paper delivery", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-offline-order-"));
@@ -41,7 +42,7 @@ test("offline bank-transfer checkout creates an online-agreement order without p
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "测试联系人", phone: "13800138000", email: "first@example.com", wechat: "", note: "" },
+      contact: { name: "测试联系人", phone: "13800138000", email: "first@example.com", wechat: "", note: "", identityDocumentNumber: "11010519491231002X" },
       signer: {
         type: "individual", name: "测试联系人", phone: "13800138000",
         organizationName: "", organizationCreditCode: "", legalRepresentativeName: "",
@@ -53,6 +54,7 @@ test("offline bank-transfer checkout creates an online-agreement order without p
         sha256: createHash("sha256").update(agreementText).digest("hex"),
         acceptedAt: "2026-08-10T12:00:00.000Z",
       },
+      identityConsent,
       offlinePaymentSnapshot: {
         revision: "offline-payment-2026-08-10",
         account: {
@@ -115,7 +117,7 @@ test("offline bank-transfer checkout creates an online-agreement order without p
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "第二联系人", phone: "13900139000", email: "second@example.com", wechat: "", note: "" },
+      contact: { name: "第二联系人", phone: "13900139000", email: "second@example.com", wechat: "", note: "", identityDocumentNumber: "11010519491231002X" },
       signer: {
         type: "individual", name: "第二联系人", phone: "13900139000",
         organizationName: "", organizationCreditCode: "", legalRepresentativeName: "",
@@ -127,6 +129,7 @@ test("offline bank-transfer checkout creates an online-agreement order without p
         sha256: createHash("sha256").update(agreementText).digest("hex"),
         acceptedAt: "2026-08-10T12:45:00.000Z",
       },
+      identityConsent,
       offlinePaymentSnapshot: {
         revision: "offline-payment-2026-08-10",
         account: {
@@ -263,9 +266,10 @@ test("unpaid bank-transfer orders can be cancelled and enter the 90-day privacy 
       serviceOutcome: "审查意见",
       serviceScope: "审查一份合同",
       serviceBoundary: "不含诉讼代理",
-      contact: { name: "取消联系人", phone: "13800138000", email: "cancel@example.com", wechat: "", note: "" },
+      contact: { name: "取消联系人", phone: "13800138000", email: "cancel@example.com", wechat: "", note: "", identityDocumentNumber: "11010519491231002X" },
       signer: { type: "individual", name: "取消联系人", phone: "13800138000", organizationName: "", organizationCreditCode: "", legalRepresentativeName: "" },
       agreement: { version: "opc-offline-bank-transfer-v1", title: "OPC 服务订单及线下对公转账协议", text: agreementText, sha256: createHash("sha256").update(agreementText).digest("hex"), acceptedAt: "2026-08-10T12:00:00.000Z" },
+      identityConsent,
       offlinePaymentSnapshot: {
         revision: "offline-payment-2026-08-10",
         account: { name: "上海睿诚明达咨询管理有限公司", bankName: "测试银行", branchName: "测试支行", accountNumber: "1234567890123456", cnapsCode: "" },

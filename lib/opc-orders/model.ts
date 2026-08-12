@@ -11,6 +11,13 @@ export type OpcOrderContact = {
   email: string;
   wechat: string;
   note: string;
+  /** Present on new online bank-transfer orders; absent on legacy orders. */
+  identityDocumentNumber?: string;
+};
+
+export type OpcIdentityConsent = {
+  version: "opc-contract-identity-consent-v1";
+  acceptedAt: string;
 };
 
 export type OpcPaperDelivery = {
@@ -84,7 +91,7 @@ export type StoredOpcPaymentReceipt = {
 
 export type StoredOpcNotification = {
   eventId: string;
-  eventType: "order_created" | "payment_confirmed";
+  eventType: "order_created" | "payment_confirmed" | "refund_requested";
   audience: "administrator" | "customer";
   recipient: string | null;
   status: "pending" | "sending" | "sent" | "failed";
@@ -94,6 +101,14 @@ export type StoredOpcNotification = {
   lastError: string | null;
   claimId: string | null;
   leaseExpiresAt: string | null;
+};
+
+export type StoredOpcRefundApplication = {
+  requestId: string;
+  status: "requested";
+  reasonEncrypted: string | null;
+  requestedAt: string;
+  updatedAt: string;
 };
 
 export type StoredOpcRefund = {

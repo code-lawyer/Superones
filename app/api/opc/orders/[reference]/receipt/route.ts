@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isValidOpcOrderReference } from "@/lib/opc-order-reference";
 import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
 import { queryOpcAlipayTrade } from "@/lib/opc-payment-config";
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
   if (!sameOrigin(request)) return NextResponse.json({ error: "付款凭证必须从当前页面查询。" }, { status: 403 });
   try {
     const { reference } = await context.params;
-    if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(reference)) return NextResponse.json({ error: "订单号无效。" }, { status: 400 });
+    if (!isValidOpcOrderReference(reference)) return NextResponse.json({ error: "订单号无效。" }, { status: 400 });
     const raw = await request.text();
     if (Buffer.byteLength(raw, "utf8") > 4_096) return NextResponse.json({ error: "查询内容过大。" }, { status: 413 });
     const body = JSON.parse(raw) as { token?: unknown };

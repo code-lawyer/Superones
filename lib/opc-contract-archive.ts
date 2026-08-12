@@ -3,6 +3,7 @@ import "server-only";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import OSS from "ali-oss";
+import { isValidOpcOrderReference } from "./opc-order-reference.ts";
 
 type StorageMode = "local" | "oss";
 
@@ -125,7 +126,7 @@ export async function putOpcContractArchive(input: {
   pdf: Buffer;
   manifest: Omit<OpcContractArchiveManifest, "archivedAt" | "retainUntil" | "sizeBytes">;
 }) {
-  if (!/^OPC-\d{8}-[0-9A-F]{12}$/.test(input.reference)) throw new Error("OPC 订单号无效。");
+  if (!isValidOpcOrderReference(input.reference)) throw new Error("OPC 订单号无效。");
   if (input.pdf.length < 8 || input.pdf.length > 60 * 1024 * 1024 || !input.pdf.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
     throw new Error("待归档文件不是有效且大小受控的 PDF。");
   }

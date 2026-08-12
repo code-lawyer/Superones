@@ -22,7 +22,7 @@ from reportlab.platypus import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "output" / "pdf" / "OPC-服务订单及线下对公转账协议-v1.pdf"
+OUTPUT = ROOT / "output" / "pdf" / "OPC-服务订单及线下对公转账协议-v2.pdf"
 FONT_REGULAR = Path(r"C:\Windows\Fonts\msyh.ttc")
 FONT_BOLD = Path(r"C:\Windows\Fonts\msyhbd.ttc")
 
@@ -51,7 +51,7 @@ def header_footer(canvas, doc) -> None:
     canvas.drawString(22 * mm, height - 13 * mm, "SUPERONES / OPC")
     canvas.setFont("MicrosoftYaHei", 7.2)
     canvas.setFillColor(MUTED)
-    canvas.drawRightString(width - 22 * mm, height - 13 * mm, "服务订单及线下对公转账协议 · 正式版 v1")
+    canvas.drawRightString(width - 22 * mm, height - 13 * mm, "服务订单及线下对公转账协议 · 正式版 v2")
     canvas.line(22 * mm, 15 * mm, width - 22 * mm, 15 * mm)
     canvas.drawString(22 * mm, 9.5 * mm, "上海睿诚明达咨询管理有限公司")
     canvas.drawRightString(width - 22 * mm, 9.5 * mm, f"{doc.page}")
@@ -128,7 +128,7 @@ def build_pdf() -> None:
         str(OUTPUT), pagesize=A4,
         rightMargin=22 * mm, leftMargin=22 * mm,
         topMargin=23 * mm, bottomMargin=21 * mm,
-        title="OPC 服务订单及线下对公转账协议 v1",
+        title="OPC 服务订单及线下对公转账协议 v2",
         author="上海睿诚明达咨询管理有限公司",
         subject="OPC 线下对公转账服务订单协议正式版",
     )
@@ -139,7 +139,7 @@ def build_pdf() -> None:
         Spacer(1, 17 * mm),
         p("ORDER & BANK TRANSFER", styles["kicker"]),
         p("服务订单及<br/>线下对公转账协议", styles["title"]),
-        p("适用于 SUPERONES 网站 OPC 服务的线下付款订单。协议版本：opc-offline-bank-transfer-v1。", styles["subtitle"]),
+        p("适用于 SUPERONES 网站 OPC 服务的线下付款订单。协议版本：opc-offline-bank-transfer-v2。", styles["subtitle"]),
     ]
 
     party_data = [
@@ -205,18 +205,20 @@ def build_pdf() -> None:
         "6.1　用户付款前可不继续转账，并可通过同页联系人申请取消未付款订单。订单成立后但尚未付款，不影响双方已形成的记录留存和必要风险审查；取消后的非必要联系方式按网站隐私政策处理。",
         "6.2　付款后的取消与退款，应结合服务是否启动、已完成工作、已发生的不可退成本和双方约定处理。法律法规或另行公示规则对退款有强制要求的，从其规定。",
         "6.3　获准退款时，原则上退回原付款账户或与原付款主体同名且经核验的企业／个人账户。服务方应留存退款申请、审批、银行流水和状态变更记录。用户要求退至无关第三方账户的，服务方有权拒绝。",
-        "6.4　一方严重违约、违法使用服务或持续拒绝必要配合的，守约方可依法解除或终止订单，并要求责任方承担相应责任。",
+        "6.4　用户可从网站页脚进入退款申请页，使用原下单浏览器保存的订单凭证核对订单并提交申请。退款申请只用于进入人工核验和客服联系，不表示服务方已经批准退款、完成账务处理或退回款项。",
+        "6.5　一方严重违约、违法使用服务或持续拒绝必要配合的，守约方可依法解除或终止订单，并要求责任方承担相应责任。",
     ], styles)
     story += section("七", "发票、税费与费用", [
         "7.1　用户需要发票的，应提供合法、准确的开票信息。开票内容、税率和时间按实际交易性质、适用税法及服务方开票流程办理。",
         "7.2　银行收取的转账手续费由收取该费用的一方按其与银行的约定承担；因用户选择境外汇款、中间行或特殊通道产生的额外费用，应由双方事先确认。",
     ], styles)
     story += section("八", "数据、隐私与记录", [
-        "8.1　服务方为下单、沟通、到账核验、履约、开票、退款、争议处理、安全和合规目的，处理必要的联系方式、订单信息、付款主体信息及银行交易标识。具体处理遵循网站公示的隐私政策和适用法律。",
-        "8.2　双方应妥善保管银行账户、验证码、登录凭证和其他敏感信息。服务方不会通过联系人二维码索要银行密码、短信验证码或远程控制权限。",
-        "8.3　服务方依法留存订单、协议版本、账户资料版本、付款核验和状态变更记录。用户可下载本协议；具体订单记录以系统及依法保存的业务、财务记录为准。",
+        "8.1　用户应填写签约联系人的真实姓名、手机号和居民身份证号码，以核验本订单签约主体。居民身份证号码属于敏感个人信息，采用字段加密，仅用于本订单的签约身份核验和依法必要的合同留存，不用于营销、画像或与本订单无关的事项；用户在提交订单前对此作出单独确认。",
+        "8.2　姓名、手机号和邮箱还会用于订单履行、必要交易通知及退款联系。用户提交的退款原因采用加密保存，仅用于人工核验退款条件、联系用户和处理相关财务或争议事项。订单邮件和退款申请邮件不包含居民身份证号码、完整联系方式或退款原因。",
+        "8.3　服务方为下单、沟通、到账核验、履约、开票、退款、争议处理、安全和合规目的，处理必要的订单信息、付款主体信息及银行交易标识。具体处理遵循网站公示的隐私政策和适用法律。",
+        "8.4　双方应妥善保管银行账户、验证码、登录凭证和其他敏感信息。服务方不会通过联系人二维码索要银行密码、短信验证码或远程控制权限。",
+        "8.5　服务方依法留存订单、协议版本、账户资料版本、付款核验和状态变更记录。用户可下载本协议；具体订单记录以系统及依法保存的业务、财务记录为准。",
     ], styles)
-    story.append(PageBreak())
     story += section("九", "知识产权与保密", [
         "9.1　双方在合作前已拥有的商标、内容、数据、方法、软件和其他成果，其权利仍归原权利人。具体交付成果的使用范围按订单或双方书面确认执行。",
         "9.2　一方因履约知悉的对方非公开商业、技术或个人信息，应仅为本订单目的使用，并采取合理保护措施；法律要求披露或信息已合法公开的除外。",
@@ -245,7 +247,7 @@ def build_pdf() -> None:
         [p("服务与金额", styles["table_label"]), p("以订单页面固定金额为准", styles["table_value"])],
         [p("企业收款账户", styles["table_label"]), p("以订单页面当期发布的企业账户快照为准", styles["table_value"])],
         [p("付款附言", styles["table_label"]), p("以订单页面生成内容为准", styles["table_value"])],
-        [p("协议版本", styles["table_label"]), p("opc-offline-bank-transfer-v1", styles["table_value"])],
+        [p("协议版本", styles["table_label"]), p("opc-offline-bank-transfer-v2", styles["table_value"])],
     ]
     snapshot_table = Table(snapshot_data, colWidths=[35 * mm, 108 * mm], hAlign="LEFT")
     snapshot_table.setStyle(TableStyle([

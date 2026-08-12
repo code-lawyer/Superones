@@ -26,12 +26,14 @@ import {
 import {
   OpcOrderConcurrentModificationError,
   type OpcCheckoutAgreement,
+  type OpcIdentityConsent,
   type OpcOrderContact,
   type OpcOrderStatus,
   type OpcPaperDelivery,
   type StoredOpcNotification,
   type StoredOpcPaymentReceipt,
   type StoredOpcRefund,
+  type StoredOpcRefundApplication,
   type StoredOpcSignature,
 } from "./model.ts";
 
@@ -77,8 +79,10 @@ export type StoredOpcOrder = {
   paymentReceipt: StoredOpcPaymentReceipt | null;
   notifications: StoredOpcNotification[];
   refund: StoredOpcRefund | null;
+  refundApplication: StoredOpcRefundApplication | null;
   signatureMethod: "paper" | "electronic" | "online";
   checkoutAgreement: OpcCheckoutAgreement | null;
+  identityConsent: OpcIdentityConsent | null;
   contactEncrypted: string | null;
   signerEncrypted: string | null;
   deliveryEncrypted: string | null;
@@ -99,7 +103,7 @@ export type StoredOpcOrder = {
 };
 
 type OpcOrderStore = {
-  version: 8;
+  version: 9;
   orders: StoredOpcOrder[];
 };
 
@@ -160,14 +164,14 @@ function parseStoredPayment(order: LegacyStoredOpcOrder): StoredOpcPayment {
 const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
   namespace: "opc-orders",
   fileName: "opc-orders.json",
-  create: () => ({ version: 8, orders: [] }),
+  create: () => ({ version: 9, orders: [] }),
   parse: (value) => {
     const parsed = value as { version?: unknown; orders?: unknown[] };
-    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(parsed.version as number) || !Array.isArray(parsed.orders)) {
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(parsed.version as number) || !Array.isArray(parsed.orders)) {
       throw new Error("OPC 订单存储格式无效。");
     }
     return {
-      version: 8,
+      version: 9,
       orders: parsed.orders.map((value) => {
         const order = value as LegacyStoredOpcOrder;
         if (
@@ -207,19 +211,25 @@ const orderDocument: StateDocumentDefinition<OpcOrderStore> = {
           } : null,
           notifications: (order.notifications ?? []).map((event) => ({
             ...event,
-            eventType: event.eventType === "order_created" ? "order_created" : "payment_confirmed",
+            eventType: event.eventType === "order_created"
+              ? "order_created"
+              : event.eventType === "refund_requested"
+                ? "refund_requested"
+                : "payment_confirmed",
             audience: event.audience === "customer" ? "customer" : "administrator",
             recipient: typeof event.recipient === "string" ? event.recipient : null,
             claimId: event.claimId ?? null,
             leaseExpiresAt: event.leaseExpiresAt ?? null,
           })),
           refund: order.refund ?? null,
+          refundApplication: order.refundApplication ?? null,
           signatureMethod: order.signatureMethod ?? "electronic",
           checkoutAgreement: order.checkoutAgreement ? {
             ...order.checkoutAgreement,
             title: order.checkoutAgreement.title ?? "OPC 在线订单及纸质合同预付款协议",
             text: order.checkoutAgreement.text ?? "",
           } : null,
+          identityConsent: order.identityConsent ?? null,
           paperContractApprovedAt: order.paperContractApprovedAt ?? null,
           signerEncrypted: order.signerEncrypted ?? null,
           deliveryEncrypted: order.deliveryEncrypted ?? null,
@@ -281,12 +291,14 @@ export function orderRequestFingerprint(input: {
   signatureMethod?: "paper" | "electronic" | "online";
   delivery?: OpcPaperDelivery;
   agreement?: OpcCheckoutAgreement;
+  identityConsent?: OpcIdentityConsent;
   paymentProvider?: "alipay" | "bank_transfer";
   offlinePaymentSnapshot?: import("./model.ts").OpcOfflinePaymentSnapshot;
 }) {
   const agreement = input.agreement
     ? { version: input.agreement.version, sha256: input.agreement.sha256 }
     : null;
+  const { identityDocumentNumber: _identityDocumentNumber, ...contactWithoutIdentityDocument } = input.contact;
   return createHash("sha256").update(JSON.stringify({
     serviceKind: input.serviceKind,
     serviceSlug: input.serviceSlug,
@@ -294,7 +306,11 @@ export function orderRequestFingerprint(input: {
     serviceName: input.serviceName,
     serviceRevision: input.serviceRevision,
     quotedPrice: input.quotedPrice,
-    contact: input.contact,
+    // The persisted idempotency fingerprint must not become a verifier for the
+    // encrypted PRC identity number. Other contact fields still distinguish
+    // semantically different retries while the identity number remains only in
+    // contactEncrypted.
+    contact: contactWithoutIdentityDocument,
     signer: input.signer,
     signatureMethod: input.signatureMethod ?? "electronic",
     paymentProvider: input.paymentProvider ?? "alipay",
@@ -304,6 +320,7 @@ export function orderRequestFingerprint(input: {
     // customer's semantic checkout intent. Retrying the same request must not
     // conflict merely because the route generated a later acceptance timestamp.
     agreement,
+    identityConsent: input.identityConsent?.version ?? null,
   })).digest("hex");
 }
 
@@ -376,6 +393,7 @@ export function scrubExpiredContacts(store: OpcOrderStore, now: Date) {
       && new Date(terminalAt).getTime() <= cutoff
     ) {
       order.contactEncrypted = null;
+      if (order.refundApplication) order.refundApplication.reasonEncrypted = null;
       if (order.signerEncrypted) {
         const signer = JSON.parse(decryptSensitiveText(order.signerEncrypted)) as OpcSignerParty;
         order.signerEncrypted = encryptSensitiveText(JSON.stringify({ ...signer, phone: "" }));

@@ -117,6 +117,7 @@ type OpcOrder = {
   contactDeletedAt: string | null;
   paymentReceipt: OpcPaymentReceiptData | null;
   refund: { status: "pending" | "succeeded"; requestNo: string; reason: string; amount: { decimal: string }; requestedAt: string; completedAt: string | null } | null;
+  refundApplication: { status: "requested"; requestedAt: string } | null;
   notifications: Array<{ eventId: string; recipient: string; status: string; attempts: number; sentAt: string | null }>;
 };
 
@@ -125,13 +126,14 @@ type OpcOrderDossier = {
   reference: string;
   status: OpcOrderStatus;
   service: { code: string; name: string; revision: string; quotedPrice: string; period: string; outcome: string; scope: string; boundary: string };
-  contact: { name: string; phone: string; email: string; wechat: string; note: string };
+  contact: { name: string; phone: string; email: string; wechat: string; note: string; identityDocumentNumberMasked?: string };
   signer: { type: "individual" | "organization"; name: string; organizationName: string; organizationCreditCode: string; legalRepresentativeName: string };
   delivery: { recipientName: string; phone: string; province: string; city: string; district: string; addressLine: string } | null;
   payment: OpcOrder["payment"];
   paymentReceipt: OpcPaymentReceiptData | null;
   checkoutAgreement: { version: string; title: string; text: string; sha256: string; acceptedAt: string } | null;
   refund: OpcOrder["refund"];
+  refundApplication: { status: "requested"; reason: string; requestedAt: string } | null;
   notifications: OpcOrder["notifications"];
   auditTrail: Array<{ occurredAt: string; actorHash: string; action: string; result: "success" | "rejected" | "failed"; reason: string | null; diff: Record<string, unknown> }>;
 };
@@ -971,6 +973,7 @@ export function AdminConsole() {
                 {order.paymentReceipt ? <span className="mono">付款凭证 {order.paymentReceipt.receiptNumber}</span> : null}
                 {order.notifications?.map((notification) => <span className="mono" key={notification.eventId}>付款邮件 {notification.recipient} / {notification.status} / 尝试 {notification.attempts}</span>)}
                 {order.refund ? <span className="mono">退款 {order.refund.status} / ¥{order.refund.amount.decimal} / {order.refund.requestNo}</span> : null}
+                {order.refundApplication ? <strong>客户已于 {new Date(order.refundApplication.requestedAt).toLocaleString("zh-CN", { hour12: false })} 提交退款申请，待人工联系处理</strong> : null}
               </div>
               {opcDossiers[order.id] ? <OpcDossierView dossier={opcDossiers[order.id]} /> : null}
               <div className="admin-actions">
@@ -1064,6 +1067,7 @@ function OpcDossierView({ dossier }: { dossier: OpcOrderDossier }) {
   const rows: Array<[string, string]> = [
     ["联系人", dossier.contact.name],
     ["手机号", dossier.contact.phone],
+    ["居民身份证号码", dossier.contact.identityDocumentNumberMasked || "—"],
     ["邮箱", dossier.contact.email || "—"],
     ["即时通讯", dossier.contact.wechat || "—"],
     ["备注", dossier.contact.note || "—"],
@@ -1084,6 +1088,7 @@ function OpcDossierView({ dossier }: { dossier: OpcOrderDossier }) {
     ["在线协议版本", dossier.checkoutAgreement?.version ?? "—"],
     ["在线协议 SHA-256", dossier.checkoutAgreement?.sha256 ?? "—"],
     ["退款", dossier.refund ? `${dossier.refund.status} / ¥${dossier.refund.amount.decimal} / ${dossier.refund.reason}` : "—"],
+    ["客户退款申请", dossier.refundApplication ? `${dossier.refundApplication.requestedAt} / ${dossier.refundApplication.reason}` : "—"],
   ];
   return <section className="admin-opc-dossier" aria-label={`${dossier.reference} 完整订单资料`}>
     <h4>完整订单 dossier</h4>

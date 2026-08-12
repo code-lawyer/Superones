@@ -8,6 +8,7 @@ import { OpcOrderIdempotencyConflictError } from "@/lib/opc-orders/model";
 import { readPublishedServiceCatalog } from "@/lib/managed-service-catalog";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
+import { isValidPrcIdentityCard, normalizePrcIdentityCard } from "@/lib/prc-identity-card";
 
 export const runtime = "nodejs";
 const maximumBodyBytes = 24_576;
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
     const serviceKind = body.serviceKind;
     const name = cleanText(body.name, 60);
     const phone = cleanText(body.phone, 40);
+    const identityDocumentNumber = normalizePrcIdentityCard(cleanText(body.identityDocumentNumber, 24));
     const email = cleanText(body.email, 160).toLowerCase();
     const wechat = cleanText(body.wechat, 80);
     const note = cleanText(body.note, 800);
@@ -79,8 +81,8 @@ export async function POST(request: NextRequest) {
     const signerType = body.signerType;
     const organizationName = cleanText(body.organizationName, 160);
     const organizationCreditCode = cleanText(body.organizationCreditCode, 32).toUpperCase();
-    const legalRepresentativeName = cleanText(body.legalRepresentativeName, 60);
     const agreementAccepted = body.agreementAccepted === true;
+    const identityConsentAccepted = body.identityConsentAccepted === true;
 
     if (
       !/^[0-9a-f-]{36}$/i.test(idempotencyKey)
@@ -92,13 +94,14 @@ export async function POST(request: NextRequest) {
       || name.length < 2
       || website
       || !agreementAccepted
+      || !identityConsentAccepted
       || (signerType !== "individual" && signerType !== "organization")
       || !validPhone(phone)
+      || !isValidPrcIdentityCard(identityDocumentNumber)
       || !validEmail(email)
       || (signerType === "organization" && (
         organizationName.length < 2
         || !/^[0-9A-HJ-NPQRTUWXY]{18}$/.test(organizationCreditCode)
-        || legalRepresentativeName.length < 2
       ))
     ) {
       return NextResponse.json({ error: "请完整填写付款方和联系人信息，并确认当前版本的服务协议与线下付款规则。" }, { status: 400 });
@@ -136,20 +139,24 @@ export async function POST(request: NextRequest) {
       serviceOutcome: service.outcome,
       serviceScope: service.includes.join("；"),
       serviceBoundary: service.boundary,
-      contact: { name, phone, email, wechat, note },
+      contact: { name, phone, email, wechat, note, identityDocumentNumber },
       signer: {
         type: signerType,
-        name: signerType === "individual" ? name : legalRepresentativeName,
+        name,
         phone,
         organizationName: signerType === "organization" ? organizationName : "",
         organizationCreditCode: signerType === "organization" ? organizationCreditCode : "",
-        legalRepresentativeName: signerType === "organization" ? legalRepresentativeName : "",
+        legalRepresentativeName: signerType === "organization" ? name : "",
       },
       agreement: {
         version: agreement.version,
         title: agreement.title,
         text: agreement.text,
         sha256: agreementSha256,
+        acceptedAt,
+      },
+      identityConsent: {
+        version: "opc-contract-identity-consent-v1",
         acceptedAt,
       },
       offlinePaymentSnapshot: {

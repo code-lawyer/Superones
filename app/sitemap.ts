@@ -4,6 +4,7 @@ const PUBLIC_ROUTES = [
   "",
   "/feed",
   "/opc",
+  "/opc/refund",
   "/sic",
   "/frontier",
   "/frontier/ranking",
