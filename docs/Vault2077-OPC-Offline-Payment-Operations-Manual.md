@@ -52,7 +52,7 @@ VAULT2077_OPC_PAYMENT_EMAIL_ENABLED=true
 
 启用前先向一个外部测试用户邮箱和 `lanzhouda@163.com` 各发送真实测试。用户应收到下单与到账摘要并只链接公开订单状态页；负责人应在下单和到账时收到脱敏摘要并只链接独立管理域名。四类事件必须各发送一次，失败重试不得生成新的 Message-ID。邮件不得嵌入联系人二维码、微信/QQ、完整联系人、付款户名、企业银行账号或恢复凭证。
 
-先发布付款资料，再部署包含线下付款代码的 release，运行 `npm run deploy:check`、数据库迁移、health 和后台验收。Nginx 必须使用随 release 提供的精确协议 PDF location，先通过 `nginx -t`，再确认该 PDF 只有一个 `X-Frame-Options: SAMEORIGIN`、弹窗可预览且跨站嵌入失败；二维码和其他页面仍须为 `DENY`。确认企业户名、账号、协议弹窗预览/下载、二维码、移动端布局和后台到账核验全部通过后，负责人明确 Go 才可把 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` 改为 `true` 并重启 Web。线上支付宝开关必须继续为 `false`；该开关只禁止新建支付宝付款，不得删除生产中既有的支付宝 APPID、PID、私钥和支付宝公钥，因为历史支付宝订单仍需验真、查询、关单和退款。
+先发布付款资料，再部署包含线下付款代码的 release，运行 `npm run deploy:check`、数据库迁移、health 和后台验收。Nginx 必须使用随 release 提供的精确协议 PDF location，先通过 `nginx -t`，再确认该 PDF 只有一个 `X-Frame-Options: SAMEORIGIN`、弹窗可预览且跨站嵌入失败；二维码和其他页面仍须为 `DENY`。确认企业户名、账号、协议弹窗预览/下载、二维码、移动端布局和后台到账核验全部通过后，负责人明确 Go 才可把 `VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED` 改为 `true` 并重启 Web。ADR-0022 已退役旧在线支付能力；生产环境及可用配置备份不得保留其开关、身份或密钥字段。
 
 ## 4. 到账核验
 

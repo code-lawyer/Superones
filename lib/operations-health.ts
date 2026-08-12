@@ -61,7 +61,7 @@ export async function getOperationsHealth() {
       );
       const latestMigration = migration.rows[0]?.name ?? "none";
       checks.database = {
-        status: latestMigration === "0006_acquisition_reliability.sql" ? "ok" : "degraded",
+        status: latestMigration === "0007_retire_online_payment_channel.sql" ? "ok" : "degraded",
         detail: `latest=${latestMigration}; ${Date.now() - startedAt}ms`,
       };
     } else {

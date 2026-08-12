@@ -183,37 +183,15 @@ Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入�
 
 未来电子签上线前分别完成自然人、企业法定代表人两笔沙箱签署，验证模板填充、实名认证/意愿认证、重复回调、伪造回调、返回页主动查询和私有归档。将公开域名加入 e 签宝重定向白名单，并配置公网 HTTPS 回调地址 `${VAULT2077_PUBLIC_ORIGIN}/api/opc/esign/callback`。生产 AppID 所属主体、企业实名认证、印章与授权由运营方在 e 签宝后台完成，代码不能代替。
 
-### OPC 支付宝开放平台支付
+### 退役在线支付边界
 
-| 变量 | 说明 |
-| --- | --- |
-| `VAULT2077_OPC_PAYMENTS_ENABLED` | `false` 时仅关闭新支付宝付款请求；既有支付宝订单仍可使用下列保留配置完成通知验真、主动查询、关单和退款 |
-| `VAULT2077_ALIPAY_APP_ID` | 支付宝开放平台中已上线网页/移动应用的 APPID |
-| `VAULT2077_ALIPAY_SELLER_ID` | 收款商户 PID，用于异步通知中的商户身份二次核对 |
-| `VAULT2077_ALIPAY_PRIVATE_KEY` | 应用 RSA2 私钥；只进入服务器密钥管理，不得提交 Git、写日志或传到浏览器；环境变量可使用 PEM 原文或把换行写成 `\n` |
-| `VAULT2077_ALIPAY_PUBLIC_KEY` | 支付宝公钥，不是应用公钥；用于异步通知和查询响应验签 |
-| `VAULT2077_ALIPAY_KEY_TYPE` | `PKCS8` 或 `PKCS1`，必须与应用私钥实际格式一致；支付宝密钥工具默认产物通常按 `PKCS8` 配置 |
-| `VAULT2077_ALIPAY_GATEWAY` | 生产固定为 `https://openapi.alipay.com/gateway.do`；沙箱使用支付宝开放平台当前提供的官方沙箱网关 |
-| `VAULT2077_ALIPAY_WEB_PAYMENT_MODE` | `page`（电脑网站支付）、`wap`（手机网站支付）或 `both`；必须与应用已签约产品一致 |
-| `VAULT2077_PUBLIC_ORIGIN` | 公开站 HTTPS origin；系统据此生成 `${VAULT2077_PUBLIC_ORIGIN}/api/opc/alipay/notify` 和支付宝返回地址 |
-
-接入步骤：
-
-1. 使用完成实名认证的支付宝商家账号进入[支付宝开放平台](https://open.alipay.com/)，创建“网页/移动应用”并完成主体、域名等资料。
-2. 在应用中添加“电脑网站支付”和/或“手机网站支付”，按业务需要完成签约与应用上线。开发中应用不能调用生产能力。
-3. 在“开发设置 → 接口加签方式”选择 RSA2。推荐使用支付宝密钥工具生成应用密钥对：应用私钥只保存在服务器密钥管理；应用公钥上传开放平台；从开放平台复制对应的“支付宝公钥”用于验签。不要把应用公钥误填成支付宝公钥。
-4. 先用沙箱 APPID、沙箱网关和沙箱密钥完成联调。沙箱通知地址也必须从公网通过 HTTPS 访问，本地开发应使用受控测试域名或临时 HTTPS 隧道。
-5. 生产密钥通过部署平台 Secret、systemd `EnvironmentFile` 或等价密钥管理注入。接入前保持 `VAULT2077_OPC_PAPER_CHECKOUT_ENABLED=false` 与 `VAULT2077_OPC_PAYMENTS_ENABLED=false`；`VAULT2077_OPC_ESIGN_ENABLED` 继续为 `false`。关闭新支付宝付款后不得删除既有 APPID、PID、应用私钥和支付宝公钥，否则历史订单将失去验真、查询、关单和退款能力。运行 `npm run deploy:check` 时，纸质订单只检查在线协议、支付/退款、持久化、加密与审计，不检查 e 签宝。
-6. 上线前完成一笔最小金额端到端交易：确认在线协议并创建“待付款”订单；跳转支付宝官方收银台；异步通知或主动查询把订单更新为“已付款待合同确认”；后台记录合同门禁通过后才进入可履约状态。
-7. 再完成一笔真实小额退款闭环：后台使用稳定退款请求号发起原交易全额退款；模拟超时后先查原请求，确认重复请求幂等、失败保持“退款处理中”、支付宝确认后才显示“已全额退款”。同时验证错误签名、APPID/PID 不匹配、订单号/金额不一致和通知乱序均不能错误推进状态。浏览器 `return_url` 只展示“核验中”，不得直接改订单状态。
-
-项目使用支付宝官方 [`alipay-sdk`](https://github.com/alipay/alipay-sdk-nodejs-all)：`pageExecute()` 生成网站支付链接，`checkNotifySignV2()` 验证异步通知，`alipay.trade.query` 用于支付补查，`alipay.trade.refund` 与退款查询能力用于全额原路退款闭环。支付应用上线、签约、费率、结算账户与商家资质由支付宝开放平台审核决定，不由代码代替。
+ADR-0022 已删除旧在线支付 SDK、通知、查询、恢复付款、关单和原渠道退款能力。生产环境及其可用备份不得保留旧渠道功能开关、应用／商户标识或密钥字段；历史已退款测试交易只以 `retired_online` 中性只读记录保留。任何重新接入都必须新建 ADR、重新完成主体审核并采用全新密钥，不能恢复旧代码或旧凭证。
 
 `VAULT2077_DATA_DIR` 统一规范预览文件和本地报告，包括 Frontier 预览存储；它不构成生产数据库或备份。Next 生产进程只有在显式设置 `VAULT2077_ALLOW_FILE_PREVIEW=true` 时才允许文件模式，该开关只用于 E2E/本地预览，生产部署必须保持关闭。
 
 游骑兵头像媒体每天执行一次 `npm run opc:cleanup-ranger-media`：未被草稿、当前发布或发布历史引用的孤儿对象保留 7 天；只存在于发布历史的已替换对象保留 30 天。本人撤回授权时，先从草稿和公开目录移除头像并发布，再执行 `npm run opc:purge-revoked-ranger-media -- <ranger-slug>`；该命令会枚举并删除当前对象、全部历史 versionId 和删除标记。RAM 清理权限必须同时允许列举对象版本和按 versionId 删除。
 
-生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速和可撤销后台会话；健康检查必须确认最新迁移名为 `0006_acquisition_reliability.sql`，迁移文件应用后不得修改。
+生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速、可撤销后台会话和退役在线付款历史中性化；健康检查必须确认最新迁移名为 `0007_retire_online_payment_channel.sql`，迁移文件应用后不得修改。
 
 阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。2026-08-06 现网实例为 Basic、2 核 4 GB、100 GB general ESSD，连接池仍按 4 起步；控制面已启用 SSL、自动快照和日志备份，并返回本地时间点恢复区间。系列名称不再单独决定 PITR 门禁；必须开启删除保护，从真实时间点恢复到隔离实例并记录 RPO/RTO，若实际恢复能力或高可用性不足再升级多可用区。服务器与 RDS 必须使用受控私网链路，并限制 RDS 白名单/安全组。容量在 50%/70%/80% 分级告警。Redis 当前不需要。OSS 用途保持隔离：公开游骑兵头像按 ADR-0016 使用公开媒体 Bucket；ADR-0018 的专用私有合同 Bucket 已预创建并锁定 10 年，但只在未来电子签约启用前进入验收。当前纸质合同原件的线下保管不进入系统或 OSS。原始包、授权材料和其他长期归档不得写入头像或电子合同 Bucket。
 
