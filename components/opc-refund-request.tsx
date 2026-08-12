@@ -12,7 +12,7 @@ type RefundOrder = {
   status: string;
   serviceName: string;
   paymentAmount: { decimal: string };
-  paymentProvider: "alipay" | "bank_transfer";
+  paymentProvider: "retired_online" | "bank_transfer";
   refundEligible: boolean;
   refundApplication: { status: "requested"; requestedAt: string } | null;
   actualRefundStatus: "pending" | "succeeded" | null;
@@ -147,7 +147,7 @@ export function OpcRefundRequest({ initialReference = "" }: { initialReference?:
         <dl>
           <div><dt>订单号</dt><dd>{order.reference}</dd></div>
           <div><dt>订单金额</dt><dd>人民币 {order.paymentAmount.decimal} 元</dd></div>
-          <div><dt>付款方式</dt><dd>{order.paymentProvider === "bank_transfer" ? "线下对公转账" : "支付宝"}</dd></div>
+          <div><dt>付款方式</dt><dd>{order.paymentProvider === "bank_transfer" ? "线下对公转账" : "退役在线渠道（历史记录）"}</dd></div>
           <div><dt>当前状态</dt><dd>{statusLabels[order.status] ?? order.status}</dd></div>
         </dl>
 

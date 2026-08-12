@@ -1,8 +1,9 @@
 ---
 type: adr
-status: accepted
-updated: 2026-08-11
+status: superseded
+updated: 2026-08-12
 amends: ADR-0014, ADR-0018
+superseded_by: ADR-0020, ADR-0022
 ---
 
 # ADR-0019：OPC 全额预付与纸质合同线上订单生命周期

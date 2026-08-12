@@ -10,7 +10,7 @@ import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
 import { listAuditEventsForTarget, recordAuditEvent } from "@/lib/security-audit";
 
 export const runtime = "nodejs";
-const lifecycle = createOpcOrderLifecycle({});
+const lifecycle = createOpcOrderLifecycle();
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   let access;

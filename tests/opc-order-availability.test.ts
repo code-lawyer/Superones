@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { opcOrderEntryAvailable } from "../lib/opc-order-availability.ts";
-test("offline checkout availability uses an independent switch and not Alipay", () => {
+test("offline checkout availability uses an independent switch", () => {
   assert.equal(opcOrderEntryAvailable({ NODE_ENV: "development" }), true);
   assert.equal(opcOrderEntryAvailable({
     NODE_ENV: "development",

@@ -250,7 +250,6 @@ test("unpaid bank-transfer orders can be cancelled and enter the 90-day privacy 
   try {
     const checkout = await import(`../lib/opc-orders/checkout.ts?cancel=${Date.now()}`);
     const storeModule = await import(`../lib/opc-orders/internal-store.ts?cancel=${Date.now()}`);
-    const refund = await import(`../lib/opc-orders/refund.ts?cancel=${Date.now()}`);
     const admin = await import(`../lib/opc-orders/admin.ts?cancel=${Date.now()}`);
     const order = await checkout.createOpcOrder({
       idempotencyKey: "22a4f604-2471-4f6f-9cb1-d5e3b0bbca48",
@@ -278,7 +277,7 @@ test("unpaid bank-transfer orders can be cancelled and enter the 90-day privacy 
       },
     });
     const stored = (await storeModule.readOpcOrderStore()).orders.find((candidate: { id: string }) => candidate.id === order.id)!;
-    const cancelled = await refund.cancelAwaitingOpcBankTransferOrder(order.id, stored.updatedAt);
+    const cancelled = await admin.cancelAwaitingOpcBankTransferOrder(order.id, stored.updatedAt);
     assert.equal(cancelled.status, "cancelled");
     const cancelledStored = (await storeModule.readOpcOrderStore()).orders.find((candidate: { id: string }) => candidate.id === order.id)!;
     await admin.runOpcOrderRetention(new Date(new Date(cancelledStored.cancelledAt!).getTime() + 91 * 24 * 60 * 60 * 1000));

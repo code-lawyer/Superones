@@ -197,6 +197,22 @@ export async function getAdminOpcContractArchive(id: string) {
   };
 }
 
+export async function cancelAwaitingOpcBankTransferOrder(id: string, expectedUpdatedAt: string) {
+  return mutateOpcOrderStore((store) => {
+    const order = store.orders.find((value) => value.id === id);
+    if (!order) throw new Error("OPC 订单不存在。");
+    assertExpectedUpdatedAt(order, expectedUpdatedAt);
+    if (order.payment.provider !== "bank_transfer" || order.status !== "awaiting_payment" || order.payment.tradeNo) {
+      throw new Error("只有尚未确认到账的线下对公转账订单可以取消。");
+    }
+    const timestamp = new Date().toISOString();
+    order.status = "cancelled";
+    order.cancelledAt = timestamp;
+    order.updatedAt = timestamp;
+    return publicOrder(order);
+  });
+}
+
 export async function getAdminOpcContactExport(id: string) {
   return mutateOpcOrderStore((store) => {
     scrubExpiredContacts(store, new Date());

@@ -63,16 +63,14 @@ type OpcOrder = {
   quotedPrice: string;
   signatureMethod: "paper" | "electronic" | "online";
   payment: {
-    provider: "alipay" | "bank_transfer";
+    provider: "retired_online" | "bank_transfer";
     amount: {
       currency: "CNY";
       minorUnits: number;
       decimal: string;
     };
-    sellerId: string | null;
     tradeNo: string | null;
     tradeStatus: string | null;
-    channel: "page" | "wap" | null;
     requestCreatedAt: string | null;
     notifiedAt: string | null;
     checkedAt: string | null;
@@ -570,35 +568,6 @@ export function AdminConsole() {
     }
   }
 
-  async function reconcileOpcOrder(order: OpcOrder) {
-    if (!window.confirm(`确认查询订单 ${order.reference} 的实时付款状态？查询结果会写入审计记录。`)) return;
-    setPending(true);
-    setError("");
-    setNotice("");
-    try {
-      const response = await fetch("/api/admin/content", {
-        method: "POST",
-        headers: adminMutationHeaders,
-        body: JSON.stringify({
-          action: "reconcile-opc-order",
-          orderId: order.id,
-          confirm: true,
-        }),
-      });
-      const body = await jsonMessage(response);
-      setOrders(Array.isArray(body?.orders) ? body.orders : []);
-      setNotice(`订单 ${order.reference} 已完成付款状态查询。`);
-    } catch (cause) {
-      if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
-        setReauthenticationRequired(true);
-        setReauthenticationUrl(cause.reauthenticationUrl ?? "");
-      }
-      setError(cause instanceof Error ? cause.message : "暂时无法查询订单付款状态。");
-    } finally {
-      setPending(false);
-    }
-  }
-
   function openBankVerification(order: OpcOrder) {
     setError("");
     setNotice("");
@@ -764,7 +733,7 @@ export function AdminConsole() {
     if (action === "refund" && reason === null) return;
     const confirmation = action === "approve-contract"
       ? `确认已经收到并核验订单 ${order.reference} 的已签字纸质合同？`
-      : `确认通过支付宝为订单 ${order.reference} 原路全额退款 ¥${order.payment.amount.decimal}？`;
+      : `该历史在线付款渠道已经退役，不能执行原渠道退款。`;
     if (!window.confirm(confirmation)) return;
     setPending(true);
     setError("");
@@ -782,8 +751,8 @@ export function AdminConsole() {
       setNotice(action === "approve-contract"
         ? `订单 ${order.reference} 已确认收到纸质合同。`
         : body?.order?.status === "refunded"
-          ? `订单 ${order.reference} 的支付宝全额退款已确认。`
-          : `订单 ${order.reference} 的支付宝全额退款仍在处理中，请稍后继续核验。`);
+          ? `订单 ${order.reference} 的退款已确认。`
+          : `该历史在线付款渠道已经退役。`);
     } catch (cause) {
       if (cause instanceof AdminApiError && cause.code === "ADMIN_REAUTH_REQUIRED") {
         setReauthenticationRequired(true);
@@ -944,7 +913,7 @@ export function AdminConsole() {
                 <h3>{order.serviceName}</h3>
                 <p>{order.serviceCode} · {order.serviceRevision} · {order.quotedPrice}</p>
                 <p>协议方式 {order.signatureMethod === "paper" ? "纸质签约" : order.signatureMethod === "online" ? "在线确认协议" : "电子签约"}</p>
-                <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.provider === "bank_transfer" ? "线下对公转账" : order.payment.channel === "wap" ? "支付宝手机付款页面" : order.payment.channel === "page" ? "支付宝电脑付款页面" : "尚未发起付款"}</p>
+                <p>付款金额 ¥{order.payment.amount.decimal} · {order.payment.provider === "bank_transfer" ? "线下对公转账" : "退役在线渠道（历史记录）"}</p>
                 <p>签约资料 {order.contactAvailable ? "已加密保存，重新验证后可导出" : "已按保留期清除"}</p>
               </div>
               <div className="admin-donation-meta">
@@ -966,8 +935,7 @@ export function AdminConsole() {
                 {order.signature.archive.archivedAt ? <time className="mono">归档时间 {new Date(order.signature.archive.archivedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.signature.archive.retainUntil ? <time className="mono">至少保留至 {new Date(order.signature.archive.retainUntil).toLocaleDateString("zh-CN")}</time> : null}
                 </> : order.signatureMethod === "paper" ? <span className="mono">纸质合同门禁 {order.status === "paid_pending_contract" ? "待确认" : order.status === "refund_pending" || order.status === "refunded" ? "未通过，已进入退款" : order.status === "paid" || order.status === "completed" ? "已通过" : "待付款"}</span> : <span className="mono">协议版本 {order.payment.offlineProfileRevision ?? "—"}</span>}
-                <span className="mono">{order.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号"} {order.payment.tradeNo ?? "—"}</span>
-                {order.payment.provider === "alipay" ? <span className="mono">收款商户 PID {order.payment.sellerId ?? "尚未绑定"}</span> : null}
+                <span className="mono">{order.payment.provider === "bank_transfer" ? "银行流水号" : "历史交易参考号"} {order.payment.tradeNo ?? "—"}</span>
                 {order.payment.notifiedAt ? <time className="mono">通知 {new Date(order.payment.notifiedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.payment.checkedAt ? <time className="mono">查询 {new Date(order.payment.checkedAt).toLocaleString("zh-CN", { hour12: false })}</time> : null}
                 {order.paymentReceipt ? <span className="mono">付款凭证 {order.paymentReceipt.receiptNumber}</span> : null}
@@ -990,23 +958,18 @@ export function AdminConsole() {
                       <button id={`verify-bank-${order.id}`} className="text-action" type="button" disabled={pending} aria-expanded={bankVerificationDraft?.orderId === order.id} aria-controls={`bank-verification-${order.id}`} onClick={() => openBankVerification(order)}>确认银行到账</button>
                       <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消未付款订单</button>
                     </> : <>
-                      <button className="text-action" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>查询支付宝付款状态</button>
                       <button className="text-link" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "cancelled")}>取消订单</button>
                     </>}
                   </>
                 ) : null}
                 {order.status === "paid" ? (
                   <>
-                    {order.payment.provider === "alipay" ? <button className="text-link" type="button" disabled={pending} onClick={() => void reconcileOpcOrder(order)}>复查支付宝付款状态</button> : null}
                     <button className="text-action" type="button" disabled={pending} onClick={() => void updateOpcOrder(order, "completed")}>标记交付完成</button>
-                    {order.signatureMethod === "paper" ? <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>支付宝原路全额退款</button> : null}
                   </>
                 ) : null}
                 {order.status === "paid_pending_contract" ? <>
                   <button className="text-action" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "approve-contract")}>确认收到已签纸质合同</button>
-                  <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>支付宝原路全额退款</button>
                 </> : null}
-                {order.status === "refund_pending" ? <button className="text-link" type="button" disabled={pending} onClick={() => void runOpcPaperAction(order, "refund")}>继续核验全额退款</button> : null}
               </div>
               {bankVerificationDraft?.orderId === order.id ? (
                 <form id={`bank-verification-${order.id}`} className="admin-bank-verification" onSubmit={(event) => void verifyOpcBankTransfer(event, order)} noValidate>
@@ -1080,7 +1043,7 @@ function OpcDossierView({ dossier }: { dossier: OpcOrderDossier }) {
     ["完整寄送地址", dossier.delivery ? `${dossier.delivery.province}${dossier.delivery.city}${dossier.delivery.district}${dossier.delivery.addressLine}` : "—"],
     ["服务范围", dossier.service.scope],
     ["服务边界", dossier.service.boundary],
-    [dossier.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号", dossier.payment.tradeNo ?? "—"],
+    [dossier.payment.provider === "bank_transfer" ? "银行流水号" : "历史交易参考号", dossier.payment.tradeNo ?? "—"],
     ["付款凭证", dossier.paymentReceipt?.receiptNumber ?? "—"],
     ["凭证金额", dossier.paymentReceipt ? `人民币 ${dossier.paymentReceipt.payment.amount.decimal} 元` : "—"],
     ["凭证付款方", dossier.paymentReceipt ? dossier.paymentReceipt.customer.organizationName || dossier.paymentReceipt.customer.name : "—"],

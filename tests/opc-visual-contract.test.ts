@@ -283,7 +283,7 @@ test("OPC design authority describes the current offline bank-transfer journey",
   assert.match(adminSpec, /银行流水号、付款户名和北京时间入账时间/);
 });
 
-test("general public copy avoids messaging handles while OPC may identify its payment provider", async () => {
+test("general public copy avoids messaging handles", async () => {
   const source = await Promise.all([
     readSourceTree(path.join(root, "app")),
     readSourceTree(path.join(root, "components")),
@@ -297,7 +297,6 @@ test("general public copy avoids messaging handles while OPC may identify its pa
   ]);
 
   assert.doesNotMatch(source.join("\n"), /微信号/);
-  assert.match(source.join("\n"), /支付宝/);
   assert.doesNotMatch(
     publicSurfaceCopy.join("\n"),
     /GITHUB\s*\/|GitHub 官方|GitHub Trending|Hugging Face Trending|OpenRouter Top|YouTube 只|微信公众号|知乎|微博|B\s*站|公开 GitHub|GitHub 可识别/,

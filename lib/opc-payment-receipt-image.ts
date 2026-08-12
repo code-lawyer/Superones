@@ -20,7 +20,7 @@ export type OpcPaymentReceiptView = {
   };
   service: { code: string; name: string; revision: string; outcome: string; scope: string; boundary: string };
   payment: {
-    provider: "alipay" | "bank_transfer";
+    provider: "retired_online" | "bank_transfer";
     amount: { currency: "CNY"; minorUnits: number; decimal: string };
     paidAt: string;
     tradeNo: string;
@@ -39,14 +39,14 @@ export async function downloadOpcPaymentReceiptPng(receipt: OpcPaymentReceiptVie
   if (!context) throw new Error("当前浏览器无法生成付款凭证图片。");
   const rows: Array<[string, string]> = [
     ["订单号", receipt.reference],
-    ["付款状态", receipt.payment.provider === "bank_transfer" ? "企业银行到账已由后台核验" : "支付宝付款已由服务器核验"],
+    ["付款状态", receipt.payment.provider === "bank_transfer" ? "企业银行到账已由后台核验" : "历史付款记录已归档"],
     ["服务事项", `${receipt.service.name}（${receipt.service.code} / ${receipt.service.revision}）`],
     ["服务成果", receipt.service.outcome],
     ["服务范围", receipt.service.scope],
     ["服务边界", receipt.service.boundary],
     ["付款金额", `人民币 ${receipt.payment.amount.decimal} 元`],
-    ["付款方式", receipt.payment.provider === "bank_transfer" ? "线下对公转账" : "支付宝"],
-    [receipt.payment.provider === "bank_transfer" ? "银行流水号" : "支付宝交易号", receipt.payment.tradeNo],
+    ["付款方式", receipt.payment.provider === "bank_transfer" ? "线下对公转账" : "退役在线渠道（历史记录）"],
+    [receipt.payment.provider === "bank_transfer" ? "银行流水号" : "历史交易参考号", receipt.payment.tradeNo],
     ["付款时间", formatReceiptDate(receipt.payment.paidAt)],
     ["我方名称", receipt.operator.name],
     ["统一社会信用代码", receipt.operator.creditCode],

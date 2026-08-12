@@ -1,14 +1,13 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { alipayDecimalToAmount, type OpcAlipayAmount, type OpcAlipayQueryResult } from "../opc-payment-config.ts";
+import { decimalToOpcPaymentAmount } from "../opc-payment-amount.ts";
 import { decryptSensitiveText, encryptSensitiveText } from "../sensitive-data.ts";
 import { PRODUCTION_ADMIN_EMAIL } from "../admin-profile.ts";
 import type { OpcOrderContact } from "./model.ts";
 import {
   assertExpectedUpdatedAt,
   ensureBankTransferPaymentArtifacts,
-  ensurePaperPaymentArtifacts,
   mutateOpcOrderStore,
   publicOrder,
   readOpcOrderStore,
@@ -27,7 +26,7 @@ export async function verifyOpcBankTransfer(input: {
   payerName: string;
   paidAt: string;
 }) {
-  const amount = alipayDecimalToAmount(input.amountDecimal);
+  const amount = decimalToOpcPaymentAmount(input.amountDecimal);
   const transactionId = normalizeOpcBankTransactionId(input.bankTransactionId);
   const payerName = input.payerName.trim();
   const paidAt = new Date(input.paidAt);
@@ -73,114 +72,6 @@ export async function verifyOpcBankTransfer(input: {
     order.updatedAt = verifiedAt;
     ensureBankTransferPaymentArtifacts(order, order.paidAt, verifiedAt, transactionId);
     return publicOrder(order);
-  });
-}
-
-export async function applyOpcAlipayTradeResult(input: {
-  reference: string;
-  configuredSellerId?: string;
-  sellerId?: string;
-  appId: string;
-  tradeNo: string | null;
-  tradeStatus: string;
-  amount: OpcAlipayAmount | null;
-  source: "notify" | "query";
-}) {
-  return mutateOpcOrderStore((store) => {
-    const order = store.orders.find((value) => value.reference === input.reference);
-    if (!order) throw new Error("OPC 订单不存在。");
-    if (order.payment.provider !== "alipay") throw new Error("该 OPC 订单不接受支付宝交易证据。");
-    if (!input.appId || (order.payment.appId && input.appId !== order.payment.appId)) {
-      throw new Error("支付宝交易应用 ID 与 OPC 订单绑定应用不一致。");
-    }
-    const evidenceSellerId = input.source === "notify" ? input.sellerId : input.configuredSellerId;
-    if (!evidenceSellerId || !/^\d{16,32}$/.test(evidenceSellerId)) {
-      throw new Error("支付宝交易商户 PID 格式无效。");
-    }
-    if (order.payment.sellerId && evidenceSellerId !== order.payment.sellerId) {
-      throw new Error("支付宝交易商户 PID 与 OPC 订单绑定商户不一致。");
-    }
-    if (input.amount && input.amount.minorUnits !== order.payment.amount.minorUnits) {
-      throw new Error("支付宝交易金额与 OPC 订单金额不一致。");
-    }
-    if (
-      input.tradeNo
-      && store.orders.some((value) => value.id !== order.id && value.payment.tradeNo === input.tradeNo)
-    ) {
-      throw new Error("支付宝交易号已关联到其他 OPC 订单。");
-    }
-    if (
-      (input.tradeStatus === "TRADE_SUCCESS" || input.tradeStatus === "TRADE_FINISHED")
-      && (!input.tradeNo || !input.amount)
-    ) {
-      throw new Error("支付宝已支付交易缺少交易号或金额。");
-    }
-
-    const timestamp = new Date().toISOString();
-    order.payment.appId ??= input.appId;
-    order.payment.sellerId = evidenceSellerId;
-    order.payment.tradeNo = input.tradeNo ?? order.payment.tradeNo;
-    order.payment.tradeStatus = input.tradeStatus;
-    order.updatedAt = timestamp;
-    if (input.source === "notify") order.payment.notifiedAt = timestamp;
-    else order.payment.checkedAt = timestamp;
-
-    if (input.tradeStatus === "TRADE_SUCCESS" || input.tradeStatus === "TRADE_FINISHED") {
-      order.paidAt ??= timestamp;
-      if (order.signatureMethod === "paper") {
-        ensurePaperPaymentArtifacts(order, order.paidAt, input.tradeNo!);
-        if (!["paid", "refund_pending", "completed", "refunded"].includes(order.status)) {
-          order.status = "paid_pending_contract";
-          order.cancelledAt = null;
-        }
-      } else {
-        const contractReady = order.signature.status === "completed" && order.signature.archive.status === "archived";
-        if (order.status !== "completed" && order.status !== "refunded") {
-          order.status = contractReady ? "paid" : "payment_exception";
-        }
-        if (contractReady) order.cancelledAt = null;
-      }
-    }
-    return publicOrder(order);
-  });
-}
-
-export async function recordOpcAlipayQuery(reference: string, result: OpcAlipayQueryResult) {
-  if (!result.found) {
-    return applyOpcAlipayTradeResult({
-      reference,
-      appId: result.appId,
-      configuredSellerId: result.configuredSellerId,
-      tradeNo: null,
-      tradeStatus: "TRADE_NOT_EXIST",
-      amount: null,
-      source: "query",
-    });
-  }
-  return applyOpcAlipayTradeResult({
-    reference,
-    appId: result.appId,
-    configuredSellerId: result.configuredSellerId,
-    tradeNo: result.tradeNo,
-    tradeStatus: result.tradeStatus ?? "UNKNOWN",
-    amount: result.amount,
-    source: "query",
-  });
-}
-
-export async function claimOpcPublicPaymentQuery(reference: string, minimumIntervalMs = 15_000) {
-  return mutateOpcOrderStore((store) => {
-    const order = store.orders.find((value) => value.reference === reference);
-    if (!order) throw new Error("OPC 订单不存在。");
-    if (order.payment.provider !== "alipay") return false;
-    if (order.status !== "awaiting_payment" && order.status !== "payment_exception") return false;
-    const now = new Date();
-    const lastAttempt = order.payment.checkedAt ? new Date(order.payment.checkedAt).getTime() : 0;
-    if (Number.isFinite(lastAttempt) && now.getTime() - lastAttempt < minimumIntervalMs) return false;
-    // checkedAt is the time of the latest signed provider-query attempt. Claiming
-    // it atomically prevents parallel tabs from fanning out provider requests.
-    order.payment.checkedAt = now.toISOString();
-    return true;
   });
 }
 

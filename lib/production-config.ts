@@ -15,7 +15,6 @@ import {
   PUBLIC_ORIGIN,
   RANGER_MEDIA_ORIGIN,
 } from "./legal-profile.ts";
-import { opcAlipayConfigurationErrors } from "./opc-payment-config.ts";
 import { opcPaymentEmailConfigurationErrors } from "./opc-payment-email.ts";
 import { opcEsignConfigurationErrors } from "./opc-esign.ts";
 import { opcContractArchiveConfigurationErrors } from "./opc-contract-archive.ts";
@@ -275,13 +274,6 @@ export function validateProductionConfiguration(
     errors.push(`VAULT2077_LEGAL_EFFECTIVE_DATE 必须使用已确认日期 ${LEGAL_EFFECTIVE_DATE}。`);
   }
 
-  if (!["true", "false"].includes(environment.VAULT2077_OPC_PAYMENTS_ENABLED ?? "")) {
-    errors.push("VAULT2077_OPC_PAYMENTS_ENABLED 必须明确设为 true 或 false。");
-  } else if (environment.VAULT2077_OPC_PAYMENTS_ENABLED === "true") {
-    errors.push(...opcAlipayConfigurationErrors(environment, {
-      productionGatewayOnly: true,
-    }).map((error) => `支付宝开放平台：${error}`));
-  }
   if (!["true", "false"].includes(environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED ?? "")) {
     errors.push("VAULT2077_OPC_PAPER_CHECKOUT_ENABLED 必须明确设为 true 或 false。");
   }
@@ -294,17 +286,12 @@ export function validateProductionConfiguration(
     errors.push(...opcPaymentEmailConfigurationErrors(environment).map((error) => `OPC 付款邮件：${error}`));
   }
   if (environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED === "true") {
-    if (environment.VAULT2077_OPC_PAYMENTS_ENABLED !== "true") {
-      errors.push("纸质签约入口开放时必须同时启用 OPC 支付宝付款。");
-    }
+    errors.push("纸质签约付款入口已经退役，生产环境不得重新开放。");
     if (environment.VAULT2077_OPC_PAYMENT_EMAIL_ENABLED !== "true") {
       errors.push("纸质签约入口开放时必须同时启用付款邮件通知。");
     }
   }
   if (environment.VAULT2077_OPC_OFFLINE_PAYMENT_ENABLED === "true") {
-    if (environment.VAULT2077_OPC_PAYMENTS_ENABLED !== "false") {
-      errors.push("线下付款入口开放时，线上支付宝付款开关必须保持关闭。");
-    }
     if (environment.VAULT2077_OPC_PAPER_CHECKOUT_ENABLED !== "false") {
       errors.push("线下付款入口开放时，旧纸质签约付款入口必须保持关闭。");
     }

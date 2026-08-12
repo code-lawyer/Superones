@@ -4,6 +4,7 @@ status: accepted
 updated: 2026-08-11
 supersedes: ADR-0019 for new public orders
 amends: ADR-0014
+amended_by: ADR-0022
 ---
 
 # ADR-0020：OPC 在线确认协议与线下对公转账

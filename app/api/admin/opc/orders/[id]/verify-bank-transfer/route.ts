@@ -13,7 +13,7 @@ import { recordAuditEvent } from "../../../../../../../lib/security-audit.ts";
 import { withPersistenceTransaction } from "../../../../../../../lib/state-document-store.ts";
 
 export const runtime = "nodejs";
-const lifecycle = createOpcOrderLifecycle({});
+const lifecycle = createOpcOrderLifecycle();
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   let access;

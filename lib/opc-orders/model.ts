@@ -1,6 +1,6 @@
 import type { OpcContractArchiveRecord } from "../opc-contract-archive.ts";
 import type { OpcEsignFlowStatus, OpcSignerParty } from "../opc-esign.ts";
-import type { OpcAlipayAmount } from "../opc-payment-config.ts";
+import type { OpcPaymentAmount } from "../opc-payment-amount.ts";
 
 export const OPC_ORDER_STATUSES = ["awaiting_signature", "awaiting_payment", "payment_exception", "paid_pending_contract", "paid", "refund_pending", "completed", "cancelled", "refunded"] as const;
 export type OpcOrderStatus = (typeof OPC_ORDER_STATUSES)[number];
@@ -82,8 +82,8 @@ export type StoredOpcPaymentReceipt = {
     boundary: string;
   };
   payment: {
-    provider: "alipay" | "bank_transfer";
-    amount: OpcAlipayAmount;
+    provider: "retired_online" | "bank_transfer";
+    amount: OpcPaymentAmount;
     paidAt: string;
     tradeNo: string;
   };
@@ -115,7 +115,7 @@ export type StoredOpcRefund = {
   status: "pending" | "succeeded";
   requestNo: string;
   reason: string;
-  amount: OpcAlipayAmount;
+  amount: OpcPaymentAmount;
   requestedAt: string;
   completedAt: string | null;
 };

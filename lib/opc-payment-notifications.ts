@@ -73,25 +73,25 @@ export async function processOpcPaymentNotifications({
           ]
       : isCustomer
         ? [
-            isBankTransfer ? "您的 OPC 订单已完成企业银行到账核验。" : "您的 OPC 订单已完成支付宝付款核验。",
+            isBankTransfer ? "您的 OPC 订单已完成企业银行到账核验。" : "您的历史付款记录已归档。",
             "",
             `订单号：${claim.reference}`,
             `服务：${claim.serviceName}（${claim.serviceCode}）`,
             `金额：人民币 ${claim.amount.decimal} 元`,
             `付款时间：${claim.paidAt}`,
-            `${isBankTransfer ? "银行流水号" : "支付宝交易号"}：${claim.tradeNo}`,
+            `${isBankTransfer ? "银行流水号" : "历史交易参考号"}：${claim.tradeNo}`,
             "",
             "请在原下单浏览器查看付款凭证：",
             `${PUBLIC_ORIGIN}/opc/payment/return?order=${encodeURIComponent(claim.reference)}`,
           ]
         : [
-            isBankTransfer ? "OPC 订单已完成企业银行到账核验。" : "OPC 订单已完成支付宝付款核验。",
+            isBankTransfer ? "OPC 订单已完成企业银行到账核验。" : "OPC 历史付款记录已归档。",
             "",
             `订单号：${claim.reference}`,
             `服务：${claim.serviceName}（${claim.serviceCode}）`,
             `金额：人民币 ${claim.amount.decimal} 元`,
             `付款时间：${claim.paidAt}`,
-            `${isBankTransfer ? "银行流水号" : "支付宝交易号"}：${claim.tradeNo}`,
+            `${isBankTransfer ? "银行流水号" : "历史交易参考号"}：${claim.tradeNo}`,
             "",
             "完整客户、签约方和订单资料仅在受保护的管理后台查看：",
             `${ADMIN_ORIGIN}/admin#opc-order-${encodeURIComponent(claim.reference)}`,

@@ -103,3 +103,4 @@ updated: 2026-08-11
 - 接受 ADR 时，必须同步更新总规格、受影响专项规格、系统规格、追踪矩阵与上线清单。
 - 调研结论只有被吸收到规范文档后才生效。
 - 每次文档修订必须运行 `npm run docs:check`。
+- [ADR-0022：退役旧在线支付接入](adr/0022-retire-online-payment-integration.md)

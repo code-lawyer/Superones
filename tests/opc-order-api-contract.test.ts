@@ -43,7 +43,7 @@ test("OPC offline order endpoint trusts published service and payment-profile sn
   assert.match(route, /agreementSha256/);
   assert.match(route, /serviceScope: service\.includes\.join/);
   assert.match(route, /serviceBoundary: service\.boundary/);
-  assert.doesNotMatch(route, /createOpcEsignFlow|bindOpcSignatureFlow|createOpcAlipayPaymentUrl/);
+  assert.doesNotMatch(route, /createOpcEsignFlow|bindOpcSignatureFlow|createOnlinePaymentUrl/);
   assert.doesNotMatch(route, /body\.(?:price|quotedPrice)/);
   assert.match(route, /expectedServiceRevision !== service\.revision/);
   assert.match(route, /expectedAgreementVersion !== agreement\.version/);
@@ -81,34 +81,6 @@ test("the public edge permits only the agreement PDF to render in a same-origin 
   assert.match(agreementLocation, /proxy_hide_header X-Frame-Options/);
   assert.match(agreementLocation, /add_header X-Frame-Options "SAMEORIGIN" always/);
   assert.doesNotMatch(agreementLocation, /frame-ancestors \*/);
-});
-
-test("OPC Alipay notification verifies provider identity before marking an order paid", async () => {
-  const notification = await readFile(path.join(root, "app", "api", "opc", "alipay", "notify", "route.ts"), "utf8");
-  const payment = await readFile(path.join(root, "lib", "opc-payment-config.ts"), "utf8");
-  const store = await readFile(path.join(root, "lib", "opc-orders", "payment.ts"), "utf8");
-
-  assert.match(notification, /application\/x-www-form-urlencoded/);
-  assert.match(notification, /verifyOpcAlipayNotification/);
-  assert.match(notification, /lifecycle\.applyPaymentEvidence/);
-  assert.match(notification, /return textResponse\("success"\)/);
-  assert.match(payment, /checkNotifySignV2\(notification\)/);
-  assert.match(payment, /notification\.app_id !== configuration\.appId/);
-  assert.match(payment, /notification\.seller_id !== configuration\.sellerId/);
-  assert.match(payment, /OpcAlipayProviderError/);
-  assert.doesNotMatch(payment, /subMsg|sub_msg|result\.msg/);
-  const activeQuery = payment.slice(
-    payment.indexOf("export async function queryOpcAlipayTrade"),
-    payment.indexOf("export async function requestOpcAlipayFullRefund"),
-  );
-  assert.doesNotMatch(activeQuery, /\bsellerId: configuration\.sellerId/);
-  assert.match(activeQuery, /configuredSellerId: configuration\.sellerId/);
-  assert.match(activeQuery, /identitySource: "signed_application_query"/);
-  assert.match(store, /order\.payment\.appId && input\.appId !== order\.payment\.appId/);
-  assert.match(store, /input\.amount\.minorUnits !== order\.payment\.amount\.minorUnits/);
-  assert.match(store, /evidenceSellerId !== order\.payment\.sellerId/);
-  assert.match(store, /contractReady \? "paid" : "payment_exception"/);
-  assert.match(store, /order\.signature\.archive\.status === "archived"/);
 });
 
 test("OPC order contacts remain encrypted outside the reauthenticated export", async () => {

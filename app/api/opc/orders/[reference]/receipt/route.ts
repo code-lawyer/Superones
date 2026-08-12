@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidOpcOrderReference } from "@/lib/opc-order-reference";
 import { createOpcOrderLifecycle } from "@/lib/opc-order-lifecycle";
-import { queryOpcAlipayTrade } from "@/lib/opc-payment-config";
 
 export const runtime = "nodejs";
-const lifecycle = createOpcOrderLifecycle({});
+const lifecycle = createOpcOrderLifecycle();
 
 function sameOrigin(request: NextRequest) {
   if (request.headers.get("x-vault2077-public-request") !== "1") return false;
@@ -29,15 +28,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ re
       : request.cookies.get("vault2077_opc_resume")?.value ?? "";
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return NextResponse.json({ error: "订单凭证无效。" }, { status: 403 });
 
-    let order = await lifecycle.readResumedOrder({ reference, resumeToken: token });
-    if (order.status === "awaiting_payment" || order.status === "payment_exception") {
-      const claimed = await lifecycle.claimPublicPaymentQuery({ reference, minimumIntervalMs: 15_000 });
-      if (claimed) {
-        const result = await queryOpcAlipayTrade(reference);
-        await lifecycle.applyActivePaymentQuery(result);
-        order = await lifecycle.readResumedOrder({ reference, resumeToken: token });
-      }
-    }
+    const order = await lifecycle.readResumedOrder({ reference, resumeToken: token });
     try {
       const receipt = await lifecycle.readPaymentReceipt({ reference, resumeToken: token });
       return NextResponse.json({ receipt, orderStatus: order.status, paymentProvider: order.paymentProvider }, { headers: { "Cache-Control": "no-store" } });

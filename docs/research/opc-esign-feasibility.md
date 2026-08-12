@@ -14,7 +14,7 @@ updated: 2026-08-01
 
 功能**可实现，法律路径成熟，工程难度中等，业务与合规落地难度中等偏高**。
 
-调用电子签厂商 API、生成 H5 签署链接本身不难。当前项目已经有无账号订单、服务/价格快照、加密联系方式、支付宝付款链接、服务器通知和后台主动查询，具备较好的集成基础，但付款功能开关默认关闭且尚未完成生产联调。真正需要重做的是交易编排：现有接口在创建 `awaiting_payment` 订单的同一次请求中直接生成付款链接并跳转；新流程必须拆成“订单申请 → 生成逐单合同 → 实名/意愿认证与签署 → 厂商回调并由服务器复查 → 双方签署完成 → 才生成付款链接 → 支付结果核验”。现状证据见 [`app/api/opc/orders/route.ts`](../../app/api/opc/orders/route.ts)、[`components/opc-order-entry.tsx`](../../components/opc-order-entry.tsx)、[`lib/opc-order-store.ts`](../../lib/opc-order-store.ts) 和 [`lib/opc-payment-config.ts`](../../lib/opc-payment-config.ts)。
+调用电子签厂商 API、生成 H5 签署链接本身不难。本段调研形成时，项目曾有无账号订单、服务/价格快照、加密联系方式和第三方在线付款编排；该在线付款实现后来已按 ADR-0022 退役。现行证据见 [`app/api/opc/orders/route.ts`](../../app/api/opc/orders/route.ts)、[`components/opc-order-entry.tsx`](../../components/opc-order-entry.tsx)、[`lib/opc-order-store.ts`](../../lib/opc-order-store.ts) 和 [`ADR-0022`](../adr/0022-retire-online-payment-integration.md)。
 
 建议首选**单一厂商的 API + 厂商托管 H5 全页跳转**，而不是自己实现电子签名，也不建议首版用 iframe 强嵌入。e签宝的公开 API 文档、H5 签署链路、模板、回调、下载与公开按份价格较完整，适合先做技术验证；如果未来以微信小程序/企业微信为主，腾讯电子签也可作为备选。最终选型仍应以正式报价、数据处理协议、服务等级、出证费用和沙箱联调结果为准。
 

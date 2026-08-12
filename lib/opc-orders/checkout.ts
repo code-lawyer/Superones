@@ -1,11 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
-import {
-  catalogPriceToAlipayAmount,
-  type OpcAlipayChannel,
-  type OpcAlipayPaymentOrder,
-} from "../opc-payment-config.ts";
+import { catalogPriceToOpcPaymentAmount } from "../opc-payment-amount.ts";
 import { encryptSensitiveText } from "../sensitive-data.ts";
 import { PRODUCTION_ADMIN_EMAIL } from "../admin-profile.ts";
 import type { OpcSignerParty } from "../opc-esign.ts";
@@ -16,7 +12,6 @@ import {
   mutateOpcOrderStore,
   orderRequestFingerprint,
   publicOrder,
-  readOpcOrderStore,
   recoverResumeToken,
   scrubExpiredContacts,
   uniqueOrderReference,
@@ -49,7 +44,7 @@ export async function createOpcOrder(input: {
   delivery?: OpcPaperDelivery;
   agreement?: OpcCheckoutAgreement;
   identityConsent?: OpcIdentityConsent;
-  paymentProvider?: "alipay" | "bank_transfer";
+  paymentProvider?: "bank_transfer";
   offlinePaymentSnapshot?: OpcOfflinePaymentSnapshot;
 }) {
   const signatureMethod = input.signatureMethod ?? "electronic";
@@ -80,8 +75,8 @@ export async function createOpcOrder(input: {
       throw new Error("线下转账订单需要签约身份信息及单独授权证据。");
     }
   }
-  const paymentAmount = catalogPriceToAlipayAmount(input.quotedPrice);
-  if (!paymentAmount) throw new Error("服务公开价格无法转换为支付宝订单金额。");
+  const paymentAmount = catalogPriceToOpcPaymentAmount(input.quotedPrice);
+  if (!paymentAmount) throw new Error("服务公开价格无法转换为人民币订单金额。");
   const requestHash = idempotencyHash(input.idempotencyKey);
   const requestFingerprint = orderRequestFingerprint(input);
   return mutateOpcOrderStore((store) => {
@@ -129,13 +124,10 @@ export async function createOpcOrder(input: {
       serviceScope: input.serviceScope,
       serviceBoundary: input.serviceBoundary,
       payment: {
-        provider: input.paymentProvider === "bank_transfer" ? "bank_transfer" : "alipay",
+        provider: "bank_transfer",
         amount: paymentAmount,
-        appId: null,
-        sellerId: null,
         tradeNo: null,
         tradeStatus: null,
-        channel: null,
         requestCreatedAt: null,
         notifiedAt: null,
         checkedAt: null,
@@ -235,49 +227,5 @@ export async function createOpcOrder(input: {
     };
     store.orders.push(order);
     return { ...publicOrder(order), resumeToken: resumeCredential.token };
-  });
-}
-
-export async function getOpcOrderPaymentOrder(reference: string): Promise<OpcAlipayPaymentOrder> {
-  const store = await readOpcOrderStore();
-  const order = store.orders.find((value) => value.reference === reference);
-  if (!order) throw new Error("OPC 订单不存在。");
-  if (order.payment.provider !== "alipay") throw new Error("该 OPC 订单不使用支付宝付款。");
-  if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
-  return {
-    reference: order.reference,
-    serviceCode: order.serviceCode,
-    serviceName: order.serviceName,
-    serviceRevision: order.serviceRevision,
-    paymentAmount: order.payment.amount,
-  };
-}
-
-export async function recordOpcPaymentRequest(
-  reference: string,
-  channel: OpcAlipayChannel,
-  sellerId: string,
-  appId: string,
-) {
-  return mutateOpcOrderStore((store) => {
-    const order = store.orders.find((value) => value.reference === reference);
-    if (!order) throw new Error("OPC 订单不存在。");
-    if (order.payment.provider !== "alipay") throw new Error("该 OPC 订单不使用支付宝付款。");
-    if (order.status !== "awaiting_payment") throw new Error("该 OPC 订单当前不接受重复付款。");
-    if (!/^\d{16,32}$/.test(appId)) throw new Error("支付宝应用 ID 格式无效。");
-    if (!/^\d{16,32}$/.test(sellerId)) throw new Error("支付宝商户 PID 格式无效。");
-    if (order.payment.appId && order.payment.appId !== appId) {
-      throw new Error("OPC 订单绑定的支付宝应用 ID 与当前配置不一致。");
-    }
-    if (order.payment.sellerId && order.payment.sellerId !== sellerId) {
-      throw new Error("OPC 订单绑定的支付宝商户 PID 与当前配置不一致。");
-    }
-    const timestamp = new Date().toISOString();
-    order.payment.appId = appId;
-    order.payment.sellerId = sellerId;
-    order.payment.channel = channel;
-    order.payment.requestCreatedAt = timestamp;
-    order.updatedAt = timestamp;
-    return publicOrder(order);
   });
 }

@@ -7,7 +7,7 @@ seams follow business capabilities instead of storage operations:
 - `checkout.ts`: idempotent order creation and payment-session binding.
 - `signature.ts`: electronic-signature preparation, callbacks, reconciliation,
   and immutable contract archival.
-- `payment.ts`: signed Alipay evidence, active queries, receipts, and the
+- `payment.ts`: bank-transfer evidence, receipts, and the
   payment-notification outbox.
 - `refund.ts`: full-refund claims and evidence-based cancellation.
 - `admin.ts`: administrator dossiers, fulfillment transitions, exports, and
