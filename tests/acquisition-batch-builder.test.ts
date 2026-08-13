@@ -134,18 +134,18 @@ test("Vault adapter removes exact duplicates repeated across legacy packets", ()
   assert.equal(batches[0].sourceReports[0].recordCount, 1);
 });
 
-test("roadside lane keeps a community topic canonical without promoting its external link", () => {
+test("roadside lane keeps a personal post canonical without promoting its external citation", () => {
   const topic = packet();
   topic.information[0] = {
     ...topic.information[0],
-    sourceChannelId: "hacker-news",
-    discoveryPath: "https://news.ycombinator.com/item?id=42",
-    discoveryPaths: ["https://news.ycombinator.com/item?id=42"],
-    originalPublisher: "Hacker News",
-    originalUrl: "https://news.ycombinator.com/item?id=42",
+    sourceChannelId: "personal-source",
+    discoveryPath: "https://person.example.com/posts/42",
+    discoveryPaths: ["https://person.example.com/posts/42"],
+    originalPublisher: "Example Person",
+    originalUrl: "https://person.example.com/posts/42",
     externalUrl: "https://company.example.com/news/original",
     contentGroup: "roadside",
-    itemKind: "community_topic",
+    itemKind: "personal_post",
     provenanceRole: "canonical",
     provenanceStatus: "verified",
     sourceStream: "roadside",
@@ -157,9 +157,9 @@ test("roadside lane keeps a community topic canonical without promoting its exte
       scheduleId: "schedule:test:roadside",
     },
     packets: [topic],
-    outcomes: [{ sourceId: "hacker-news", status: "success" }],
-    connectorBySource: new Map([["hacker-news", "hackernews"]]),
-    sourceStreamBySource: new Map([["hacker-news", "roadside"]]),
+    outcomes: [{ sourceId: "personal-source", status: "success" }],
+    connectorBySource: new Map([["personal-source", "rss"]]),
+    sourceStreamBySource: new Map([["personal-source", "roadside"]]),
     lane: "roadside",
   });
   assert.equal(batches.flatMap((batch) => batch.records).length, 1);
@@ -222,4 +222,49 @@ test("packer honors a narrower downstream record limit", () => {
 
   const batches = packAcquisitionGroups(context, groups, "acquisition:narrow", { maxRecords: 200 });
   assert.deepEqual(batches.map((batch) => batch.records.length), [180, 120]);
+});
+
+test("packer quarantines one sensitive public record while delivering safe siblings", () => {
+  const records = [
+    {
+      schemaVersion: 1 as const,
+      kind: "information" as const,
+      recordId: "information:safe",
+      sourceId: "source-sensitive",
+      externalId: "safe",
+      canonicalUrl: "https://example.com/safe",
+      observedAt: context.collectedAt,
+      contentHash: "d".repeat(64),
+      payload: { originalContent: "Ordinary public documentation." },
+    },
+    {
+      schemaVersion: 1 as const,
+      kind: "information" as const,
+      recordId: "information:unsafe",
+      sourceId: "source-sensitive",
+      externalId: "unsafe",
+      canonicalUrl: "https://example.com/unsafe",
+      observedAt: context.collectedAt,
+      contentHash: "e".repeat(64),
+      payload: { originalContent: "postgresql://reader:password@example.com/database" },
+    },
+  ];
+  const [batch] = packAcquisitionGroups(context, [{
+    report: {
+      sourceId: "source-sensitive",
+      adapter: "rss",
+      status: "succeeded",
+      startedAt: context.collectedFrom,
+      completedAt: context.collectedUntil,
+      recordCount: records.length,
+    },
+    records,
+  }], "acquisition:sensitive");
+
+  assert.deepEqual(batch.records.map((record) => record.recordId), ["information:safe"]);
+  assert.equal(batch.sourceReports[0].status, "partial");
+  assert.equal(batch.sourceReports[0].recordCount, 1);
+  assert.equal(batch.sourceReports[0].errorCode, "SENSITIVE_RECORDS_QUARANTINED");
+  assert.match(batch.sourceReports[0].errorMessage ?? "", /1 条记录/);
+  assert.doesNotMatch(JSON.stringify(batch), /reader:password/);
 });

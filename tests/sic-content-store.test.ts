@@ -9,6 +9,7 @@ import {
   mergeSicSourceReports,
   mergeSicStoredContent,
 } from "../lib/sic-content-store.ts";
+import { getSicContentGroup } from "../lib/sic-content.ts";
 import type { SicContentItem } from "../lib/sic-content-types.ts";
 
 function item(id: string, collectedAt: string): SicContentItem {
@@ -186,4 +187,41 @@ test("retired SiC sources are removed from the current public snapshot", async (
   const stored = await getSicStoredContent();
   assert.deepEqual(stored.items.map((value) => value.sourceId), ["active-source"]);
   assert.deepEqual(stored.reports.map((value) => value.sourceId), ["active-source"]);
+});
+
+test("a first failed approved source with no items still marks its SiC group stale", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-empty-failure-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  await mergeSicStoredContent({
+    items: [],
+    reports: [{
+      sourceId: "google-ml-courses",
+      status: "failure",
+      collectedAt: "2026-08-13T00:00:00.000Z",
+      itemCount: 0,
+      error: "upstream unavailable",
+    }],
+    updatedAt: "2026-08-13T00:00:00.000Z",
+    snapshotId: "run:first-failure",
+    activeSourceIds: ["google-ml-courses"],
+  });
+
+  const content = await getSicContentGroup("courses");
+  assert.deepEqual(content.groups.courses, []);
+  assert.equal(content.state.stale, true);
 });

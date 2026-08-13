@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getSicStoredContent } from "./sic-content-store.ts";
+import { getSicStoredContent, getSicStoredContentGroup } from "./sic-content-store.ts";
 import {
   SIC_CONTENT_GROUP_IDS,
   type SicContentGroupId,
@@ -55,6 +55,22 @@ export async function getSicContent() {
     groups[group] = latestSicContentPerSource(groups[group]);
   }
   return { groups, state };
+}
+
+export async function getSicContentGroup(group: SicContentGroupId) {
+  const stored = await getSicStoredContentGroup(group);
+  const groups: SicContentByGroup = { papers: [], documents: [], courses: [], podcasts: [] };
+  const items = stored.items.map((item) => ({ ...item, group }));
+  groups[group] = group === "papers" ? latestSicPapers(items) : latestSicContentPerSource(items);
+  const updatedAt = stored.state.updatedAt ? Date.parse(stored.state.updatedAt) : 0;
+  const sourceDelayed = stored.reports.some((report) => report.status === "failure" || report.status === "partial");
+  return {
+    groups,
+    state: {
+      ...stored.state,
+      stale: sourceDelayed || !updatedAt || Date.now() - updatedAt > 36 * 60 * 60 * 1000,
+    },
+  };
 }
 
 export function addPublishedDocuments(

@@ -185,14 +185,25 @@ class CollectorContractTests(unittest.TestCase):
         }
         start = datetime(2026, 7, 30, tzinfo=timezone.utc)
         end = datetime(2026, 8, 1, tzinfo=timezone.utc)
-        releases = [{
-            "name": "Nightly",
-            "tag_name": "nightly",
-            "html_url": "https://github.com/example/project/releases/tag/nightly",
-            "body": "Routine build.",
-            "published_at": "2026-07-31T00:00:00Z",
-            "author": {"login": "bot"},
-        }]
+        releases = [
+            {
+                "name": "Nightly",
+                "tag_name": "nightly",
+                "html_url": "https://github.com/example/project/releases/tag/nightly",
+                "body": "Routine build.",
+                "published_at": "2026-07-31T00:00:00Z",
+                "author": {"login": "bot"},
+            },
+            {
+                "name": "Version 2.0 RC",
+                "tag_name": "v2.0.0-rc.1",
+                "html_url": "https://github.com/example/project/releases/tag/v2.0.0-rc.1",
+                "body": "Prerelease build.",
+                "published_at": "2026-07-31T00:00:00Z",
+                "prerelease": True,
+                "author": {"login": "bot"},
+            },
+        ]
         self.assertEqual(collect_github(source, releases, start, end), [])
 
     def test_x_statement_records_verified_root_identity_separately_from_rss_transport(self):

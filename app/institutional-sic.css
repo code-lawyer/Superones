@@ -431,7 +431,39 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 
 /* SiC magazine desk: long-form reading at left, live indices at right. */
 .sic-mobile-index {
+  display: flex;
+  overflow-x: auto;
+  border-top: 1px solid var(--carbon);
+  border-bottom: 1px solid var(--carbon);
+  scrollbar-width: none;
+}
+
+.sic-mobile-index::-webkit-scrollbar {
   display: none;
+}
+
+.sic-mobile-index a {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  flex: 0 0 auto;
+  border-right: 1px solid var(--rule);
+  padding: 14px 20px;
+  color: var(--carbon);
+  font-size: var(--type-caption);
+  letter-spacing: .04em;
+}
+
+.sic-mobile-index a:hover,
+.sic-mobile-index a:focus-visible,
+.sic-mobile-index a[aria-current="page"] {
+  background: var(--carbon);
+  color: var(--paper-bright);
+}
+
+.sic-mobile-index a:focus-visible {
+  outline: 2px solid var(--paper-bright);
+  outline-offset: -4px;
 }
 
 .sic-stage {
@@ -444,6 +476,19 @@ body .sic-ranking-grid--five .sic-board--position-4 {
 .sic-stage__columns {
   display: grid;
   grid-template-columns: minmax(0, 1.72fr) minmax(340px, .78fr);
+}
+
+.sic-stage__columns--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sic-stage__columns--single .sic-magazine {
+  padding-right: 0;
+}
+
+.sic-stage__columns--single .sic-stage__rail {
+  border-left: 0;
+  padding-left: 0;
 }
 
 .sic-magazine,

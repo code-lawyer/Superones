@@ -94,6 +94,31 @@ test("one information item remains in the waterfall and does not create an event
   assert.deepEqual(result.information[0].eventSlugs, []);
 });
 
+test("routine release records are quarantined before editorial processing", async () => {
+  let translated = 0;
+  const routineRelease = {
+    ...envelope(1, "Example", "官方"),
+    itemKind: "release" as const,
+    originalTitle: "example/project released nightly",
+    originalUrl: "https://github.com/example/project/releases/tag/nightly",
+  };
+  const result = await compileInformationBatch({
+    batch: batch([routineRelease]),
+    previousInformation: [],
+    previousEvents: [],
+    editorial: editorial({
+      async translateInformation(item) {
+        translated += 1;
+        return { translatedTitle: item.originalTitle, summary: item.originalTitle, translatedContent: item.originalContent ?? item.originalTitle };
+      },
+    }),
+  });
+
+  assert.equal(result.information.length, 0);
+  assert.equal(result.quarantine[0].errorCode, "ROUTINE_RELEASE_NOT_ADMITTED");
+  assert.equal(translated, 0);
+});
+
 test("three aligned items from two publishers and roles form one event", async () => {
   const result = await compileInformationBatch({
     batch: batch([envelope(1, "A", "官方"), envelope(2, "B", "媒体"), envelope(3, "B", "媒体")]),

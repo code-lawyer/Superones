@@ -36,19 +36,6 @@
   line-height: 1.55;
 }
 
-.pipelineMapLink {
-  display: inline-block;
-  margin-top: 30px;
-  border-bottom: 1px solid currentColor;
-  font-size: var(--type-nav);
-  font-weight: 700;
-}
-
-.pipelineMapLink:hover,
-.pipelineMapLink:focus-visible {
-  color: var(--atlas-intel);
-}
-
 .heroAside {
   border-top: 1px solid var(--carbon);
 }
@@ -407,7 +394,7 @@
 .tableHead,
 .sourceRow {
   display: grid;
-  grid-template-columns: minmax(190px, 1.2fr) minmax(160px, 0.85fr) minmax(170px, 0.9fr) minmax(260px, 1.55fr) minmax(240px, 1.2fr);
+  grid-template-columns: minmax(210px, 1.2fr) minmax(180px, 0.85fr) minmax(220px, 1fr) minmax(260px, 1.25fr);
   gap: 24px;
 }
 
@@ -478,13 +465,6 @@
   line-height: 1.5;
 }
 
-.purpose {
-  margin: 0;
-  color: var(--graphite);
-  font-size: var(--type-small);
-  line-height: 1.65;
-}
-
 .sourceLinks {
   min-width: 0;
 }
@@ -500,17 +480,6 @@
   white-space: nowrap;
 }
 
-.endpoint {
-  margin-top: 9px;
-}
-
-.provenance {
-  margin: 10px 0 0;
-  color: var(--ash);
-  font-size: var(--type-label);
-  line-height: 1.55;
-}
-
 @media (max-width: 1080px) {
   .heroGrid {
     grid-template-columns: 1fr;
@@ -518,7 +487,7 @@
 
   .heroAside {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .heroAside > div {

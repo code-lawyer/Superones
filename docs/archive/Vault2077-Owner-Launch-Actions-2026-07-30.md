@@ -1,3 +1,9 @@
+---
+type: launch-history
+status: superseded
+updated: 2026-08-13
+---
+
 # Vault2077 上线负责人必办事项
 
 > 本清单已被 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`、`docs/Vault2077-Launch-Checklist.md` 与 ADR-0022 取代，只保留 2026-07-30 的历史责任分工，不得据此恢复旧在线支付或执行当前上线。

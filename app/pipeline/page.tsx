@@ -207,7 +207,6 @@ export default async function PipelinePage() {
         <div className={styles.heroMeta}>
           <p className={styles.kicker}>PIPELINE LIVE / 境外 → 境内</p>
           <nav aria-label="管线页面导航">
-            <Link href="/sources/pipeline">管线清单</Link>
             <Link href="/sources">来源地图</Link>
             <Link href="/feed">最终信息流</Link>
             <Link href="/sic">SiC 学院</Link>

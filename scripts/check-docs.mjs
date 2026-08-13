@@ -7,7 +7,7 @@ const indexPath = path.join(docsRoot, "README.md");
 const required = [
   "CONTEXT.md",
   "README.md",
-  "Vault2077-Production-Deployment-Plan-2026-07-31.md",
+  "docs/archive/Vault2077-Production-Deployment-Plan-2026-07-31.md",
   "docs/README.md",
   "docs/Vault2077-Design-Spec.md",
   "docs/Vault2077-Feed-Design-Spec.md",
@@ -71,8 +71,7 @@ for (const relative of required) {
 }
 
 const docFiles = await markdownFiles(docsRoot);
-const productionPlanPath = path.join(root, "Vault2077-Production-Deployment-Plan-2026-07-31.md");
-const files = [path.join(root, "CONTEXT.md"), path.join(root, "README.md"), productionPlanPath, ...docFiles];
+const files = [path.join(root, "CONTEXT.md"), path.join(root, "README.md"), ...docFiles];
 const bodies = new Map();
 for (const file of files) bodies.set(file, await readFile(file, "utf8"));
 
@@ -186,7 +185,7 @@ const forbiddenByFile = new Map([
   ["docs/Vault2077-Deployment-Configuration-Manual.md", [
     "永久删除该 slug 的全部头像版本",
   ]],
-  ["Vault2077-Production-Deployment-Plan-2026-07-31.md", [
+  ["docs/archive/Vault2077-Production-Deployment-Plan-2026-07-31.md", [
     "首发不使用 Cloudflare、Redis、OSS",
     "管理员原生 Passkey 尚未实现",
   ]],
@@ -210,7 +209,7 @@ for (const [relative, phrases] of forbiddenByFile) {
 
 const requiredByFile = new Map([
   ["CONTEXT.md", ["交互式仓库核验", "参赛仓库观察", "频道编辑配置", "上线基线"]],
-  ["docs/README.md", ["../Vault2077-Production-Deployment-Plan-2026-07-31.md"]],
+  ["docs/README.md", ["archive/Vault2077-Production-Deployment-Plan-2026-07-31.md"]],
   ["docs/Vault2077-Design-Spec.md", ["境内服务端优先即时核验", "Vault 编辑配置", "SiC 编辑配置", "正式启用内容频道前必须建立真实、可追溯的上线基线"]],
   ["docs/Vault2077-Frontier-Design-Spec.md", ["境内 GitHub 快速路径", "异步公开任务"]],
   ["docs/Vault2077-System-Delivery-Spec.md", ["Frontier GitHub 集成", "境内 GitHub 快速路径", "institutional-news-registry.json", "`externalUrl`", "`vault_editorial`", "`sic_editorial`", "不得使用编辑模型", "`runMode=bootstrap`"]],
@@ -234,7 +233,7 @@ const requiredByFile = new Map([
   ["docs/Vault2077-OPC-Admin-Manual.md", ["data/ranger-media/", "VAULT2077_RANGER_MEDIA_STORAGE=oss", "opc:cleanup-ranger-media", "opc:purge-revoked-ranger-media"]],
   ["docs/Vault2077-Ranger-Avatar-Storage-Decision-2026-07-31.md", ["opc:cleanup-ranger-media", "超过 7 天", "保留 30 天", "全部对象版本永久删除命令", "历史 versionId"]],
   ["docs/Vault2077-Aliyun-Identity-Gateway-Decision.md", ["OIDC 路由和配置已经从运行时代码删除"]],
-  ["Vault2077-Production-Deployment-Plan-2026-07-31.md", ["media.superones.top", "VAULT2077_RANGER_MEDIA_STORAGE=oss", "真实 OSS", "管理员原生 Passkey 未通过自动化测试"]],
+  ["docs/archive/Vault2077-Production-Deployment-Plan-2026-07-31.md", ["media.superones.top", "VAULT2077_RANGER_MEDIA_STORAGE=oss", "真实 OSS", "管理员原生 Passkey 未通过自动化测试"]],
 ]);
 for (const [relative, phrases] of requiredByFile) {
   const body = bodies.get(path.join(root, relative));

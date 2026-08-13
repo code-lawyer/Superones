@@ -1,7 +1,7 @@
 ---
 type: project-memory
 status: active
-updated: 2026-08-11
+updated: 2026-08-13
 ---
 
 # Vault2077 项目长期记忆
@@ -18,6 +18,8 @@ Vault2077 是面向超级个体与一人公司的公开网站，固定包含四�
 - 边境计划：公开 GitHub 仓库报名、挑战、观察、排行、奖励与结算。
 
 公开用户不创建 Vault2077 账户。生产后台只有固定 owner，通过 `admin.superones.top` 上的原生 WebAuthn/Passkey 登录。公开内容采集和境内编辑发布分属两个信任域。
+
+公开数据源地图只展示根源发布者身份、内容性质、公开去向和原始公开链接，不返回采集 endpoint、注册表修订、内部路径或处理拓扑。内部管线状态只在管理域 `/pipeline` 展示；公开 `/sources/pipeline` 已删除。
 
 ## 2. 技术栈与仓库结构
 
@@ -88,7 +90,7 @@ Nginx 的公开主机只允许两个精确内部路由：
 | `sic` | 每日 08:25 | `sic_editorial` |
 | `rankings` | 08:35、12:35、16:35、20:35 | 不使用模型 |
 
-采集结果使用 `AcquisitionBatch v2`。签名正文携带 lane 的最小来源快照，因此仅增删或改名已支持 adapter 的来源时，不要求境内外 revision 完全一致；新增 adapter 或 schema 仍要先部署兼容代码。网络错误、`408/425/429` 和 `5xx` 使用同一正文与 `batchId` 有界重试，确定性错误不盲目重试；YouTube 官方 Atom feed 的瞬时 `404` 作为来源特例有界重试。Hugging Face 周论文仍以 arXiv 规范元数据为准，并在两个获批的 arXiv 官方 API origin 间顺序回退。每个批次在签名和境内投递前执行高置信凭据预检；公开来源中的普通邮箱与技术文档里的通用凭据示例不得被当作项目秘密误报，高置信提供方令牌、私钥、带口令 URL 等仍对包括公开正文在内的完整批次执行检查。归档校验只输出规则 ID 和文件路径，不输出命中值。
+采集结果使用 `AcquisitionBatch v2`。签名正文携带 lane 的最小来源快照，因此仅增删或改名已支持 adapter 的来源时，不要求境内外 revision 完全一致；新增 adapter 或 schema 仍要先部署兼容代码。网络错误、`408/425/429` 和 `5xx` 使用同一正文与 `batchId` 有界重试，确定性错误不盲目重试；YouTube 官方 Atom feed 的瞬时 `404` 作为来源特例有界重试。GitHub Releases 只接纳正式稳定版本，例行构建与预发布在采集、内容编译和公开读取三层拒绝。Hugging Face 周论文仍以 arXiv 规范元数据为准，并在两个获批的 arXiv 官方 API origin 间顺序回退。签名前先按记录执行高置信凭据预检，命中记录单独隔离且安全同批记录继续交付；完整归档仍在落盘与投递前 fail-closed 终检。公开来源中的普通邮箱与技术文档里的通用凭据示例不得被当作项目秘密误报，高置信提供方令牌、私钥、带口令 URL 等仍对包括公开正文在内的完整批次执行检查。归档校验只输出规则 ID 和文件路径，不输出命中值。
 
 ### 4.2 境内 inbox 与 worker
 
@@ -107,6 +109,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - SiC 对提供方协议无效响应先在当前小批次内重试，再递归拆分定位；DNS、TLS、请求超时、额度和确定性 HTTP 错误等基础设施故障仍退出当前 worker，由 inbox 统一指数退避，避免一个偶发非 JSON 响应让整个大批次从头重做。
 - rankings 与 Frontier 的确定性核验、观察、排行和结算不进入模型。
 - information 保留最近 30 天；roadside、SiC 和平台榜按来源保留最近成功快照；事件保存不可变证据副本。
+- `/sic` 使用 `papers/documents/courses/podcasts/rankings` URL 视图，每次请求只读取和渲染当前视图所需数据；默认进入论文视图，避免所有长内容和榜单一次装入公开页面。
 
 ### 4.4 Frontier
 

@@ -1,7 +1,14 @@
 import "server-only";
 
-import { mutateStateDocument, readStateDocument, type StateDocumentDefinition } from "./state-document-store.ts";
-import type { SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
+import sicSourceRegistry from "../config/sic-source-registry.json" with { type: "json" };
+import {
+  configuredPostgresPool,
+  mutateStateDocument,
+  persistenceMode,
+  readStateDocument,
+  type StateDocumentDefinition,
+} from "./state-document-store.ts";
+import type { SicContentGroupId, SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
 
 type SicContentStore = {
   version: 2;
@@ -46,6 +53,50 @@ function state(store: SicContentStore): SicContentState {
 export async function getSicStoredContent() {
   const store = await readStore();
   return { items: store.items, reports: store.reports, state: state(store) };
+}
+
+function itemGroup(item: SicContentItem) {
+  return (item.group as string) === "archive" ? "documents" : item.group;
+}
+
+export async function getSicStoredContentGroup(group: SicContentGroupId) {
+  const sourceIds = sicSourceRegistry.sources
+    .filter((source) => source.status === "approved" && source.group === group)
+    .map((source) => source.id);
+
+  if (persistenceMode() === "file-preview") {
+    const store = await readStore();
+    const items = store.items.filter((item) => itemGroup(item) === group);
+    const reports = store.reports.filter((report) => sourceIds.includes(report.sourceId));
+    return { items, reports, state: state({ ...store, items }) };
+  }
+
+  const result = await configuredPostgresPool().query<{
+    items: SicContentItem[];
+    reports: SicSourceCollectionReport[];
+    updated_at: string | null;
+  }>(
+    `SELECT
+       COALESCE((
+         SELECT jsonb_agg(item)
+         FROM jsonb_array_elements(document->'items') AS item
+         WHERE CASE WHEN item->>'group' = 'archive' THEN 'documents' ELSE item->>'group' END = $2
+       ), '[]'::jsonb) AS items,
+       COALESCE((
+         SELECT jsonb_agg(report)
+         FROM jsonb_array_elements(document->'reports') AS report
+         WHERE report->>'sourceId' = ANY($3::text[])
+       ), '[]'::jsonb) AS reports,
+       document->>'updatedAt' AS updated_at
+     FROM vault2077_state_documents
+     WHERE namespace = $1`,
+    [sicDocument.namespace, group, sourceIds],
+  );
+  const row = result.rows[0];
+  const items = row?.items ?? [];
+  const reports = row?.reports ?? [];
+  const selectedStore = { ...emptyStore(), updatedAt: row?.updated_at ?? null, items, reports };
+  return { items, reports, state: state(selectedStore) };
 }
 
 export function sicContentIdentityKey(item: Pick<SicContentItem, "sourceId" | "canonicalId" | "url">) {

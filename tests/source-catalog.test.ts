@@ -12,7 +12,7 @@ function catalog() {
 }
 
 function sourceCount(section: ReturnType<typeof catalog>["sections"][number]) {
-  return section.methods.reduce((total, method) => total + method.sources.length, 0);
+  return section.sources.length;
 }
 
 test("source catalog mirrors every active acquisition registry", () => {
@@ -33,7 +33,7 @@ test("source catalog mirrors every active acquisition registry", () => {
 
 test("source catalog exposes only the five supported SiC ranking views", () => {
   const rankings = catalog().sections.find((section) => section.id === "sic-rankings");
-  const rankingIds = rankings?.methods.flatMap((method) => method.sources.map((source) => source.id));
+  const rankingIds = rankings?.sources.map((source) => source.id);
 
   assert.deepEqual(rankingIds, [
     "ranking:github:today",
@@ -45,28 +45,26 @@ test("source catalog exposes only the five supported SiC ranking views", () => {
   assert.ok(rankingIds?.every((id) => !id.includes("skills")));
 });
 
-test("source catalog keeps collection methods grouped and source identities unique", () => {
+test("source catalog exposes only identity, nature, destination, and original links", () => {
   const result = catalog();
-  const sources = result.sections.flatMap((section) => section.methods.flatMap((method) => method.sources));
+  const sources = result.sections.flatMap((section) => section.sources);
   const identities = new Set(sources.map((source) => source.id));
-  const information = result.sections.find((section) => section.id === "information-flow");
   const podcasts = result.sections.find((section) => section.id === "podcasts");
 
   assert.equal(identities.size, sources.length);
-  const roadside = result.sections.find((section) => section.id === "roadside");
-
-  assert.equal(information?.methods.find((method) => method.id === "rss-atom")?.sources.length, 5);
-  assert.equal(roadside?.methods.find((method) => method.id === "x-rss-relay")?.sources.length, 34);
-  assert.equal(roadside?.methods.find((method) => method.id === "follow-builders-x")?.sources.length, 1);
   assert.equal(podcasts && sourceCount(podcasts), 4);
 
   for (const source of sources) {
     assert.ok(source.destinationHref.startsWith("/"));
     assert.ok(source.sourceUrl.startsWith("https://"));
-    assert.ok(source.endpointUrl.startsWith("https://"));
-    assert.ok(source.purpose.trim());
+    assert.notEqual(
+      source.sourceUrl,
+      sourceBundle.sources.find((candidate: { id: string; endpoint: string }) => candidate.id === source.id)?.endpoint,
+    );
     assert.ok(source.nature.trim());
     assert.ok(source.evidenceLabel.trim());
-    assert.ok(source.provenance.trim());
+    assert.equal("methodId" in source, false);
+    assert.equal("methodLabel" in source, false);
+    assert.equal("purpose" in source, false);
   }
 });

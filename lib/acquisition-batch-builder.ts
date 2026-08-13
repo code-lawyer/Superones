@@ -13,6 +13,7 @@ import {
   type JsonValue,
 } from "./acquisition-contract.ts";
 import { buildAcquisitionSourceRegistrySnapshot } from "./acquisition-source-registry.ts";
+import { sensitiveEvidenceRuleIds } from "./acquisition-sensitive-evidence.ts";
 import { MAX_BATCH_ITEMS, type InboundContentBatch } from "./content-contract.ts";
 import type { SicRawCollection } from "./sic-collector.ts";
 
@@ -104,12 +105,32 @@ export function packAcquisitionGroups(
     MAX_ACQUISITION_RECORDS,
     Math.max(1, Math.floor(options.maxRecords ?? MAX_ACQUISITION_RECORDS)),
   );
+  const guardedGroups = groups.map((group): AcquisitionSourceGroup => {
+    const quarantined = group.records.flatMap((record) => {
+      const ruleIds = sensitiveEvidenceRuleIds(JSON.stringify(record));
+      return ruleIds.length > 0 ? [{ record, ruleIds }] : [];
+    });
+    if (quarantined.length === 0) return group;
+    const quarantinedIds = new Set(quarantined.map(({ record }) => record.recordId));
+    const records = group.records.filter((record) => !quarantinedIds.has(record.recordId));
+    const rules = [...new Set(quarantined.flatMap(({ ruleIds }) => ruleIds))].sort();
+    return {
+      records,
+      report: {
+        ...group.report,
+        status: "partial",
+        recordCount: records.length,
+        errorCode: "SENSITIVE_RECORDS_QUARANTINED",
+        errorMessage: `${quarantined.length} 条记录因敏感证据规则被隔离；安全记录继续投递。规则：${rules.join(", ")}`,
+      },
+    };
+  });
   const batches: AcquisitionBatch[] = [];
   let pending: AcquisitionSourceGroup[] = [];
   const sourceRegistry = buildAcquisitionSourceRegistrySnapshot({
     revision: context.registryRevision,
     lane: context.lane,
-    sources: groups.map((group) => ({
+    sources: guardedGroups.map((group) => ({
       sourceId: group.report.sourceId,
       adapter: group.report.adapter,
     })),
@@ -144,7 +165,7 @@ export function packAcquisitionGroups(
     pending = [];
   }
 
-  const partitioned = groups.flatMap((group) => {
+  const partitioned = guardedGroups.flatMap((group) => {
     if (group.records.length <= maxRecords) return [group];
     const parts: AcquisitionSourceGroup[] = [];
     for (let start = 0; start < group.records.length; start += maxRecords) {
@@ -237,6 +258,8 @@ export function buildVaultAcquisitionBatches(input: {
           contentCompleteness: item.contentCompleteness,
           contentGroup: item.contentGroup,
           itemKind: item.itemKind,
+          releasePrerelease: item.releasePrerelease,
+          releaseDraft: item.releaseDraft,
           provenanceRole: item.provenanceRole,
           provenanceStatus: item.provenanceStatus,
           sourceStream: item.sourceStream,

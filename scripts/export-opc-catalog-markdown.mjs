@@ -57,6 +57,8 @@ function fieldTable(item, fields) {
 const lines = [
   "# OPC 服务台完整服务目录",
   "",
+  "> 自动生成文件：由 `scripts/export-opc-catalog-markdown.mjs` 从受控默认目录导出。请勿手工编辑；修改目录事实后重新运行导出脚本。",
+  "",
   `> 数据来源：\`data/defaults/opc-catalog.seed.json\` 的默认公开目录。目录修订号：${state.sourceRevision ?? "未填写"}；发布时间：${state.publishedAt ?? "未发布"}。`,
   "> 本文档完整保留当前目录中的字段值。数组字段以列表形式展开；空字段统一标记为“未填写”。",
   "",

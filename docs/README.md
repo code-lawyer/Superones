@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-08-12
+updated: 2026-08-13
 ---
 
 # Vault2077 文档权威索引
@@ -75,7 +75,12 @@ updated: 2026-08-12
 - [OPC 开发计划](Vault2077-OPC-Development-Plan.md)：内容已吸收到 OPC 规格，保留实施分解。
 - [OPC 全额预付与纸质合同线上实施方案](Vault2077-OPC-Prepaid-Paper-Contract-Implementation-Plan.md)：已被 ADR-0020 取代，只保留既有 ADR-0019 订单的历史实现背景。
 - [负责人纸质结账启用手册](Vault2077-Owner-Paper-Checkout-Activation-Manual.md)：已被线下付款手册取代，只用于既有 ADR-0019 订单历史排障。
-- [2026-07-31 生产部署执行方案](../Vault2077-Production-Deployment-Plan-2026-07-31.md)：已被当前阿里云生产 Handoff 与部署配置手册取代，只保留当时的基础设施决策背景。
+## 历史上线材料
+
+- [2026-07-30 正式上线执行计划](archive/Vault2077-Formal-Launch-Execution-Plan-2026-07-30.md)：历史阶段执行计划，不作为当前发布依据。
+- [2026-07-30 上线准备度审计](archive/Vault2077-Launch-Readiness-Audit-2026-07-30.md)：历史仓库快照，不代表当前状态。
+- [2026-07-30 上线负责人事项](archive/Vault2077-Owner-Launch-Actions-2026-07-30.md)：已被当前 Handoff、Checklist 与 ADR 取代。
+- [2026-07-31 生产部署执行方案](archive/Vault2077-Production-Deployment-Plan-2026-07-31.md)：已被当前阿里云生产 Handoff 与部署配置手册取代，只保留当时的基础设施决策背景。
 - [OPC 页面设计提案](Vault2077-OPC-Page-Design-Proposal.md)：已被 OPC 规格取代。
 - [SiC 内容架构计划](Vault2077-SiC-Content-Architecture-Plan.md)：已被 SiC 规格取代。
 

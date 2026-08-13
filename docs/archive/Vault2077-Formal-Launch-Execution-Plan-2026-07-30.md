@@ -1,3 +1,9 @@
+---
+type: launch-history
+status: historical
+updated: 2026-08-13
+---
+
 # Vault2077 正式上线执行计划书
 
 > 本计划是历史阶段材料；当前执行依据为 `docs/Vault2077-Aliyun-Mainland-Production-Handoff.md`、`docs/Vault2077-Deployment-Configuration-Manual.md` 与 `docs/Vault2077-Launch-Checklist.md`。

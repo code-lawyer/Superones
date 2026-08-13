@@ -292,6 +292,8 @@ def document(source: dict, url, title, content="", published_at="", author="", o
         "contentHash": content_hash,
         "contentGroup": overrides.get("contentGroup") or source.get("contentGroup") or ("roadside" if source_provenance["sourceStream"] in {"roadside", "statements"} else "information"),
         "itemKind": overrides.get("itemKind") or source.get("itemKind") or "article",
+        "releasePrerelease": overrides.get("releasePrerelease"),
+        "releaseDraft": overrides.get("releaseDraft"),
         "provenanceRole": overrides.get("provenanceRole") or source.get("provenanceRole") or "canonical",
         "provenanceStatus": overrides.get("provenanceStatus") or source.get("provenanceStatus") or "verified",
         "contentClass": overrides.get("contentClass") or source.get("contentClass"),
@@ -667,7 +669,11 @@ def collect_github(source: dict, payload, start: datetime, end: datetime) -> lis
         if source["connector"] == "github-releases":
             title = value.get("name") or value.get("tag_name")
             release_identity = f"{title or ''} {value.get('tag_name') or ''}"
-            if re.search(r"\b(?:nightly|snapshot|canary|continuous)\b", release_identity, flags=re.IGNORECASE):
+            if (
+                value.get("prerelease") is True
+                or value.get("draft") is True
+                or re.search(r"\b(?:nightly|snapshot|canary|continuous)\b", release_identity, flags=re.IGNORECASE)
+            ):
                 continue
             url = value.get("html_url")
             content = value.get("body", "")
@@ -683,7 +689,11 @@ def collect_github(source: dict, payload, start: datetime, end: datetime) -> lis
             author = value.get("actor", {}).get("login", "")
         if not in_window(published_at, start, end):
             continue
-        item = document(source, url, title, content, published_at, author)
+        overrides = {
+            "releasePrerelease": value.get("prerelease") is True,
+            "releaseDraft": value.get("draft") is True,
+        } if source["connector"] == "github-releases" else None
+        item = document(source, url, title, content, published_at, author, overrides)
         if item:
             results.append(item)
     return results

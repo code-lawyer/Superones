@@ -485,6 +485,71 @@ class HorizonRawExportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(information), 1)
         self.assertEqual(information[0]["originalTitle"], "example/project released v1.0.0")
 
+    async def test_github_adapter_rejects_routine_prerelease_and_draft_builds(self):
+        source = {
+            "id": "source-github-test",
+            "name": "Example releases",
+            "connector": "github-releases",
+            "channelIdentifier": "example/project",
+            "primaryLanguage": "en",
+            "contentCapability": "feed-content",
+            "evidenceNature": "primary",
+            "publisherKind": "open_source_project",
+            "classificationConfidence": "high",
+        }
+
+        async def handler(request):
+            return httpx.Response(200, json=[
+                {
+                    "id": 1,
+                    "tag_name": "nightly",
+                    "html_url": "https://github.com/example/project/releases/tag/nightly",
+                    "body": "Routine build.",
+                    "author": {"login": "bot"},
+                    "published_at": "2026-07-22T09:00:00Z",
+                    "prerelease": False,
+                },
+                {
+                    "id": 2,
+                    "tag_name": "v2.0.0-rc.1",
+                    "html_url": "https://github.com/example/project/releases/tag/v2.0.0-rc.1",
+                    "body": "Prerelease build.",
+                    "author": {"login": "bot"},
+                    "published_at": "2026-07-22T09:00:00Z",
+                    "prerelease": True,
+                },
+                {
+                    "id": 3,
+                    "tag_name": "v3.0.0-draft",
+                    "html_url": "https://github.com/example/project/releases/tag/v3.0.0-draft",
+                    "body": "Draft build.",
+                    "author": {"login": "example"},
+                    "published_at": None,
+                    "prerelease": False,
+                    "draft": True,
+                },
+                {
+                    "id": 4,
+                    "tag_name": "v1.0.0",
+                    "html_url": "https://github.com/example/project/releases/tag/v1.0.0",
+                    "body": "Stable release.",
+                    "author": {"login": "example"},
+                    "published_at": "2026-07-22T09:00:00Z",
+                    "prerelease": False,
+                },
+            ])
+
+        start = datetime(2026, 7, 22, 4, tzinfo=timezone.utc)
+        end = datetime(2026, 7, 22, 10, tzinfo=timezone.utc)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            information, outcome = await collect_one(source, start, end, client, asyncio.Semaphore(1))
+
+        self.assertEqual(outcome.status, "success")
+        self.assertEqual(outcome.fetched, 4)
+        self.assertEqual(outcome.accepted, 1)
+        self.assertEqual(outcome.rejected, 3)
+        self.assertEqual([item["originalTitle"] for item in information], ["example/project released v1.0.0"])
+
 
 if __name__ == "__main__":
     unittest.main()

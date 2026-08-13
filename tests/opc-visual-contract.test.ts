@@ -291,7 +291,7 @@ test("general public copy avoids messaging handles", async () => {
   const publicSurfaceCopy = await Promise.all([
     readFile(path.join(root, "app", "page.tsx"), "utf8"),
     readFile(path.join(root, "components", "home-experience.tsx"), "utf8"),
-    readFile(path.join(root, "app", "sources", "pipeline", "page.tsx"), "utf8"),
+    readFile(path.join(root, "app", "methodology", "page.tsx"), "utf8"),
     readFile(path.join(root, "app", "frontier", "frontier-copy.tsx"), "utf8"),
     readFile(path.join(root, "app", "frontier", "submit", "submit-form.tsx"), "utf8"),
   ]);

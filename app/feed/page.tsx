@@ -130,9 +130,9 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
             <section className="feed-stream feed-stream--statements" id="roadside-stream" aria-labelledby="roadside-stream-title">
               <header className="feed-column__header">
-                <p className="eyebrow mono">ROADSIDE / 个人与社区</p>
+                <p className="eyebrow mono">ROADSIDE / 个人表达</p>
                 <h2 id="roadside-stream-title">路边社</h2>
-                <p>自然人言论、个人博客及社区原生条目。</p>
+                <p>自然人言论与个人博客。</p>
               </header>
               <RoadsideList
                 items={visibleRoadside}
@@ -140,7 +140,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
                   ? roadsideItems.find((item) => item.slug === requestedRoadsideSlug)
                   : undefined}
               />
-              {visibleRoadside.length === 0 ? <p className="feed-empty">暂无个人或社区发布</p> : null}
+              {visibleRoadside.length === 0 ? <p className="feed-empty">暂无个人发布</p> : null}
               {visibleRoadside.length < roadsideItems.length ? (
                 <Link className="feed-more" href={feedHref(state, { roadsideLimit: state.roadsideLimit + STATEMENT_LIMIT })}>
                   <span>展开更多路边社</span>

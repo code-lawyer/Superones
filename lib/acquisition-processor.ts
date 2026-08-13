@@ -139,6 +139,8 @@ export function informationFromAcquisitionRecord(record: AcquisitionRecord): Inf
     contentHash: record.contentHash,
     contentGroup: string(payload, "contentGroup", false) as InformationEnvelope["contentGroup"],
     itemKind: string(payload, "itemKind", false) as InformationEnvelope["itemKind"],
+    releasePrerelease: optionalBoolean(payload, "releasePrerelease"),
+    releaseDraft: optionalBoolean(payload, "releaseDraft"),
     provenanceRole: string(payload, "provenanceRole", false) as InformationEnvelope["provenanceRole"],
     provenanceStatus: string(payload, "provenanceStatus", false) as InformationEnvelope["provenanceStatus"],
     sourceStream: string(payload, "sourceStream", false) as InformationEnvelope["sourceStream"],

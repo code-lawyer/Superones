@@ -91,7 +91,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
 
 mkdirSync(collectorRoot, { recursive: true });
 mkdirSync(dataRoot, { recursive: true });
-const rankingSeedPath = path.join(root, "data", "direct-rankings.json");
+const rankingSeedPath = path.join(root, "data", "bootstrap", "direct-rankings.seed.json");
 try {
   await writeFile(
     path.join(dataRoot, "direct-rankings.json"),

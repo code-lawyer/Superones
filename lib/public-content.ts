@@ -2,6 +2,7 @@ import "server-only";
 
 import { getStoredContent } from "./content-store";
 import { cleanEditorialTitle } from "./editorial-title";
+import { admittedPublicRecords } from "./public-record-admission";
 import type { ContentState, EventRecord, InformationItem } from "./types";
 
 export type PublicContent = {
@@ -40,10 +41,19 @@ export async function getPublicContent(): Promise<PublicContent> {
     const stored = await getStoredContent();
     if (stored.state.mode === "live" || stored.state.mode === "degraded") {
       const age = stored.state.updatedAt ? Date.now() - Date.parse(stored.state.updatedAt) : Number.POSITIVE_INFINITY;
+      const admittedRecords = admittedPublicRecords(stored.events, stored.information);
+      const publicRecords = {
+        ...admittedRecords,
+        information: admittedRecords.information.map(publicInformation),
+      };
       return {
-        events: stored.events,
-        information: stored.information.map(publicInformation),
-        state: age > 12 * 60 * 60 * 1000 ? { ...stored.state, mode: "degraded" } : stored.state,
+        ...publicRecords,
+        state: {
+          ...stored.state,
+          mode: age > 12 * 60 * 60 * 1000 ? "degraded" : stored.state.mode,
+          eventCount: publicRecords.events.length,
+          informationCount: publicRecords.information.length,
+        },
       };
     }
     return degradedContent(stored.state);

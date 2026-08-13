@@ -85,6 +85,8 @@ export type InformationItem = {
   classificationConfidence?: ClassificationConfidence;
   contentGroup?: ContentGroup;
   itemKind?: ItemKind;
+  releasePrerelease?: boolean;
+  releaseDraft?: boolean;
   provenanceRole?: ProvenanceRole;
   provenanceStatus?: ProvenanceStatus;
   discoveryPaths?: string[];

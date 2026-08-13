@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -97,6 +98,46 @@ class RecordingHttpClient:
         self._allowed_origins = allowed_origins
         self.statuses: list[int] = []
         self.error: str | None = None
+        self.release_flags: dict[str, dict[str, bool]] = {}
+        self.filtered_release_count = 0
+
+    def _record_release_flags(self, url: str, response: httpx.Response) -> None:
+        if not urlparse(url).path.endswith("/releases") or response.status_code >= 400:
+            return
+        try:
+            releases = response.json()
+        except (ValueError, json.JSONDecodeError):
+            return
+        if not isinstance(releases, list):
+            return
+        for release in releases:
+            if not isinstance(release, dict) or not release.get("html_url"):
+                continue
+            self.release_flags[str(release["html_url"])] = {
+                "prerelease": release.get("prerelease") is True,
+                "draft": release.get("draft") is True,
+            }
+
+    def _without_draft_releases(self, url: str, response: httpx.Response) -> httpx.Response:
+        if not urlparse(url).path.endswith("/releases") or response.status_code >= 400:
+            return response
+        try:
+            releases = response.json()
+        except (ValueError, json.JSONDecodeError):
+            return response
+        if not isinstance(releases, list):
+            return response
+        visible = [release for release in releases if not isinstance(release, dict) or release.get("draft") is not True]
+        self.filtered_release_count += len(releases) - len(visible)
+        if len(visible) == len(releases):
+            return response
+        return httpx.Response(
+            response.status_code,
+            headers=response.headers,
+            json=visible,
+            request=response.request,
+            extensions=response.extensions,
+        )
 
     async def _get_once(self, url: str, *args, **kwargs):
         current_url = url
@@ -138,7 +179,8 @@ class RecordingHttpClient:
                 raise
             if response.status_code not in retryable_statuses or attempt == 2:
                 self.statuses.append(response.status_code)
-                return response
+                self._record_release_flags(url, response)
+                return self._without_draft_releases(url, response)
             await response.aread()
             await response.aclose()
             await asyncio.sleep(0.25 * (2 ** attempt))
@@ -206,16 +248,35 @@ def horizon_scraper_for(source: dict, client: httpx.AsyncClient):
     return None
 
 
-def normalize_horizon_items(source: dict, items: list[Any]) -> tuple[list[dict], int]:
+def normalize_horizon_items(
+    source: dict,
+    items: list[Any],
+    release_flags: dict[str, dict[str, bool]] | None = None,
+) -> tuple[list[dict], int]:
     information: list[dict] = []
     rejected = 0
     for item in items:
         url = repair_utf8_mojibake(str(item.url))
         title = repair_utf8_mojibake(item.title)
+        flags = (release_flags or {}).get(url, {})
+        release_identity = f"{title} {item.metadata.get('tag', '')} {url}"
+        if source.get("connector") == "github-releases" and (
+            item.metadata.get("prerelease") is True
+            or flags.get("prerelease") is True
+            or flags.get("draft") is True
+            or re.search(r"\b(?:nightly|snapshot|canary|continuous)\b", release_identity, flags=re.IGNORECASE)
+        ):
+            rejected += 1
+            continue
         is_latent_space = source.get("name") == "Latent Space" or source.get("id") == "source-latent-space"
         overrides = {
             "contentCompleteness": "fulltext",
         } if is_latent_space and item.metadata.get("content_completeness") == "fulltext" else {}
+        if source.get("connector") == "github-releases":
+            overrides.update({
+                "releasePrerelease": item.metadata.get("prerelease") is True or flags.get("prerelease") is True,
+                "releaseDraft": flags.get("draft") is True,
+            })
         if is_latent_space:
             is_digest = title.lstrip().lower().startswith("[ainews]") or "/p/ainews-" in url.lower()
             if is_digest:
@@ -273,11 +334,13 @@ async def collect_one(source: dict, since: datetime, until: datetime, client: ht
         adapter_name, scraper = adapter
         async with semaphore:
             fetched_items = await scraper.fetch(since)
-        information, rejected = normalize_horizon_items(source, fetched_items)
+        information, rejected = normalize_horizon_items(source, fetched_items, recording_client.release_flags)
+        observed_count = len(fetched_items) + recording_client.filtered_release_count
+        rejected += recording_client.filtered_release_count
         transport_error = recording_client.error or (f"upstream returned HTTP {max(recording_client.statuses)}" if any(value >= 400 for value in recording_client.statuses) else None)
-        status = "partial" if fetched_items and transport_error else ("failure" if transport_error else ("success" if fetched_items else "empty"))
+        status = "partial" if observed_count and transport_error else ("failure" if transport_error else ("success" if observed_count else "empty"))
         error = transport_error
-        outcome = SourceOutcome(source["id"], source["name"], adapter_name, status, len(fetched_items), len(information), rejected, round((time.perf_counter() - started) * 1000), error)
+        outcome = SourceOutcome(source["id"], source["name"], adapter_name, status, observed_count, len(information), rejected, round((time.perf_counter() - started) * 1000), error)
         return information, outcome
     except Exception as error:
         outcome = SourceOutcome(source["id"], source["name"], "unavailable", "failure", 0, 0, 0, round((time.perf_counter() - started) * 1000), f"{type(error).__name__}: {error}")

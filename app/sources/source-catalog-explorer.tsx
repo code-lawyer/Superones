@@ -4,17 +4,17 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type {
   SourceCatalog,
-  SourceCatalogMethod,
+  SourceCatalogItem,
   SourceCatalogSection,
   SourceCatalogSectionId,
 } from "@/lib/source-catalog-types";
 import styles from "./source-catalog.module.css";
 
 function sourceCount(section: SourceCatalogSection) {
-  return section.methods.reduce((total, method) => total + method.sources.length, 0);
+  return section.sources.length;
 }
 
-function matches(source: SourceCatalogMethod["sources"][number], query: string) {
+function matches(source: SourceCatalogItem, query: string) {
   if (!query) return true;
   const haystack = [
     source.name,
@@ -22,11 +22,8 @@ function matches(source: SourceCatalogMethod["sources"][number], query: string) 
     source.channelLabel,
     source.destinationLabel,
     source.sourceUrl,
-    source.endpointUrl,
-    source.purpose,
     source.nature,
     source.evidenceLabel,
-    source.provenance,
   ].join(" ").toLocaleLowerCase("zh-CN");
   return haystack.includes(query.toLocaleLowerCase("zh-CN"));
 }
@@ -34,23 +31,20 @@ function matches(source: SourceCatalogMethod["sources"][number], query: string) 
 function filterSection(section: SourceCatalogSection, query: string) {
   return {
     ...section,
-    methods: section.methods
-      .map((method) => ({ ...method, sources: method.sources.filter((source) => matches(source, query)) }))
-      .filter((method) => method.sources.length > 0),
+    sources: section.sources.filter((source) => matches(source, query)),
   };
 }
 
-function MethodTable({ method, sectionId }: { method: SourceCatalogMethod; sectionId: SourceCatalogSectionId }) {
+function SourceTable({ sources, sectionId, label }: { sources: SourceCatalogItem[]; sectionId: SourceCatalogSectionId; label: string }) {
   return (
-    <div className={styles.methodTable} role="table" aria-label={`${method.label} 来源`}>
+    <div className={styles.methodTable} role="table" aria-label={`${label} 来源`}>
       <div className={styles.tableHead} role="row">
         <span role="columnheader">来源</span>
         <span role="columnheader">体现位置</span>
         <span role="columnheader">性质</span>
-        <span role="columnheader">主要作用</span>
-        <span role="columnheader">原始源 / 抓取端点</span>
+        <span role="columnheader">原始来源</span>
       </div>
-      {method.sources.map((source) => (
+      {sources.map((source) => (
         <article className={styles.sourceRow} data-section={sectionId} role="row" key={source.id}>
           <div className={styles.sourceName} role="cell">
             <strong>{source.name}</strong>
@@ -66,21 +60,11 @@ function MethodTable({ method, sectionId }: { method: SourceCatalogMethod; secti
             <div className={styles.nature}>{source.nature}</div>
             <div className={styles.evidence}>{source.evidenceLabel}</div>
           </div>
-          <div role="cell">
-            <span className={`${styles.cellLabel} mono`}>主要作用</span>
-            <p className={styles.purpose}>{source.purpose}</p>
-          </div>
           <div className={styles.sourceLinks} role="cell">
             <span className={`${styles.cellLabel} mono`}>原始源</span>
             <a href={source.sourceUrl} target="_blank" rel="noreferrer" title={source.sourceUrl}>
               {source.sourceUrl} ↗
             </a>
-            {source.endpointUrl !== source.sourceUrl ? (
-              <a className={styles.endpoint} href={source.endpointUrl} target="_blank" rel="noreferrer" title={source.endpointUrl}>
-                抓取：{source.endpointUrl} ↗
-              </a>
-            ) : null}
-            <p className={styles.provenance}>{source.provenance}</p>
           </div>
         </article>
       ))}
@@ -92,34 +76,23 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
   const [query, setQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState<SourceCatalogSectionId | "all">("all");
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
-  const [openMethods, setOpenMethods] = useState<Set<string>>(new Set());
 
   const visibleSections = useMemo(() => catalog.sections
     .filter((section) => selectedSection === "all" || section.id === selectedSection)
     .map((section) => filterSection(section, query.trim()))
-    .filter((section) => section.methods.length > 0), [catalog.sections, query, selectedSection]);
+    .filter((section) => section.sources.length > 0), [catalog.sections, query, selectedSection]);
   const visibleCount = visibleSections.reduce(
-    (total, section) => total + section.methods.reduce((count, method) => count + method.sources.length, 0),
+    (total, section) => total + section.sources.length,
     0,
   );
   const searching = query.trim().length > 0;
-  const allExpanded = catalog.sections.every((section) => openSections.has(section.id))
-    && catalog.sections.every((section) => section.methods.every((method) => openMethods.has(`${section.id}:${method.id}`)));
+  const allExpanded = catalog.sections.every((section) => openSections.has(section.id));
 
   function toggleSection(sectionId: string) {
     setOpenSections((current) => {
       const next = new Set(current);
       if (next.has(sectionId)) next.delete(sectionId);
       else next.add(sectionId);
-      return next;
-    });
-  }
-
-  function toggleMethod(key: string) {
-    setOpenMethods((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
       return next;
     });
   }
@@ -133,11 +106,9 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
   function toggleAll() {
     if (allExpanded) {
       setOpenSections(new Set());
-      setOpenMethods(new Set());
       return;
     }
     setOpenSections(new Set(catalog.sections.map((section) => section.id)));
-    setOpenMethods(new Set(catalog.sections.flatMap((section) => section.methods.map((method) => `${section.id}:${method.id}`))));
   }
 
   return (
@@ -148,17 +119,12 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
             <p className="eyebrow mono">SOURCE ATLAS / 采集航图</p>
             <h1>数据从哪里来，最后流向哪里</h1>
             <p className={styles.heroLead}>
-              这里列出真正进入运行管线的来源。资讯瀑布只收新闻型内容，路边社承载人物与社区原生记录，SiC 档案只收深度研究和技术材料；同一原始内容只有一个主去向。每一行都说明根源、采集路径、传输方式和最终流向。
+              这里列出当前进入公开内容的根源身份。资讯瀑布只收新闻型内容，路边社承载人物公开表达，SiC 档案只收深度研究和技术材料；同一原始内容只有一个主去向。每一行只说明发布者、内容性质、产品去向和公开原链接。
             </p>
-            <Link className={styles.pipelineMapLink} href="/sources/pipeline">
-              先看四条管线与七个栏目的完整对应 →
-            </Link>
           </div>
           <aside className={styles.heroAside} aria-label="来源清单概览">
             <div><span className="mono">REGISTERED</span><strong>{catalog.total}</strong></div>
             <div><span className="mono">STREAMS</span><strong>{catalog.sections.length}</strong></div>
-            <div><span className="mono">X ACTIVE</span><strong>{catalog.governance.xActive}</strong></div>
-            <div><span className="mono">REVISION</span><strong className="mono">{catalog.registryRevision.replace("source-bundle-", "").slice(0, 8)}</strong></div>
           </aside>
         </div>
       </header>
@@ -182,32 +148,6 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
         ))}
       </section>
 
-      <section className={`${styles.governance} shell`} aria-labelledby="x-governance-title">
-        <div className={styles.governanceIntro}>
-          <p className="eyebrow mono">X SOURCE GOVERNANCE</p>
-          <h2 id="x-governance-title">先确认是谁，再决定是否监听</h2>
-          <p>RSS 和聚合器只记录为传输路径；账号以标准化 X handle 作为根源身份。未进入权威政策的账号保留在注册表中，但不进入生产抓取。</p>
-        </div>
-        <dl className={styles.governanceStats}>
-          <div>
-            <dt>可运行候选</dt>
-            <dd>{catalog.governance.xRunnableCandidates}</dd>
-          </div>
-          <div>
-            <dt>正式保留</dt>
-            <dd>{catalog.governance.xActive}</dd>
-          </div>
-          <div>
-            <dt>退出运行</dt>
-            <dd>{catalog.governance.xExcludedFromRuntime}</dd>
-          </div>
-          <div>
-            <dt>重复声明合并</dt>
-            <dd>{catalog.governance.xDuplicateDiscoveriesMerged}</dd>
-          </div>
-        </dl>
-      </section>
-
       <div className={`${styles.toolbar} shell`} id="source-catalog">
         <div className={styles.searchWrap}>
           <label className="skip-link" htmlFor="source-search">搜索来源</label>
@@ -216,7 +156,7 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
             id="source-search"
             type="search"
             value={query}
-            placeholder="搜索名称、发布方、URL、用途或性质"
+            placeholder="搜索名称、发布方、URL 或性质"
             onChange={(event) => setQuery(event.target.value)}
           />
           {query ? <button className={styles.clearSearch} type="button" onClick={() => setQuery("")}>清除</button> : null}
@@ -237,7 +177,7 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
           <p className={styles.empty}>没有匹配的来源。可以尝试发布方名称、平台名称或 URL。</p>
         ) : visibleSections.map((section) => {
           const isSectionOpen = searching || openSections.has(section.id);
-          const total = section.methods.reduce((count, method) => count + method.sources.length, 0);
+          const total = section.sources.length;
           return (
             <section className={styles.section} data-section={section.id} key={section.id}>
               <button
@@ -255,31 +195,7 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
               </button>
               {isSectionOpen ? (
                 <div className={styles.sectionBody} id={`source-section-${section.id}`}>
-                  {section.methods.map((method) => {
-                    const methodKey = `${section.id}:${method.id}`;
-                    const isMethodOpen = searching || openMethods.has(methodKey);
-                    return (
-                      <section className={styles.method} key={methodKey}>
-                        <button
-                          className={styles.methodToggle}
-                          type="button"
-                          aria-expanded={isMethodOpen}
-                          aria-controls={`source-method-${methodKey}`}
-                          onClick={() => toggleMethod(methodKey)}
-                        >
-                          <strong>{method.label}</strong>
-                          <p>{method.description}</p>
-                          <span className={`${styles.methodCount} mono`}>{method.sources.length} SOURCES</span>
-                          <span className={`${styles.chevron} ${isMethodOpen ? styles.chevronOpen : ""}`} aria-hidden="true">＋</span>
-                        </button>
-                        {isMethodOpen ? (
-                          <div id={`source-method-${methodKey}`}>
-                            <MethodTable method={method} sectionId={section.id} />
-                          </div>
-                        ) : null}
-                      </section>
-                    );
-                  })}
+                  <SourceTable sources={section.sources} sectionId={section.id} label={section.label} />
                 </div>
               ) : null}
             </section>

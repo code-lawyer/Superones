@@ -62,6 +62,8 @@ export type InformationEnvelope = {
   contentHash: string;
   contentGroup?: ContentGroup;
   itemKind?: ItemKind;
+  releasePrerelease?: boolean;
+  releaseDraft?: boolean;
   provenanceRole?: ProvenanceRole;
   provenanceStatus?: ProvenanceStatus;
   sourceStream?: SourceStream;
@@ -219,6 +221,11 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
   if (item.itemKind !== undefined && !ITEM_KINDS.includes(item.itemKind as ItemKind)) {
     throw new ContentContractError(`information[${index}].itemKind 无效。`);
   }
+  for (const field of ["releasePrerelease", "releaseDraft"] as const) {
+    if (item[field] !== undefined && item[field] !== null && typeof item[field] !== "boolean") {
+      throw new ContentContractError(`information[${index}].${field} 必须是布尔值。`);
+    }
+  }
   if (item.provenanceRole !== undefined && !PROVENANCE_ROLES.includes(item.provenanceRole as ProvenanceRole)) {
     throw new ContentContractError(`information[${index}].provenanceRole 无效。`);
   }
@@ -296,6 +303,8 @@ function validateInformation(value: unknown, index: number): InformationEnvelope
           ? "article"
           : "article"
     ),
+    releasePrerelease: typeof item.releasePrerelease === "boolean" ? item.releasePrerelease : undefined,
+    releaseDraft: typeof item.releaseDraft === "boolean" ? item.releaseDraft : undefined,
     provenanceRole: (item.provenanceRole as ProvenanceRole | undefined) ?? "canonical",
     provenanceStatus: (item.provenanceStatus as ProvenanceStatus | undefined) ?? (
       item.originResolution === "unresolved" ? "unresolved" : "verified"

@@ -1,7 +1,7 @@
 ---
 type: engineering-spec
 status: active
-updated: 2026-08-11
+updated: 2026-08-13
 ---
 
 # Vault2077 系统交付规格
@@ -45,6 +45,7 @@ information 采用 30 天滚动公开窗口：incremental 以稳定内容身份 
 - Hacker News 与 Lobsters 不进入运行时 bundle。Follow Builders X 中央 feed 全量进入 roadside，不设本地人物白名单或来源去重；canonical URL、账号和原始时间仍必须回到原始 X 条目。
 - Follow Builders Blogs/Podcasts 中央 feed 直接进入 SiC，不再逐源使用官网 sitemap/RSS。三个 feed 均标记为 `isolated`：不可用时生成 feed 级来源报告并保留上一成功快照，但不阻断其他来源或统一采集 workflow。
 - 经 GitHub 官方 REST API 获取的 OpenGithubs 日/周/月聚合榜、Hugging Face Trending 与 OpenRouter `top-weekly` 保持提供方顺序。
+- GitHub Releases 只接纳正式稳定版本；`prerelease`、`draft` 以及 nightly、snapshot、canary、continuous 等例行构建在采集侧拒绝，境内内容编译与公开读取继续执行同一准入兜底。
 - Hugging Face Weekly Papers 属于内容组而不是平台榜：境外侧传递 `rankingWeek`、`weeklyRank`、`weeklyUpvotes`，境内侧必须保留这些字段并完成 `sic_editorial` 中文处理后发布。
 - 不采集 MCP 排名，不计算本地增长榜。
 - 通用内容与平台榜的境外读取在采集器侧执行。Frontier 是唯一例外：境内服务端可以按当前参赛名单读取已知公开 GitHub 仓库；浏览器和普通页面不得直连，失败必须保持可恢复状态并转异步公开任务。
@@ -94,6 +95,8 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 - 请求大小、记录数量、URL 与字段长度限制。
 
 验证失败不得写入正式 inbox。接收成功只表示批次已持久化，必须立即返回，不得在该请求内调用编辑模型。境外 workflow 对网络错误、`408/425/429` 和 `5xx` 使用同一 `batchId`、同一正文做有界指数退避；`401/409` 等确定性错误不得盲目重试。
+
+签名前按记录执行高置信敏感证据扫描。命中记录必须在组包前单独隔离，只报告非秘密的数量与规则 ID；同批安全记录继续形成可交付分片。完整归档在落盘和投递前仍执行 fail-closed 终检，防止组包元数据或后续转换重新引入敏感内容。
 
 生产处理由境内 `vault2077-acquisition-worker.timer` 每五分钟调用 `npm run acquisition:work`。`POST /api/internal/acquisition/process` 只用于回环本地演练和受控紧急诊断，使用独立 worker 密钥，不得经公网 Nginx 暴露，也不得由 GitHub Actions 调用。
 

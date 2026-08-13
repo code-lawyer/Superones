@@ -4,6 +4,7 @@ import { isEventInput } from "./content-provenance.ts";
 import { cleanEditorialTitle } from "./editorial-title.ts";
 import { isFatalEditorialInfrastructureError } from "./editorial-failure.ts";
 import { normalizeStructuredContent } from "./content-markup.ts";
+import { isPublicInformationAdmitted } from "./release-admission.ts";
 import type { EventCategory, EventRecord, InformationItem, QuarantinedContent } from "./types.ts";
 
 export type InformationEditorial = {
@@ -231,6 +232,16 @@ export async function compileInformationBatch(input: {
   const incomingUrls = new Set<string>();
   const incomingOriginIds = new Set<string>();
   for (const envelope of batch.information) {
+    if (!isPublicInformationAdmitted(envelope)) {
+      quarantineRecords.push(quarantine(
+        batch,
+        "information",
+        envelope.idempotencyKey,
+        "ROUTINE_RELEASE_NOT_ADMITTED",
+        "例行构建或预发布版本不进入资讯瀑布。",
+      ));
+      continue;
+    }
     const canonicalUrl = envelope.originalUrl.replace(/[?#].*$/, "").toLowerCase();
     const canonicalKey = `${canonicalUrl}#${envelope.contentHash}`;
     const previousIdentity = (envelope.itemKind !== "changelog" ? existingByUrl.get(canonicalUrl) : undefined)
@@ -327,6 +338,8 @@ export async function compileInformationBatch(input: {
       classificationConfidence: envelope.classificationConfidence,
       contentGroup: envelope.contentGroup,
       itemKind: envelope.itemKind,
+      releasePrerelease: envelope.releasePrerelease,
+      releaseDraft: envelope.releaseDraft,
       provenanceRole: envelope.provenanceRole,
       provenanceStatus: envelope.provenanceStatus,
       discoveryPaths: envelope.discoveryPaths,
