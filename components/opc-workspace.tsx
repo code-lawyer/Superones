@@ -13,6 +13,7 @@ import {
   type RangerProfile,
 } from "@/lib/opc-catalog";
 import { legacyRangerAvatarPublicUrl, rangerAvatarPublicUrl } from "@/lib/ranger-avatar";
+import { buildRangerShelfEntries } from "@/lib/ranger-shelf-order";
 
 type WorkspaceView = "infrastructure" | "specialties" | "rangers";
 
@@ -430,24 +431,10 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
   </article>;
 }
 
-type RangerShelfEntry = {
-  key: string;
-  identity: (typeof rangerIdentities)[number];
-  profile: RangerProfile | null;
-};
-
 const RANGER_SHELF_PAGE_SIZE = 6;
 
 function RangerShelf({ profiles, mediaOrigin }: { profiles: RangerProfile[]; mediaOrigin: string }) {
-  const entries = rangerIdentities.reduce<RangerShelfEntry[]>((result, identity) => {
-    const matchingProfiles = profiles.filter((profile) => profile.identity === identity);
-    if (matchingProfiles.length > 0) {
-      result.push(...matchingProfiles.map((profile) => ({ key: `profile-${profile.slug}`, identity, profile })));
-    } else {
-      result.push({ key: `template-${identity}`, identity, profile: null });
-    }
-    return result;
-  }, []);
+  const entries = buildRangerShelfEntries(profiles);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const previousPagerRef = useRef<HTMLButtonElement>(null);
