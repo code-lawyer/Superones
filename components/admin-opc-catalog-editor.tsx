@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
 import {
   infrastructureGroups,
+  RANGER_SIGNATURE_MAX_LENGTH,
   rangerIdentities,
   specialtyDomains,
   type OpcCatalogContent,
@@ -104,6 +105,7 @@ function newRanger(ordinal: number): RangerProfile {
     slug: `new-ranger-${ordinal}`,
     publicName: "未命名游骑兵",
     identity: rangerIdentities[0],
+    signature: "",
     intro: "",
     tags: [],
     credential: "",
@@ -367,19 +369,20 @@ export function AdminOpcCatalogEditor() {
   );
 }
 
-function TextField({ label, value, onChange, multiline = false, help }: {
+function TextField({ label, value, onChange, multiline = false, help, maxLength }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
   help?: string;
+  maxLength?: number;
 }) {
   const id = useId();
   return <div className="form-field">
     <label htmlFor={id}>{label}</label>
     {multiline
-      ? <textarea id={id} rows={4} value={value} onChange={(event) => onChange(event.target.value)} />
-      : <input id={id} value={value} onChange={(event) => onChange(event.target.value)} />}
+      ? <textarea id={id} rows={4} maxLength={maxLength} value={value} onChange={(event) => onChange(event.target.value)} />
+      : <input id={id} maxLength={maxLength} value={value} onChange={(event) => onChange(event.target.value)} />}
     {help ? <p>{help}</p> : null}
   </div>;
 }
@@ -434,6 +437,13 @@ function RangerFields({ ranger, mediaOrigin, onChange }: {
     <TextField label="稳定路径 slug" value={ranger.slug} onChange={(value) => change("slug", value)} help="发布后不建议修改，只能使用小写字母、数字和连字符。" />
     <TextField label="公开名称" value={ranger.publicName} onChange={(value) => change("publicName", value)} />
     <div className="form-field"><label>主要顾问身份<select value={ranger.identity} onChange={(event) => change("identity", event.target.value)}>{rangerIdentities.map((item) => <option key={item}>{item}</option>)}</select></label></div>
+    <TextField
+      label="个人签名"
+      value={ranger.signature ?? ""}
+      maxLength={RANGER_SIGNATURE_MAX_LENGTH}
+      help={`作为顾问本人的一句话表达，最多 ${RANGER_SIGNATURE_MAX_LENGTH} 个字符；将显示在书架展开头像和个人公开档案页。`}
+      onChange={(value) => change("signature", value)}
+    />
     <RangerAvatarField
       asset={ranger.avatar}
       legacyUrl={ranger.avatarUrl}

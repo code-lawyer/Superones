@@ -3,13 +3,18 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import type { OpcService, RangerProfile } from "../lib/opc-catalog.ts";
+import {
+  RANGER_SIGNATURE_MAX_LENGTH,
+  type OpcService,
+  type RangerProfile,
+} from "../lib/opc-catalog.ts";
 
 function rangerFixture(overrides: Partial<RangerProfile> = {}): RangerProfile {
   return {
     slug: "verified-legal-advisor",
     publicName: "经授权的法律顾问",
     identity: "法律顾问",
+    signature: "让复杂问题回到可以行动的尺度。",
     intro: "处理商业交易与经营风险问题。",
     tags: ["商业交易"],
     credential: "公开职业记录。",
@@ -55,7 +60,9 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
     const saved = await saveServiceCatalogDraft(draft, initial.revision);
 
     assert.equal((await readPublishedServiceCatalog()).infrastructure[0].name, "经营主体启动与首年治理");
-    assert.equal((await readManagedServiceCatalog()).draft.infrastructure[0].name, "已修改但未发布的服务");
+    const savedDraft = (await readManagedServiceCatalog()).draft;
+    assert.equal(savedDraft.infrastructure[0].name, "已修改但未发布的服务");
+    assert.equal(savedDraft.rangers[0].signature, "让复杂问题回到可以行动的尺度。");
     await assert.rejects(
       publishServiceCatalog(draft, saved.revision),
       ServiceCatalogValidationError,
@@ -84,12 +91,15 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
     }));
 
     const published = await publishServiceCatalog(publishable, saved.revision);
-    assert.equal((await readPublishedServiceCatalog()).infrastructure[0].name, "已修改但未发布的服务");
+    const publishedCatalog = await readPublishedServiceCatalog();
+    assert.equal(publishedCatalog.infrastructure[0].name, "已修改但未发布的服务");
+    assert.equal(publishedCatalog.rangers[0].signature, "让复杂问题回到可以行动的尺度。");
     const seed = JSON.parse(await readFile(process.env.VAULT2077_OPC_SEED_PATH, "utf8"));
     assert.equal(seed.schemaVersion, 1);
     assert.equal(seed.sourceRevision, published.revision);
     assert.equal(seed.publishedAt, published.publishedAt);
     assert.equal(seed.catalog.infrastructure[0].name, "已修改但未发布的服务");
+    assert.equal(seed.catalog.rangers[0].signature, "让复杂问题回到可以行动的尺度。");
     await assert.rejects(
       saveServiceCatalogDraft(publishable, saved.revision),
       ServiceCatalogConflictError,
@@ -348,6 +358,25 @@ test("OPC publication requires authorized public ranger emails", async () => {
     assert.equal(unsafeResult.valid, false);
     assert.ok(unsafeResult.errors.some((error) => error.includes("联系方式必须是公开邮箱")));
   }
+});
+
+test("OPC ranger signatures remain optional and normalize to one short statement", async () => {
+  const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+  const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
+  const catalog = createDefaultOpcCatalog();
+  catalog.rangers.push(rangerFixture({
+    signature: `  ${"签".repeat(RANGER_SIGNATURE_MAX_LENGTH + 10)}  `,
+  }));
+
+  const normalized = normalizeOpcCatalog(catalog);
+  assert.equal(
+    normalized.rangers[0].signature,
+    "签".repeat(RANGER_SIGNATURE_MAX_LENGTH),
+  );
+  assert.equal(validateOpcCatalog(normalized, true).valid, true);
+
+  catalog.rangers[0].signature = "   ";
+  assert.equal(normalizeOpcCatalog(catalog).rangers[0].signature, undefined);
 });
 
 test("OPC ranger avatars preserve syntactically safe legacy reads and reject unsafe sources", async () => {

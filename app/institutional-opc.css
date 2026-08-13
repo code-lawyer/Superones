@@ -561,6 +561,20 @@
   font-weight: 600;
 }
 
+.opc-ranger-shelf__portrait figcaption p {
+  display: -webkit-box;
+  max-width: 34ch;
+  margin: clamp(6px, 1vw, 12px) 0 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 1.25vw, 17px);
+  font-weight: 400;
+  line-height: 1.55;
+  text-wrap: pretty;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .opc-ranger-shelf__item.is-template .opc-ranger-shelf__portrait .opc-ranger-portrait__image {
   opacity: .34;
   filter: grayscale(1) contrast(.78);
@@ -680,15 +694,19 @@
 
 .opc-ranger-dossier__hero {
   display: grid;
-  grid-template-columns: var(--dossier-spine) minmax(0, 1.32fr) minmax(340px, .88fr);
-  grid-template-rows: auto auto;
+  grid-template-columns: var(--dossier-spine) minmax(0, 1.42fr) minmax(320px, .78fr);
+  grid-template-rows: auto auto auto;
   border-bottom: 1px solid var(--carbon);
+}
+
+.opc-ranger-dossier__hero.has-statement {
+  grid-template-rows: auto repeat(2, minmax(0, 1fr));
 }
 
 .opc-ranger-dossier__spine {
   display: flex;
   align-items: center;
-  grid-row: 1 / 3;
+  grid-row: 1 / 4;
   min-height: 0;
   flex-direction: column;
   justify-content: space-between;
@@ -790,16 +808,52 @@
   font-size: var(--type-micro);
 }
 
+.opc-ranger-dossier__statement {
+  display: grid;
+  min-width: 0;
+  grid-column: 2 / -1;
+  grid-row: 2;
+  grid-template-columns: minmax(150px, .34fr) minmax(0, 1.66fr);
+  margin: 0;
+  border-top: 1px solid var(--carbon);
+}
+
+.opc-ranger-dossier__statement > span {
+  display: flex;
+  align-items: center;
+  padding: clamp(24px, 2.8vw, 42px);
+  color: var(--ash);
+  font-size: var(--type-micro);
+}
+
+.opc-ranger-dossier__statement > p {
+  display: flex;
+  align-items: center;
+  max-width: 58ch;
+  margin: 0;
+  border-left: 1px solid var(--rule);
+  padding: clamp(22px, 2.6vw, 38px) clamp(28px, 4.2vw, 64px);
+  color: var(--carbon);
+  font-family: var(--font-serif);
+  font-size: clamp(21px, 2.15vw, 32px);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
 .opc-ranger-dossier__issue-register {
   display: grid;
   grid-column: 2 / -1;
-  grid-row: 2;
+  grid-row: 3;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
   border-top: 1px solid var(--carbon);
 }
 
 .opc-ranger-dossier__issue-register > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-width: 0;
   padding: clamp(16px, 1.8vw, 24px) clamp(22px, 3vw, 42px);
 }
@@ -1194,11 +1248,15 @@
 
   .opc-ranger-dossier__hero {
     grid-template-columns: var(--dossier-spine) minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .opc-ranger-dossier__hero.has-statement {
+    grid-template-rows: auto auto auto auto;
   }
 
   .opc-ranger-dossier__spine {
-    grid-row: 1 / 4;
+    grid-row: 1 / 5;
   }
 
   .opc-ranger-dossier__title {
@@ -1216,9 +1274,14 @@
     max-width: 520px;
   }
 
-  .opc-ranger-dossier__issue-register {
+  .opc-ranger-dossier__statement {
     grid-column: 2;
     grid-row: 3;
+  }
+
+  .opc-ranger-dossier__issue-register {
+    grid-column: 2;
+    grid-row: 4;
   }
 
   .opc-ranger-dossier__ledger {
@@ -1291,6 +1354,20 @@
 
   .opc-ranger-dossier__intro {
     font-size: 17px;
+  }
+
+  .opc-ranger-dossier__statement {
+    grid-template-columns: 1fr;
+  }
+
+  .opc-ranger-dossier__statement > span {
+    padding: 22px 20px 8px;
+  }
+
+  .opc-ranger-dossier__statement > p {
+    border-left: 0;
+    padding: 0 20px 28px;
+    font-size: 19px;
   }
 
   .opc-ranger-dossier__portrait {
@@ -1383,6 +1460,11 @@
 
   .opc-ranger-shelf__portrait figcaption strong {
     font-size: clamp(30px, 10vw, 44px);
+  }
+
+  .opc-ranger-shelf__portrait figcaption p {
+    max-width: 28ch;
+    font-size: 12px;
   }
 
   .opc-ranger-wall__intro {

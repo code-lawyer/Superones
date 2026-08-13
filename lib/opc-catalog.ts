@@ -33,6 +33,7 @@ export type RangerProfile = {
   slug: string;
   publicName: string;
   identity: string;
+  signature?: string;
   avatar?: RangerAvatarAsset;
   /** Legacy read compatibility for drafts created before managed media storage. */
   avatarUrl?: string;
@@ -51,6 +52,8 @@ export type OpcCatalogContent = {
   specialties: OpcService[];
   rangers: RangerProfile[];
 };
+
+export const RANGER_SIGNATURE_MAX_LENGTH = 120;
 
 export const rangerIdentities = ["法律顾问", "财税顾问", "知识产权顾问", "创业顾问", "产品顾问", "品牌顾问", "自媒体专家", "设计师", "软件工程顾问", "AI 开发专家"] as const;
 

@@ -40,11 +40,13 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
         {/*
           THESIS: 把个人页变成一张可读、可核验、可直接行动的馆藏入册页，拒绝松散信息块。
           OWN-WORLD: 档案纸、碳黑脊柱、连续细线、衬线身份标题与无衬线记录字段。
-          STORY: 先识别人，再理解专长与公开依据，最后直接联系专家本人。
-          FIRST VIEWPORT: 编号脊柱、超大身份与姓名、右侧肖像同屏出现，主行动位于下方签发条。
+          STORY: 先识别人、看见人、听见其自述，再核验专长与公开依据，最后直接联系专家本人。
+          FIRST VIEWPORT: 编号脊柱、超大姓名与右侧肖像同屏，自述以独立签发带横贯其下，不与姓名争夺层级。
           FORM: 归档台账式结构，自有候选第 3 项，surface seed 78fee9dc。
         */}
-        <header className="opc-ranger-dossier__hero">
+        <header
+          className={`opc-ranger-dossier__hero${profile.signature ? " has-statement" : ""}`}
+        >
           <div className="opc-ranger-dossier__spine" aria-hidden="true">
             <span>V2077</span>
             <span>RANGER</span>
@@ -72,6 +74,13 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
               <span>FILE / RA-{profileNumber}</span>
             </figcaption>
           </figure>
+
+          {profile.signature ? (
+            <blockquote className="opc-ranger-dossier__statement">
+              <span className="mono">STATEMENT / 个人签名</span>
+              <p>{profile.signature}</p>
+            </blockquote>
+          ) : null}
 
           <dl className="opc-ranger-dossier__issue-register" aria-label="档案签发信息">
             <div>

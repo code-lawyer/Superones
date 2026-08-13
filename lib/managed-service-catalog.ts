@@ -3,6 +3,7 @@ import "server-only";
 import {
   createDefaultOpcCatalog,
   infrastructureGroups,
+  RANGER_SIGNATURE_MAX_LENGTH,
   rangerIdentities,
   specialtyDomains,
   type OpcCatalogContent,
@@ -164,6 +165,7 @@ function normalizeRanger(value: unknown): RangerProfile {
     slug: cleanText(item.slug, 80).toLowerCase(),
     publicName: cleanText(item.publicName, 120),
     identity: cleanText(item.identity, 60),
+    signature: cleanText(item.signature, RANGER_SIGNATURE_MAX_LENGTH) || undefined,
     avatar,
     avatarUrl: cleanText(item.avatarUrl, 2_100_000) || undefined,
     intro: cleanText(item.intro, 500),

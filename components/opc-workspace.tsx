@@ -529,6 +529,7 @@ function RangerShelf({ profiles, mediaOrigin }: { profiles: RangerProfile[]; med
                 <figcaption>
                   <span>{entry.identity}</span>
                   <strong>{publicName}</strong>
+                  {profile?.signature ? <p>{profile.signature}</p> : null}
                 </figcaption>
               </figure>
             </div>
