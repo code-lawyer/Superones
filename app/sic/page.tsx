@@ -1,61 +1,39 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ChannelRibbon } from "@/components/channel-ribbon";
 import { PageIntro } from "@/components/page-intro";
-import { SicContentGroups } from "@/components/sic-content-groups";
-import { SicRankings } from "@/components/sic-rankings";
+import { SicOverview } from "@/components/sic-overview";
 import {
   getCachedDirectRankingBoards,
   getCachedPublicContent,
-  getCachedSicContentGroup,
+  getCachedSicContent,
 } from "@/lib/public-read-cache";
-import { sicContentGroups, type SicBoard } from "@/lib/sic";
 import { addPublishedDocuments } from "@/lib/sic-content";
-import type { SicContentByGroup } from "@/lib/sic-content";
 import { beijingTime } from "@/lib/feed-format";
-import { parseSicView, sicViewHref } from "@/lib/sic-view";
+import type { SicBoard } from "@/lib/sic";
 
 export const metadata: Metadata = { title: "SiC 学院" };
-
 export const dynamic = "force-dynamic";
 
-export default async function SicPage({ searchParams }: { searchParams: Promise<{ view?: string | string[] }> }) {
-  const view = parseSicView((await searchParams).view);
-  const [directBoardsResult, storedSicResult, publishedDocuments] = await Promise.all([
-    view === "rankings" ? getCachedDirectRankingBoards().then(
-      (value) => ({ value, unavailable: false }),
-      () => ({ value: [], unavailable: true }),
-    ) : Promise.resolve({ value: [], unavailable: false }),
-    view === "rankings" ? Promise.resolve({
+export default async function SicPage() {
+  const [sicResult, boardsResult, publicContent] = await Promise.all([
+    getCachedSicContent().then((value) => ({ value, unavailable: false }), () => ({
       value: {
         groups: { papers: [], documents: [], courses: [], podcasts: [] },
         state: { updatedAt: null, itemCount: 0, sourceCount: 0, stale: false },
       },
-      unavailable: false,
-    }) : getCachedSicContentGroup(view).then(
+      unavailable: true,
+    })),
+    getCachedDirectRankingBoards().then(
       (value) => ({ value, unavailable: false }),
-      () => ({
-        value: {
-          groups: { papers: [], documents: [], courses: [], podcasts: [] },
-          state: { updatedAt: null, itemCount: 0, sourceCount: 0 },
-        },
-        unavailable: true,
-      }),
+      () => ({ value: [], unavailable: true }),
     ),
-    view === "documents"
-      ? getCachedPublicContent().then((value) => value.information)
-      : Promise.resolve([]),
+    getCachedPublicContent().then(
+      (value) => ({ value: value.information, unavailable: false }),
+      () => ({ value: [], unavailable: true }),
+    ),
   ]);
-  const directBoards = directBoardsResult.value;
-  const storedSicContent = storedSicResult.value;
-  const sicContent = addPublishedDocuments(storedSicContent, publishedDocuments);
-  const contentView = view === "rankings" ? null : view;
-  const visibleGroups = contentView
-    ? sicContentGroups.filter((group) => group.id === contentView)
-    : [];
-  const visibleContent: SicContentByGroup = { papers: [], documents: [], courses: [], podcasts: [] };
-  if (contentView) visibleContent[contentView] = sicContent.groups[contentView];
-  const boards: SicBoard[] = directBoards.map((board) => ({
+  const sicContent = addPublishedDocuments(sicResult.value, publicContent.value);
+  const boards: SicBoard[] = boardsResult.value.map((board) => ({
     id: board.id.replace(/:/g, "-"),
     eyebrow: board.eyebrow,
     title: board.title,
@@ -64,7 +42,7 @@ export default async function SicPage({ searchParams }: { searchParams: Promise<
     capturedAt: board.capturedAt,
     stale: board.stale,
     sourceUrl: board.sourceUrl,
-    emptyMessage: "本期平台榜单暂不可用。",
+    emptyMessage: "当前平台榜单暂不可用。",
     items: board.items.map((item) => ({
       id: item.id,
       name: item.name,
@@ -73,9 +51,8 @@ export default async function SicPage({ searchParams }: { searchParams: Promise<
       address: item.itemUrl,
     })),
   }));
-  const pageUpdatedAt = view === "rankings"
-    ? directBoards.map((board) => board.capturedAt).sort().at(-1) ?? null
-    : sicContent.state.updatedAt;
+  const updatedLabel = beijingTime(sicContent.state.updatedAt, true);
+
   return (
     <>
       <PageIntro
@@ -83,28 +60,17 @@ export default async function SicPage({ searchParams }: { searchParams: Promise<
         code="SiC / TECHNOLOGY INDEX"
         title="血肉苦弱，硅碳共生"
         lead="从代码、模型、论文与一手档案中，看见技术趋势正在怎样形成。"
-        meta={`LAST PUBLISHED ${beijingTime(pageUpdatedAt, true)}${sicContent.state.stale ? " / 更新延迟" : ""}`}
+        meta={`LAST PUBLISHED ${updatedLabel}${sicContent.state.stale ? " / 更新延迟" : ""}`}
       />
       <ChannelRibbon identity="SILICON × CARBON" slogan="WE WILL REDEFINE EVOLUTION." />
-      <nav className="sic-mobile-index shell mono" aria-label="SiC 页面索引">
-        {sicContentGroups.map((group) => (
-          <Link href={sicViewHref(group.id)} key={group.id} aria-current={view === group.id ? "page" : undefined}>
-            {group.title}
-          </Link>
-        ))}
-        <Link href={sicViewHref("rankings")} aria-current={view === "rankings" ? "page" : undefined}>趋势榜</Link>
-      </nav>
-      <section className="shell sic-stage" aria-label="SiC 技术阅读与趋势榜">
-        <div className="sic-stage__columns sic-stage__columns--single">
-          {contentView ? (
-            <SicContentGroups groups={visibleGroups} content={visibleContent} unavailable={storedSicResult.unavailable} />
-          ) : (
-            <aside className="sic-stage__rail" aria-label="技术趋势榜单">
-              <SicRankings boards={boards} unavailable={directBoardsResult.unavailable} />
-            </aside>
-          )}
-        </div>
-      </section>
+      <SicOverview
+        content={sicContent.groups}
+        boards={boards}
+        contentUnavailable={sicResult.unavailable}
+        documentsSupplementUnavailable={publicContent.unavailable}
+        rankingsUnavailable={boardsResult.unavailable}
+        updatedLabel={updatedLabel}
+      />
     </>
   );
 }

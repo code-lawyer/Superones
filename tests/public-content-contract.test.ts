@@ -42,16 +42,18 @@ test("public source and feed copy contain no retired community contract", async 
   assert.doesNotMatch([sourceExplorer, sourceBuilder, feedPage].join("\n"), /Hacker News 与 Lobsters|社区原生条目|个人与社区|个人或社区/);
 });
 
-test("SiC route reads only the selected content view and skips content storage for rankings", async () => {
+test("SiC route reads one aggregate content snapshot and platform rankings in parallel", async () => {
   const [page, content, store] = await Promise.all([
     readFile(path.join(root, "app", "sic", "page.tsx"), "utf8"),
     readFile(path.join(root, "lib", "sic-content.ts"), "utf8"),
     readFile(path.join(root, "lib", "sic-content-store.ts"), "utf8"),
   ]);
 
-  assert.match(page, /getCachedSicContentGroup\(view\)/);
-  assert.match(page, /view === "rankings" \? Promise\.resolve/);
-  assert.doesNotMatch(page, /getCachedSicContent\(\)/);
+  assert.match(page, /getCachedSicContent\(\)/);
+  assert.match(page, /getCachedDirectRankingBoards\(\)/);
+  assert.match(page, /Promise\.all/);
+  assert.match(page, /documentsSupplementUnavailable=\{publicContent\.unavailable\}/);
+  assert.doesNotMatch(page, /getCachedSicContentGroup|parseSicView/);
   assert.match(content, /getSicStoredContentGroup\(group\)/);
   assert.doesNotMatch(content, /getSicContent\(\);/);
   assert.match(store, /jsonb_array_elements\(document->'items'\)/);

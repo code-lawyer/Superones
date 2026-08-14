@@ -7,6 +7,6 @@ export function parseSicView(value: string | string[] | undefined): SicViewId {
 }
 
 export function sicViewHref(view: SicViewId) {
-  const anchor = view === "rankings" ? "sic-rankings" : `sic-group-${view}`;
-  return `/sic?view=${view}#${anchor}`;
+  const anchor = view === "rankings" ? "sic-rankings" : view === "papers" ? "sic-papers" : `sic-group-${view}`;
+  return `/sic#${anchor}`;
 }

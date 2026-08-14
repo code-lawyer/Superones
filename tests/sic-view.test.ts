@@ -10,6 +10,7 @@ test("SiC view parser defaults invalid and repeated input to one bounded view", 
 });
 
 test("SiC view links preserve a stable addressable anchor", () => {
-  assert.equal(sicViewHref("courses"), "/sic?view=courses#sic-group-courses");
-  assert.equal(sicViewHref("rankings"), "/sic?view=rankings#sic-rankings");
+  assert.equal(sicViewHref("papers"), "/sic#sic-papers");
+  assert.equal(sicViewHref("courses"), "/sic#sic-group-courses");
+  assert.equal(sicViewHref("rankings"), "/sic#sic-rankings");
 });

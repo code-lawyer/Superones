@@ -45,6 +45,21 @@ test("source catalog exposes only the five supported SiC ranking views", () => {
   assert.ok(rankingIds?.every((id) => !id.includes("skills")));
 });
 
+test("source catalog links every SiC source to the canonical aggregate-page anchors", () => {
+  const sicSections = catalog().sections.filter((section) => [
+    "documents",
+    "papers",
+    "podcasts",
+    "courses",
+    "sic-rankings",
+  ].includes(section.id));
+
+  for (const source of sicSections.flatMap((section) => section.sources)) {
+    assert.match(source.destinationHref, /^\/sic#sic-(?:papers|rankings|group-(?:documents|courses|podcasts))$/);
+    assert.doesNotMatch(source.destinationHref, /[?&]view=/);
+  }
+});
+
 test("source catalog exposes only identity, nature, destination, and original links", () => {
   const result = catalog();
   const sources = result.sections.flatMap((section) => section.sources);
