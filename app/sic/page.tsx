@@ -20,6 +20,7 @@ export default async function SicPage() {
       value: {
         groups: { papers: [], documents: [], courses: [], podcasts: [] },
         state: { updatedAt: null, itemCount: 0, sourceCount: 0, stale: false },
+        delayedSources: [],
       },
       unavailable: true,
     })),
@@ -69,6 +70,7 @@ export default async function SicPage() {
         contentUnavailable={sicResult.unavailable}
         documentsSupplementUnavailable={publicContent.unavailable}
         rankingsUnavailable={boardsResult.unavailable}
+        delayedSources={sicContent.delayedSources ?? []}
         updatedLabel={updatedLabel}
       />
     </>

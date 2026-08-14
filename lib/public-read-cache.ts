@@ -15,7 +15,7 @@ import {
 } from "./frontier-store";
 import { readPublishedServiceCatalog } from "./managed-service-catalog";
 import { getPublicContentIndex } from "./public-content";
-import { getSicContent, getSicContentGroup } from "./sic-content";
+import { getSicContent } from "./sic-content";
 
 /**
  * Public pages may remain request-rendered while their shared, read-only data is
@@ -37,12 +37,6 @@ export const getCachedDirectRankingBoards = unstable_cache(
 export const getCachedSicContent = unstable_cache(
   getSicContent,
   ["sic-content"],
-  { revalidate: 60, tags: ["sic-content"] },
-);
-
-export const getCachedSicContentGroup = unstable_cache(
-  getSicContentGroup,
-  ["sic-content-group"],
   { revalidate: 60, tags: ["sic-content"] },
 );
 

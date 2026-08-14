@@ -11,6 +11,7 @@ import {
   loadEditorialProfileConfig,
 } from "./openai-compatible-client.ts";
 import { fetchTextBounded } from "./sic-fetch.ts";
+import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { listCollectableSicSources, type SicSource } from "./sic-source-registry.ts";
 import {
   getSicStoredContent,
@@ -56,24 +57,6 @@ type SicEditorial = {
 export type SicRawContentItem = SicContentItem & {
   sourceMaterial?: string;
 };
-
-function decodeHtmlEntities(value: string) {
-  return value
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => {
-      const point = Number.parseInt(code, 16);
-      return Number.isInteger(point) && point <= 0x10ffff ? String.fromCodePoint(point) : "";
-    })
-    .replace(/&#([0-9]+);/g, (_match, code: string) => {
-      const point = Number.parseInt(code, 10);
-      return Number.isInteger(point) && point <= 0x10ffff ? String.fromCodePoint(point) : "";
-    })
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
-}
 
 function text(value: unknown, limit: number) {
   return decodeHtmlEntities(String(value ?? "")
@@ -1024,7 +1007,7 @@ function validateRawCollection(value: unknown, options: {
 export async function ingestSicAcquisitionContent(
   value: unknown,
   _fetcher: Fetcher,
-  options: { activeSourceIds?: string[]; editorialDeadlineAt?: number } = {},
+  options: { activeSourceIds?: string[]; editorialDeadlineAt?: number; runMode?: "bootstrap" | "incremental" } = {},
 ) {
   const packet = validateRawCollection(value, { enforceAge: false, requireCompleteReports: false });
   const enriched = await enrichItems(packet.items, { editorialDeadlineAt: options.editorialDeadlineAt });
@@ -1049,6 +1032,7 @@ export async function ingestSicAcquisitionContent(
     updatedAt: packet.collectedAt,
     snapshotId: packet.snapshotId,
     activeSourceIds: options.activeSourceIds ?? listCollectableSicSources().map((source) => source.id),
+    runMode: options.runMode,
   });
 }
 

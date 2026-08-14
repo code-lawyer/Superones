@@ -1,34 +1,57 @@
 import "server-only";
 
-import sicSourceRegistry from "../config/sic-source-registry.json" with { type: "json" };
 import {
-  configuredPostgresPool,
   mutateStateDocument,
-  persistenceMode,
   readStateDocument,
   type StateDocumentDefinition,
 } from "./state-document-store.ts";
-import type { SicContentGroupId, SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
+import type { SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
+
+export type SicBootstrapState = {
+  completedSourceIds: string[];
+  lastBootstrapAt: string | null;
+  lastRunMode: "bootstrap" | "incremental" | null;
+};
 
 type SicContentStore = {
-  version: 2;
+  version: 3;
   updatedAt: string | null;
   items: SicContentItem[];
   reports: SicSourceCollectionReport[];
   sourceSnapshots: Record<string, { snapshotId: string; collectedAt: string }>;
+  bootstrap: SicBootstrapState;
 };
 
 function emptyStore(): SicContentStore {
-  return { version: 2, updatedAt: null, items: [], reports: [], sourceSnapshots: {} };
+  return {
+    version: 3,
+    updatedAt: null,
+    items: [],
+    reports: [],
+    sourceSnapshots: {},
+    bootstrap: { completedSourceIds: [], lastBootstrapAt: null, lastRunMode: null },
+  };
 }
 
 function parseStore(value: unknown): SicContentStore {
-  const parsed = value as SicContentStore | (Omit<SicContentStore, "version" | "sourceSnapshots"> & { version: 1 });
-  const store = parsed.version === 1 ? { ...parsed, version: 2 as const, sourceSnapshots: {} } : parsed;
-  if (store.version !== 2 || !Array.isArray(store.items) || !Array.isArray(store.reports) || !store.sourceSnapshots) {
+  const parsed = value as Partial<SicContentStore> & { version?: number; items?: SicContentItem[] };
+  if (![1, 2, 3].includes(parsed.version ?? 0) || !Array.isArray(parsed.items) || !Array.isArray(parsed.reports)) {
     throw new Error("SiC 内容库格式无效。");
   }
-  return store;
+  const completedSourceIds = parsed.bootstrap?.completedSourceIds
+    ?? [...new Set(parsed.items.map((item) => item.sourceId))];
+  return {
+    version: 3,
+    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
+    items: parsed.items,
+    reports: parsed.reports,
+    sourceSnapshots: parsed.sourceSnapshots ?? {},
+    bootstrap: {
+      completedSourceIds: [...new Set(completedSourceIds)].sort(),
+      lastBootstrapAt: parsed.bootstrap?.lastBootstrapAt ?? null,
+      lastRunMode: parsed.bootstrap?.lastRunMode ?? null,
+    },
+  };
 }
 
 const sicDocument: StateDocumentDefinition<SicContentStore> = {
@@ -52,51 +75,7 @@ function state(store: SicContentStore): SicContentState {
 
 export async function getSicStoredContent() {
   const store = await readStore();
-  return { items: store.items, reports: store.reports, state: state(store) };
-}
-
-function itemGroup(item: SicContentItem) {
-  return (item.group as string) === "archive" ? "documents" : item.group;
-}
-
-export async function getSicStoredContentGroup(group: SicContentGroupId) {
-  const sourceIds = sicSourceRegistry.sources
-    .filter((source) => source.status === "approved" && source.group === group)
-    .map((source) => source.id);
-
-  if (persistenceMode() === "file-preview") {
-    const store = await readStore();
-    const items = store.items.filter((item) => itemGroup(item) === group);
-    const reports = store.reports.filter((report) => sourceIds.includes(report.sourceId));
-    return { items, reports, state: state({ ...store, items }) };
-  }
-
-  const result = await configuredPostgresPool().query<{
-    items: SicContentItem[];
-    reports: SicSourceCollectionReport[];
-    updated_at: string | null;
-  }>(
-    `SELECT
-       COALESCE((
-         SELECT jsonb_agg(item)
-         FROM jsonb_array_elements(document->'items') AS item
-         WHERE CASE WHEN item->>'group' = 'archive' THEN 'documents' ELSE item->>'group' END = $2
-       ), '[]'::jsonb) AS items,
-       COALESCE((
-         SELECT jsonb_agg(report)
-         FROM jsonb_array_elements(document->'reports') AS report
-         WHERE report->>'sourceId' = ANY($3::text[])
-       ), '[]'::jsonb) AS reports,
-       document->>'updatedAt' AS updated_at
-     FROM vault2077_state_documents
-     WHERE namespace = $1`,
-    [sicDocument.namespace, group, sourceIds],
-  );
-  const row = result.rows[0];
-  const items = row?.items ?? [];
-  const reports = row?.reports ?? [];
-  const selectedStore = { ...emptyStore(), updatedAt: row?.updated_at ?? null, items, reports };
-  return { items, reports, state: state(selectedStore) };
+  return { items: store.items, reports: store.reports, state: state(store), bootstrap: store.bootstrap };
 }
 
 export function sicContentIdentityKey(item: Pick<SicContentItem, "sourceId" | "canonicalId" | "url">) {
@@ -177,6 +156,7 @@ export async function mergeSicStoredContent(input: {
   updatedAt?: string;
   snapshotId?: string;
   activeSourceIds?: string[];
+  runMode?: "bootstrap" | "incremental";
 }) {
   return mutateStateDocument(sicDocument, (current) => {
     const collectedAt = input.updatedAt ?? new Date().toISOString();
@@ -188,6 +168,7 @@ export async function mergeSicStoredContent(input: {
       for (const sourceId of Object.keys(current.sourceSnapshots)) {
         if (!activeSourceIds.has(sourceId)) delete current.sourceSnapshots[sourceId];
       }
+      current.bootstrap.completedSourceIds = current.bootstrap.completedSourceIds.filter((sourceId) => activeSourceIds.has(sourceId));
     }
     const incomingBySource = new Map<string, SicContentItem[]>();
     for (const item of input.items) {
@@ -216,6 +197,17 @@ export async function mergeSicStoredContent(input: {
       .sort()
       .at(-1) ?? current.updatedAt;
     current.reports = mergeSicSourceReports(current.reports, input.reports);
-    return { items: current.items, reports: current.reports, state: state(current) };
+    if (input.runMode) current.bootstrap.lastRunMode = input.runMode;
+    if (input.runMode === "bootstrap") {
+      current.bootstrap.lastBootstrapAt = collectedAt;
+      const completed = new Set(current.bootstrap.completedSourceIds);
+      for (const report of input.reports) {
+        if (["success", "partial"].includes(report.status) && current.items.some((item) => item.sourceId === report.sourceId)) {
+          completed.add(report.sourceId);
+        }
+      }
+      current.bootstrap.completedSourceIds = [...completed].sort();
+    }
+    return { items: current.items, reports: current.reports, state: state(current), bootstrap: current.bootstrap };
   });
 }

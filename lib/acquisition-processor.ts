@@ -375,7 +375,7 @@ export function createAcquisitionBatchProcessor(input: {
   processPublications?: (
     value: unknown,
     fetcher: typeof fetch,
-    options?: { activeSourceIds?: string[]; editorialDeadlineAt?: number },
+    options?: { activeSourceIds?: string[]; editorialDeadlineAt?: number; runMode?: "bootstrap" | "incremental" },
   ) => Promise<unknown>;
   persistDirectRankings?: typeof persistDirectRankingBoards;
   recordFrontierSnapshots?: typeof recordStarSnapshots;
@@ -467,6 +467,7 @@ export function createAcquisitionBatchProcessor(input: {
           ? acquisitionSourceIds(batch.sourceRegistry)
           : undefined,
         editorialDeadlineAt: work.deadlineAt,
+        runMode: batch.runMode,
       });
       processedPublications = adapted.values.length;
     }

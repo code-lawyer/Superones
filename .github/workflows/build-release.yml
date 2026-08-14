@@ -20,9 +20,14 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "24"
+          node-version: "24.16.0"
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+      - run: npm run docs:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
       - run: npm run bootstrap:verify
       - run: npm run build
         env:
@@ -33,12 +38,18 @@ jobs:
         shell: bash
         run: |
           artifact="$RUNNER_TEMP/vault2077-${GITHUB_SHA}.tar.gz"
-          tar \
-            --exclude='.git' \
-            --exclude='.env*' \
-            --exclude='tests' \
-            --exclude='data/ranger-media' \
-            -czf "$artifact" .
+          stage="$RUNNER_TEMP/vault2077-build"
+          rm -rf "$stage"
+          mkdir -p "$stage/data"
+          cp -a .next node_modules public config migrations scripts lib deploy package.json package-lock.json next.config.ts "$stage/"
+          cp -a data/bootstrap "$stage/data/"
+          test -f "$stage/.next/BUILD_ID"
+          test -f "$stage/package.json"
+          test ! -e "$stage/archive"
+          test ! -e "$stage/docs"
+          test ! -e "$stage/.github"
+          test ! -e "$stage/.impeccable"
+          tar -C "$RUNNER_TEMP" -czf "$artifact" "$(basename "$stage")"
           (
             cd "$RUNNER_TEMP"
             sha256sum "$(basename "$artifact")" > "$(basename "$artifact").sha256"

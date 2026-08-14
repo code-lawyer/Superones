@@ -6,7 +6,7 @@
  * FORM: user-approved Variant C, an editorial column overview; staging fixed by the approved prototype.
  */
 
-import type { SicContentByGroup } from "@/lib/sic-content";
+import type { SicContentByGroup, SicDelayedSource } from "@/lib/sic-content";
 import type { SicBoard } from "@/lib/sic";
 import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { sicContentGroups } from "@/lib/sic";
@@ -19,6 +19,7 @@ export function SicOverview({
   contentUnavailable,
   documentsSupplementUnavailable,
   rankingsUnavailable,
+  delayedSources,
   updatedLabel,
 }: {
   content: SicContentByGroup;
@@ -26,9 +27,11 @@ export function SicOverview({
   contentUnavailable: boolean;
   documentsSupplementUnavailable: boolean;
   rankingsUnavailable: boolean;
+  delayedSources: SicDelayedSource[];
   updatedLabel: string;
 }) {
   const lead = content.papers[0];
+  const delayedPaperSources = delayedSources.filter((source) => source.group === "papers");
   const totalItems = Object.values(content).reduce((total, items) => total + items.length, 0);
 
   return (
@@ -40,6 +43,9 @@ export function SicOverview({
             <span>论文主栏 / 周榜 {lead.weeklyRank ?? "—"}</span>
             <h2 id="sic-papers-title">{decodeHtmlEntities(lead.translatedTitle ?? lead.title)}</h2>
             <p>{lead.description ?? lead.summary}</p>
+            {lead.contentSummary && lead.contentSummary !== (lead.description ?? lead.summary) ? (
+              <p className="sic-overview-content-summary">{lead.contentSummary}</p>
+            ) : null}
             <a
               href={lead.url}
               target="_blank"
@@ -48,6 +54,11 @@ export function SicOverview({
             >查看论文原文 ↗</a>
           </article>
         ) : <p className="sic-overview-empty">{contentUnavailable ? "论文读取失败；暂无可用缓存。" : "论文内容正在准备中。"}</p>}
+        {delayedPaperSources.length ? (
+          <p className="sic-overview-group__status" role="status">
+            论文更新延迟：{delayedPaperSources.map((source) => source.sourceName).join("、")}；当前展示上一成功快照。
+          </p>
+        ) : null}
         <aside className="sic-overview-papers" aria-label="更多论文">
           <header><span>更多论文</span><b>共 {content.papers.length} 篇</b></header>
           <SicProgressiveRecords
@@ -84,6 +95,7 @@ export function SicOverview({
         content={content}
         unavailable={contentUnavailable}
         unavailableGroups={{ documents: documentsSupplementUnavailable }}
+        delayedSources={delayedSources}
       />
 
       <section className="sic-overview-end" id="sic-end" aria-labelledby="sic-end-title">

@@ -1,16 +1,18 @@
 const entityMap: Record<string, string> = {
-  "&amp;": "&",
-  "&#038;": "&",
-  "&#38;": "&",
-  "&quot;": '"',
-  "&#39;": "'",
-  "&lt;": "<",
-  "&gt;": ">",
+  amp: "&",
+  quot: '"',
+  apos: "'",
+  lt: "<",
+  gt: ">",
+  nbsp: " ",
 };
 
 export function decodeHtmlEntities(value: string) {
-  return value.replace(
-    /&(?:amp|quot|lt|gt);|&#(?:038|38|39);/g,
-    (entity) => entityMap[entity] ?? entity,
-  );
+  return value.replace(/&(?:#x([0-9a-f]+)|#([0-9]+)|([a-z]+));/gi, (entity, hex: string | undefined, decimal: string | undefined, name: string | undefined) => {
+    if (name) return entityMap[name.toLowerCase()] ?? entity;
+    const point = Number.parseInt(hex ?? decimal ?? "", hex ? 16 : 10);
+    return Number.isInteger(point) && point >= 0 && point <= 0x10ffff
+      ? String.fromCodePoint(point)
+      : entity;
+  });
 }

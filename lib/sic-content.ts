@@ -1,6 +1,7 @@
 import "server-only";
 
-import { getSicStoredContent, getSicStoredContentGroup } from "./sic-content-store.ts";
+import sicSourceRegistry from "../config/sic-source-registry.json" with { type: "json" };
+import { getSicStoredContent } from "./sic-content-store.ts";
 import {
   SIC_CONTENT_GROUP_IDS,
   type SicContentGroupId,
@@ -10,6 +11,12 @@ import {
 import type { InformationItem } from "./types.ts";
 
 export type SicContentByGroup = Record<SicContentGroupId, SicContentItem[]>;
+export type SicDelayedSource = {
+  sourceId: string;
+  sourceName: string;
+  group?: SicContentGroupId;
+  status: "failure" | "partial";
+};
 
 function timestamp(item: SicContentItem) {
   const value = Date.parse(item.publishedAt ?? item.collectedAt);
@@ -46,6 +53,16 @@ export async function getSicContent() {
     ...stored.state,
     stale: sourceDelayed || !updatedAt || Date.now() - updatedAt > 36 * 60 * 60 * 1000,
   };
+  const delayedSources: SicDelayedSource[] = stored.reports.flatMap((report) => {
+    if (report.status !== "failure" && report.status !== "partial") return [];
+    const source = sicSourceRegistry.sources.find((candidate) => candidate.id === report.sourceId);
+    return [{
+      sourceId: report.sourceId,
+      sourceName: source?.name ?? report.sourceId,
+      group: (source?.group === "archive" ? "documents" : source?.group) as SicContentGroupId | undefined,
+      status: report.status,
+    }];
+  });
   for (const item of stored.items) {
     const group = (item.group as string) === "archive" ? "documents" : item.group;
     groups[group].push({ ...item, group });
@@ -54,27 +71,11 @@ export async function getSicContent() {
   for (const group of SIC_CONTENT_GROUP_IDS.filter((value) => value !== "papers")) {
     groups[group] = latestSicContentPerSource(groups[group]);
   }
-  return { groups, state };
-}
-
-export async function getSicContentGroup(group: SicContentGroupId) {
-  const stored = await getSicStoredContentGroup(group);
-  const groups: SicContentByGroup = { papers: [], documents: [], courses: [], podcasts: [] };
-  const items = stored.items.map((item) => ({ ...item, group }));
-  groups[group] = group === "papers" ? latestSicPapers(items) : latestSicContentPerSource(items);
-  const updatedAt = stored.state.updatedAt ? Date.parse(stored.state.updatedAt) : 0;
-  const sourceDelayed = stored.reports.some((report) => report.status === "failure" || report.status === "partial");
-  return {
-    groups,
-    state: {
-      ...stored.state,
-      stale: sourceDelayed || !updatedAt || Date.now() - updatedAt > 36 * 60 * 60 * 1000,
-    },
-  };
+  return { groups, state, delayedSources };
 }
 
 export function addPublishedDocuments(
-  content: { groups: SicContentByGroup; state: SicContentState },
+  content: { groups: SicContentByGroup; state: SicContentState; delayedSources?: SicDelayedSource[] },
   information: InformationItem[],
 ) {
   const documents: SicContentItem[] = information

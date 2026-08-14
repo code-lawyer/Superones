@@ -384,20 +384,22 @@ npm run build
 npm prune --omit=dev
 ```
 
-然后从该干净 checkout 打包运行所需的完整仓库内容、`.next` 和生产 `node_modules`：
+然后只把运行所需的白名单内容装入暂存目录；文档、测试、归档、采集器源码、Git 元数据与过程性工具不得进入生产包：
 
 ```bash
-cd ..
-tar \
-  --exclude='vault2077-build/.git' \
-  --exclude='vault2077-build/.env*' \
-  --exclude='vault2077-build/tests' \
-  --exclude='vault2077-build/data/ranger-media' \
-  -czf vault2077-<commit>-linux-<arch>.tar.gz vault2077-build
+stage="$(mktemp -d)/vault2077-runtime"
+mkdir -p "$stage/data"
+cp -a .next node_modules public config migrations scripts lib deploy \
+  package.json package-lock.json next.config.ts "$stage/"
+cp -a data/bootstrap "$stage/data/"
+test -f "$stage/.next/BUILD_ID"
+test ! -e "$stage/archive"
+test ! -e "$stage/docs"
+tar -C "$(dirname "$stage")" -czf vault2077-<commit>-linux-<arch>.tar.gz "$(basename "$stage")"
 sha256sum vault2077-<commit>-linux-<arch>.tar.gz > vault2077-<commit>-linux-<arch>.tar.gz.sha256
 ```
 
-`.env.example` 被排除不影响运行；仓库中的 `config/`、`migrations/`、`scripts/`、`lib/`、`data/bootstrap/`、`public/`、`.next/`、`package.json` 和生产 `node_modules/` 必须在包内。若采用 CI artifact，应对同一清单做等价校验。
+发布包中的固定清单是 `config/`、`migrations/`、`scripts/`、`lib/`、`deploy/`、`data/bootstrap/`、`public/`、`.next/`、`package.json`、`package-lock.json`、`next.config.ts` 和生产 `node_modules/`。若采用 CI artifact，应对同一清单做等价校验。
 
 将发布包通过 SCP、堡垒机或私有 OSS 传到 VPS 的 `/tmp`。不要把生产发布包放进公开媒体 Bucket。
 
@@ -542,9 +544,14 @@ sudo systemctl daemon-reload
 ```bash
 sudo install -m 0644 deploy/nginx/vault2077-admin-proxy.conf.example \
   /etc/nginx/snippets/vault2077-admin-proxy.conf
+sudo install -m 0644 deploy/nginx/vault2077-edge-error-security.conf.example \
+  /etc/nginx/snippets/vault2077-edge-error-security.conf
+sudo install -m 0644 deploy/nginx/vault2077-default-reject.conf.example \
+  /etc/nginx/sites-available/vault2077-default-reject.conf
 sudo install -m 0644 deploy/nginx/vault2077.conf.example \
   /etc/nginx/sites-available/vault2077.conf
-sudo ln -s /etc/nginx/sites-available/vault2077.conf /etc/nginx/sites-enabled/vault2077.conf
+sudo ln -sfn /etc/nginx/sites-available/vault2077-default-reject.conf /etc/nginx/sites-enabled/vault2077-default-reject.conf
+sudo ln -sfn /etc/nginx/sites-available/vault2077.conf /etc/nginx/sites-enabled/vault2077.conf
 ```
 
 编辑证书路径。`limit_req_zone` 必须位于 Nginx `http {}` 上下文；Ubuntu 的 `sites-enabled` 通常在该上下文 include，其他发行版不一定。然后：

@@ -81,6 +81,9 @@ test("operations health reports business degradation without leaking credentials
     assert.equal(health.checks.vaultFreshness.status, "ok");
     assert.equal(health.checks.informationFlow.status, "degraded");
     assert.match(health.checks.informationFlow.detail, /count=1/);
+    assert.equal(health.checks.sicBootstrap.status, "degraded");
+    assert.match(health.checks.sicBootstrap.detail, /coverage=0\//);
+    assert.match(health.checks.sicBootstrap.detail, /lastBootstrap=unknown/);
     assert.equal(health.checks.vaultEditorial.status, "ok");
     const serialized = JSON.stringify(health);
     assert.doesNotMatch(serialized, /vault-secret-key|sic-secret-key/);

@@ -182,13 +182,16 @@ test("SiC processing uses the signed v2 source snapshot instead of its deployed 
     ],
   };
   let activeSourceIds: string[] = [];
+  let runMode = "";
   const processor = createAcquisitionBatchProcessor({
     async processPublications(_content, _fetcher, options) {
       activeSourceIds = options?.activeSourceIds ?? [];
+      runMode = options?.runMode ?? "";
     },
   });
   await processor(value, { payloadHash: "6".repeat(64), attempt: 1 });
   assert.deepEqual(activeSourceIds, ["dynamic-sic-source", "sic-source"]);
+  assert.equal(runMode, "incremental");
 });
 
 test("one malformed information record downgrades its source without blocking valid records", async () => {
