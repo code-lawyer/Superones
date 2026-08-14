@@ -90,7 +90,7 @@ test("release artifacts are manually built on Linux without production secrets",
   assert.match(releaseWorkflow, /permissions:\s+contents: read/);
   assert.match(releaseWorkflow, /runs-on: ubuntu-latest/);
   assert.match(releaseWorkflow, /npm prune --omit=dev/);
-  assert.match(releaseWorkflow, /node-version: "24\.16\.0"/);
+  assert.match(releaseWorkflow, /node-version: "24\.18\.1"/);
   assert.match(releaseWorkflow, /npm audit --omit=dev --audit-level=high --registry=https:\/\/registry\.npmjs\.org/);
   assert.match(releaseWorkflow, /cp -a \.next node_modules public config migrations scripts lib deploy package\.json package-lock\.json next\.config\.ts/);
   assert.match(releaseWorkflow, /cp -a data\/bootstrap/);
@@ -116,7 +116,7 @@ test("full repository checks run outside collection jobs", () => {
   assert.doesNotMatch(workflow, /npm run lint|npm run typecheck|ruff check|unittest discover/);
   assert.match(qualityWorkflow, /cron: "30 22 \* \* \*"/);
   assert.match(qualityWorkflow, /npm run docs:check/);
-  assert.match(qualityWorkflow, /node-version: "24\.16\.0"/);
+  assert.match(qualityWorkflow, /node-version: "24\.18\.1"/);
   assert.match(qualityWorkflow, /npm audit --omit=dev --audit-level=high --registry=https:\/\/registry\.npmjs\.org/);
   assert.match(qualityWorkflow, /npm run lint/);
   assert.match(qualityWorkflow, /npm run typecheck/);
@@ -131,7 +131,7 @@ test("full repository checks run outside collection jobs", () => {
 
 test("all Node workflows use the approved runtime patch", () => {
   for (const value of [workflow, qualityWorkflow, releaseWorkflow]) {
-    assert.match(value, /node-version: "24\.16\.0"/);
+    assert.match(value, /node-version: "24\.18\.1"/);
     assert.doesNotMatch(value, /node-version: "24"/);
   }
 });

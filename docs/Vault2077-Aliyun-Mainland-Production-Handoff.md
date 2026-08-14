@@ -334,12 +334,12 @@ sudo install -d -o root -g root -m 0700 /etc/vault2077
 
 ### 7.3 Node.js
 
-项目要求 Node `>=24.7.0`。当前工作区通过版本为 24.16.0；正式迁移时应使用构建记录中的同一 Node 24 补丁版本。模板将稳定运行时链接固定为 `/opt/node`，避免依赖个人 shell 的 nvm。以 x86_64 和 24.16.0 为例：
+项目要求 Node `>=24.7.0`。当前生产与 CI 固定版本为 24.18.1；正式迁移时应使用构建记录中的同一 Node 24 补丁版本。模板将稳定运行时固定在 `/opt/node`，避免依赖个人 shell 的 nvm。以 x86_64 和 24.18.1 为例：
 
 ```bash
 mkdir -p /tmp/vault2077-node
 cd /tmp/vault2077-node
-V2077_NODE_VERSION=24.16.0
+V2077_NODE_VERSION=24.18.1
 V2077_NODE_ARCH=linux-x64
 curl -fSLO "https://nodejs.org/dist/v${V2077_NODE_VERSION}/node-v${V2077_NODE_VERSION}-${V2077_NODE_ARCH}.tar.xz"
 curl -fSLO "https://nodejs.org/dist/v${V2077_NODE_VERSION}/SHASUMS256.txt"
