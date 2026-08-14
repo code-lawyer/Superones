@@ -19,11 +19,11 @@ test("source catalog mirrors every active acquisition registry", () => {
   const result = catalog();
   const counts = Object.fromEntries(result.sections.map((section) => [section.id, sourceCount(section)]));
 
-  assert.equal(result.total, 77);
+  assert.equal(result.total, 76);
   assert.deepEqual(counts, {
     "information-flow": 16,
     roadside: 36,
-    documents: 9,
+    documents: 8,
     papers: 1,
     podcasts: 4,
     courses: 6,

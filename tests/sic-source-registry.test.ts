@@ -9,9 +9,10 @@ test("SiC source registry contains the approved fixed source catalog", () => {
   assert.equal(sources.filter((source) => source.group === "documents").length, 19);
   assert.equal(sources.filter((source) => source.group === "courses").length, 8);
   assert.equal(sources.filter((source) => source.group === "podcasts").length, 11);
-  assert.equal(listApprovedSicSources().length, 20);
-  assert.equal(listCollectableSicSources().length, 20);
+  assert.equal(listApprovedSicSources().length, 19);
+  assert.equal(listCollectableSicSources().length, 19);
   assert.equal(sources.filter((source) => source.status === "retired").length, 19);
+  assert.equal(sources.filter((source) => source.status === "paused").length, 1);
   assert.equal(sources.filter((source) => source.status === "pending_review").length, 1);
   assert.ok(sources.find((source) => source.id === "dair-ai-papers-of-the-week")?.statusReason);
   assert.ok(listCollectableSicSources().every((source) => (
@@ -28,7 +29,8 @@ test("SiC source registry contains the approved fixed source catalog", () => {
     "ai-and-i-every-podcast",
   ].every((id) => sources.find((source) => source.id === id)?.failureMode === "isolated"));
   assert.ok((sources.find((source) => source.id === "claude-blog")?.excludedTitlePatterns?.length ?? 0) > 0);
-  assert.equal(sources.find((source) => source.id === "follow-builders-blogs")?.status, "approved");
+  assert.equal(sources.find((source) => source.id === "follow-builders-blogs")?.status, "paused");
+  assert.ok(sources.find((source) => source.id === "follow-builders-blogs")?.statusReason);
   assert.equal(sources.find((source) => source.id === "follow-builders-podcasts")?.status, "approved");
   assert.equal(
     sources.find((source) => source.id === "microsoft-research-video")?.endpoint,

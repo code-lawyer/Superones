@@ -513,7 +513,8 @@
     {
       "id": "follow-builders-blogs",
       "group": "documents",
-      "status": "approved",
+      "status": "paused",
+      "statusReason": "上游 72 小时滚动 feed 可能合法返回空集合，当前无法为生产 bootstrap 提供至少一条真实记录；待上游支持历史回填或再次产生可验证内容后复核恢复。",
       "name": "Follow Builders Blogs",
       "publisher": "Follow Builders selected publishers",
       "kind": "trusted_feed_json",

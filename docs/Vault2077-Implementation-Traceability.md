@@ -73,7 +73,7 @@ updated: 2026-08-14
 | 无 MCP、无本地增量 | done | 当前规范与榜单模块一致，旧 SiC 写接口已删除 |
 | 每日 `08:25` 内容通道 | done | workflow 已配置；周论文每次读取本周全集并按 API upvotes 本地重排 |
 | 周论文中文编辑门禁 | done | 统一采集保留周次/排名/票数；只有带 zh-CN 编辑标记和当前版本的结果才可作为中文成品 |
-| 来源目录计数与状态一致 | done | SiC 注册表为 40=20 approved+19 retired+1 pending_review；目录与注册表同次修订 |
+| 来源目录计数与状态一致 | done | SiC 注册表为 40=19 approved+19 retired+1 paused+1 pending_review；目录与注册表同次修订 |
 | 来源目录字段级一致 | partial | 来源 bundle 已执行新闻/档案去重；仍需把全部字段和 institutional news 注册表纳入文档自动校验 |
 
 ### 边境计划

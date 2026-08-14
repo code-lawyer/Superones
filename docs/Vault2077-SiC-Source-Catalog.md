@@ -1,12 +1,12 @@
 ---
 type: source-catalog
 status: active
-updated: 2026-08-02
+updated: 2026-08-14
 ---
 
 # Vault2077 SiC 来源目录
 
-本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 40 个来源：20 个 approved、19 个 retired、1 个 pending_review。只有 approved 来源进入运行时。
+本目录是 SiC 内容来源的规范清单，与 `config/sic-source-registry.json` 同步。注册表共 40 个来源：19 个 approved、19 个 retired、1 个 paused、1 个 pending_review。只有 approved 来源进入运行时。
 
 ## 准入规则
 
@@ -38,7 +38,7 @@ updated: 2026-08-02
 | Anthropic Research | retired | [官方页面](https://www.anthropic.com/research) |
 | Anthropic Engineering | retired | [官方页面](https://www.anthropic.com/engineering) |
 | Claude Blog | retired | [官方页面](https://claude.com/blog) |
-| Follow Builders Blogs | approved | [中央 Feed](https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-blogs.json) |
+| Follow Builders Blogs | paused | [中央 Feed](https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-blogs.json) |
 | Meta Engineering | approved | [官方页面](https://engineering.fb.com/) |
 | Microsoft Research | approved | [官方页面](https://www.microsoft.com/en-us/research/) |
 | NVIDIA Developer Blog | approved | [官方页面](https://developer.nvidia.com/blog/) |
@@ -84,7 +84,7 @@ OpenAI News 与 Anthropic News 已迁入 `config/institutional-news-registry.jso
 | AI & I by Every | retired | [官方播放列表](https://www.youtube.com/playlist?list=PLuMcoKK9mKgHtW_o9h5sGO2vXrffKHwJL) |
 | Follow Builders Podcasts | approved | [中央 Feed](https://raw.githubusercontent.com/zarazhangrui/follow-builders/main/feed-podcasts.json) |
 
-Anthropic Engineering、Claude Blog 以及 Follow Builders 当前选择的全部博客由 `feed-blogs.json` 直接进入 SiC documents；Follow Builders 当前选择的全部播客由 `feed-podcasts.json` 直接进入 SiC podcasts。Vault2077 默认信任其上游选择，不维护逐源准入名单；两个中央 feed 均为 `failureMode=isolated`，不可用时只报告并保留上一成功快照。
+Anthropic Engineering、Claude Blog 以及 Follow Builders 当前选择的全部博客原计划由 `feed-blogs.json` 直接进入 SiC documents；该博客 feed 因 72 小时滚动窗口允许合法空集合、无法完成生产 bootstrap，当前暂停，待上游支持历史回填或再次产生可验证内容后复核恢复。Follow Builders 当前选择的全部播客仍由 `feed-podcasts.json` 直接进入 SiC podcasts。Vault2077 默认信任其上游选择，不维护逐源准入名单；两个中央 feed 均为 `failureMode=isolated`，不可用时只报告并保留上一成功快照。
 
 Follow Builders Blogs 不执行本地标题排除规则。招聘、推广或营销内容只要由上游 feed 提供就正常进入 SiC；境内编辑负责忠实翻译和摘要，不重新审核其发布资格。
 
