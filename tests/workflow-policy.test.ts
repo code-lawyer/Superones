@@ -94,6 +94,7 @@ test("release artifacts are manually built on Linux without production secrets",
   assert.match(releaseWorkflow, /npm audit --omit=dev --audit-level=high --registry=https:\/\/registry\.npmjs\.org/);
   assert.match(releaseWorkflow, /cp -a \.next node_modules public config migrations scripts lib deploy package\.json package-lock\.json next\.config\.ts/);
   assert.match(releaseWorkflow, /cp -a data\/bootstrap/);
+  assert.match(releaseWorkflow, /cp -a data\/defaults/);
   assert.match(releaseWorkflow, /test ! -e "\$stage\/archive"/);
   assert.match(releaseWorkflow, /test ! -e "\$stage\/docs"/);
   assert.doesNotMatch(releaseWorkflow, /tar[\s\\]+--exclude/);

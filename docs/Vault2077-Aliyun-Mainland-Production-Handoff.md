@@ -392,6 +392,7 @@ mkdir -p "$stage/data"
 cp -a .next node_modules public config migrations scripts lib deploy \
   package.json package-lock.json next.config.ts "$stage/"
 cp -a data/bootstrap "$stage/data/"
+cp -a data/defaults "$stage/data/"
 test -f "$stage/.next/BUILD_ID"
 test ! -e "$stage/archive"
 test ! -e "$stage/docs"
@@ -399,7 +400,7 @@ tar -C "$(dirname "$stage")" -czf vault2077-<commit>-linux-<arch>.tar.gz "$(base
 sha256sum vault2077-<commit>-linux-<arch>.tar.gz > vault2077-<commit>-linux-<arch>.tar.gz.sha256
 ```
 
-发布包中的固定清单是 `config/`、`migrations/`、`scripts/`、`lib/`、`deploy/`、`data/bootstrap/`、`public/`、`.next/`、`package.json`、`package-lock.json`、`next.config.ts` 和生产 `node_modules/`。若采用 CI artifact，应对同一清单做等价校验。
+发布包中的固定清单是 `config/`、`migrations/`、`scripts/`、`lib/`、`deploy/`、`data/bootstrap/`、`data/defaults/`、`public/`、`.next/`、`package.json`、`package-lock.json`、`next.config.ts` 和生产 `node_modules/`。`data/defaults/` 是新数据库初始化 OPC 发布目录所需的只读 seed，不能用其他 `data/*.json` 预览状态替代。若采用 CI artifact，应对同一清单做等价校验。
 
 将发布包通过 SCP、堡垒机或私有 OSS 传到 VPS 的 `/tmp`。不要把生产发布包放进公开媒体 Bucket。
 

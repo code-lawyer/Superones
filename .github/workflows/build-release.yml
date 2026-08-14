@@ -43,6 +43,7 @@ jobs:
           mkdir -p "$stage/data"
           cp -a .next node_modules public config migrations scripts lib deploy package.json package-lock.json next.config.ts "$stage/"
           cp -a data/bootstrap "$stage/data/"
+          cp -a data/defaults "$stage/data/"
           test -f "$stage/.next/BUILD_ID"
           test -f "$stage/package.json"
           test ! -e "$stage/archive"
