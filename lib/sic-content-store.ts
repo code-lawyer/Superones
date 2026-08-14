@@ -38,8 +38,10 @@ function parseStore(value: unknown): SicContentStore {
   if (![1, 2, 3].includes(parsed.version ?? 0) || !Array.isArray(parsed.items) || !Array.isArray(parsed.reports)) {
     throw new Error("SiC 内容库格式无效。");
   }
-  const completedSourceIds = parsed.bootstrap?.completedSourceIds
-    ?? [...new Set(parsed.items.map((item) => item.sourceId))];
+  // Legacy stores contain published items but no proof that they came from a
+  // complete bootstrap run. Migrate fail-closed and let only an explicitly
+  // labelled bootstrap batch establish per-source coverage.
+  const completedSourceIds = parsed.bootstrap?.completedSourceIds ?? [];
   return {
     version: 3,
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,

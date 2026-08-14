@@ -147,6 +147,7 @@ test("the production handoff installs every required Nginx boundary file", async
     "vault2077-default-reject.conf",
     "vault2077.conf",
   ]) assert.ok(handoff.includes(file), file);
+  assert.match(handoff, /unlink \/etc\/nginx\/sites-enabled\/default/);
 });
 
 test("manual bootstrap is explicit while schedules remain incremental", () => {

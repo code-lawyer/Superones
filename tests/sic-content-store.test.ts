@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -249,6 +249,14 @@ test("a successful bootstrap records per-source baseline coverage", async (conte
     await rm(root, { recursive: true, force: true });
   });
   const course = { ...item("bootstrap", "2026-08-14T00:00:00.000Z"), sourceId: "google-ml-courses" };
+  await writeFile(path.join(root, "sic-content-store.json"), JSON.stringify({
+    version: 2,
+    updatedAt: course.collectedAt,
+    items: [course],
+    reports: [],
+    sourceSnapshots: {},
+  }));
+  assert.deepEqual((await getSicStoredContent()).bootstrap.completedSourceIds, []);
   await mergeSicStoredContent({
     items: [course],
     reports: [{ sourceId: "google-ml-courses", status: "success", collectedAt: course.collectedAt, itemCount: 1 }],

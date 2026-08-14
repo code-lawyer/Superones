@@ -551,6 +551,7 @@ sudo install -m 0644 deploy/nginx/vault2077-default-reject.conf.example \
   /etc/nginx/sites-available/vault2077-default-reject.conf
 sudo install -m 0644 deploy/nginx/vault2077.conf.example \
   /etc/nginx/sites-available/vault2077.conf
+sudo test ! -e /etc/nginx/sites-enabled/default || sudo unlink /etc/nginx/sites-enabled/default
 sudo ln -sfn /etc/nginx/sites-available/vault2077-default-reject.conf /etc/nginx/sites-enabled/vault2077-default-reject.conf
 sudo ln -sfn /etc/nginx/sites-available/vault2077.conf /etc/nginx/sites-enabled/vault2077.conf
 ```
