@@ -203,7 +203,9 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
           </div>
           <div className="home-refined-frontier__action">
             <p className="mono">{data.frontier.settlementDate} 结算</p>
-            <Link href={data.frontier.writesEnabled ? "/frontier/submit" : "/frontier"}>{data.frontier.writesEnabled ? "参与计划" : "查看开放状态"}</Link>
+            <Link href={data.frontier.writesEnabled ? "/frontier/submit" : "/frontier"}>
+              {data.unavailable.frontierLaunch ? "开放状态暂时无法确认" : data.frontier.writesEnabled ? "参与计划" : "查看开放状态"}
+            </Link>
           </div>
         </section>
       </div>

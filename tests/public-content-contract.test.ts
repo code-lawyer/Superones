@@ -71,4 +71,5 @@ test("home page uses published facts and distinguishes read failures from empty 
   assert.match(experience, /服务目录读取失败/);
   assert.match(experience, /学院内容读取失败/);
   assert.match(experience, /赛季榜单暂时无法更新/);
+  assert.match(experience, /开放状态暂时无法确认/);
 });

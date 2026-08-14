@@ -271,3 +271,41 @@ test("a successful bootstrap records per-source baseline coverage", async (conte
     lastRunMode: "bootstrap",
   });
 });
+
+test("a partial same-run bootstrap revokes source completion", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-partial-bootstrap-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+  const course = { ...item("partial", "2026-08-14T00:00:00.000Z"), sourceId: "google-ml-courses" };
+  const base = {
+    updatedAt: course.collectedAt,
+    snapshotId: "run:bootstrap-shards",
+    activeSourceIds: ["google-ml-courses"],
+    runMode: "bootstrap" as const,
+  };
+  await mergeSicStoredContent({
+    ...base,
+    items: [course],
+    reports: [{ sourceId: course.sourceId, status: "success", collectedAt: course.collectedAt, itemCount: 1 }],
+  });
+  assert.deepEqual((await getSicStoredContent()).bootstrap.completedSourceIds, [course.sourceId]);
+  await mergeSicStoredContent({
+    ...base,
+    items: [],
+    reports: [{ sourceId: course.sourceId, status: "failure", collectedAt: course.collectedAt, itemCount: 0 }],
+  });
+  assert.deepEqual((await getSicStoredContent()).bootstrap.completedSourceIds, []);
+});

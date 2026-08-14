@@ -204,8 +204,11 @@ export async function mergeSicStoredContent(input: {
       current.bootstrap.lastBootstrapAt = collectedAt;
       const completed = new Set(current.bootstrap.completedSourceIds);
       for (const report of input.reports) {
-        if (["success", "partial"].includes(report.status) && current.items.some((item) => item.sourceId === report.sourceId)) {
+        const mergedReport = current.reports.find((candidate) => candidate.sourceId === report.sourceId);
+        if (mergedReport?.status === "success" && current.items.some((item) => item.sourceId === report.sourceId)) {
           completed.add(report.sourceId);
+        } else {
+          completed.delete(report.sourceId);
         }
       }
       current.bootstrap.completedSourceIds = [...completed].sort();
