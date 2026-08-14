@@ -154,7 +154,7 @@ export async function getOperationsHealth() {
   checks.sicBootstrap = sic
     ? {
         status: missingSicSourceIds.length === 0 && sic.bootstrap.lastBootstrapAt ? "ok" : "degraded",
-        detail: `coverage=${approvedSicSourceIds.length - missingSicSourceIds.length}/${approvedSicSourceIds.length}; missing=${missingSicSourceIds.join(",") || "none"}; lastMode=${sic.bootstrap.lastRunMode ?? "unknown"}; lastBootstrap=${sic.bootstrap.lastBootstrapAt ?? "unknown"}`,
+        detail: `coverage=${approvedSicSourceIds.length - missingSicSourceIds.length}/${approvedSicSourceIds.length}; missing=${missingSicSourceIds.join(",") || "none"}; run=${sic.bootstrap.runId ?? "unknown"}; lastMode=${sic.bootstrap.lastRunMode ?? "unknown"}; lastBootstrap=${sic.bootstrap.lastBootstrapAt ?? "unknown"}`,
       }
     : { status: "degraded", detail: "SiC bootstrap state unavailable" };
   const rankingUpdatedAt = rankings

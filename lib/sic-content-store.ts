@@ -8,6 +8,7 @@ import {
 import type { SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
 
 export type SicBootstrapState = {
+  runId: string | null;
   completedSourceIds: string[];
   lastBootstrapAt: string | null;
   lastRunMode: "bootstrap" | "incremental" | null;
@@ -29,7 +30,7 @@ function emptyStore(): SicContentStore {
     items: [],
     reports: [],
     sourceSnapshots: {},
-    bootstrap: { completedSourceIds: [], lastBootstrapAt: null, lastRunMode: null },
+    bootstrap: { runId: null, completedSourceIds: [], lastBootstrapAt: null, lastRunMode: null },
   };
 }
 
@@ -49,6 +50,7 @@ function parseStore(value: unknown): SicContentStore {
     reports: parsed.reports,
     sourceSnapshots: parsed.sourceSnapshots ?? {},
     bootstrap: {
+      runId: parsed.bootstrap?.runId ?? null,
       completedSourceIds: [...new Set(completedSourceIds)].sort(),
       lastBootstrapAt: parsed.bootstrap?.lastBootstrapAt ?? null,
       lastRunMode: parsed.bootstrap?.lastRunMode ?? null,
@@ -201,7 +203,11 @@ export async function mergeSicStoredContent(input: {
     current.reports = mergeSicSourceReports(current.reports, input.reports);
     if (input.runMode) current.bootstrap.lastRunMode = input.runMode;
     if (input.runMode === "bootstrap") {
-      current.bootstrap.lastBootstrapAt = collectedAt;
+      if (current.bootstrap.runId !== snapshotId) {
+        current.bootstrap.runId = snapshotId;
+        current.bootstrap.completedSourceIds = [];
+        current.bootstrap.lastBootstrapAt = null;
+      }
       const completed = new Set(current.bootstrap.completedSourceIds);
       for (const report of input.reports) {
         const mergedReport = current.reports.find((candidate) => candidate.sourceId === report.sourceId);
@@ -212,6 +218,11 @@ export async function mergeSicStoredContent(input: {
         }
       }
       current.bootstrap.completedSourceIds = [...completed].sort();
+      const expectedSourceIds = input.activeSourceIds ?? [];
+      current.bootstrap.lastBootstrapAt = expectedSourceIds.length > 0
+        && expectedSourceIds.every((sourceId) => completed.has(sourceId))
+        ? collectedAt
+        : null;
     }
     return { items: current.items, reports: current.reports, state: state(current), bootstrap: current.bootstrap };
   });

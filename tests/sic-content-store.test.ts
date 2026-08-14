@@ -225,6 +225,7 @@ test("a first failed approved source with no items still marks its SiC group sta
   assert.deepEqual(content.groups.courses, []);
   assert.equal(content.state.stale, true);
   assert.deepEqual((await getSicStoredContent()).bootstrap, {
+    runId: null,
     completedSourceIds: [],
     lastBootstrapAt: null,
     lastRunMode: null,
@@ -266,6 +267,7 @@ test("a successful bootstrap records per-source baseline coverage", async (conte
     runMode: "bootstrap",
   });
   assert.deepEqual((await getSicStoredContent()).bootstrap, {
+    runId: "run:bootstrap",
     completedSourceIds: ["google-ml-courses"],
     lastBootstrapAt: course.collectedAt,
     lastRunMode: "bootstrap",
@@ -293,7 +295,7 @@ test("a partial same-run bootstrap revokes source completion", async (context) =
   const base = {
     updatedAt: course.collectedAt,
     snapshotId: "run:bootstrap-shards",
-    activeSourceIds: ["google-ml-courses"],
+    activeSourceIds: ["google-ml-courses", "second-approved-source"],
     runMode: "bootstrap" as const,
   };
   await mergeSicStoredContent({
@@ -301,7 +303,9 @@ test("a partial same-run bootstrap revokes source completion", async (context) =
     items: [course],
     reports: [{ sourceId: course.sourceId, status: "success", collectedAt: course.collectedAt, itemCount: 1 }],
   });
-  assert.deepEqual((await getSicStoredContent()).bootstrap.completedSourceIds, [course.sourceId]);
+  const afterFirstSource = (await getSicStoredContent()).bootstrap;
+  assert.deepEqual(afterFirstSource.completedSourceIds, [course.sourceId]);
+  assert.equal(afterFirstSource.lastBootstrapAt, null);
   await mergeSicStoredContent({
     ...base,
     items: [],
