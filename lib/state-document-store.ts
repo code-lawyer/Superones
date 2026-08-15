@@ -11,6 +11,7 @@ export type StateDocumentDefinition<T> = {
   fileName: string;
   create: () => T;
   parse: (value: unknown) => T;
+  serialize?: (value: T) => unknown;
 };
 
 const fileWriteChains = new Map<string, Promise<void>>();
@@ -89,11 +90,15 @@ export async function withPersistenceTransaction<T>(operation: () => Promise<T>)
   });
 }
 
-function filePath(definition: StateDocumentDefinition<unknown>) {
+function filePath(definition: { fileName: string }) {
   const dataRoot = process.env.VAULT2077_DATA_DIR
     ? path.resolve(process.env.VAULT2077_DATA_DIR)
     : path.join(process.cwd(), "data");
   return path.join(dataRoot, definition.fileName);
+}
+
+function serializedDocument<T>(definition: StateDocumentDefinition<T>, value: T) {
+  return definition.serialize ? definition.serialize(value) : value;
 }
 
 async function readFileDocument<T>(definition: StateDocumentDefinition<T>): Promise<T> {
@@ -104,7 +109,7 @@ async function readFileDocument<T>(definition: StateDocumentDefinition<T>): Prom
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     const initial = definition.create();
-    await writeFile(target, `${JSON.stringify(initial, null, 2)}\n`, { encoding: "utf8", flag: "wx" })
+    await writeFile(target, `${JSON.stringify(serializedDocument(definition, initial), null, 2)}\n`, { encoding: "utf8", flag: "wx" })
       .catch((writeError: NodeJS.ErrnoException) => {
         if (writeError.code !== "EEXIST") throw writeError;
       });
@@ -116,7 +121,7 @@ async function writeFileDocument<T>(definition: StateDocumentDefinition<T>, valu
   const target = filePath(definition);
   await mkdir(path.dirname(target), { recursive: true });
   const temporaryPath = `${target}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+  await writeFile(temporaryPath, `${JSON.stringify(serializedDocument(definition, value), null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   await rename(temporaryPath, target);
 }
 
@@ -137,7 +142,7 @@ async function lockPostgresDocument<T>(client: PoolClient, definition: StateDocu
     `INSERT INTO vault2077_state_documents (namespace, document)
      VALUES ($1, $2::jsonb)
      ON CONFLICT (namespace) DO NOTHING`,
-    [definition.namespace, JSON.stringify(definition.create())],
+    [definition.namespace, JSON.stringify(serializedDocument(definition, definition.create()))],
   );
   const result = await client.query<{ document: unknown }>(
     "SELECT document FROM vault2077_state_documents WHERE namespace = $1 FOR UPDATE",
@@ -167,7 +172,7 @@ export async function mutateStateDocument<T, R>(
         `UPDATE vault2077_state_documents
          SET document = $2::jsonb, version = version + 1, updated_at = now()
          WHERE namespace = $1`,
-        [definition.namespace, JSON.stringify(value)],
+        [definition.namespace, JSON.stringify(serializedDocument(definition, value))],
       );
       return result;
     }
@@ -180,7 +185,7 @@ export async function mutateStateDocument<T, R>(
         `UPDATE vault2077_state_documents
          SET document = $2::jsonb, version = version + 1, updated_at = now()
          WHERE namespace = $1`,
-        [definition.namespace, JSON.stringify(value)],
+        [definition.namespace, JSON.stringify(serializedDocument(definition, value))],
       );
       await client.query("COMMIT");
       return result;

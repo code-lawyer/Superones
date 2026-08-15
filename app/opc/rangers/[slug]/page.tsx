@@ -22,6 +22,7 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
   const catalog = await getCachedPublishedServiceCatalog();
   const profile = catalog.rangers.find((item) => item.slug === slug);
   if (!profile) notFound();
+  const identityName = catalog.rangerIdentities.find((identity) => identity.id === profile.identityId)?.name ?? "未分类";
 
   const portraitIndex = catalog.rangers.findIndex((item) => item.slug === profile.slug);
   const profileNumber = String(portraitIndex + 1).padStart(2, "0");
@@ -93,7 +94,7 @@ export default async function RangerProfilePage({ params }: { params: Promise<{ 
             </div>
             <div>
               <dt className="mono">IDENTITY / 身份</dt>
-              <dd>{profile.identity}</dd>
+              <dd>{identityName}</dd>
             </div>
           </dl>
         </header>

@@ -4,11 +4,12 @@ import Image from "next/image";
 import { useCallback, useEffect, useId, useMemo, useState, type ChangeEvent } from "react";
 import {
   infrastructureGroups,
+  nextRangerIdentityId,
   RANGER_SIGNATURE_MAX_LENGTH,
-  rangerIdentities,
   specialtyDomains,
   type OpcCatalogContent,
   type OpcService,
+  type RangerIdentity,
   type RangerProfile,
 } from "@/lib/opc-catalog";
 import {
@@ -19,12 +20,14 @@ import {
 import { reauthenticateAdminWithPasskey } from "@/lib/admin-passkey-browser";
 
 type CatalogSection = keyof OpcCatalogContent;
+type CatalogItem = OpcService | RangerIdentity | RangerProfile;
 
 type ManagedCatalogView = {
   revision: number;
   draftUpdatedAt: string | null;
   publishedAt: string | null;
   draft: OpcCatalogContent;
+  published: OpcCatalogContent;
   validation: { valid: boolean; errors: string[] };
   rangerMediaOrigin: string;
 };
@@ -56,6 +59,7 @@ class AdminCatalogError extends Error {
 const sectionLabels: Record<CatalogSection, string> = {
   infrastructure: "基础设施",
   specialties: "专项服务",
+  rangerIdentities: "顾问身份",
   rangers: "游骑兵协会",
 };
 
@@ -100,11 +104,11 @@ function newService(section: "infrastructure" | "specialties", ordinal: number):
   };
 }
 
-function newRanger(ordinal: number): RangerProfile {
+function newRanger(ordinal: number, identityId: string): RangerProfile {
   return {
     slug: `new-ranger-${ordinal}`,
     publicName: "未命名游骑兵",
-    identity: rangerIdentities[0],
+    identityId,
     signature: "",
     intro: "",
     tags: [],
@@ -114,6 +118,13 @@ function newRanger(ordinal: number): RangerProfile {
     verificationDate: "",
     profileUpdatedAt: "",
     authorizationStatus: "本人授权待确认",
+  };
+}
+
+function newRangerIdentity(id: string): RangerIdentity {
+  return {
+    id,
+    name: "未命名顾问身份",
   };
 }
 
@@ -158,6 +169,7 @@ export function AdminOpcCatalogEditor() {
   const counts = useMemo(() => draft ? {
     infrastructure: draft.infrastructure.length,
     specialties: draft.specialties.length,
+    rangerIdentities: draft.rangerIdentities.length,
     rangers: draft.rangers.length,
   } : null, [draft]);
 
@@ -175,14 +187,27 @@ export function AdminOpcCatalogEditor() {
   function addItem() {
     if (!draft) return;
     const ordinal = nextOrdinal(draft, section);
-    const item = section === "rangers" ? newRanger(ordinal) : newService(section, ordinal);
+    const item = section === "rangerIdentities"
+      ? newRangerIdentity(nextRangerIdentityId(draft.rangerIdentities))
+      : section === "rangers"
+        ? newRanger(ordinal, draft.rangerIdentities[0]?.id ?? "")
+        : newService(section, ordinal);
     const next = [...items, item] as OpcCatalogContent[CatalogSection];
     replaceItems(next);
     setSelectedIndex(next.length - 1);
   }
 
   function removeItem() {
-    if (!selected || !window.confirm(`从当前草稿中移除“${"name" in selected ? selected.name : selected.publicName}”？只有发布后才会影响前台。`)) return;
+    if (!selected || !draft) return;
+    if (section === "rangerIdentities" && "id" in selected) {
+      const assignedCount = draft.rangers.filter((ranger) => ranger.identityId === selected.id).length;
+      if (assignedCount > 0) {
+        setError(`“${selected.name}”仍有 ${assignedCount} 位顾问归属。请先迁移或移除这些顾问，再删除该身份。`);
+        return;
+      }
+    }
+    const label = "publicName" in selected ? selected.publicName : selected.name;
+    if (!window.confirm(`从当前草稿中移除“${label}”？只有发布后才会影响前台。`)) return;
     const next = items.filter((_, index) => index !== selectedIndex) as OpcCatalogContent[CatalogSection];
     replaceItems(next);
     setSelectedIndex(Math.max(0, selectedIndex - 1));
@@ -191,13 +216,13 @@ export function AdminOpcCatalogEditor() {
   function moveItem(direction: -1 | 1) {
     const target = selectedIndex + direction;
     if (target < 0 || target >= items.length) return;
-    const next = [...items] as Array<OpcService | RangerProfile>;
+    const next = [...items] as CatalogItem[];
     [next[selectedIndex], next[target]] = [next[target], next[selectedIndex]];
     replaceItems(next as OpcCatalogContent[CatalogSection]);
     setSelectedIndex(target);
   }
 
-  function updateSelected(next: OpcService | RangerProfile) {
+  function updateSelected(next: CatalogItem) {
     const nextItems = items.map((item, index) => index === selectedIndex ? next : item) as OpcCatalogContent[CatalogSection];
     replaceItems(nextItems);
   }
@@ -310,8 +335,8 @@ export function AdminOpcCatalogEditor() {
           </div>
           {items.length === 0 ? <p className="ranking-empty">当前草稿没有项目。</p> : items.map((item, index) => (
             <button className={selectedIndex === index ? "is-active" : ""} type="button" onClick={() => setSelectedIndex(index)} key={`${"slug" in item ? item.slug : index}-${index}`}>
-              <span className="mono">{"code" in item ? item.code : item.identity}</span>
-              <strong>{"name" in item ? item.name : item.publicName}</strong>
+              <span className="mono">{"code" in item ? item.code : "identityId" in item ? item.identityId : item.id}</span>
+              <strong>{"publicName" in item ? item.publicName : item.name}</strong>
             </button>
           ))}
         </aside>
@@ -326,7 +351,18 @@ export function AdminOpcCatalogEditor() {
               </div>
               {"kind" in selected
                 ? <ServiceFields service={selected} onChange={updateSelected} />
-                : <RangerFields ranger={selected} mediaOrigin={state.rangerMediaOrigin} onChange={updateSelected} />}
+                : "publicName" in selected
+                  ? <RangerFields
+                    identities={draft.rangerIdentities}
+                    ranger={selected}
+                    mediaOrigin={state.rangerMediaOrigin}
+                    onChange={updateSelected}
+                  />
+                  : <RangerIdentityFields
+                    identity={selected}
+                    locked={state.published.rangerIdentities.some((identity) => identity.id === selected.id)}
+                    onChange={updateSelected}
+                  />}
             </>
           ) : <p className="ranking-empty">新增一个项目，或从左侧选择现有项目。</p>}
         </div>
@@ -369,20 +405,21 @@ export function AdminOpcCatalogEditor() {
   );
 }
 
-function TextField({ label, value, onChange, multiline = false, help, maxLength }: {
+function TextField({ label, value, onChange, multiline = false, help, maxLength, readOnly = false }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
   help?: string;
   maxLength?: number;
+  readOnly?: boolean;
 }) {
   const id = useId();
   return <div className="form-field">
     <label htmlFor={id}>{label}</label>
     {multiline
-      ? <textarea id={id} rows={4} maxLength={maxLength} value={value} onChange={(event) => onChange(event.target.value)} />
-      : <input id={id} maxLength={maxLength} value={value} onChange={(event) => onChange(event.target.value)} />}
+      ? <textarea id={id} rows={4} maxLength={maxLength} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} />
+      : <input id={id} maxLength={maxLength} readOnly={readOnly} value={value} onChange={(event) => onChange(event.target.value)} />}
     {help ? <p>{help}</p> : null}
   </div>;
 }
@@ -427,7 +464,27 @@ function ServiceFields({ service, onChange }: { service: OpcService; onChange: (
   </div>;
 }
 
-function RangerFields({ ranger, mediaOrigin, onChange }: {
+function RangerIdentityFields({ identity, locked, onChange }: {
+  identity: RangerIdentity;
+  locked: boolean;
+  onChange: (value: RangerIdentity) => void;
+}) {
+  return <div className="admin-opc-editor__fields">
+    <TextField
+      label="稳定身份 ID"
+      value={identity.id}
+      readOnly={locked}
+      onChange={(id) => onChange({ ...identity, id })}
+      help={locked
+        ? "该身份已经发布，稳定 ID 已锁定；公开名称和顺序仍可修改。"
+        : "首次发布前可设置；只能使用小写字母、数字和连字符。"}
+    />
+    <TextField label="公开身份名称" value={identity.name} onChange={(name) => onChange({ ...identity, name })} />
+  </div>;
+}
+
+function RangerFields({ identities, ranger, mediaOrigin, onChange }: {
+  identities: RangerIdentity[];
   ranger: RangerProfile;
   mediaOrigin: string;
   onChange: (value: RangerProfile) => void;
@@ -436,7 +493,7 @@ function RangerFields({ ranger, mediaOrigin, onChange }: {
   return <div className="admin-opc-editor__fields">
     <TextField label="稳定路径 slug" value={ranger.slug} onChange={(value) => change("slug", value)} help="发布后不建议修改，只能使用小写字母、数字和连字符。" />
     <TextField label="公开名称" value={ranger.publicName} onChange={(value) => change("publicName", value)} />
-    <div className="form-field"><label>主要顾问身份<select value={ranger.identity} onChange={(event) => change("identity", event.target.value)}>{rangerIdentities.map((item) => <option key={item}>{item}</option>)}</select></label></div>
+    <div className="form-field"><label>主要顾问身份<select value={ranger.identityId} onChange={(event) => change("identityId", event.target.value)}><option value="" disabled>请选择</option>{identities.map((identity) => <option value={identity.id} key={identity.id}>{identity.name}</option>)}</select></label></div>
     <TextField
       label="个人签名"
       value={ranger.signature ?? ""}

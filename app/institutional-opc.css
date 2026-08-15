@@ -491,6 +491,19 @@
   transition-delay: 380ms, 0s;
 }
 
+.opc-ranger-shelf__profile-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.opc-ranger-shelf__profile-link:focus-visible {
+  outline: 2px solid var(--paper-bright);
+  outline-offset: -5px;
+}
+
 .opc-ranger-shelf__portrait {
   position: relative;
   overflow: hidden;

@@ -5,7 +5,7 @@ import path from "node:path";
 import type { OpcCatalogContent } from "./opc-catalog.ts";
 
 export type OpcCatalogSeedDocument = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   sourceRevision: number;
   publishedAt: string | null;
   catalog: OpcCatalogContent;
@@ -29,7 +29,7 @@ export function readOpcCatalogSeedDocument(): OpcCatalogSeedDocument | null {
 
   const value = JSON.parse(raw) as Partial<OpcCatalogSeedDocument>;
   if (
-    value.schemaVersion !== 1
+    (value.schemaVersion !== 1 && value.schemaVersion !== 2)
     || !Number.isSafeInteger(value.sourceRevision)
     || Number(value.sourceRevision) < 1
     || (value.publishedAt !== null && typeof value.publishedAt !== "string")
@@ -38,10 +38,14 @@ export function readOpcCatalogSeedDocument(): OpcCatalogSeedDocument | null {
   ) {
     throw new Error(`OPC 默认 seed 无效：${target}`);
   }
+  const catalog = value.catalog as unknown as Record<string, unknown>;
+  if (value.schemaVersion === 2 && !Array.isArray(catalog.rangerIdentities)) {
+    throw new Error(`OPC schema v2 默认 seed 缺少顾问身份数组：${target}`);
+  }
   return value as OpcCatalogSeedDocument;
 }
 
-export async function writeOpcCatalogSeedDocument(document: OpcCatalogSeedDocument) {
+export async function writeOpcCatalogSeedDocument(document: OpcCatalogSeedDocument & { schemaVersion: 2 }) {
   const target = opcCatalogSeedPath();
   await mkdir(path.dirname(target), { recursive: true });
   const temporaryPath = `${target}.${process.pid}.${randomUUID()}.tmp`;

@@ -2,7 +2,7 @@ import { createDefaultOpcCatalog } from "../lib/opc-catalog.ts";
 import { writeOpcCatalogSeedDocument } from "../lib/opc-catalog-seed.ts";
 
 const target = await writeOpcCatalogSeedDocument({
-  schemaVersion: 1,
+  schemaVersion: 2,
   sourceRevision: 2,
   publishedAt: null,
   catalog: createDefaultOpcCatalog(),

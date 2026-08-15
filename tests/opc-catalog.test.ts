@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   allOpcServices,
+  defaultRangerIdentities,
   infrastructureServices,
-  rangerIdentities,
+  nextRangerIdentityId,
   specialtyDomains,
   specialtyServices,
   rangerProfiles,
@@ -70,8 +71,17 @@ test("Every first-version OPC SKU is page-ready and uses an explicit RMB price",
 });
 
 test("OPC specialty and ranger taxonomies remain separate", () => {
-  assert.equal(rangerIdentities.length, 10);
-  assert.ok(rangerIdentities.every((identity) => !specialtyDomains.includes(identity as never)));
+  assert.equal(defaultRangerIdentities.length, 10);
+  assert.equal(new Set(defaultRangerIdentities.map((identity) => identity.id)).size, 10);
+  assert.ok(defaultRangerIdentities.every((identity) => !specialtyDomains.includes(identity.name as never)));
+});
+
+test("managed ranger identities receive an unused generated ID after deletions", () => {
+  const identities = [
+    ...defaultRangerIdentities.slice(1),
+    { id: "new-ranger-identity-11", name: "新增身份" },
+  ];
+  assert.equal(nextRangerIdentityId(identities), "new-ranger-identity-12");
 });
 
 test("default public catalog does not ship fabricated ranger profiles", () => {

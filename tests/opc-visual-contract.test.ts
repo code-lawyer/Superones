@@ -367,7 +367,10 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(workspace, /const publicName = profile\?\.publicName \?\? "待公开"/);
   assert.match(workspace, /<strong>\{publicName\}<\/strong>/);
   assert.doesNotMatch(workspace, /profile\.intro|profile\.tags\.slice\(0, 3\)/);
-  assert.match(workspace, /<span>\{entry\.identity\}<\/span>\s*<strong>\{publicName\}<\/strong>\s*\{profile\?\.signature \? <p>\{profile\.signature\}<\/p> : null\}/);
+  assert.match(workspace, /href=\{`\/opc\/rangers\/\$\{profile\.slug\}`\}/);
+  assert.match(workspace, /tabIndex=\{active \? 0 : -1\}/);
+  assert.match(workspace, /aria-label=\{`查看\$\{profile\.publicName\}的顾问详情`\}/);
+  assert.match(workspace, /<span>\{entry\.identity\.name\}<\/span>\s*<strong>\{publicName\}<\/strong>/);
   assert.match(styles, /\.opc-service-browser__content--rangers\s*\{[\s\S]*?display:\s*flex[\s\S]*?padding:\s*0/);
   assert.match(styles, /\.opc-ranger-wall\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex:\s*1[\s\S]*?flex-direction:\s*column/);
   assert.match(styles, /\.opc-ranger-wall__intro\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--carbon\)/);
@@ -383,6 +386,7 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(styles, /@keyframes opc-ranger-previous-cue/);
   assert.match(styles, /\.opc-ranger-shelf\.has-active\s+\.opc-ranger-shelf__item\s*\{[\s\S]*?transition-duration:\s*1250ms, 1250ms/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__panel\s*\{[\s\S]*?visibility:\s*visible[\s\S]*?transition-duration:\s*560ms, 0s[\s\S]*?transition-delay:\s*380ms, 0s/);
+  assert.match(styles, /\.opc-ranger-shelf__profile-link\s*\{[\s\S]*?display:\s*block[\s\S]*?height:\s*100%[\s\S]*?text-decoration:\s*none/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__portrait\s+\.opc-ranger-portrait__image\s*\{[\s\S]*?transition-duration:\s*700ms, 1450ms/);
   assert.match(styles, /\.opc-ranger-shelf__portrait::after\s*\{[\s\S]*?background:\s*linear-gradient\([\s\S]*?transparent 0%[\s\S]*?pointer-events:\s*none/);
   assert.match(styles, /\.opc-ranger-shelf__portrait figcaption\s*\{[\s\S]*?padding:\s*0[\s\S]*?background:\s*transparent[\s\S]*?text-shadow:/);
@@ -444,6 +448,24 @@ test("OPC ranger profiles use the public dossier composition at every breakpoint
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.opc-ranger-dossier\s*\{[\s\S]*?--dossier-spine:\s*44px[\s\S]*?\.opc-ranger-dossier__statement\s*\{[\s\S]*?grid-template-columns:\s*1fr[\s\S]*?\.opc-ranger-dossier__statement > p\s*\{[\s\S]*?border-left:\s*0/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.opc-ranger-dossier__contact-action a i\s*\{[\s\S]*?transition:\s*none/);
   assert.doesNotMatch(styles, /\.opc-ranger-profile-page/);
+});
+
+test("OPC admin manages ranger identities in the same atomic catalog draft", async () => {
+  const admin = await readFile(path.join(root, "components", "admin-opc-catalog-editor.tsx"), "utf8");
+  const managed = await readFile(path.join(root, "lib", "managed-service-catalog.ts"), "utf8");
+  const styles = await readFile(path.join(root, "app", "globals.css"), "utf8");
+
+  assert.match(admin, /rangerIdentities:\s*"顾问身份"/);
+  assert.match(admin, /function newRangerIdentity/);
+  assert.match(admin, /nextRangerIdentityId\(draft\.rangerIdentities\)/);
+  assert.match(admin, /assignedCount = draft\.rangers\.filter\(\(ranger\) => ranger\.identityId === selected\.id\)\.length/);
+  assert.match(admin, /identities=\{draft\.rangerIdentities\}/);
+  assert.match(admin, /locked=\{state\.published\.rangerIdentities\.some/);
+  assert.match(admin, /readOnly=\{locked\}/);
+  assert.match(managed, /引用的顾问身份不存在/);
+  assert.match(managed, /serializeManagedServiceCatalog/);
+  assert.match(managed, /schemaVersion:\s*2/);
+  assert.match(styles, /\.admin-opc-editor__sections\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
 });
 
 test("OPC uses one workspace and has no duplicate public register pages", async () => {

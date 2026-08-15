@@ -35,6 +35,7 @@ export default async function OpcPage({ searchParams }: { searchParams: Promise<
         key={`${initialView}:${query.service ?? ""}`}
         infrastructure={catalog.infrastructure}
         specialties={catalog.specialties}
+        rangerIdentities={catalog.rangerIdentities}
         rangers={catalog.rangers}
         rangerMediaOrigin={publicRangerMediaOrigin()}
         orderingAvailable={orderingAvailable}

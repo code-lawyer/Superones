@@ -2,12 +2,13 @@ import "server-only";
 
 import {
   createDefaultOpcCatalog,
+  defaultRangerIdentities,
   infrastructureGroups,
   RANGER_SIGNATURE_MAX_LENGTH,
-  rangerIdentities,
   specialtyDomains,
   type OpcCatalogContent,
   type OpcService,
+  type RangerIdentity,
   type RangerProfile,
 } from "./opc-catalog.ts";
 import {
@@ -33,7 +34,7 @@ export const RANGER_AVATAR_ORPHAN_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const RANGER_AVATAR_REPLACED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ManagedServiceCatalog = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: number;
   draftUpdatedAt: string | null;
   publishedAt: string | null;
@@ -79,16 +80,25 @@ const placeholderValues = new Set([
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const publicEmailPattern = /^[A-Za-z0-9!$&'*+/=_`{|}~-]+(?:\.[A-Za-z0-9!$&'*+/=_`{|}~-]+)*@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 const rangerAvatarPattern = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/i;
+const legacyRangerIdentityNames = new Set(defaultRangerIdentities.map((identity) => identity.name));
+const legacyRangerIdentityFallback = defaultRangerIdentities.find((identity) => identity.id === "startup-advisor")?.name
+  ?? defaultRangerIdentities[0].name;
+
+type CatalogNormalizationOptions = {
+  migrateLegacyRangerIdentities?: boolean;
+};
 
 function initialState(): ManagedServiceCatalog {
   const seed = readOpcCatalogSeedDocument();
-  const defaults = seed ? normalizeOpcCatalog(seed.catalog) : createDefaultOpcCatalog();
+  const defaults = seed
+    ? normalizeOpcCatalog(seed.catalog, { migrateLegacyRangerIdentities: seed.schemaVersion === 1 })
+    : createDefaultOpcCatalog();
   const validation = validateOpcCatalog(defaults, Boolean(seed?.publishedAt));
   if (!validation.valid) {
     throw new Error(`OPC 默认 seed 校验失败：${validation.errors.slice(0, 3).join("；")}`);
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: seed?.sourceRevision ?? 1,
     draftUpdatedAt: null,
     publishedAt: seed?.publishedAt ?? null,
@@ -117,7 +127,7 @@ function shouldSyncLocalSeedOnPublish() {
 
 async function writePublishedSeed(catalog: OpcCatalogContent, sourceRevision: number, publishedAt: string | null) {
   return writeOpcCatalogSeedDocument({
-    schemaVersion: 1,
+    schemaVersion: 2,
     sourceRevision,
     publishedAt,
     catalog: structuredClone(catalog),
@@ -158,13 +168,25 @@ function normalizeService(value: unknown, kind: OpcService["kind"]): OpcService 
   };
 }
 
-function normalizeRanger(value: unknown): RangerProfile {
+function normalizeRangerIdentity(value: unknown): RangerIdentity {
+  const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    id: cleanText(item.id, 80).toLowerCase(),
+    name: cleanText(item.name, 60),
+  };
+}
+
+function normalizeRanger(value: unknown, identities: RangerIdentity[]): RangerProfile {
   const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const avatar = isRangerAvatarAsset(item.avatar) ? structuredClone(item.avatar) : undefined;
+  const legacyIdentity = cleanText(item.identity, 60);
+  const identityId = cleanText(item.identityId, 80).toLowerCase()
+    || identities.find((identity) => identity.name === legacyIdentity)?.id
+    || "";
   return {
     slug: cleanText(item.slug, 80).toLowerCase(),
     publicName: cleanText(item.publicName, 120),
-    identity: cleanText(item.identity, 60),
+    identityId,
     signature: cleanText(item.signature, RANGER_SIGNATURE_MAX_LENGTH) || undefined,
     avatar,
     avatarUrl: cleanText(item.avatarUrl, 2_100_000) || undefined,
@@ -179,8 +201,16 @@ function normalizeRanger(value: unknown): RangerProfile {
   };
 }
 
-export function normalizeOpcCatalog(value: unknown): OpcCatalogContent {
+export function normalizeOpcCatalog(
+  value: unknown,
+  options: CatalogNormalizationOptions = {},
+): OpcCatalogContent {
   const catalog = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const rangerIdentities = options.migrateLegacyRangerIdentities
+    ? structuredClone(defaultRangerIdentities)
+    : Array.isArray(catalog.rangerIdentities)
+      ? catalog.rangerIdentities.slice(0, 50).map(normalizeRangerIdentity)
+      : [];
   return {
     infrastructure: Array.isArray(catalog.infrastructure)
       ? catalog.infrastructure.slice(0, 50).map((item) => normalizeService(item, "infrastructure"))
@@ -188,10 +218,19 @@ export function normalizeOpcCatalog(value: unknown): OpcCatalogContent {
     specialties: Array.isArray(catalog.specialties)
       ? catalog.specialties.slice(0, 200).map((item) => normalizeService(item, "specialty"))
       : [],
+    rangerIdentities,
     rangers: Array.isArray(catalog.rangers)
-      ? catalog.rangers.slice(0, 200).map(normalizeRanger)
+      ? catalog.rangers.slice(0, 200).map((item) => normalizeRanger(item, rangerIdentities))
       : [],
   };
+}
+
+function normalizeCatalogMutation(value: unknown) {
+  const catalog = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  if (!catalog || !Array.isArray(catalog.rangerIdentities)) {
+    throw new ServiceCatalogValidationError(["OPC 完整目录必须包含顾问身份数组，不能使用默认分类静默补全。"]);
+  }
+  return normalizeOpcCatalog(catalog);
 }
 
 function required(errors: string[], label: string, value: string) {
@@ -209,9 +248,23 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
   const services = [...catalog.infrastructure, ...catalog.specialties];
   const slugs = new Set<string>();
   const codes = new Set<string>();
+  const rangerIdentityIds = new Set<string>();
+  const rangerIdentityNames = new Set<string>();
 
   if (forPublication && catalog.infrastructure.length === 0) errors.push("基础设施至少需要一个已发布项目");
   if (forPublication && catalog.specialties.length === 0) errors.push("专项服务至少需要一个已发布项目");
+  if (forPublication && catalog.rangerIdentities.length === 0) errors.push("至少需要一个可发布的顾问身份");
+
+  for (const identity of catalog.rangerIdentities) {
+    const label = identity.name || identity.id || "未命名顾问身份";
+    required(errors, `${label}：稳定 ID`, identity.id);
+    required(errors, `${label}：公开名称`, identity.name);
+    if (identity.id && !slugPattern.test(identity.id)) errors.push(`${label}：稳定 ID 只能使用小写字母、数字和连字符`);
+    if (rangerIdentityIds.has(identity.id)) errors.push(`${label}：稳定 ID 重复`);
+    if (rangerIdentityNames.has(identity.name)) errors.push(`${label}：公开名称重复`);
+    rangerIdentityIds.add(identity.id);
+    rangerIdentityNames.add(identity.name);
+  }
 
   for (const service of services) {
     const label = service.name || service.code || "未命名服务";
@@ -261,7 +314,10 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
     if (ranger.slug && !slugPattern.test(ranger.slug)) errors.push(`${label}：slug 只能使用小写字母、数字和连字符`);
     if (rangerSlugs.has(ranger.slug)) errors.push(`${label}：slug 重复`);
     rangerSlugs.add(ranger.slug);
-    if (!rangerIdentities.includes(ranger.identity as never)) errors.push(`${label}：顾问身份无效`);
+    required(errors, `${label}：顾问身份`, ranger.identityId);
+    if (ranger.identityId && !rangerIdentityIds.has(ranger.identityId)) {
+      errors.push(`${label}：引用的顾问身份不存在`);
+    }
     if (ranger.avatar && !isRangerAvatarAsset(ranger.avatar)) {
       errors.push(`${label}：托管头像元数据无效`);
     }
@@ -344,8 +400,22 @@ function retainVerifiedPublicRangers(rangers: RangerProfile[]) {
 function parseState(value: unknown): ManagedServiceCatalog {
   if (!value || typeof value !== "object") throw new Error("OPC 服务目录状态无效。");
   const record = value as Partial<ManagedServiceCatalog>;
-  const draft = normalizeOpcCatalog(record.draft);
-  const published = normalizeOpcCatalog(record.published);
+  const schemaVersion = (value as { schemaVersion?: unknown }).schemaVersion;
+  if (schemaVersion !== 1 && schemaVersion !== 2) {
+    throw new Error("OPC 服务目录 schemaVersion 无效。");
+  }
+  const migrateLegacyRangerIdentities = schemaVersion === 1;
+  if (!migrateLegacyRangerIdentities) {
+    for (const [label, catalog] of [["草稿", record.draft], ["当前发布目录", record.published]] as const) {
+      const item = catalog && typeof catalog === "object" ? catalog as Record<string, unknown> : null;
+      if (!item || !Array.isArray(item.rangerIdentities)) {
+        throw new Error(`OPC schema v2 ${label}缺少顾问身份数组。`);
+      }
+    }
+  }
+  const normalizationOptions = { migrateLegacyRangerIdentities };
+  const draft = normalizeOpcCatalog(record.draft, normalizationOptions);
+  const published = normalizeOpcCatalog(record.published, normalizationOptions);
   const untouchedPreview = record.revision === 1
     && record.draftUpdatedAt == null
     && record.publishedAt == null
@@ -354,9 +424,11 @@ function parseState(value: unknown): ManagedServiceCatalog {
     const currentCatalog = createDefaultOpcCatalog();
     draft.infrastructure = structuredClone(currentCatalog.infrastructure);
     draft.specialties = structuredClone(currentCatalog.specialties);
+    draft.rangerIdentities = structuredClone(currentCatalog.rangerIdentities);
     draft.rangers = structuredClone(currentCatalog.rangers);
     published.infrastructure = structuredClone(currentCatalog.infrastructure);
     published.specialties = structuredClone(currentCatalog.specialties);
+    published.rangerIdentities = structuredClone(currentCatalog.rangerIdentities);
     published.rangers = structuredClone(currentCatalog.rangers);
   } else {
     draft.rangers = draft.rangers.filter((ranger) => !isLegacyPreviewRanger(ranger));
@@ -372,7 +444,15 @@ function parseState(value: unknown): ManagedServiceCatalog {
       if (!entry || typeof entry !== "object") return [];
       const item = entry as { revision?: unknown; publishedAt?: unknown; catalog?: unknown };
       if (!Number.isSafeInteger(item.revision) || typeof item.publishedAt !== "string") return [];
-      const catalog = normalizeOpcCatalog(item.catalog);
+      if (!migrateLegacyRangerIdentities) {
+        const historicalCatalog = item.catalog && typeof item.catalog === "object"
+          ? item.catalog as Record<string, unknown>
+          : null;
+        if (!historicalCatalog || !Array.isArray(historicalCatalog.rangerIdentities)) {
+          throw new Error("OPC schema v2 历史发布快照缺少顾问身份数组。");
+        }
+      }
+      const catalog = normalizeOpcCatalog(item.catalog, normalizationOptions);
       catalog.rangers = retainVerifiedPublicRangers(catalog.rangers);
       return validateOpcCatalog(catalog, true).valid
         ? [{ revision: Number(item.revision), publishedAt: item.publishedAt, catalog }]
@@ -380,7 +460,7 @@ function parseState(value: unknown): ManagedServiceCatalog {
     })
     : [];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: Number.isSafeInteger(record.revision) && Number(record.revision) > 0 ? Number(record.revision) : 1,
     draftUpdatedAt: typeof record.draftUpdatedAt === "string" ? record.draftUpdatedAt : null,
     publishedAt: typeof record.publishedAt === "string" ? record.publishedAt : null,
@@ -390,11 +470,41 @@ function parseState(value: unknown): ManagedServiceCatalog {
   };
 }
 
+function legacyIdentityName(profile: RangerProfile, identities: RangerIdentity[]) {
+  const identity = identities.find((candidate) => candidate.id === profile.identityId);
+  if (identity && legacyRangerIdentityNames.has(identity.name)) return identity.name;
+  return defaultRangerIdentities.find((candidate) => candidate.id === profile.identityId)?.name
+    ?? legacyRangerIdentityFallback;
+}
+
+function serializeCatalogForPreviousRelease(catalog: OpcCatalogContent) {
+  return {
+    ...catalog,
+    rangers: catalog.rangers.map((profile) => ({
+      ...profile,
+      identity: legacyIdentityName(profile, catalog.rangerIdentities),
+    })),
+  };
+}
+
+function serializeManagedServiceCatalog(state: ManagedServiceCatalog) {
+  return {
+    ...state,
+    draft: serializeCatalogForPreviousRelease(state.draft),
+    published: serializeCatalogForPreviousRelease(state.published),
+    publications: state.publications.map((publication) => ({
+      ...publication,
+      catalog: serializeCatalogForPreviousRelease(publication.catalog),
+    })),
+  };
+}
+
 const definition: StateDocumentDefinition<ManagedServiceCatalog> = {
   namespace: "opc-service-catalog",
   fileName: "opc-service-catalog.json",
   create: initialState,
   parse: parseState,
+  serialize: serializeManagedServiceCatalog,
 };
 
 export async function readPublishedServiceCatalog() {
@@ -412,6 +522,7 @@ export async function readManagedServiceCatalog() {
       publishedAt: publication.publishedAt,
       infrastructure: publication.catalog.infrastructure.length,
       specialties: publication.catalog.specialties.length,
+      rangerIdentities: publication.catalog.rangerIdentities.length,
       rangers: publication.catalog.rangers.length,
     })),
     validation: validateOpcCatalog(state.draft, true),
@@ -419,7 +530,7 @@ export async function readManagedServiceCatalog() {
 }
 
 export async function saveServiceCatalogDraft(catalog: unknown, expectedRevision: number) {
-  const normalized = normalizeOpcCatalog(catalog);
+  const normalized = normalizeCatalogMutation(catalog);
   const validation = validateOpcCatalog(normalized);
   if (!validation.valid) throw new ServiceCatalogValidationError(validation.errors);
   return mutateStateDocument(definition, (state) => {
@@ -438,7 +549,7 @@ export async function saveServiceCatalogDraft(catalog: unknown, expectedRevision
 }
 
 export async function publishServiceCatalog(catalog: unknown, expectedRevision: number) {
-  const normalized = normalizeOpcCatalog(catalog);
+  const normalized = normalizeCatalogMutation(catalog);
   const validation = validateOpcCatalog(normalized, true);
   if (!validation.valid) throw new ServiceCatalogValidationError(validation.errors);
   const missingAvatarObjects = (

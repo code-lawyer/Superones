@@ -7,9 +7,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
 import {
   infrastructureGroups,
-  rangerIdentities,
   specialtyDomains,
   type OpcService,
+  type RangerIdentity,
   type RangerProfile,
 } from "@/lib/opc-catalog";
 import { legacyRangerAvatarPublicUrl, rangerAvatarPublicUrl } from "@/lib/ranger-avatar";
@@ -20,6 +20,7 @@ type WorkspaceView = "infrastructure" | "specialties" | "rangers";
 type OpcWorkspaceProps = {
   infrastructure: OpcService[];
   specialties: OpcService[];
+  rangerIdentities: RangerIdentity[];
   rangers: RangerProfile[];
   orderingAvailable: boolean;
   rangerMediaOrigin: string;
@@ -57,6 +58,7 @@ function revealHeading(heading: HTMLHeadingElement | null) {
 export function OpcWorkspace({
   infrastructure,
   specialties,
+  rangerIdentities,
   rangers,
   orderingAvailable,
   rangerMediaOrigin,
@@ -80,16 +82,16 @@ export function OpcWorkspace({
     items: specialties.filter((service) => service.domain === domain),
   })), [specialties]);
   const rangerGroups = useMemo<RangerGroup[]>(() => rangerIdentities.map((identity) => {
-    const items = rangers.filter((profile) => profile.identity === identity);
+    const items = rangers.filter((profile) => profile.identityId === identity.id);
     return {
-      id: identity,
-      label: identity,
+      id: identity.id,
+      label: identity.name,
       note: items.length > 0
         ? items.flatMap((profile) => profile.tags).slice(0, 2).join(" / ")
         : "档案待补充",
       items,
     };
-  }), [rangers]);
+  }), [rangerIdentities, rangers]);
 
   const initialServices = initialView === "specialties" ? specialties : infrastructure;
   const initialService = initialView === "rangers" || !initialServiceSlug
@@ -210,7 +212,7 @@ export function OpcWorkspace({
         aria-label={`${viewCopy[view].title}详情`}
       >
         {view === "rangers"
-          ? <RangerShelf profiles={rangers} mediaOrigin={rangerMediaOrigin} />
+          ? <RangerShelf identities={rangerIdentities} profiles={rangers} mediaOrigin={rangerMediaOrigin} />
           : selectedService
             ? <ServiceReadingPane
               service={selectedService}
@@ -433,8 +435,12 @@ function ServiceReadingPane({ service, previousService, nextService, headingRef,
 
 const RANGER_SHELF_PAGE_SIZE = 6;
 
-function RangerShelf({ profiles, mediaOrigin }: { profiles: RangerProfile[]; mediaOrigin: string }) {
-  const entries = buildRangerShelfEntries(profiles);
+function RangerShelf({ identities, profiles, mediaOrigin }: {
+  identities: RangerIdentity[];
+  profiles: RangerProfile[];
+  mediaOrigin: string;
+}) {
+  const entries = buildRangerShelfEntries(profiles, identities);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const previousPagerRef = useRef<HTMLButtonElement>(null);
@@ -509,16 +515,31 @@ function RangerShelf({ profiles, mediaOrigin }: { profiles: RangerProfile[]; med
               id={panelId}
               aria-hidden={!active}
             >
-              <figure className={`opc-ranger-shelf__portrait opc-ranger-portrait--${entryIndex % rangerIdentities.length}`}>
-                {profile
-                  ? <RangerPortraitImage profile={profile} mediaOrigin={mediaOrigin} />
-                  : <span className="opc-ranger-portrait__image" aria-hidden="true" />}
-                <figcaption>
-                  <span>{entry.identity}</span>
-                  <strong>{publicName}</strong>
-                  {profile?.signature ? <p>{profile.signature}</p> : null}
-                </figcaption>
-              </figure>
+              {profile ? (
+                <Link
+                  className="opc-ranger-shelf__profile-link"
+                  href={`/opc/rangers/${profile.slug}`}
+                  tabIndex={active ? 0 : -1}
+                  aria-label={`查看${profile.publicName}的顾问详情`}
+                >
+                  <figure className={`opc-ranger-shelf__portrait opc-ranger-portrait--${entryIndex % Math.max(1, identities.length)}`}>
+                    <RangerPortraitImage profile={profile} mediaOrigin={mediaOrigin} />
+                    <figcaption>
+                      <span>{entry.identity.name}</span>
+                      <strong>{publicName}</strong>
+                      {profile.signature ? <p>{profile.signature}</p> : null}
+                    </figcaption>
+                  </figure>
+                </Link>
+              ) : (
+                <figure className={`opc-ranger-shelf__portrait opc-ranger-portrait--${entryIndex % Math.max(1, identities.length)}`}>
+                  <span className="opc-ranger-portrait__image" aria-hidden="true" />
+                  <figcaption>
+                    <span>{entry.identity.name}</span>
+                    <strong>{publicName}</strong>
+                  </figcaption>
+                </figure>
+              )}
             </div>
           </article>;
         })}

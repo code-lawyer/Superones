@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-08-13
+updated: 2026-08-14
 ---
 
 # Vault2077 文档权威索引
@@ -54,6 +54,7 @@ updated: 2026-08-13
 - [ADR-0020：OPC 在线确认协议与线下对公转账](adr/0020-opc-offline-bank-transfer-checkout.md)
 - [ADR-0021：OPC 退款申请与签约身份信息](adr/0021-opc-refund-request-and-contract-identity.md)
 - [ADR-0022：退役旧在线支付接入](adr/0022-retire-online-payment-integration.md)
+- [ADR-0023：顾问身份随 OPC 目录受控发布](adr/0023-managed-ranger-identities.md)
 
 ## 当前运行文档
 

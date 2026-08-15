@@ -231,7 +231,7 @@ test("ranger avatar cleanup retains replaced media for 30 days and revocation pu
     historicalCatalog.rangers.push({
       slug: "replaced-advisor",
       publicName: "已替换头像的顾问",
-      identity: "法律顾问",
+      identityId: "legal-advisor",
       avatar: replaced,
       intro: "公开简介。",
       tags: ["商业交易"],
