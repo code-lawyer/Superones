@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { OpcFeeNotePopover } from "@/components/opc-fee-note-popover";
 import {
   infrastructureGroups,
@@ -48,11 +48,14 @@ const viewCopy: Record<WorkspaceView, { code: string; title: string; note: strin
   rangers: { code: "03", title: "游骑兵协会", note: "直接联系外部独立顾问" },
 };
 
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function revealHeading(heading: HTMLHeadingElement | null) {
   if (!heading) return;
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   heading.focus({ preventScroll: true });
-  heading.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  heading.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
 }
 
 export function OpcWorkspace({
@@ -446,12 +449,31 @@ function RangerShelf({ identities, profiles, mediaOrigin }: {
   const previousPagerRef = useRef<HTMLButtonElement>(null);
   const nextPagerRef = useRef<HTMLButtonElement>(null);
   const pendingPagerFocusRef = useRef<"previous" | "next" | null>(null);
+  const itemRefs = useRef(new Map<string, HTMLElement>());
+  const pendingShelfMotionRef = useRef<{ rects: Map<string, DOMRect>; duration: number } | null>(null);
+  const shelfAnimationsRef = useRef<Animation[]>([]);
+  const keyboardModalityRef = useRef(false);
   const pageCount = Math.max(1, Math.ceil(entries.length / RANGER_SHELF_PAGE_SIZE));
   const pageStart = pageIndex * RANGER_SHELF_PAGE_SIZE;
   const visibleEntries = entries.slice(pageStart, pageStart + RANGER_SHELF_PAGE_SIZE);
   const fillerCount = Math.max(0, RANGER_SHELF_PAGE_SIZE - visibleEntries.length);
   const canPageBackward = pageIndex > 0;
   const canPageForward = pageIndex < pageCount - 1;
+
+  useEffect(() => {
+    const handleKeyboardModality = () => {
+      keyboardModalityRef.current = true;
+    };
+    const handlePointerModality = () => {
+      keyboardModalityRef.current = false;
+    };
+    document.addEventListener("keydown", handleKeyboardModality, true);
+    document.addEventListener("pointerdown", handlePointerModality, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyboardModality, true);
+      document.removeEventListener("pointerdown", handlePointerModality, true);
+    };
+  }, []);
 
   useEffect(() => {
     const preferredDirection = pendingPagerFocusRef.current;
@@ -463,8 +485,76 @@ function RangerShelf({ identities, profiles, mediaOrigin }: {
     pendingPagerFocusRef.current = null;
   }, [pageIndex]);
 
+  useLayoutEffect(() => {
+    const pendingMotion = pendingShelfMotionRef.current;
+    if (!pendingMotion) return;
+    pendingShelfMotionRef.current = null;
+
+    const measurements = [...itemRefs.current].flatMap(([key, element]) => {
+      const previous = pendingMotion.rects.get(key);
+      if (!previous) return [];
+      const next = element.getBoundingClientRect();
+      if (next.width <= 0 || previous.width <= 0) return [];
+      return [{ element, previous, next }];
+    });
+
+    shelfAnimationsRef.current = measurements.flatMap(({ element, previous, next }) => {
+      const translateX = previous.left - next.left;
+      const scaleX = previous.width / next.width;
+      if (Math.abs(translateX) < .5 && Math.abs(scaleX - 1) < .005) return [];
+      const outer = element.animate([
+        { transform: `translateX(${translateX}px) scaleX(${scaleX})`, transformOrigin: "left center" },
+        { transform: "none", transformOrigin: "left center" },
+      ], {
+        duration: pendingMotion.duration,
+        easing: "cubic-bezier(.16, 1, .3, 1)",
+      });
+      const innerAnimations = [...element.children].map((child) => child.animate([
+        { transform: `scaleX(${1 / scaleX})`, transformOrigin: "left center" },
+        { transform: "none", transformOrigin: "left center" },
+      ], {
+        duration: pendingMotion.duration,
+        easing: "cubic-bezier(.16, 1, .3, 1)",
+      }));
+      return [outer, ...innerAnimations];
+    });
+  }, [activeKey]);
+
+  useEffect(() => () => {
+    shelfAnimationsRef.current.forEach((animation) => animation.cancel());
+  }, []);
+
+  function changeActiveKey(nextKey: string | null) {
+    if (nextKey === activeKey) return;
+    const currentRects = prefersReducedMotion()
+      ? null
+      : new Map([...itemRefs.current].map(([key, element]) => [key, element.getBoundingClientRect()]));
+    shelfAnimationsRef.current.forEach((animation) => animation.cancel());
+    shelfAnimationsRef.current = [];
+    if (currentRects) {
+      pendingShelfMotionRef.current = {
+        rects: currentRects,
+        duration: nextKey ? 1_250 : 560,
+      };
+    }
+    setActiveKey(nextKey);
+  }
+
+  function focusedShelfKey() {
+    if (!keyboardModalityRef.current) return null;
+    const focusedElement = document.activeElement;
+    if (!(focusedElement instanceof HTMLElement)) return null;
+    for (const [key, element] of itemRefs.current) {
+      if (element.contains(focusedElement)) return key;
+    }
+    return null;
+  }
+
   const turnPage = (nextPage: number) => {
     pendingPagerFocusRef.current = nextPage > pageIndex ? "next" : "previous";
+    pendingShelfMotionRef.current = null;
+    shelfAnimationsRef.current.forEach((animation) => animation.cancel());
+    shelfAnimationsRef.current = [];
     setActiveKey(null);
     setPageIndex(nextPage);
   };
@@ -481,10 +571,10 @@ function RangerShelf({ identities, profiles, mediaOrigin }: {
         role="list"
         aria-label={`游骑兵姓名书架，第 ${pageIndex + 1} 页，共 ${pageCount} 页`}
         onPointerLeave={(event) => {
-          if (event.pointerType === "mouse") setActiveKey(null);
+          if (event.pointerType === "mouse") changeActiveKey(focusedShelfKey());
         }}
         onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setActiveKey(null);
+          if (!event.currentTarget.contains(event.relatedTarget)) changeActiveKey(null);
         }}
       >
         {visibleEntries.map((entry, index) => {
@@ -497,6 +587,10 @@ function RangerShelf({ identities, profiles, mediaOrigin }: {
             className={`opc-ranger-shelf__item${active ? " is-active" : ""}${profile ? "" : " is-template"}`}
             role="listitem"
             key={entry.key}
+            ref={(element) => {
+              if (element) itemRefs.current.set(entry.key, element);
+              else itemRefs.current.delete(entry.key);
+            }}
           >
             <button
               className="opc-ranger-shelf__spine"
@@ -504,9 +598,9 @@ function RangerShelf({ identities, profiles, mediaOrigin }: {
               aria-expanded={active}
               aria-controls={panelId}
               aria-label={`查看${publicName}`}
-              onClick={() => setActiveKey(entry.key)}
-              onFocus={() => setActiveKey(entry.key)}
-              onPointerEnter={() => setActiveKey(entry.key)}
+              onClick={() => changeActiveKey(entry.key)}
+              onFocus={() => changeActiveKey(entry.key)}
+              onPointerEnter={() => changeActiveKey(focusedShelfKey() ?? entry.key)}
             >
               <strong>{publicName}</strong>
             </button>

@@ -163,7 +163,7 @@ test("OPC selection feedback is concise and mobile users get an explicit detail 
   assert.match(workspace, /className="opc-service-browser__announcement" aria-live="polite"/);
   assert.doesNotMatch(workspace, /className="opc-service-browser__content"\s*\n\s*aria-live=/);
   assert.match(workspace, /查看服务详情/);
-  assert.match(workspace, /scrollIntoView\(\{ behavior: reduceMotion \? "auto" : "smooth"/);
+  assert.match(workspace, /scrollIntoView\(\{ behavior: prefersReducedMotion\(\) \? "auto" : "smooth"/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-service-browser__selected\s*\{[\s\S]*?display:\s*grid/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*?\.opc-accordion__item\s*\{[\s\S]*?width:\s*calc\(100% \+ \(var\(--opc-left-viewport-bleed\) \* 2\)\)/);
 });
@@ -361,8 +361,17 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(workspace, /<header className="opc-ranger-wall__intro">[\s\S]*?<div className=\{`opc-ranger-shelf-stage/);
   assert.match(workspace, /<h2>有些问题，不必一个人扛。<\/h2>/);
   assert.doesNotMatch(workspace, /下一位并肩的人|正在邀请|名单公开后|把鼠标移到名字上/);
-  assert.match(workspace, /onPointerEnter=\{\(\) => setActiveKey\(entry\.key\)\}/);
-  assert.match(workspace, /onPointerLeave=\{\(event\) => \{[\s\S]*?event\.pointerType === "mouse"[\s\S]*?setActiveKey\(null\)/);
+  assert.match(workspace, /onPointerEnter=\{\(\) => changeActiveKey\(focusedShelfKey\(\) \?\? entry\.key\)\}/);
+  assert.match(workspace, /function focusedShelfKey\(\)/);
+  assert.match(workspace, /const keyboardModalityRef = useRef\(false\)/);
+  assert.match(workspace, /document\.addEventListener\("keydown", handleKeyboardModality, true\)/);
+  assert.match(workspace, /document\.addEventListener\("pointerdown", handlePointerModality, true\)/);
+  assert.match(workspace, /if \(!keyboardModalityRef\.current\) return null/);
+  assert.doesNotMatch(workspace, /focusedElement\.matches\(":focus-visible"\)/);
+  assert.match(workspace, /onPointerLeave=\{\(event\) => \{[\s\S]*?event\.pointerType === "mouse"[\s\S]*?changeActiveKey\(focusedShelfKey\(\)\)/);
+  assert.match(workspace, /element\.animate\(\[/);
+  assert.match(workspace, /const currentRects = [\s\S]*?getBoundingClientRect\(\)[\s\S]*?shelfAnimationsRef\.current\.forEach\(\(animation\) => animation\.cancel\(\)\)/);
+  assert.doesNotMatch(styles, /transition:[^;]*(?:flex-grow|grid-template-columns|width)/);
   assert.match(workspace, /aria-expanded=\{active\}/);
   assert.match(workspace, /const publicName = profile\?\.publicName \?\? "待公开"/);
   assert.match(workspace, /<strong>\{publicName\}<\/strong>/);
@@ -384,7 +393,7 @@ test("OPC ranger shelf stays vertical, edge-aligned, and portrait-led", async ()
   assert.match(styles, /\.opc-ranger-shelf__pager--next span\s*\{[\s\S]*?animation:\s*opc-ranger-next-cue/);
   assert.match(styles, /\.opc-ranger-shelf__pager--previous span\s*\{[\s\S]*?animation:\s*opc-ranger-previous-cue/);
   assert.match(styles, /@keyframes opc-ranger-previous-cue/);
-  assert.match(styles, /\.opc-ranger-shelf\.has-active\s+\.opc-ranger-shelf__item\s*\{[\s\S]*?transition-duration:\s*1250ms, 1250ms/);
+  assert.match(workspace, /duration: nextKey \? 1_250 : 560/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__panel\s*\{[\s\S]*?visibility:\s*visible[\s\S]*?transition-duration:\s*560ms, 0s[\s\S]*?transition-delay:\s*380ms, 0s/);
   assert.match(styles, /\.opc-ranger-shelf__profile-link\s*\{[\s\S]*?display:\s*block[\s\S]*?height:\s*100%[\s\S]*?text-decoration:\s*none/);
   assert.match(styles, /\.opc-ranger-shelf__item\.is-active\s+\.opc-ranger-shelf__portrait\s+\.opc-ranger-portrait__image\s*\{[\s\S]*?transition-duration:\s*700ms, 1450ms/);

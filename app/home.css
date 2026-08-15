@@ -52,7 +52,7 @@
 .home-refined-hero__identity h1 {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: clamp(84px, 10.4vw, 160px);
+  font-size: var(--type-display-home-brand);
   font-weight: 650;
   letter-spacing: -0.04em;
   line-height: 0.88;

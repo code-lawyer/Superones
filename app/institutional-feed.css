@@ -317,6 +317,11 @@
 }
 
 .statement-row h3 {
+  margin: 0;
+}
+
+.statement-row__title {
+  display: block;
   width: 100%;
   min-width: 0;
   margin: 0 0 5px;
@@ -350,7 +355,7 @@
   color: var(--text-on-dark);
 }
 
-.statement-row__link:focus-visible h3 {
+.statement-row__link:focus-visible .statement-row__title {
   transform: translateX(7px);
 }
 
@@ -364,7 +369,7 @@
     color: var(--text-on-dark);
   }
 
-  .statement-row__link:hover h3 {
+  .statement-row__link:hover .statement-row__title {
     transform: translateX(7px);
   }
 }

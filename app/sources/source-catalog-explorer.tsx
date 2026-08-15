@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type {
   SourceCatalog,
   SourceCatalogItem,
@@ -76,6 +76,7 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
   const [query, setQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState<SourceCatalogSectionId | "all">("all");
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const visibleSections = useMemo(() => catalog.sections
     .filter((section) => selectedSection === "all" || section.id === selectedSection)
@@ -111,6 +112,11 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
     setOpenSections(new Set(catalog.sections.map((section) => section.id)));
   }
 
+  function clearSearch() {
+    setQuery("");
+    searchInputRef.current?.focus();
+  }
+
   return (
     <section className={styles.page} aria-label="数据源地图">
       <header className={`${styles.hero} shell`}>
@@ -130,22 +136,28 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
       </header>
 
       <section className={styles.routes} aria-label="按产品板块查看">
-        {catalog.sections.map((section) => (
-          <button
+        {catalog.sections.map((section) => {
+          const titleId = `source-route-${section.id}-title`;
+          return <article
             className={`${styles.route} ${selectedSection === section.id ? styles.routeActive : ""}`}
             data-section={section.id}
             key={section.id}
-            type="button"
-            onClick={() => showSection(section.id)}
           >
             <span className={`${styles.routeCode} mono`}>{section.code}</span>
             <div className={styles.routeMain}>
-              <h2>{section.label}</h2>
+              <h2 id={titleId}>{section.label}</h2>
               <span className={`${styles.routeCount} mono`}>{sourceCount(section)}</span>
             </div>
             <p>{section.description}</p>
-          </button>
-        ))}
+            <button
+              className={styles.routeAction}
+              type="button"
+              aria-label={`查看${section.label}来源`}
+              aria-pressed={selectedSection === section.id}
+              onClick={() => showSection(section.id)}
+            />
+          </article>;
+        })}
       </section>
 
       <div className={`${styles.toolbar} shell`} id="source-catalog">
@@ -154,12 +166,13 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
           <input
             className={styles.search}
             id="source-search"
+            ref={searchInputRef}
             type="search"
             value={query}
             placeholder="搜索名称、发布方、URL 或性质"
             onChange={(event) => setQuery(event.target.value)}
           />
-          {query ? <button className={styles.clearSearch} type="button" onClick={() => setQuery("")}>清除</button> : null}
+          {query ? <button className={styles.clearSearch} type="button" onClick={clearSearch}>清除</button> : null}
         </div>
         <span className={`${styles.resultCount} mono`}>{visibleCount} / {catalog.total} SOURCES</span>
         <button className={styles.expandButton} type="button" onClick={toggleAll}>
@@ -179,20 +192,22 @@ export function SourceCatalogExplorer({ catalog }: { catalog: SourceCatalog }) {
           const isSectionOpen = searching || openSections.has(section.id);
           const total = section.sources.length;
           return (
-            <section className={styles.section} data-section={section.id} key={section.id}>
-              <button
-                className={styles.sectionToggle}
-                type="button"
-                aria-expanded={isSectionOpen}
-                aria-controls={`source-section-${section.id}`}
-                onClick={() => toggleSection(section.id)}
-              >
+            <section className={styles.section} data-section={section.id} aria-labelledby={`source-section-${section.id}-title`} key={section.id}>
+              <header className={styles.sectionToggle}>
                 <span className={`${styles.sectionCode} mono`}>{section.code}</span>
-                <h2>{section.label}</h2>
+                <h2 id={`source-section-${section.id}-title`}>{section.label}</h2>
                 <p>{section.description}</p>
                 <strong className={`${styles.sectionTotal} mono`}>{total}</strong>
                 <span className={`${styles.chevron} ${isSectionOpen ? styles.chevronOpen : ""}`} aria-hidden="true">＋</span>
-              </button>
+                <button
+                  className={styles.sectionToggleAction}
+                  type="button"
+                  aria-expanded={isSectionOpen}
+                  aria-controls={`source-section-${section.id}`}
+                  aria-label={`${isSectionOpen ? "折叠" : "展开"}${section.label}来源`}
+                  onClick={() => toggleSection(section.id)}
+                />
+              </header>
               {isSectionOpen ? (
                 <div className={styles.sectionBody} id={`source-section-${section.id}`}>
                   <SourceTable sources={section.sources} sectionId={section.id} label={section.label} />

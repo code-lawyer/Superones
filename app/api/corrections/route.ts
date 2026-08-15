@@ -6,18 +6,9 @@ import {
 } from "@/lib/correction-store";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
+import { validateCorrectionFields } from "@/lib/correction-validation";
 
 export const runtime = "nodejs";
-
-function httpsUrl(value: unknown) {
-  if (typeof value !== "string") return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   const declaredLength = Number(request.headers.get("content-length"));
@@ -35,20 +26,18 @@ export async function POST(request: NextRequest) {
     const recordId = typeof body.recordId === "string" ? body.recordId.trim() : "";
     const pageUrl = typeof body.pageUrl === "string" ? body.pageUrl.trim() : "";
     const description = typeof body.description === "string" ? body.description.trim() : "";
-    const evidenceUrl = httpsUrl(body.evidenceUrl);
+    const evidenceUrl = typeof body.evidenceUrl === "string" ? body.evidenceUrl.trim() : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const fieldErrors = validateCorrectionFields({ recordId, pageUrl, description, evidenceUrl, email });
     if (
       !CORRECTION_ISSUE_TYPES.includes(issueType)
       || (recordType !== "event" && recordType !== "information")
-      || recordId.length < 1
-      || recordId.length > 180
-      || pageUrl.length > 500
-      || description.length < 12
-      || description.length > 1_500
-      || !evidenceUrl
-      || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      || Object.keys(fieldErrors).length > 0
     ) {
-      return NextResponse.json({ error: "请完整填写记录、问题说明和 HTTPS 原始依据。" }, { status: 400 });
+      return NextResponse.json({
+        error: "请修正标记的字段后重新提交。",
+        fieldErrors,
+      }, { status: 400 });
     }
     const result = await createCorrectionReport({
       issueType,

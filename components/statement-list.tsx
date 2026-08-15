@@ -45,16 +45,18 @@ export function RoadsideList({
       <div className="statement-list">
         {items.map((item) => (
           <article className="statement-row" key={item.slug}>
-            <button
-              className="statement-row__link"
-              type="button"
-              onClick={() => setSelected(item)}
-              aria-haspopup="dialog"
-              aria-label={`查看观点：${item.translatedTitle}`}
-            >
-              <h3>{item.translatedTitle}</h3>
-              <time dateTime={item.publishedAt ?? undefined}>{beijingTime(item.publishedAt)}</time>
-            </button>
+            <h3>
+              <button
+                className="statement-row__link"
+                type="button"
+                onClick={() => setSelected(item)}
+                aria-haspopup="dialog"
+                aria-label={`查看观点：${item.translatedTitle}`}
+              >
+                <span className="statement-row__title">{item.translatedTitle}</span>
+                <time dateTime={item.publishedAt ?? undefined}>{beijingTime(item.publishedAt)}</time>
+              </button>
+            </h3>
           </article>
         ))}
       </div>

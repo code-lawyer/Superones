@@ -102,6 +102,8 @@ record kind 只允许当前注册表批准的类型，例如 `information`、`pu
 
 旧 `/api/internal/content`、`/api/internal/content/process`、`/api/internal/sic/content`、`/api/internal/sic/snapshot` 已从运行时删除；不得恢复为兼容入口或第二套状态机。
 
+公开 SiC 分批读取只使用 `GET /api/public/sic-content`。接口仅接受固定内容组、非负 offset 与首屏为该组签发的快照 ID，每次最多且固定返回五条轻量公开投影，响应使用 `no-store`；各组独立校验快照与读取可用性，档案补充来源失败不得阻断论文、课程或播客。不得返回来源内部 ID、采集配置、发布者内部字段、发现 URL、运行报告或完整内容快照。当前组快照与请求 ID 不一致时返回 `409` 并要求刷新，不能从新快照继续同一列表。
+
 ## 4. Inbox 与处理状态
 
 批次状态固定为：

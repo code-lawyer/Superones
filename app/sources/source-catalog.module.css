@@ -92,8 +92,25 @@
 }
 
 .route:hover::before,
+.route:focus-within::before,
 .routeActive::before {
   transform: scaleX(1);
+}
+
+.routeAction,
+.sectionToggleAction {
+  position: absolute;
+  z-index: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  inset: 0;
+}
+
+.routeAction:focus-visible,
+.sectionToggleAction:focus-visible {
+  outline: 2px solid var(--carbon);
+  outline-offset: -4px;
 }
 
 .route[data-section="information-flow"] { --route-color: var(--atlas-intel); }
@@ -236,9 +253,10 @@
   background: var(--paper-bright);
 }
 
-.search:focus {
+.search:focus-visible {
   border-color: var(--carbon);
-  outline: 0;
+  outline: 2px solid var(--carbon);
+  outline-offset: 3px;
 }
 
 .clearSearch {
@@ -301,6 +319,7 @@
 .section[data-section="sic-rankings"] { --section-color: var(--atlas-signal); }
 
 .sectionToggle {
+  position: relative;
   display: grid;
   width: 100%;
   grid-template-columns: 150px minmax(220px, 0.85fr) minmax(320px, 1.6fr) 100px 32px;

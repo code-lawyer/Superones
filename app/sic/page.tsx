@@ -4,10 +4,8 @@ import { PageIntro } from "@/components/page-intro";
 import { SicOverview } from "@/components/sic-overview";
 import {
   getCachedDirectRankingBoards,
-  getCachedPublicContent,
-  getCachedSicContent,
 } from "@/lib/public-read-cache";
-import { addPublishedDocuments } from "@/lib/sic-content";
+import { getPublicSicSnapshot } from "@/lib/sic-public-snapshot";
 import { beijingTime } from "@/lib/feed-format";
 import type { SicBoard } from "@/lib/sic";
 
@@ -15,25 +13,14 @@ export const metadata: Metadata = { title: "SiC 学院" };
 export const dynamic = "force-dynamic";
 
 export default async function SicPage() {
-  const [sicResult, boardsResult, publicContent] = await Promise.all([
-    getCachedSicContent().then((value) => ({ value, unavailable: false }), () => ({
-      value: {
-        groups: { papers: [], documents: [], courses: [], podcasts: [] },
-        state: { updatedAt: null, itemCount: 0, sourceCount: 0, stale: false },
-        delayedSources: [],
-      },
-      unavailable: true,
-    })),
+  const [sicSnapshot, boardsResult] = await Promise.all([
+    getPublicSicSnapshot(),
     getCachedDirectRankingBoards().then(
       (value) => ({ value, unavailable: false }),
       () => ({ value: [], unavailable: true }),
     ),
-    getCachedPublicContent().then(
-      (value) => ({ value: value.information, unavailable: false }),
-      () => ({ value: [], unavailable: true }),
-    ),
   ]);
-  const sicContent = addPublishedDocuments(sicResult.value, publicContent.value);
+  const sicContent = sicSnapshot.content;
   const boards: SicBoard[] = boardsResult.value.map((board) => ({
     id: board.id.replace(/:/g, "-"),
     eyebrow: board.eyebrow,
@@ -67,11 +54,12 @@ export default async function SicPage() {
       <SicOverview
         content={sicContent.groups}
         boards={boards}
-        contentUnavailable={sicResult.unavailable}
-        documentsSupplementUnavailable={publicContent.unavailable}
+        contentUnavailable={sicSnapshot.contentUnavailable}
+        documentsSupplementUnavailable={sicSnapshot.documentsSupplementUnavailable}
         rankingsUnavailable={boardsResult.unavailable}
         delayedSources={sicContent.delayedSources ?? []}
         updatedLabel={updatedLabel}
+        snapshotIds={sicSnapshot.snapshotIds}
       />
     </>
   );

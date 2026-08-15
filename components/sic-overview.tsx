@@ -8,9 +8,12 @@
 
 import type { SicContentByGroup, SicDelayedSource } from "@/lib/sic-content";
 import type { SicBoard } from "@/lib/sic";
+import type { SicContentGroupId } from "@/lib/sic-content-types";
 import { decodeHtmlEntities } from "@/lib/decode-html-entities";
 import { sicContentGroups } from "@/lib/sic";
-import { SicContentGroups, SicProgressiveRecords } from "./sic-content-groups";
+import { toSicPublicRecord } from "@/lib/sic-public-projection";
+import { SicContentGroups } from "./sic-content-groups";
+import { SicProgressiveRecords } from "./sic-progressive-records";
 import { SicRankings } from "./sic-rankings";
 
 export function SicOverview({
@@ -21,6 +24,7 @@ export function SicOverview({
   rankingsUnavailable,
   delayedSources,
   updatedLabel,
+  snapshotIds,
 }: {
   content: SicContentByGroup;
   boards: SicBoard[];
@@ -29,6 +33,7 @@ export function SicOverview({
   rankingsUnavailable: boolean;
   delayedSources: SicDelayedSource[];
   updatedLabel: string;
+  snapshotIds: Record<SicContentGroupId, string>;
 }) {
   const lead = content.papers[0];
   const delayedPaperSources = delayedSources.filter((source) => source.group === "papers");
@@ -62,9 +67,12 @@ export function SicOverview({
         <aside className="sic-overview-papers" aria-label="更多论文">
           <header><span>更多论文</span><b>共 {content.papers.length} 篇</b></header>
           <SicProgressiveRecords
-            items={content.papers.slice(1)}
-            initialCount={3}
-            increment={5}
+            key={`papers:${snapshotIds.papers}`}
+            group="papers"
+            initialItems={content.papers.slice(1, 4).map(toSicPublicRecord)}
+            initialNextOffset={Math.min(4, content.papers.length)}
+            totalCount={content.papers.length}
+            snapshotId={snapshotIds.papers}
             label="论文"
             compact
             indexOffset={1}
@@ -96,6 +104,7 @@ export function SicOverview({
         unavailable={contentUnavailable}
         unavailableGroups={{ documents: documentsSupplementUnavailable }}
         delayedSources={delayedSources}
+        snapshotIds={snapshotIds}
       />
 
       <section className="sic-overview-end" id="sic-end" aria-labelledby="sic-end-title">

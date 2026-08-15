@@ -59,7 +59,7 @@ test("roadside rows show only viewpoints and time before opening the speech dial
   assert.doesNotMatch(feedPage, /getCachedPublicContent/);
   assert.doesNotMatch(roadsideList, /roadsideHref|from "next\/link"/);
   const rowButton = roadsideList.match(/<button[\s\S]*?className="statement-row__link"[\s\S]*?<\/button>/)?.[0] ?? "";
-  assert.match(rowButton, /<h3>\{item\.translatedTitle\}<\/h3>/);
+  assert.match(roadsideList, /<h3>[\s\S]*?<button[\s\S]*?<span className="statement-row__title">\{item\.translatedTitle\}<\/span>[\s\S]*?<\/button>[\s\S]*?<\/h3>/);
   assert.match(rowButton, /<time dateTime=\{item\.publishedAt \?\? undefined\}>\{beijingTime\(item\.publishedAt\)\}<\/time>/);
   assert.match(rowButton, /aria-label=\{`查看观点：\$\{item\.translatedTitle\}`\}/);
   assert.doesNotMatch(rowButton, /personName\(item\)|account\(item\)|statement-row__open|<header>/);
@@ -68,7 +68,7 @@ test("roadside rows show only viewpoints and time before opening the speech dial
   assert.match(roadsideList, /roadside-voice__statement/);
   assert.match(roadsideList, /item\.originPlatform === "x" \? 1_800 : 900/);
   assert.match(feedStyles, /\.statement-row__link\s*\{[\s\S]*?padding:\s*18px 0 20px;/);
-  assert.match(feedStyles, /\.statement-row h3\s*\{[\s\S]*?font-size:\s*var\(--type-body-large\);[\s\S]*?line-height:\s*1\.45;/);
+  assert.match(feedStyles, /\.statement-row__title\s*\{[\s\S]*?font-size:\s*var\(--type-body-large\);[\s\S]*?line-height:\s*1\.45;/);
 });
 
 test("information and roadside streams disclose five records at a time", () => {

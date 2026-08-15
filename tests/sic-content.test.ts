@@ -32,13 +32,15 @@ test("SiC reading groups keep only the newest update from each fixed source", ()
 });
 
 test("SiC page distinguishes data failures from legitimate empty results", async () => {
-  const [page, groups, rankings] = await Promise.all([
+  const [page, snapshot, groups, rankings] = await Promise.all([
     readFile(path.join(process.cwd(), "app", "sic", "page.tsx"), "utf8"),
+    readFile(path.join(process.cwd(), "lib", "sic-public-snapshot.ts"), "utf8"),
     readFile(path.join(process.cwd(), "components", "sic-content-groups.tsx"), "utf8"),
     readFile(path.join(process.cwd(), "components", "sic-rankings.tsx"), "utf8"),
   ]);
-  assert.match(page, /unavailable: true/);
-  assert.match(page, /sicResult\.unavailable/);
+  assert.match(snapshot, /contentUnavailable: sicResult\.unavailable/);
+  assert.match(snapshot, /documentsSupplementUnavailable: publicContent\.unavailable/);
+  assert.match(page, /sicSnapshot\.contentUnavailable/);
   assert.match(page, /boardsResult\.unavailable/);
   assert.match(groups, /固定来源读取失败/);
   assert.match(rankings, /没有把故障伪装成空榜/);

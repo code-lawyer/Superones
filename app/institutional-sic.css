@@ -23,7 +23,7 @@
 }
 
 .sic-overview-lead__mark strong {
-  font-size: clamp(88px, 10vw, 152px);
+  font-size: var(--type-display-sic-mark);
   font-weight: 700;
   letter-spacing: -.04em;
   line-height: .8;
@@ -283,6 +283,15 @@
 
 .sic-overview-more__count {
   font-variant-numeric: tabular-nums;
+}
+
+.sic-overview-more__error {
+  margin: 0;
+  border-top: 1px solid var(--rule);
+  padding: 12px 24px 14px;
+  color: var(--danger);
+  font-size: var(--type-small);
+  line-height: 1.55;
 }
 
 .sic-overview-papers .sic-overview-record summary {

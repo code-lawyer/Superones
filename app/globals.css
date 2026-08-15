@@ -31,6 +31,8 @@
   --type-reading: 17px;
   --type-lede: 18px;
   --type-title-small: 19px;
+  --type-display-home-brand: clamp(84px, 10.4vw, 160px);
+  --type-display-sic-mark: clamp(88px, 10vw, 152px);
   --type-opc-service-title: clamp(22px, 7cqw, 68px);
   --shell: 1480px;
   --gutter: clamp(22px, 4vw, 72px);
@@ -935,6 +937,7 @@ h3 {
   font-size: var(--type-note);
 }
 
+.form-field .form-error,
 .form-error {
   border-left: 3px solid var(--danger); /* impeccable-disable-line side-tab: semantic validation scale documented in DESIGN.md */
   padding-left: 12px;

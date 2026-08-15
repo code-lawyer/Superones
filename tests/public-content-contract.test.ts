@@ -42,18 +42,48 @@ test("public source and feed copy contain no retired community contract", async 
   assert.doesNotMatch([sourceExplorer, sourceBuilder, feedPage].join("\n"), /Hacker News 与 Lobsters|社区原生条目|个人与社区|个人或社区/);
 });
 
+test("source search clear returns keyboard focus to the persistent search field", async () => {
+  const explorer = await readFile(path.join(root, "app", "sources", "source-catalog-explorer.tsx"), "utf8");
+
+  assert.match(explorer, /const searchInputRef = useRef<HTMLInputElement>\(null\)/);
+  assert.match(explorer, /function clearSearch\(\)[\s\S]*?setQuery\(""\)[\s\S]*?searchInputRef\.current\?\.focus\(\)/);
+  assert.match(explorer, /id="source-search"[\s\S]*?ref=\{searchInputRef\}/);
+  assert.match(explorer, /onClick=\{clearSearch\}/);
+});
+
+test("SiC progressive records are remounted when their content-group snapshot changes", async () => {
+  const [groups, overview] = await Promise.all([
+    readFile(path.join(root, "components", "sic-content-groups.tsx"), "utf8"),
+    readFile(path.join(root, "components", "sic-overview.tsx"), "utf8"),
+  ]);
+
+  assert.match(groups, /<SicProgressiveRecords[\s\S]*?key=\{`\$\{group\.id\}:\$\{snapshotIds\[group\.id\]\}`\}/);
+  assert.match(overview, /<SicProgressiveRecords[\s\S]*?key=\{`papers:\$\{snapshotIds\.papers\}`\}/);
+});
+
+test("field errors keep the documented danger text treatment inside form fields", async () => {
+  const styles = await readFile(path.join(root, "app", "globals.css"), "utf8");
+
+  assert.match(styles, /\.form-field \.form-error,\s*\n\.form-error\s*\{[\s\S]*?color:\s*var\(--danger\)[\s\S]*?font-size:\s*var\(--type-nav\)/);
+});
+
 test("SiC route reads one aggregate content snapshot and platform rankings in parallel", async () => {
-  const [page, content, store] = await Promise.all([
+  const [page, snapshot, groups, content, store] = await Promise.all([
     readFile(path.join(root, "app", "sic", "page.tsx"), "utf8"),
+    readFile(path.join(root, "lib", "sic-public-snapshot.ts"), "utf8"),
+    readFile(path.join(root, "components", "sic-content-groups.tsx"), "utf8"),
     readFile(path.join(root, "lib", "sic-content.ts"), "utf8"),
     readFile(path.join(root, "lib", "sic-content-store.ts"), "utf8"),
   ]);
 
-  assert.match(page, /getCachedSicContent\(\)/);
+  assert.match(page, /getPublicSicSnapshot\(\)/);
   assert.match(page, /getCachedDirectRankingBoards\(\)/);
   assert.match(page, /Promise\.all/);
-  assert.match(page, /documentsSupplementUnavailable=\{publicContent\.unavailable\}/);
+  assert.match(page, /documentsSupplementUnavailable=\{sicSnapshot\.documentsSupplementUnavailable\}/);
   assert.doesNotMatch(page, /getCachedSicContentGroup|parseSicView/);
+  assert.match(snapshot, /getCachedSicContent\(\)/);
+  assert.match(snapshot, /getCachedPublicContent\(\)/);
+  assert.match(groups, /items\.slice\(0, 4\)\.map\(toSicPublicRecord\)/);
   assert.match(content, /getSicStoredContent\(\)/);
   assert.doesNotMatch(content, /getSicStoredContentGroup/);
   assert.doesNotMatch(store, /jsonb_array_elements\(document->'items'\)/);
