@@ -7,10 +7,10 @@ import { formatNumber } from "@/lib/number-format";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
 import { getFrontierSeasonLaunchState } from "@/lib/frontier-store";
-import { infrastructureServices, rangerProfiles, specialtyServices } from "@/lib/opc-catalog";
 import {
   getCachedDirectRankingBoards,
   getCachedFrontierRanking,
+  getCachedPublishedServiceCatalog,
   getCachedPublicContent,
   getCachedSicContent,
 } from "@/lib/public-read-cache";
@@ -40,43 +40,59 @@ function compactDateTime(value: string | null | undefined) {
 
 export default async function HomePage() {
   const frontierSeason = seasonForDate(new Date());
-  const [content, rankingBoards, sicContent, frontierRanking, frontierLaunchState] = await Promise.all([
-    getCachedPublicContent(),
-    getCachedDirectRankingBoards().catch(() => []),
-    getCachedSicContent().catch(() => null),
-    getCachedFrontierRanking(frontierSeason.code).catch(() => ({ rankings: [], updatedAt: null })),
-    getFrontierSeasonLaunchState(frontierSeason.code).catch(() => ({ writesEnabled: false })),
+  const [contentResult, rankingResult, sicResult, frontierRankingResult, frontierLaunchResult, opcResult] = await Promise.all([
+    getCachedPublicContent().then((value) => ({ value, unavailable: false }), () => ({ value: null, unavailable: true })),
+    getCachedDirectRankingBoards().then((value) => ({ value, unavailable: false }), () => ({ value: [], unavailable: true })),
+    getCachedSicContent().then((value) => ({ value, unavailable: false }), () => ({ value: null, unavailable: true })),
+    getCachedFrontierRanking(frontierSeason.code).then(
+      (value) => ({ value, unavailable: false }),
+      () => ({ value: { rankings: [], updatedAt: null }, unavailable: true }),
+    ),
+    getFrontierSeasonLaunchState(frontierSeason.code).then(
+      (value) => ({ value, unavailable: false }),
+      () => ({ value: { writesEnabled: false }, unavailable: true }),
+    ),
+    getCachedPublishedServiceCatalog().then(
+      (value) => ({ value, unavailable: false }),
+      () => ({ value: { infrastructure: [], specialties: [], rangers: [] }, unavailable: true }),
+    ),
   ]);
+  const content = contentResult.value;
+  const rankingBoards = rankingResult.value;
+  const sicContent = sicResult.value;
+  const frontierRanking = frontierRankingResult.value;
+  const frontierLaunchState = frontierLaunchResult.value;
+  const opcCatalog = opcResult.value;
   const githubToday = rankingBoards.find((board) => board.id === "github:today");
-  const latestEvents = [...content.events].sort(compareEventsNewest);
+  const latestEvents = [...(content?.events ?? [])].sort(compareEventsNewest);
   const opcEntries = [
     {
       href: "/opc?view=infrastructure",
-      code: `${infrastructureServices.length} INFRASTRUCTURES`,
+      code: `${opcCatalog.infrastructure.length} INFRASTRUCTURES`,
       name: "基础设施",
       summary: "把跨领域经营能力建设成可运行的完整交付。",
     },
     {
       href: "/opc?view=specialties",
-      code: `${specialtyServices.length} SPECIALTIES`,
+      code: `${opcCatalog.specialties.length} SPECIALTIES`,
       name: "专项服务",
       summary: "按六个专业领域解决一个边界清楚的问题。",
     },
     {
       href: "/opc?view=rangers",
-      code: `${rangerProfiles.length} RANGER IDENTITIES`,
+      code: `${opcCatalog.rangers.length} RANGER IDENTITIES`,
       name: "游骑兵协会",
       summary: "直接联系经基本核验的外部独立顾问。",
     },
   ];
-  const updatedAt = content.state.updatedAt
+  const updatedAt = content?.state.updatedAt
     ? new Intl.DateTimeFormat("zh-CN", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
         timeZone: "Asia/Shanghai",
       }).format(new Date(content.state.updatedAt))
-    : content.state.mode === "degraded" ? "服务降级" : "更新中";
+    : content?.state.mode === "degraded" ? "服务降级" : contentResult.unavailable ? "读取失败" : "更新中";
   const sicItems = sicContent
     ? Object.values(sicContent.groups).flat().sort((left, right) => {
         const leftTime = left.publishedAt ?? left.collectedAt;
@@ -92,11 +108,19 @@ export default async function HomePage() {
     podcasts: "播客",
   } as const;
   const homeData: HomeExperienceData = {
-    stateLabel: content.state.mode === "live"
+    stateLabel: content?.state.mode === "live"
       ? "最近一次成功发布"
-      : content.state.mode === "degraded" ? "服务降级" : "本地预览",
-    updatedAt: content.state.updatedAt ? `${compactDateTime(content.state.updatedAt)} CST` : updatedAt,
-    sourceCount: content.state.sourceCount,
+      : content?.state.mode === "degraded" ? "服务降级" : contentResult.unavailable ? "暂时无法更新" : "本地预览",
+    updatedAt: content?.state.updatedAt ? `${compactDateTime(content.state.updatedAt)} CST` : updatedAt,
+    sourceCount: content?.state.sourceCount ?? 0,
+    unavailable: {
+      feed: contentResult.unavailable,
+      opc: opcResult.unavailable,
+      sic: sicResult.unavailable,
+      rankings: rankingResult.unavailable,
+      frontierRanking: frontierRankingResult.unavailable,
+      frontierLaunch: frontierLaunchResult.unavailable,
+    },
     events: latestEvents.slice(0, 3).map((event) => ({
       slug: event.slug,
       category: eventCategory(event),

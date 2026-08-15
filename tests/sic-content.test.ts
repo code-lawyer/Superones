@@ -38,8 +38,8 @@ test("SiC page distinguishes data failures from legitimate empty results", async
     readFile(path.join(process.cwd(), "components", "sic-rankings.tsx"), "utf8"),
   ]);
   assert.match(page, /unavailable: true/);
-  assert.match(page, /storedSicResult\.unavailable/);
-  assert.match(page, /directBoardsResult\.unavailable/);
+  assert.match(page, /sicResult\.unavailable/);
+  assert.match(page, /boardsResult\.unavailable/);
   assert.match(groups, /固定来源读取失败/);
   assert.match(rankings, /没有把故障伪装成空榜/);
 });

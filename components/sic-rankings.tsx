@@ -1,117 +1,21 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatNumber } from "@/lib/number-format";
 import type { SicBoard } from "@/lib/sic";
 
-type BoardCardProps = {
-  board: SicBoard;
-  className?: string;
-  header?: ReactNode;
-  tabPanel?: { id: string; labelledBy: string };
-};
-
-function BoardCard({ board, className = "", header, tabPanel }: BoardCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [activeItem, setActiveItem] = useState<string | null>(null);
-  const [copiedItem, setCopiedItem] = useState<string | null>(null);
-  const [copyFailedItem, setCopyFailedItem] = useState<string | null>(null);
-  const displayItems = board.items.slice(0, 10);
-  const hasMore = board.items.length > 5;
-
-  async function copyAddress(itemId: string, address: string) {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(address);
-      setCopiedItem(itemId);
-      setCopyFailedItem(null);
-    } catch {
-      const field = document.createElement("textarea");
-      field.value = address;
-      field.setAttribute("readonly", "");
-      field.style.position = "fixed";
-      field.style.opacity = "0";
-      document.body.appendChild(field);
-      field.select();
-      const copied = document.execCommand("copy");
-      field.remove();
-      setCopiedItem(copied ? itemId : null);
-      setCopyFailedItem(copied ? null : itemId);
-    }
-  }
-
-  function showAddress(itemId: string, backId: string) {
-    setActiveItem(itemId);
-    setCopiedItem(null);
-    setCopyFailedItem(null);
-    requestAnimationFrame(() => document.getElementById(backId)?.focus());
-  }
-
-  function hideAddress(frontId: string) {
-    setActiveItem(null);
-    setCopiedItem(null);
-    setCopyFailedItem(null);
-    requestAnimationFrame(() => document.getElementById(frontId)?.focus());
-  }
-
-  return (
-    <section className={`sic-board sic-board--${board.id}${className ? ` ${className}` : ""}`} aria-labelledby={`${board.id}-title`}>
-      <header className="sic-board__header">
-        <div className="sic-board__meta mono"><p className="sic-board__eyebrow">{board.eyebrow}</p><span>TOP {expanded ? "10" : "5"}</span></div>
-        {header ?? <h2 id={`${board.id}-title`}>{board.title}</h2>}
-        <p className="sic-board__description">{board.description}</p>
-        {board.sourceUrl ? (
-          <p className="sic-board__source mono">
-            <a href={board.sourceUrl} target="_blank" rel="noreferrer">平台原始榜单</a>
-            {board.capturedAt ? <time dateTime={board.capturedAt}>{new Date(board.capturedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</time> : null}
-            {board.stale ? <span aria-label="该榜单正在显示上一次成功快照">STALE / 上次成功</span> : null}
-          </p>
-        ) : null}
-      </header>
-      <div className="sic-board__labels mono" aria-hidden="true"><span>项目 / 模型</span><span>{board.metric}</span></div>
-      <div {...(tabPanel ? { id: tabPanel.id, role: "tabpanel", "aria-labelledby": tabPanel.labelledBy } : {})}>
-        {displayItems.length > 0 ? (
-          <ol className="sic-board__list">
-            {displayItems.map((item, index) => {
-              const address = item.address ?? item.href ?? "";
-              const active = activeItem === item.id;
-              const visible = index < 5 || expanded;
-              const identity = `${board.id}-${index}`;
-              const frontId = `sic-board-front-${identity}`;
-              const backId = `sic-board-back-${identity}`;
-              return (
-              <li key={item.id} className={`sic-board__row${index >= 5 ? " sic-board__row--extra" : ""}${visible && index >= 5 ? " is-revealed" : ""}${active ? " is-active" : ""}`} aria-hidden={!visible}>
-                <div className="sic-board__flip">
-                  <button id={frontId} className="sic-board__face sic-board__face--front" type="button" onClick={() => showAddress(item.id, backId)} aria-expanded={active} tabIndex={!visible || active ? -1 : 0}>
-                    <span>{item.name}</span>
-                    <strong className="mono">{item.value === null ? `#${String(index + 1).padStart(2, "0")}` : formatNumber(item.value)}</strong>
-                  </button>
-                  <div className="sic-board__face sic-board__face--back" aria-hidden={!active || !visible}>
-                    <button id={backId} className="sic-board__address-return" type="button" onClick={() => hideAddress(frontId)} tabIndex={active && visible ? 0 : -1} title="返回项目名称">{address || "地址暂未提供"}</button>
-                    {address ? <button className="sic-board__copy" type="button" onClick={() => void copyAddress(item.id, address)} tabIndex={active && visible ? 0 : -1} aria-live="polite">{copiedItem === item.id ? "已复制" : copyFailedItem === item.id ? "复制失败" : "复制"}</button> : null}
-                  </div>
-                </div>
-              </li>
-              );
-            })}
-          </ol>
-        ) : <p className="sic-board__empty">{board.emptyMessage ?? "本期数据正在整理。"}</p>}
-      </div>
-      {hasMore ? (
-        <button
-          className="sic-board__toggle"
-          type="button"
-          onClick={() => { setExpanded((value) => !value); setActiveItem(null); setCopiedItem(null); setCopyFailedItem(null); }}
-          aria-expanded={expanded}
-          aria-label={expanded ? "收起至 Top 5" : "展开至 Top 10"}
-        >
-          <span className="sic-board__toggle-icon" aria-hidden="true" />
-          <span className="sic-visually-hidden">{expanded ? "收起至 Top 5" : "展开至 Top 10"}</span>
-        </button>
-      ) : null}
-    </section>
-  );
+function capturedAtLabel(value: string | null | undefined) {
+  if (!value) return "时间未记录";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "时间未记录";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Shanghai",
+  }).format(parsed).replaceAll("/", ".");
 }
 
 export function SicRankings({
@@ -121,17 +25,94 @@ export function SicRankings({
   boards: SicBoard[];
   unavailable?: boolean;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedIndex = boards.findIndex((board) => board.id === searchParams.get("board"));
+  const activeIndex = requestedIndex >= 0 ? requestedIndex : 0;
+  const boardCount = boards.length;
+
+  if (unavailable) {
+    return <p className="sic-overview-ranking__status" role="status">趋势榜读取失败；没有把故障伪装成空榜，请稍后重试。</p>;
+  }
+  if (!boardCount) return <p className="sic-overview-ranking__status">当前平台榜单暂不可用。</p>;
+
+  const move = (direction: -1 | 1) => {
+    const nextIndex = (activeIndex + direction + boardCount) % boardCount;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("view");
+    params.set("board", boards[nextIndex].id);
+    router.push(`${pathname}?${params.toString()}#sic-rankings`, { scroll: false });
+  };
+  const previousBoard = boards[(activeIndex - 1 + boardCount) % boardCount];
+  const activeBoard = boards[activeIndex];
+  const nextBoard = boards[(activeIndex + 1) % boardCount];
+
   return (
-    <div className="sic-ranking-rail" id="sic-rankings">
-      <header className="sic-ranking-rail__header">
-        <p className="eyebrow mono">LIVE INDEX / 实时坐标</p>
-        <h2>趋势榜</h2>
-      </header>
-      {unavailable ? (
-        <p className="sic-data-status" role="status">趋势榜读取失败；没有把故障伪装成空榜，请稍后重试。</p>
-      ) : null}
-      <div className="sic-ranking-stack">
-        {boards.map((board) => <BoardCard board={board} key={board.id} />)}
+    <div className="sic-overview-ranking" aria-label="平台趋势榜横向浏览">
+      <div className="sic-overview-ranking__controls">
+        <button type="button" onClick={() => move(-1)} aria-label={`查看上一个榜单：${previousBoard.title}`}>
+          <span className="sic-overview-ranking__triangle sic-overview-ranking__triangle--previous" aria-hidden="true" />
+        </button>
+        <span className="sic-overview-ranking__position" aria-live="polite">
+          <small title={previousBoard.title}>{previousBoard.title}</small>
+          <span>
+            <b title={activeBoard.title}>{activeBoard.title}</b>
+            <em>{String(activeIndex + 1).padStart(2, "0")} / {String(boardCount).padStart(2, "0")}</em>
+          </span>
+          <small title={nextBoard.title}>{nextBoard.title}</small>
+        </span>
+        <button type="button" onClick={() => move(1)} aria-label={`查看下一个榜单：${nextBoard.title}`}>
+          <span className="sic-overview-ranking__triangle sic-overview-ranking__triangle--next" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="sic-overview-ranking__viewport">
+        <div className="sic-overview-ranking__track" style={{ transform: `translate3d(-${activeIndex * 100}%, 0, 0)` }}>
+          {boards.map((board, boardIndex) => (
+            <section
+              className="sic-overview-ranking__slide"
+              aria-current={boardIndex === activeIndex ? "true" : undefined}
+              aria-hidden={boardIndex !== activeIndex}
+              key={board.id}
+            >
+              <header>
+                <span>{board.eyebrow}</span>
+                <h3>{board.title}</h3>
+                <div className="sic-overview-ranking__trust">
+                  <b>{board.stale ? "更新延迟" : "已采集"}</b>
+                  <time dateTime={board.capturedAt}>{capturedAtLabel(board.capturedAt)}</time>
+                  {board.sourceUrl ? (
+                    <a
+                      href={board.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      tabIndex={boardIndex === activeIndex ? 0 : -1}
+                      aria-label={`${board.title}原始榜单（在新标签页打开）`}
+                    >原始榜单 ↗</a>
+                  ) : null}
+                </div>
+                <small>TOP {Math.min(5, board.items.length)} · {board.metric}</small>
+              </header>
+              {board.items.length ? (
+                <ol>
+                  {board.items.slice(0, 5).map((item, itemIndex) => (
+                    <li key={item.id}>
+                      <span>{String(itemIndex + 1).padStart(2, "0")}</span>
+                      <a
+                        href={item.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        tabIndex={boardIndex === activeIndex ? 0 : -1}
+                        aria-label={`${item.name}（在新标签页打开）`}
+                      >{item.name}</a>
+                      <b>{item.value === null ? "—" : formatNumber(item.value)}</b>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="sic-overview-ranking__empty">{board.emptyMessage}</p>}
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );

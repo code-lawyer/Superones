@@ -1,5 +1,6 @@
 import "server-only";
 
+import sicSourceRegistry from "../config/sic-source-registry.json" with { type: "json" };
 import { acquisitionInboxHealth, acquisitionLaneFreshness } from "./acquisition-health.ts";
 import { configuredAcquisitionReceiver } from "./acquisition-inbox.ts";
 import { getStoredContent } from "./content-store.ts";
@@ -144,6 +145,18 @@ export async function getOperationsHealth() {
     status: sicFreshness.status,
     detail: `${sicFreshness.detail}; received=${queue?.latestByLane.sic?.lastReceivedAt ?? "none"}; processed=${queue?.latestByLane.sic?.lastProcessedAt ?? "none"}`,
   };
+  const approvedSicSourceIds = sicSourceRegistry.sources
+    .filter((source) => source.status === "approved")
+    .map((source) => source.id)
+    .sort();
+  const completedSicSourceIds = new Set(sic?.bootstrap.completedSourceIds ?? []);
+  const missingSicSourceIds = approvedSicSourceIds.filter((sourceId) => !completedSicSourceIds.has(sourceId));
+  checks.sicBootstrap = sic
+    ? {
+        status: missingSicSourceIds.length === 0 && sic.bootstrap.lastBootstrapAt ? "ok" : "degraded",
+        detail: `coverage=${approvedSicSourceIds.length - missingSicSourceIds.length}/${approvedSicSourceIds.length}; missing=${missingSicSourceIds.join(",") || "none"}; run=${sic.bootstrap.runId ?? "unknown"}; lastMode=${sic.bootstrap.lastRunMode ?? "unknown"}; lastBootstrap=${sic.bootstrap.lastBootstrapAt ?? "unknown"}`,
+      }
+    : { status: "degraded", detail: "SiC bootstrap state unavailable" };
   const rankingUpdatedAt = rankings
     ?.map((board) => board.capturedAt)
     .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;

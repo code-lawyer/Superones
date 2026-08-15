@@ -40,6 +40,7 @@ tmp/
 
 # Production deployment credentials and locally assembled release archives
 MIMO.pem
+vault2077.pem
 .ssh-key
 feishu-smtp-password.txt
 .vault2077-operations-memory.local.md

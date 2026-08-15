@@ -90,6 +90,14 @@ test("release artifacts are manually built on Linux without production secrets",
   assert.match(releaseWorkflow, /permissions:\s+contents: read/);
   assert.match(releaseWorkflow, /runs-on: ubuntu-latest/);
   assert.match(releaseWorkflow, /npm prune --omit=dev/);
+  assert.match(releaseWorkflow, /node-version: "24\.18\.1"/);
+  assert.match(releaseWorkflow, /npm audit --omit=dev --audit-level=high --registry=https:\/\/registry\.npmjs\.org/);
+  assert.match(releaseWorkflow, /cp -a \.next node_modules public config migrations scripts lib deploy package\.json package-lock\.json next\.config\.ts/);
+  assert.match(releaseWorkflow, /cp -a data\/bootstrap/);
+  assert.match(releaseWorkflow, /cp -a data\/defaults/);
+  assert.match(releaseWorkflow, /test ! -e "\$stage\/archive"/);
+  assert.match(releaseWorkflow, /test ! -e "\$stage\/docs"/);
+  assert.doesNotMatch(releaseWorkflow, /tar[\s\\]+--exclude/);
   assert.match(releaseWorkflow, /npm run bootstrap:verify/);
   assert.match(releaseWorkflow, /sha256sum/);
   assert.doesNotMatch(releaseWorkflow, /secrets\./);
@@ -108,6 +116,8 @@ test("full repository checks run outside collection jobs", () => {
   assert.doesNotMatch(workflow, /npm run lint|npm run typecheck|ruff check|unittest discover/);
   assert.match(qualityWorkflow, /cron: "30 22 \* \* \*"/);
   assert.match(qualityWorkflow, /npm run docs:check/);
+  assert.match(qualityWorkflow, /node-version: "24\.18\.1"/);
+  assert.match(qualityWorkflow, /npm audit --omit=dev --audit-level=high --registry=https:\/\/registry\.npmjs\.org/);
   assert.match(qualityWorkflow, /npm run lint/);
   assert.match(qualityWorkflow, /npm run typecheck/);
   assert.match(qualityWorkflow, /npm test/);
@@ -117,6 +127,27 @@ test("full repository checks run outside collection jobs", () => {
   assert.match(qualityWorkflow, /run-content-pipeline-e2e\.mjs/);
   assert.match(qualityWorkflow, /ruff check collector/);
   assert.match(qualityWorkflow, /unittest discover/);
+});
+
+test("all Node workflows use the approved runtime patch", () => {
+  for (const value of [workflow, qualityWorkflow, releaseWorkflow]) {
+    assert.match(value, /node-version: "24\.18\.1"/);
+    assert.doesNotMatch(value, /node-version: "24"/);
+  }
+});
+
+test("the production handoff installs every required Nginx boundary file", async () => {
+  const handoff = await readFile(
+    new URL("../docs/Vault2077-Aliyun-Mainland-Production-Handoff.md", import.meta.url),
+    "utf8",
+  );
+  for (const file of [
+    "vault2077-admin-proxy.conf",
+    "vault2077-edge-error-security.conf",
+    "vault2077-default-reject.conf",
+    "vault2077.conf",
+  ]) assert.ok(handoff.includes(file), file);
+  assert.match(handoff, /unlink \/etc\/nginx\/sites-enabled\/default/);
 });
 
 test("manual bootstrap is explicit while schedules remain incremental", () => {

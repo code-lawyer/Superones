@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -7,8 +8,13 @@ const root = process.cwd();
 
 test("runtime ranking snapshot is derived from the single bootstrap seed", async () => {
   const runner = await readFile(path.join(root, "scripts", "run-local-full-pipeline.mjs"), "utf8");
+  const trackedRuntimeSnapshot = execFileSync(
+    "git",
+    ["ls-files", "--", "data/direct-rankings.json"],
+    { cwd: root, encoding: "utf8" },
+  ).trim();
 
-  await assert.rejects(access(path.join(root, "data", "direct-rankings.json")));
+  assert.equal(trackedRuntimeSnapshot, "");
   assert.match(runner, /data["'], ["']bootstrap["'], ["']direct-rankings\.seed\.json/);
 });
 

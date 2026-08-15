@@ -334,12 +334,12 @@ sudo install -d -o root -g root -m 0700 /etc/vault2077
 
 ### 7.3 Node.js
 
-项目要求 Node `>=24.7.0`。当前工作区通过版本为 24.16.0；正式迁移时应使用构建记录中的同一 Node 24 补丁版本。模板将稳定运行时链接固定为 `/opt/node`，避免依赖个人 shell 的 nvm。以 x86_64 和 24.16.0 为例：
+项目要求 Node `>=24.7.0`。当前生产与 CI 固定版本为 24.18.1；正式迁移时应使用构建记录中的同一 Node 24 补丁版本。模板将稳定运行时固定在 `/opt/node`，避免依赖个人 shell 的 nvm。以 x86_64 和 24.18.1 为例：
 
 ```bash
 mkdir -p /tmp/vault2077-node
 cd /tmp/vault2077-node
-V2077_NODE_VERSION=24.16.0
+V2077_NODE_VERSION=24.18.1
 V2077_NODE_ARCH=linux-x64
 curl -fSLO "https://nodejs.org/dist/v${V2077_NODE_VERSION}/node-v${V2077_NODE_VERSION}-${V2077_NODE_ARCH}.tar.xz"
 curl -fSLO "https://nodejs.org/dist/v${V2077_NODE_VERSION}/SHASUMS256.txt"
@@ -384,20 +384,23 @@ npm run build
 npm prune --omit=dev
 ```
 
-然后从该干净 checkout 打包运行所需的完整仓库内容、`.next` 和生产 `node_modules`：
+然后只把运行所需的白名单内容装入暂存目录；文档、测试、归档、采集器源码、Git 元数据与过程性工具不得进入生产包：
 
 ```bash
-cd ..
-tar \
-  --exclude='vault2077-build/.git' \
-  --exclude='vault2077-build/.env*' \
-  --exclude='vault2077-build/tests' \
-  --exclude='vault2077-build/data/ranger-media' \
-  -czf vault2077-<commit>-linux-<arch>.tar.gz vault2077-build
+stage="$(mktemp -d)/vault2077-runtime"
+mkdir -p "$stage/data"
+cp -a .next node_modules public config migrations scripts lib deploy \
+  package.json package-lock.json next.config.ts "$stage/"
+cp -a data/bootstrap "$stage/data/"
+cp -a data/defaults "$stage/data/"
+test -f "$stage/.next/BUILD_ID"
+test ! -e "$stage/archive"
+test ! -e "$stage/docs"
+tar -C "$(dirname "$stage")" -czf vault2077-<commit>-linux-<arch>.tar.gz "$(basename "$stage")"
 sha256sum vault2077-<commit>-linux-<arch>.tar.gz > vault2077-<commit>-linux-<arch>.tar.gz.sha256
 ```
 
-`.env.example` 被排除不影响运行；仓库中的 `config/`、`migrations/`、`scripts/`、`lib/`、`data/bootstrap/`、`public/`、`.next/`、`package.json` 和生产 `node_modules/` 必须在包内。若采用 CI artifact，应对同一清单做等价校验。
+发布包中的固定清单是 `config/`、`migrations/`、`scripts/`、`lib/`、`deploy/`、`data/bootstrap/`、`data/defaults/`、`public/`、`.next/`、`package.json`、`package-lock.json`、`next.config.ts` 和生产 `node_modules/`。`data/defaults/` 是新数据库初始化 OPC 发布目录所需的只读 seed，不能用其他 `data/*.json` 预览状态替代。若采用 CI artifact，应对同一清单做等价校验。
 
 将发布包通过 SCP、堡垒机或私有 OSS 传到 VPS 的 `/tmp`。不要把生产发布包放进公开媒体 Bucket。
 
@@ -542,9 +545,15 @@ sudo systemctl daemon-reload
 ```bash
 sudo install -m 0644 deploy/nginx/vault2077-admin-proxy.conf.example \
   /etc/nginx/snippets/vault2077-admin-proxy.conf
+sudo install -m 0644 deploy/nginx/vault2077-edge-error-security.conf.example \
+  /etc/nginx/snippets/vault2077-edge-error-security.conf
+sudo install -m 0644 deploy/nginx/vault2077-default-reject.conf.example \
+  /etc/nginx/sites-available/vault2077-default-reject.conf
 sudo install -m 0644 deploy/nginx/vault2077.conf.example \
   /etc/nginx/sites-available/vault2077.conf
-sudo ln -s /etc/nginx/sites-available/vault2077.conf /etc/nginx/sites-enabled/vault2077.conf
+sudo test ! -e /etc/nginx/sites-enabled/default || sudo unlink /etc/nginx/sites-enabled/default
+sudo ln -sfn /etc/nginx/sites-available/vault2077-default-reject.conf /etc/nginx/sites-enabled/vault2077-default-reject.conf
+sudo ln -sfn /etc/nginx/sites-available/vault2077.conf /etc/nginx/sites-enabled/vault2077.conf
 ```
 
 编辑证书路径。`limit_req_zone` 必须位于 Nginx `http {}` 上下文；Ubuntu 的 `sites-enabled` 通常在该上下文 include，其他发行版不一定。然后：

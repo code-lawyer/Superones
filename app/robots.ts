@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+export const dynamic = "force-dynamic";
+
 function publicOrigin() {
   return (process.env.VAULT2077_PUBLIC_ORIGIN ?? "http://localhost:3000").replace(/\/$/, "");
 }

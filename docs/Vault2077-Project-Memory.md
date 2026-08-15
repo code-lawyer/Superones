@@ -1,7 +1,7 @@
 ---
 type: project-memory
 status: active
-updated: 2026-08-13
+updated: 2026-08-14
 ---
 
 # Vault2077 项目长期记忆
@@ -14,7 +14,7 @@ Vault2077 是面向超级个体与一人公司的公开网站，固定包含四�
 
 - Vault 信息流：资讯瀑布、永久事件簿、路边信息和可追溯证据。
 - OPC 服务台：结构化服务目录、游骑兵档案、无账号在线确认订单、线下对公转账及后台到账核验；退役在线渠道只保留中性只读历史凭证。
-- SiC 学院：论文、档案、课程、播客和平台原生榜。
+- SiC 学院：论文、平台原生榜、档案、课程和播客在同一连续聚合页展示；栏目 hash 与榜单查询状态可复制返回，平台原始口径和分组边界保持独立。
 - 边境计划：公开 GitHub 仓库报名、挑战、观察、排行、奖励与结算。
 
 公开用户不创建 Vault2077 账户。生产后台只有固定 owner，通过 `admin.superones.top` 上的原生 WebAuthn/Passkey 登录。公开内容采集和境内编辑发布分属两个信任域。
@@ -109,7 +109,9 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 - SiC 对提供方协议无效响应先在当前小批次内重试，再递归拆分定位；DNS、TLS、请求超时、额度和确定性 HTTP 错误等基础设施故障仍退出当前 worker，由 inbox 统一指数退避，避免一个偶发非 JSON 响应让整个大批次从头重做。
 - rankings 与 Frontier 的确定性核验、观察、排行和结算不进入模型。
 - information 保留最近 30 天；roadside、SiC 和平台榜按来源保留最近成功快照；事件保存不可变证据副本。
-- `/sic` 使用 `papers/documents/courses/podcasts/rankings` URL 视图，每次请求只读取和渲染当前视图所需数据；默认进入论文视图，避免所有长内容和榜单一次装入公开页面。
+- SiC 状态文档持久化最近运行模式、bootstrap 时间与逐 approved 来源完成集合；内部 health 只有在一次可证明的 bootstrap 覆盖全部 approved 来源后才把 SiC 基线判定为健康，增量刷新不会伪造首发完成证据。
+- SiC 当前运行目录包含 19 个 approved 来源；Follow Builders Blogs 因其 72 小时滚动 feed 允许合法空集合、不能提供 bootstrap 实证而处于 paused，待上游支持历史回填或再次产生可验证内容后复核恢复。
+- `/sic` 是单一连续聚合页：依次呈现论文主栏、平台趋势榜以及档案、课程和播客；页面一次读取当前公开快照，并以稳定锚点、榜单 `board` 查询参数和分批展开保留定位能力，不再要求用户切换独立视图。
 
 ### 4.4 Frontier
 
@@ -139,7 +141,7 @@ worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 
 当前 CI/CD 实际能力：
 
 - `quality-check.yml`：PR、`main` push、每日北京时间 06:30 和手工触发；运行文档、Lint、TypeScript、Node 测试、构建、两套 E2E、Ruff 和 Python 测试。
-- `build-release.yml`：仅手工触发；在 Ubuntu/Node 24 构建、裁剪开发依赖、产出 Linux x64 `tar.gz` 与 SHA-256，保留 14 天。
+- `build-release.yml`：仅手工触发；在 Ubuntu/Node 24.18.1 构建，重复运行文档、Lint、类型、测试、bootstrap 与生产依赖安全门禁，只把运行时白名单目录装入 Linux x64 `tar.gz` 并生成 SHA-256，保留 14 天。
 - `collect-content.yml`：定时/手工采集并可靠投递；产物和运行证据保留 30 天。
 
 仓库目前没有自动部署 workflow，也没有在 push 后登录 VPS 的 CD。现行部署是：从 GitHub 构建并下载 Linux 发布包 → 核验 SHA-256 → 解压到 `/srv/vault2077/releases/<release-id>` → 保留并重用 root-only `/etc/vault2077/production.env` → 停止业务 timers → 直接在新 release 绝对路径运行 `deploy:check`、模型探针、迁移和数据库集成测试 → 全部通过后原子切换 `/srv/vault2077/current` → 重启 Web → 验证 health 与四通道闭环 → 最后启用 timers／业务开关并公开切流。不得在门禁、探针或迁移前先切换 `current`。

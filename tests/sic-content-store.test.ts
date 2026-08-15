@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,7 +9,7 @@ import {
   mergeSicSourceReports,
   mergeSicStoredContent,
 } from "../lib/sic-content-store.ts";
-import { getSicContentGroup } from "../lib/sic-content.ts";
+import { getSicContent } from "../lib/sic-content.ts";
 import type { SicContentItem } from "../lib/sic-content-types.ts";
 
 function item(id: string, collectedAt: string): SicContentItem {
@@ -221,7 +221,95 @@ test("a first failed approved source with no items still marks its SiC group sta
     activeSourceIds: ["google-ml-courses"],
   });
 
-  const content = await getSicContentGroup("courses");
+  const content = await getSicContent();
   assert.deepEqual(content.groups.courses, []);
   assert.equal(content.state.stale, true);
+  assert.deepEqual((await getSicStoredContent()).bootstrap, {
+    runId: null,
+    completedSourceIds: [],
+    lastBootstrapAt: null,
+    lastRunMode: null,
+  });
+});
+
+test("a successful bootstrap records per-source baseline coverage", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-bootstrap-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+  const course = { ...item("bootstrap", "2026-08-14T00:00:00.000Z"), sourceId: "google-ml-courses" };
+  await writeFile(path.join(root, "sic-content-store.json"), JSON.stringify({
+    version: 2,
+    updatedAt: course.collectedAt,
+    items: [course],
+    reports: [],
+    sourceSnapshots: {},
+  }));
+  assert.deepEqual((await getSicStoredContent()).bootstrap.completedSourceIds, []);
+  await mergeSicStoredContent({
+    items: [course],
+    reports: [{ sourceId: "google-ml-courses", status: "success", collectedAt: course.collectedAt, itemCount: 1 }],
+    updatedAt: course.collectedAt,
+    snapshotId: "run:bootstrap",
+    activeSourceIds: ["google-ml-courses"],
+    runMode: "bootstrap",
+  });
+  assert.deepEqual((await getSicStoredContent()).bootstrap, {
+    runId: "run:bootstrap",
+    completedSourceIds: ["google-ml-courses"],
+    lastBootstrapAt: course.collectedAt,
+    lastRunMode: "bootstrap",
+  });
+});
+
+test("a partial same-run bootstrap revokes source completion", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-partial-bootstrap-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+  const course = { ...item("partial", "2026-08-14T00:00:00.000Z"), sourceId: "google-ml-courses" };
+  const base = {
+    updatedAt: course.collectedAt,
+    snapshotId: "run:bootstrap-shards",
+    activeSourceIds: ["google-ml-courses", "second-approved-source"],
+    runMode: "bootstrap" as const,
+  };
+  await mergeSicStoredContent({
+    ...base,
+    items: [course],
+    reports: [{ sourceId: course.sourceId, status: "success", collectedAt: course.collectedAt, itemCount: 1 }],
+  });
+  const afterFirstSource = (await getSicStoredContent()).bootstrap;
+  assert.deepEqual(afterFirstSource.completedSourceIds, [course.sourceId]);
+  assert.equal(afterFirstSource.lastBootstrapAt, null);
+  await mergeSicStoredContent({
+    ...base,
+    items: [],
+    reports: [{ sourceId: course.sourceId, status: "failure", collectedAt: course.collectedAt, itemCount: 0 }],
+  });
+  assert.deepEqual((await getSicStoredContent()).bootstrap.completedSourceIds, []);
 });
