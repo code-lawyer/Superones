@@ -59,13 +59,13 @@ export function SicOverview({
             >查看论文原文 ↗</a>
           </article>
         ) : <p className="sic-overview-empty">{contentUnavailable ? "论文读取失败；暂无可用缓存。" : "论文内容正在准备中。"}</p>}
-        {delayedPaperSources.length ? (
-          <p className="sic-overview-group__status" role="status">
-            论文更新延迟：{delayedPaperSources.map((source) => source.sourceName).join("、")}；当前展示上一成功快照。
-          </p>
-        ) : null}
         <aside className="sic-overview-papers" aria-label="更多论文">
           <header><span>更多论文</span><b>共 {content.papers.length} 篇</b></header>
+          {delayedPaperSources.length ? (
+            <p className="sic-overview-group__status" role="status">
+              论文更新延迟：{delayedPaperSources.map((source) => source.sourceName).join("、")}；当前展示上一成功快照。
+            </p>
+          ) : null}
           <SicProgressiveRecords
             key={`papers:${snapshotIds.papers}`}
             group="papers"
