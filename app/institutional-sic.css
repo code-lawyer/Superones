@@ -306,6 +306,12 @@
   padding-left: 24px;
 }
 
+@media (min-width: 821px) {
+  .sic-overview-papers .sic-overview-record--compact summary {
+    grid-template-columns: 42px minmax(12ch, 1fr) 40px;
+  }
+}
+
 .sic-overview-papers > .sic-overview-more {
   width: calc(100% + var(--sic-overview-bleed));
   margin-right: calc(var(--sic-overview-bleed) * -1);
