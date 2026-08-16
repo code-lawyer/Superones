@@ -160,12 +160,13 @@ npm run content:migrate-markup -- data/content-store.json data/bootstrap/content
 - 主处理提供方失败：达到既定阈值后切换该配置的受控备用，记录切换原因、起止时间、提供方/模型/提示版本；恢复主提供方前先以非发布探针验证。
 - 限流或熔断：保留队列并指数退避，不降低事实校验、绕过 Schema 或发布未经处理的原始内容。模型额度不设上限。
 - 初始化来源为空：检查连接器是否错误套用了日常时间窗口；不得用另一来源内容、演示数据或不合格条目代填。
+- SiC 已发布内容异常减少：先暂停 SiC 新消费并创建新的 RDS 恢复点，不让公开前端读取 inbox。运行 `npm run sic:rebuild-publications` 做只读 dry-run，核对 baseline run、已验证 inbox 物理批次数、合并后的重放运行数、当前各组数量与原始预计数量；正文摘要不一致、没有已处理 bootstrap 或预计非空组仍为空时停止。恢复规划会把历史同轮物理分片合并为一个逻辑运行，并按同来源最差完整性与合计条目数生成唯一报告，混合成功/部分/失败分片不会触发整来源替换或重复计数。迁移完成、`sic:initialize-publications` 已对齐且备份已确认后，从最近正常备份记录四组最低发布数，再运行 `npm run sic:rebuild-publications -- --apply --confirm=REBUILD_SIC_PUBLICATIONS --minimum-counts=papers=<n>,documents=<n>,courses=<n>,podcasts=<n>`。该命令保留当前条目供复用已验证编辑结果，但在临时文件库清空损坏的来源水位后按历史重放；候选低于任一备份下限即拒绝写入，随后仍以当前发布投影摘要作乐观锁，一次事务更新规范化表和兼容状态文档。不得直接把 raw inbox 暴露给页面或用 SQL 手工拼接公开 JSON。
 - Frontier 交互核验延迟：检查境内 GitHub 快速路径的超时、限流和凭证；失败记录必须已进入公开回退任务。
 - Frontier 排名延迟：检查境内每两小时白天观察、当前参赛名单、上一成功快照，以及 rankings 回退任务积压和签名 observation。
 
 ## 7. 备份与恢复
 
-预览文件不构成生产备份。生产 v1 备份 PostgreSQL 并定期实际恢复。information 只保留 30 天滚动窗口，其他非事件内容只保留最近成功快照；inbox 成功批次保留 30 天、隔离批次保留 180 天后自动清理。ADR-0016 的头像 OSS 不属于采集归档；若未来要把采集数据写入对象存储，仍必须通过新 ADR 定义范围。记录日期、负责人、恢复点、耗时和结果。
+预览文件不构成生产备份。生产 v1 备份 PostgreSQL 并定期实际恢复。information 只保留 30 天滚动窗口；SiC 规范化发布表保留当前 active 与被替换的 inactive 条目，其他非事件内容只保留最近成功公开集合。inbox 成功批次保留 30 天、隔离批次保留 180 天后自动清理，因此应用级 SiC 重放只能覆盖仍在 inbox 的时间窗；更早恢复依赖 RDS 时间点恢复。ADR-0016 的头像 OSS 不属于采集归档；若未来要把采集数据写入对象存储，仍必须通过新 ADR 定义范围。记录日期、负责人、恢复点、dry-run 差异、耗时和结果。
 
 ## 8. 健康检查
 

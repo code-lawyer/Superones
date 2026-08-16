@@ -3,8 +3,18 @@ import "server-only";
 import {
   mutateStateDocument,
   readStateDocument,
+  withPersistenceTransaction,
   type StateDocumentDefinition,
 } from "./state-document-store.ts";
+import {
+  sicContentIdentityKey,
+  sicContentProjectionDigest,
+} from "./sic-content-identity.ts";
+import {
+  normalizedSicPublicationStatus,
+  readNormalizedSicPublications,
+  syncNormalizedSicPublications,
+} from "./sic-publication-store.ts";
 import type { SicContentItem, SicContentState, SicSourceCollectionReport } from "./sic-content-types.ts";
 
 export type SicBootstrapState = {
@@ -14,7 +24,7 @@ export type SicBootstrapState = {
   lastRunMode: "bootstrap" | "incremental" | null;
 };
 
-type SicContentStore = {
+export type SicContentStore = {
   version: 3;
   updatedAt: string | null;
   items: SicContentItem[];
@@ -79,22 +89,12 @@ function state(store: SicContentStore): SicContentState {
 
 export async function getSicStoredContent() {
   const store = await readStore();
-  return { items: store.items, reports: store.reports, state: state(store), bootstrap: store.bootstrap };
+  const normalized = await readNormalizedSicPublications(store.items);
+  const selected = normalized ? { ...store, items: normalized } : store;
+  return { items: selected.items, reports: store.reports, state: state(selected), bootstrap: store.bootstrap };
 }
 
-export function sicContentIdentityKey(item: Pick<SicContentItem, "sourceId" | "canonicalId" | "url">) {
-  if (item.canonicalId) return `${item.sourceId}:canonical:${item.canonicalId}`;
-  try {
-    const url = new URL(item.url);
-    for (const key of [...url.searchParams.keys()]) {
-      if (key === "hl" || key.startsWith("utm_")) url.searchParams.delete(key);
-    }
-    url.hash = "";
-    return `${item.sourceId}:url:${url.toString()}`;
-  } catch {
-    return `${item.sourceId}:url:${item.url}`;
-  }
-}
+export { sicContentIdentityKey } from "./sic-content-identity.ts";
 
 export function mergeSicContentItems(
   current: SicContentItem[],
@@ -120,6 +120,17 @@ export function mergeSicContentItems(
   return [...merged.values()]
     .sort((left, right) => Date.parse(right.publishedAt ?? right.collectedAt) - Date.parse(left.publishedAt ?? left.collectedAt))
     .slice(0, 2_000);
+}
+
+export function retiredSicContentIdentityKeys(
+  previous: SicContentItem[],
+  next: SicContentItem[],
+) {
+  const nextIdentities = new Set(next.map((item) => sicContentIdentityKey(item)));
+  return previous
+    .map((item) => sicContentIdentityKey(item))
+    .filter((identity) => !nextIdentities.has(identity))
+    .sort();
 }
 
 export function mergeSicSourceReports(
@@ -162,68 +173,156 @@ export async function mergeSicStoredContent(input: {
   activeSourceIds?: string[];
   runMode?: "bootstrap" | "incremental";
 }) {
-  return mutateStateDocument(sicDocument, (current) => {
-    const collectedAt = input.updatedAt ?? new Date().toISOString();
-    const snapshotId = input.snapshotId ?? collectedAt;
-    if (input.activeSourceIds) {
-      const activeSourceIds = new Set(input.activeSourceIds);
-      current.items = current.items.filter((item) => activeSourceIds.has(item.sourceId));
-      current.reports = current.reports.filter((report) => activeSourceIds.has(report.sourceId));
-      for (const sourceId of Object.keys(current.sourceSnapshots)) {
-        if (!activeSourceIds.has(sourceId)) delete current.sourceSnapshots[sourceId];
-      }
-      current.bootstrap.completedSourceIds = current.bootstrap.completedSourceIds.filter((sourceId) => activeSourceIds.has(sourceId));
-    }
-    const incomingBySource = new Map<string, SicContentItem[]>();
-    for (const item of input.items) {
-      const values = incomingBySource.get(item.sourceId) ?? [];
-      values.push(item);
-      incomingBySource.set(item.sourceId, values);
-    }
-    const replaceSourceIds = new Set<string>();
-    const effectiveIncoming: SicContentItem[] = [];
-    for (const report of input.reports) {
-      if (report.status === "failure") continue;
-      const previous = current.sourceSnapshots[report.sourceId];
-      if (previous && Date.parse(collectedAt) < Date.parse(previous.collectedAt)) continue;
-      const incoming = incomingBySource.get(report.sourceId) ?? [];
-      if (report.itemCount > 0 && incoming.length === 0) continue;
-      replaceSourceIds.add(report.sourceId);
-      if (previous?.snapshotId === snapshotId) {
-        effectiveIncoming.push(...current.items.filter((item) => item.sourceId === report.sourceId));
-      }
-      effectiveIncoming.push(...incoming);
-      current.sourceSnapshots[report.sourceId] = { snapshotId, collectedAt };
-    }
-    current.items = mergeSicContentItems(current.items, effectiveIncoming, { replaceSourceIds });
-    current.updatedAt = Object.values(current.sourceSnapshots)
-      .map((snapshot) => snapshot.collectedAt)
-      .sort()
-      .at(-1) ?? current.updatedAt;
-    current.reports = mergeSicSourceReports(current.reports, input.reports);
-    if (input.runMode) current.bootstrap.lastRunMode = input.runMode;
-    if (input.runMode === "bootstrap") {
-      if (current.bootstrap.runId !== snapshotId) {
-        current.bootstrap.runId = snapshotId;
-        current.bootstrap.completedSourceIds = [];
-        current.bootstrap.lastBootstrapAt = null;
-      }
-      const completed = new Set(current.bootstrap.completedSourceIds);
-      for (const report of input.reports) {
-        const mergedReport = current.reports.find((candidate) => candidate.sourceId === report.sourceId);
-        if (mergedReport?.status === "success" && current.items.some((item) => item.sourceId === report.sourceId)) {
-          completed.add(report.sourceId);
-        } else {
-          completed.delete(report.sourceId);
+  return withPersistenceTransaction(async () => {
+    const merged = await mutateStateDocument(sicDocument, (current) => {
+      const previousItems = [...current.items];
+      const previousProjectionDigest = sicContentProjectionDigest(current.items);
+      const collectedAt = input.updatedAt ?? new Date().toISOString();
+      const snapshotId = input.snapshotId ?? collectedAt;
+      const retiredSourceIds: string[] = [];
+      if (input.activeSourceIds) {
+        const activeSourceIds = new Set(input.activeSourceIds);
+        retiredSourceIds.push(...new Set(current.items
+          .map((item) => item.sourceId)
+          .filter((sourceId) => !activeSourceIds.has(sourceId))));
+        current.items = current.items.filter((item) => activeSourceIds.has(item.sourceId));
+        current.reports = current.reports.filter((report) => activeSourceIds.has(report.sourceId));
+        for (const sourceId of Object.keys(current.sourceSnapshots)) {
+          if (!activeSourceIds.has(sourceId)) delete current.sourceSnapshots[sourceId];
         }
+        current.bootstrap.completedSourceIds = current.bootstrap.completedSourceIds.filter((sourceId) => activeSourceIds.has(sourceId));
       }
-      current.bootstrap.completedSourceIds = [...completed].sort();
-      const expectedSourceIds = input.activeSourceIds ?? [];
-      current.bootstrap.lastBootstrapAt = expectedSourceIds.length > 0
-        && expectedSourceIds.every((sourceId) => completed.has(sourceId))
-        ? collectedAt
-        : null;
-    }
-    return { items: current.items, reports: current.reports, state: state(current), bootstrap: current.bootstrap };
+      const incomingBySource = new Map<string, SicContentItem[]>();
+      for (const item of input.items) {
+        const values = incomingBySource.get(item.sourceId) ?? [];
+        values.push(item);
+        incomingBySource.set(item.sourceId, values);
+      }
+      const replaceSourceIds = new Set<string>();
+      const effectiveIncoming: SicContentItem[] = [];
+      for (const report of input.reports) {
+        if (report.status === "failure" || report.status === "empty") continue;
+        const previous = current.sourceSnapshots[report.sourceId];
+        if (previous && Date.parse(collectedAt) < Date.parse(previous.collectedAt)) continue;
+        const incoming = incomingBySource.get(report.sourceId) ?? [];
+        if (report.itemCount > 0 && incoming.length === 0) continue;
+        if (report.status === "success") replaceSourceIds.add(report.sourceId);
+        if (previous?.snapshotId === snapshotId) {
+          effectiveIncoming.push(...current.items.filter((item) => item.sourceId === report.sourceId));
+        }
+        effectiveIncoming.push(...incoming);
+        current.sourceSnapshots[report.sourceId] = { snapshotId, collectedAt };
+      }
+      current.items = mergeSicContentItems(current.items, effectiveIncoming, { replaceSourceIds });
+      const changedIdentities = new Set(effectiveIncoming.map((item) => sicContentIdentityKey(item)));
+      const changedItems = current.items.filter((item) => changedIdentities.has(sicContentIdentityKey(item)));
+      current.updatedAt = Object.values(current.sourceSnapshots)
+        .map((snapshot) => snapshot.collectedAt)
+        .sort()
+        .at(-1) ?? current.updatedAt;
+      current.reports = mergeSicSourceReports(current.reports, input.reports);
+      if (input.runMode) current.bootstrap.lastRunMode = input.runMode;
+      if (input.runMode === "bootstrap") {
+        if (current.bootstrap.runId !== snapshotId) {
+          current.bootstrap.runId = snapshotId;
+          current.bootstrap.completedSourceIds = [];
+          current.bootstrap.lastBootstrapAt = null;
+        }
+        const completed = new Set(current.bootstrap.completedSourceIds);
+        for (const report of input.reports) {
+          const mergedReport = current.reports.find((candidate) => candidate.sourceId === report.sourceId);
+          if (mergedReport?.status === "success" && current.items.some((item) => item.sourceId === report.sourceId)) {
+            completed.add(report.sourceId);
+          } else {
+            completed.delete(report.sourceId);
+          }
+        }
+        current.bootstrap.completedSourceIds = [...completed].sort();
+        const expectedSourceIds = input.activeSourceIds ?? [];
+        current.bootstrap.lastBootstrapAt = expectedSourceIds.length > 0
+          && expectedSourceIds.every((sourceId) => completed.has(sourceId))
+          ? collectedAt
+          : null;
+      }
+      return {
+        result: { items: current.items, reports: current.reports, state: state(current), bootstrap: current.bootstrap },
+        sourceSnapshots: current.sourceSnapshots,
+        previousProjectionDigest,
+        changedItems,
+        retiredIdentityKeys: retiredSicContentIdentityKeys(previousItems, current.items),
+        authoritativeSourceIds: [...replaceSourceIds],
+        retiredSourceIds,
+      };
+    });
+    await syncNormalizedSicPublications({
+      items: merged.result.items,
+      sourceSnapshots: merged.sourceSnapshots,
+      previousProjectionDigest: merged.previousProjectionDigest,
+      changedItems: merged.changedItems,
+      retiredIdentityKeys: merged.retiredIdentityKeys,
+      authoritativeSourceIds: merged.authoritativeSourceIds,
+      retiredSourceIds: merged.retiredSourceIds,
+    });
+    return merged.result;
+  });
+}
+
+export async function initializeNormalizedSicPublications() {
+  return withPersistenceTransaction(async () => {
+    const store = await readStore();
+    await syncNormalizedSicPublications({
+      items: store.items,
+      sourceSnapshots: store.sourceSnapshots,
+      replaceAll: true,
+    });
+    return state(store);
+  });
+}
+
+export async function getSicRecoveryProjection() {
+  return readStore();
+}
+
+export async function getSicPublicationStorageStatus() {
+  const store = await readStore();
+  const storage = await normalizedSicPublicationStatus(store.items);
+  const activeBySource = new Map<string, number>();
+  for (const item of store.items) activeBySource.set(item.sourceId, (activeBySource.get(item.sourceId) ?? 0) + 1);
+  return {
+    ...storage,
+    sources: store.reports.map((report) => ({
+      sourceId: report.sourceId,
+      latestStatus: report.status,
+      latestAttemptAt: report.collectedAt,
+      lastAcceptedAt: store.sourceSnapshots[report.sourceId]?.collectedAt ?? null,
+      activeCount: activeBySource.get(report.sourceId) ?? 0,
+    })),
+  };
+}
+
+export async function replaceSicRecoveryProjection(input: {
+  projection: SicContentStore;
+  expectedCurrentDigest: string;
+}) {
+  const candidate = parseStore(input.projection);
+  return withPersistenceTransaction(async () => {
+    const replaced = await mutateStateDocument(sicDocument, (current) => {
+      if (sicContentProjectionDigest(current.items) !== input.expectedCurrentDigest) {
+        throw new Error("SiC 当前发布内容已在恢复期间变化；拒绝覆盖，请重新执行 dry-run。");
+      }
+      current.version = candidate.version;
+      current.updatedAt = candidate.updatedAt;
+      current.items = candidate.items;
+      current.reports = candidate.reports;
+      current.sourceSnapshots = candidate.sourceSnapshots;
+      current.bootstrap = candidate.bootstrap;
+      return state(current);
+    });
+    await syncNormalizedSicPublications({
+      items: candidate.items,
+      sourceSnapshots: candidate.sourceSnapshots,
+      replaceAll: true,
+    });
+    return replaced;
   });
 }

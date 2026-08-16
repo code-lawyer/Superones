@@ -99,7 +99,7 @@ export function packAcquisitionGroups(
   context: AcquisitionBuildContext,
   groups: AcquisitionSourceGroup[],
   batchPrefix: string,
-  options: { maxRecords?: number } = {},
+  options: { maxRecords?: number; partitionOversizedSources?: boolean } = {},
 ) {
   const maxRecords = Math.min(
     MAX_ACQUISITION_RECORDS,
@@ -167,6 +167,9 @@ export function packAcquisitionGroups(
 
   const partitioned = guardedGroups.flatMap((group) => {
     if (group.records.length <= maxRecords) return [group];
+    if (options.partitionOversizedSources === false) {
+      throw new Error(`来源 ${group.report.sourceId} 的 ${group.records.length} 条记录超过单批安全上限 ${maxRecords}；拒绝拆分权威来源快照。`);
+    }
     const parts: AcquisitionSourceGroup[] = [];
     for (let start = 0; start < group.records.length; start += maxRecords) {
       parts.push({ report: group.report, records: group.records.slice(start, start + maxRecords) });
@@ -379,7 +382,7 @@ export function buildSicAcquisitionBatches(input: {
     input.context,
     groups,
     `acquisition:${input.context.runId}:sic`,
-    { maxRecords: input.maxRecords },
+    { maxRecords: input.maxRecords, partitionOversizedSources: false },
   );
 }
 

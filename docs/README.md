@@ -1,7 +1,7 @@
 ---
 type: index
 status: active
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # Vault2077 文档权威索引
@@ -55,6 +55,7 @@ updated: 2026-08-14
 - [ADR-0021：OPC 退款申请与签约身份信息](adr/0021-opc-refund-request-and-contract-identity.md)
 - [ADR-0022：退役旧在线支付接入](adr/0022-retire-online-payment-integration.md)
 - [ADR-0023：顾问身份随 OPC 目录受控发布](adr/0023-managed-ranger-identities.md)
+- [ADR-0024：SiC 逐条发布存储与非破坏性来源更新](adr/0024-normalized-sic-publications.md)
 
 ## 当前运行文档
 

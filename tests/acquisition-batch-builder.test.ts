@@ -121,6 +121,34 @@ test("SiC acquisition packets preserve the Hugging Face weekly ranking fields", 
   assert.equal(batches[0].records[0].payload.weeklyUpvotes, 40);
 });
 
+test("SiC refuses to split one authoritative source snapshot across batches", () => {
+  const collectedAt = context.collectedAt;
+  const items = ["one", "two"].map((id) => ({
+    id,
+    sourceId: "course-source",
+    group: "courses" as const,
+    sourceName: "Course source",
+    publisher: "Publisher",
+    title: id,
+    summary: id,
+    sourceMaterial: id,
+    url: `https://example.com/${id}`,
+    publishedAt: null,
+    collectedAt,
+  }));
+  assert.throws(() => buildSicAcquisitionBatches({
+    context: { ...context, lane: "sic", scheduleId: "schedule:test:sic" },
+    collection: {
+      version: 1,
+      collectedAt,
+      items,
+      reports: [{ sourceId: "course-source", status: "success", collectedAt, itemCount: 2 }],
+    },
+    adapterBySource: new Map([["course-source", "official-api"]]),
+    maxRecords: 1,
+  }), /拒绝拆分权威来源快照/);
+});
+
 test("Vault adapter removes exact duplicates repeated across legacy packets", () => {
   const duplicate = structuredClone(packet());
   duplicate.batchId = "legacy:packet:2";

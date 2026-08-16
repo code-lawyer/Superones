@@ -18,6 +18,8 @@
     "test:acquisition:e2e": "npm run build && node scripts/run-acquisition-inbox-e2e.mjs",
     "content:validate-packets": "node --experimental-strip-types scripts/validate-content-packets.ts",
     "db:migrate": "node scripts/migrate-database.mjs",
+    "sic:initialize-publications": "node --conditions=react-server --experimental-strip-types scripts/initialize-sic-publications.ts",
+    "sic:rebuild-publications": "node --conditions=react-server --experimental-strip-types scripts/rebuild-sic-publications.ts",
     "test:postgres:integration": "node --conditions=react-server --experimental-strip-types scripts/test-postgres-integration.ts",
     "admin:hash-password": "node scripts/hash-admin-password.mjs",
     "admin:passkey:enroll": "node --conditions=react-server --experimental-strip-types scripts/create-admin-passkey-enrollment.ts",

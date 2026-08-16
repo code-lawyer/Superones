@@ -13,8 +13,10 @@ import { withinDurableRateLimit } from "../lib/rate-limit.ts";
 import {
   closePersistencePool,
   configuredPostgresPool,
+  configuredPostgresWriter,
   mutateStateDocument,
   readStateDocument,
+  withPersistenceTransaction,
   type StateDocumentDefinition,
 } from "../lib/state-document-store.ts";
 import {
@@ -22,6 +24,7 @@ import {
   readAdminSession,
   revokeAdminSession,
 } from "../lib/admin-session-store.ts";
+import { syncNormalizedSicPublications } from "../lib/sic-publication-store.ts";
 
 if (!process.env.VAULT2077_DATABASE_URL && !process.env.DATABASE_URL) {
   throw new Error("PostgreSQL 集成测试需要 VAULT2077_DATABASE_URL。");
@@ -96,6 +99,49 @@ try {
     })
   )));
   assert.equal((await readStateDocument(counterDocument)).count, 20, "state-document row lock lost an update");
+
+  const sicSchema = await pool.query<{ publications: string | null; meta: string | null }>(
+    `SELECT
+       to_regclass('public.vault2077_sic_published_items')::text AS publications,
+       to_regclass('public.vault2077_sic_publication_meta')::text AS meta`,
+  );
+  assert.ok(sicSchema.rows[0]?.publications && sicSchema.rows[0]?.meta, "SiC publication schema missing");
+  const integrationSicSourceId = `integration-sic:${testId}`;
+  const integrationSicIdentity = `${integrationSicSourceId}:canonical:item`;
+  await assert.rejects(
+    withPersistenceTransaction(async () => {
+      await syncNormalizedSicPublications({
+        items: [{
+          id: "item",
+          sourceId: integrationSicSourceId,
+          group: "courses",
+          sourceName: "Integration",
+          publisher: "Integration",
+          title: "Integration",
+          summary: "Integration",
+          url: "https://example.invalid/integration",
+          publishedAt: null,
+          collectedAt: new Date().toISOString(),
+          canonicalId: "item",
+        }],
+        sourceSnapshots: {
+          [integrationSicSourceId]: { snapshotId: `integration:${testId}`, collectedAt: new Date().toISOString() },
+        },
+        authoritativeSourceIds: [integrationSicSourceId],
+      });
+      const inserted = await (await configuredPostgresWriter()).query(
+        "SELECT 1 FROM vault2077_sic_published_items WHERE identity_key = $1 AND active",
+        [integrationSicIdentity],
+      );
+      assert.equal(inserted.rowCount, 1);
+      throw new Error("ROLLBACK_INTEGRATION_SIC");
+    }),
+    /ROLLBACK_INTEGRATION_SIC/,
+  );
+  assert.equal((await pool.query(
+    "SELECT 1 FROM vault2077_sic_published_items WHERE identity_key = $1",
+    [integrationSicIdentity],
+  )).rowCount, 0, "SiC publication transaction did not roll back");
 
   const receiverOne = createPostgresAcquisitionReceiver({
     sharedSecret: secret,
@@ -174,6 +220,7 @@ try {
     durableRateLimit: "enforced",
     immutableAudit: "enforced",
     revocableAdminSession: "enforced",
+    sicPublicationTransaction: "enforced",
   }));
 } finally {
   await pool.query("DELETE FROM vault2077_acquisition_inbox WHERE batch_id = ANY($1::text[])", [batchIds]).catch(() => undefined);

@@ -7,7 +7,10 @@ import { getStoredContent } from "./content-store.ts";
 import { getDirectRankingBoards, getDirectRankingSourceReports } from "./direct-rankings.ts";
 import { frontierObservationTaskStats } from "./frontier-public-tasks.ts";
 import { loadEditorialProfileConfig, type EditorialProfileId } from "./openai-compatible-client.ts";
-import { getSicStoredContent } from "./sic-content-store.ts";
+import {
+  getSicPublicationStorageStatus,
+  getSicStoredContent,
+} from "./sic-content-store.ts";
 import { configuredPostgresPool, persistenceMode } from "./state-document-store.ts";
 
 type HealthCheck = {
@@ -62,7 +65,7 @@ export async function getOperationsHealth() {
       );
       const latestMigration = migration.rows[0]?.name ?? "none";
       checks.database = {
-        status: latestMigration === "0007_retire_online_payment_channel.sql" ? "ok" : "degraded",
+        status: latestMigration === "0008_sic_published_items.sql" ? "ok" : "degraded",
         detail: `latest=${latestMigration}; ${Date.now() - startedAt}ms`,
       };
     } else {
@@ -78,10 +81,11 @@ export async function getOperationsHealth() {
     };
   }
 
-  const [queue, content, sic, rankings, rankingReports, frontierTasks] = await Promise.all([
+  const [queue, content, sic, sicPublicationStorage, rankings, rankingReports, frontierTasks] = await Promise.all([
     safely(() => configuredAcquisitionReceiver().health()),
     safely(() => getStoredContent()),
     safely(() => getSicStoredContent()),
+    safely(() => getSicPublicationStorageStatus()),
     safely(() => getDirectRankingBoards()),
     safely(() => getDirectRankingSourceReports()),
     safely(() => frontierObservationTaskStats()),
@@ -157,6 +161,14 @@ export async function getOperationsHealth() {
         detail: `coverage=${approvedSicSourceIds.length - missingSicSourceIds.length}/${approvedSicSourceIds.length}; missing=${missingSicSourceIds.join(",") || "none"}; run=${sic.bootstrap.runId ?? "unknown"}; lastMode=${sic.bootstrap.lastRunMode ?? "unknown"}; lastBootstrap=${sic.bootstrap.lastBootstrapAt ?? "unknown"}`,
       }
     : { status: "degraded", detail: "SiC bootstrap state unavailable" };
+  checks.sicPublicationStorage = sicPublicationStorage
+    ? {
+        status: mode !== "postgresql" || (sicPublicationStorage.initialized && sicPublicationStorage.aligned)
+          ? "ok"
+          : "degraded",
+        detail: `initialized=${sicPublicationStorage.initialized}; aligned=${sicPublicationStorage.aligned}; active=${sicPublicationStorage.activeCount}; groups=${Object.entries(sicPublicationStorage.activeByGroup).map(([group, count]) => `${group}:${count}`).join(",")}; sources=${sicPublicationStorage.sources.map((source) => `${source.sourceId}:${source.latestStatus}:active=${source.activeCount}:accepted=${source.lastAcceptedAt ?? "none"}`).join("|") || "none"}`,
+      }
+    : { status: "degraded", detail: "SiC publication storage unavailable" };
   const rankingUpdatedAt = rankings
     ?.map((board) => board.capturedAt)
     .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;

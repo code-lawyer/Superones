@@ -189,6 +189,103 @@ test("retired SiC sources are removed from the current public snapshot", async (
   assert.deepEqual(stored.reports.map((value) => value.sourceId), ["active-source"]);
 });
 
+test("an empty incremental keeps the last successfully published SiC source", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-empty-incremental-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const publishedAt = "2026-08-15T00:00:00.000Z";
+  const course = { ...item("published-course", publishedAt), sourceId: "google-ml-courses" };
+  await mergeSicStoredContent({
+    items: [course],
+    reports: [{ sourceId: course.sourceId, status: "success", collectedAt: publishedAt, itemCount: 1 }],
+    updatedAt: publishedAt,
+    snapshotId: "run:published",
+    activeSourceIds: [course.sourceId],
+    runMode: "incremental",
+  });
+  await mergeSicStoredContent({
+    items: [],
+    reports: [{
+      sourceId: course.sourceId,
+      status: "empty",
+      collectedAt: "2026-08-16T00:00:00.000Z",
+      itemCount: 0,
+    }],
+    updatedAt: "2026-08-16T00:00:00.000Z",
+    snapshotId: "run:empty",
+    activeSourceIds: [course.sourceId],
+    runMode: "incremental",
+  });
+
+  assert.deepEqual(
+    (await getSicContent()).groups.courses.map((value) => value.id),
+    [course.id],
+  );
+});
+
+test("a partial incremental adds valid SiC items without erasing the previous source item", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-partial-incremental-"));
+  const previousDataDirectory = process.env.VAULT2077_DATA_DIR;
+  const previousDatabaseUrl = process.env.VAULT2077_DATABASE_URL;
+  const previousFallbackDatabaseUrl = process.env.DATABASE_URL;
+  process.env.VAULT2077_DATA_DIR = root;
+  delete process.env.VAULT2077_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  context.after(async () => {
+    if (previousDataDirectory === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDirectory;
+    if (previousDatabaseUrl === undefined) delete process.env.VAULT2077_DATABASE_URL;
+    else process.env.VAULT2077_DATABASE_URL = previousDatabaseUrl;
+    if (previousFallbackDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousFallbackDatabaseUrl;
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const oldItem = { ...item("old", "2026-08-14T00:00:00.000Z"), sourceId: "course-source" };
+  const newItem = { ...item("new", "2026-08-15T00:00:00.000Z"), sourceId: oldItem.sourceId };
+  await mergeSicStoredContent({
+    items: [oldItem],
+    reports: [{ sourceId: oldItem.sourceId, status: "success", collectedAt: oldItem.collectedAt, itemCount: 1 }],
+    updatedAt: oldItem.collectedAt,
+    snapshotId: "run:old",
+    activeSourceIds: [oldItem.sourceId],
+    runMode: "incremental",
+  });
+  await mergeSicStoredContent({
+    items: [newItem],
+    reports: [{
+      sourceId: newItem.sourceId,
+      status: "partial",
+      collectedAt: newItem.collectedAt,
+      itemCount: 2,
+      error: "one item was rejected",
+    }],
+    updatedAt: newItem.collectedAt,
+    snapshotId: "run:partial",
+    activeSourceIds: [newItem.sourceId],
+    runMode: "incremental",
+  });
+
+  assert.deepEqual(
+    (await getSicStoredContent()).items.map((value) => value.id),
+    [newItem.id, oldItem.id],
+  );
+});
+
 test("a first failed approved source with no items still marks its SiC group stale", async (context) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "vault2077-sic-empty-failure-"));
   const previousDataDirectory = process.env.VAULT2077_DATA_DIR;

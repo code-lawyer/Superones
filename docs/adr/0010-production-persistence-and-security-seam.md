@@ -1,7 +1,7 @@
 ---
 type: adr
 status: accepted
-updated: 2026-07-25
+updated: 2026-08-15
 ---
 
 # ADR-0010：生产持久化与安全状态统一进入 PostgreSQL
@@ -16,7 +16,7 @@ updated: 2026-07-25
 
 持久化分为两类：
 
-- 内容、SiC、Frontier、平台榜、GitHub 条件缓存和公开回退任务通过统一 state-document 适配器保存业务聚合；PostgreSQL 使用行锁和事务更新一个聚合，文件实现只保留本地原子替换。
+- 内容、Frontier、平台榜、GitHub 条件缓存和公开回退任务通过统一 state-document 适配器保存业务聚合；PostgreSQL 使用行锁和事务更新一个聚合，文件实现只保留本地原子替换。SiC 按 ADR-0024 使用逐条规范化发布表，并在上一 release 回滚窗口内于同一事务兼容写旧状态文档。
 - acquisition inbox、迁移记录、登录锁定、分布式限速和不可变审计使用专用关系表、唯一约束和适合其访问模式的索引；inbox 通过 `FOR UPDATE SKIP LOCKED` 支持多 worker 安全领取。
 
 文件与 PostgreSQL 不做生产双写，也不在失败时互相静默回退。应用数据库角色不得拥有修改历史迁移的能力；审计表通过触发器拒绝 `UPDATE` 和 `DELETE`。

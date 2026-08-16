@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-12
+updated: 2026-08-15
 ---
 
 # Vault2077 阿里云中国大陆生产部署与迁移 Handoff
@@ -33,7 +33,7 @@ updated: 2026-08-12
 ### 1.2 当前代码与资料状态
 
 - 生产配置门禁、数据库迁移、双域名 Nginx、systemd Web/Worker/Frontier/媒体清理任务、Passkey 注册、线下对公转账、OSS 适配、健康检查和一次性 bootstrap 导入均已有实现。
-- 数据库最新迁移必须是 `0007_retire_online_payment_channel.sql`。
+- 数据库最新迁移必须是 `0008_sic_published_items.sql`。
 - bootstrap 清单当前可验证：information 132、roadside 728、events 4、SiC 156、ranking boards 5、ranking items 90。
 - 本地未保存生产 RDS、OSS、GitHub、模型或 SSH 连接凭据；这是正确状态。不得为“方便迁移”把它们写进 Git、文档、聊天记录或发布包。旧在线支付身份和密钥必须从生产环境及可用配置备份中删除，不得迁移。
 - 当前 Windows 工作区不能直接产生可在 Linux 生产机复用的 `node_modules`、Sharp 原生依赖或最终发布包。生产构建必须在与服务器同 CPU 架构的 Linux 环境完成。
@@ -614,6 +614,19 @@ sudo systemd-run --unit=vault2077-migrate --wait --pipe --collect \
 
 迁移校验值以统一为 LF 的 SQL 正文计算，避免同一迁移在 Windows CRLF 与 Linux LF checkout 间误报变化。迁移器仅兼容相同正文的旧 LF/CRLF 原始校验值；任何 SQL 语义或其他字节变化仍会中止部署，必须新增迁移文件，禁止改写历史迁移或手工更新迁移表。
 
+`0008_sic_published_items.sql` 首次建立逐条发布表后，在启动 Web 和读取 health 之前，必须从旧 `sic-content` 兼容投影做一次幂等初始化。命令在同一事务中对齐逐条表与摘要，并校验逐组计数；失败时停止部署，不得等待 worker 触发初始化：
+
+```bash
+sudo systemd-run --unit=vault2077-sic-publications-init --wait --pipe --collect \
+  --uid=vault2077 --gid=vault2077 \
+  --working-directory="${RELEASE_DIR}" \
+  --property=EnvironmentFile=/etc/vault2077/production.env \
+  --setenv=NODE_ENV=production \
+  /opt/node/bin/npm run sic:initialize-publications
+```
+
+记录输出中的 `initialized=true`、`aligned=true`、总数和四组计数作为迁移证据。该命令可安全复跑；每次部署在 migration 后执行，可同时修复上一 release 回滚期间产生的兼容投影漂移。
+
 ```bash
 sudo systemd-run --unit=vault2077-pg-test --wait --pipe --collect \
   --uid=vault2077 --gid=vault2077 \
@@ -623,7 +636,7 @@ sudo systemd-run --unit=vault2077-pg-test --wait --pipe --collect \
   /opt/node/bin/npm run test:postgres:integration
 ```
 
-验证 `vault2077_schema_migrations` 最新记录是 `0007_retire_online_payment_channel.sql`。不要手工修改迁移表，不要回滚 SQL 文件，也不要删除已有 migration。
+验证 `vault2077_schema_migrations` 最新记录是 `0008_sic_published_items.sql`，并确认 SiC 初始化输出对齐。不要手工修改迁移表，不要回滚 SQL 文件，也不要删除已有 migration。
 
 门禁、探针、备份、迁移幂等复跑和 PostgreSQL 集成测试全部通过后，才原子切换 `current`：
 
@@ -1006,7 +1019,7 @@ Codex 可以继续执行代码、配置模板、检查、迁移命令和验收�
 5. 阅读 [`Vault2077-Admin-Operations-Spec.md`](Vault2077-Admin-Operations-Spec.md) 与 [`Vault2077-OPC-Admin-Manual.md`](Vault2077-OPC-Admin-Manual.md) 了解 Passkey、发布、支付和头像操作。
 6. 在任何变更前运行 `git status --short`、记录当前 commit，确认用户已有改动，不要 reset/覆盖。
 7. 本地先跑 `npm run docs:check && npm run lint && npm run typecheck && npm test`；只有通过后才接触生产。
-8. 生产操作顺序固定为：备份 → 新 release → deploy check → 真实模型探针 → migration → bootstrap（仅首发）→ Web → health → 四通道 incremental/处理闭环 → 逐通道远端 bootstrap → 功能验收 → timer → DNS/公开切流。
+8. 生产操作顺序固定为：备份 → 新 release → deploy check → 真实模型探针 → migration → SiC 逐条发布幂等初始化 → bootstrap（仅首发）→ Web → health → 四通道 incremental/处理闭环 → 逐通道远端 bootstrap → 功能验收 → timer → DNS/公开切流。
 
 ## 24. 官方资料与核验日期
 

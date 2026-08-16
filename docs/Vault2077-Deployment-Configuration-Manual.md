@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-12
+updated: 2026-08-15
 ---
 
 # Vault2077 部署配置手册
@@ -182,7 +182,7 @@ ADR-0022 已删除旧在线支付 SDK、通知、查询、恢复付款、关单�
 
 游骑兵头像媒体每天执行一次 `npm run opc:cleanup-ranger-media`：未被草稿、当前发布或发布历史引用的孤儿对象保留 7 天；只存在于发布历史的已替换对象保留 30 天。本人撤回授权时，先从草稿和公开目录移除头像并发布，再执行 `npm run opc:purge-revoked-ranger-media -- <ranger-slug>`；该命令会枚举并删除当前对象、全部历史 versionId 和删除标记。RAM 清理权限必须同时允许列举对象版本和按 versionId 删除。
 
-生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速、可撤销后台会话和退役在线付款历史中性化；健康检查必须确认最新迁移名为 `0007_retire_online_payment_channel.sql`，迁移文件应用后不得修改。
+生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速、可撤销后台会话、退役在线付款历史中性化和 SiC 逐条发布表；迁移后、Web 与 health 启动前必须运行幂等的 `npm run sic:initialize-publications`，确认逐条表与旧投影摘要、总数和四组计数对齐。健康检查必须确认最新迁移名为 `0008_sic_published_items.sql`，迁移文件应用后不得修改。
 
 阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。2026-08-06 现网实例为 Basic、2 核 4 GB、100 GB general ESSD，连接池仍按 4 起步；控制面已启用 SSL、自动快照和日志备份，并返回本地时间点恢复区间。系列名称不再单独决定 PITR 门禁；必须开启删除保护，从真实时间点恢复到隔离实例并记录 RPO/RTO，若实际恢复能力或高可用性不足再升级多可用区。服务器与 RDS 必须使用受控私网链路，并限制 RDS 白名单/安全组。容量在 50%/70%/80% 分级告警。Redis 当前不需要。OSS 用途保持隔离：公开游骑兵头像按 ADR-0016 使用公开媒体 Bucket；ADR-0018 的专用私有合同 Bucket 已预创建并锁定 10 年，但只在未来电子签约启用前进入验收。当前纸质合同原件的线下保管不进入系统或 OSS。原始包、授权材料和其他长期归档不得写入头像或电子合同 Bucket。
 
