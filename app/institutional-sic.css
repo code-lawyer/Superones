@@ -613,14 +613,6 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.sic-overview-status {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 18px 0;
-  color: var(--carbon);
-  font-size: 12px;
-}
-
 .sic-overview-group {
   --sic-overview-column-pad: clamp(24px, 3vw, 44px);
   min-width: 0;
@@ -652,12 +644,6 @@
   color: var(--graphite);
   font-size: 12px;
   line-height: 1.7;
-}
-
-.sic-overview-group__header .sic-overview-group__status {
-  margin-top: -24px;
-  color: var(--carbon);
-  font-weight: 600;
 }
 
 .sic-overview-group > .sic-overview-records,
@@ -895,6 +881,7 @@
 
   .sic-overview-lead > article {
     padding: 54px 22px 60px;
+    overflow-wrap: anywhere;
   }
 
   .sic-overview-lead > article h2 {
@@ -904,6 +891,10 @@
   .sic-overview-papers .sic-overview-record {
     display: block;
     width: auto;
+  }
+
+  .sic-overview-record__body {
+    overflow-wrap: anywhere;
   }
 
   .sic-overview-papers .sic-overview-record summary,

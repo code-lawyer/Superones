@@ -536,6 +536,7 @@ h3 {
     border-top: 1px solid var(--rule);
     border-left: 0;
     padding: 18px 0 0;
+    overflow-wrap: anywhere;
   }
 
   .channel-page-intro .page-intro__copy > p:first-child {

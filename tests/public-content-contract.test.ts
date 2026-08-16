@@ -79,7 +79,7 @@ test("SiC route reads one aggregate content snapshot and platform rankings in pa
   assert.match(page, /getPublicSicSnapshot\(\)/);
   assert.match(page, /getCachedDirectRankingBoards\(\)/);
   assert.match(page, /Promise\.all/);
-  assert.match(page, /documentsSupplementUnavailable=\{sicSnapshot\.documentsSupplementUnavailable\}/);
+  assert.doesNotMatch(page, /documentsSupplementUnavailable|contentUnavailable|rankingsUnavailable/);
   assert.doesNotMatch(page, /getCachedSicContentGroup|parseSicView/);
   assert.match(snapshot, /getCachedSicContent\(\)/);
   assert.match(snapshot, /getCachedPublicContent\(\)/);
@@ -89,17 +89,15 @@ test("SiC route reads one aggregate content snapshot and platform rankings in pa
   assert.doesNotMatch(store, /jsonb_array_elements\(document->'items'\)/);
 });
 
-test("home page uses published facts and distinguishes read failures from empty business state", async () => {
+test("home page uses published facts without exposing operational read state", async () => {
   const [page, experience] = await Promise.all([
     readFile(path.join(root, "app", "page.tsx"), "utf8"),
     readFile(path.join(root, "components", "home-experience.tsx"), "utf8"),
   ]);
   assert.match(page, /getCachedPublishedServiceCatalog\(\)/);
   assert.doesNotMatch(page, /infrastructureServices|specialtyServices|rangerProfiles/);
-  assert.match(page, /unavailable:/);
-  assert.match(experience, /信息流读取失败/);
-  assert.match(experience, /服务目录读取失败/);
-  assert.match(experience, /学院内容读取失败/);
-  assert.match(experience, /赛季榜单暂时无法更新/);
-  assert.match(experience, /开放状态暂时无法确认/);
+  assert.doesNotMatch(page, /unavailable:\s*\{\s*feed:/);
+  assert.doesNotMatch(experience, /data\.unavailable|读取失败|服务降级|暂时无法更新|暂时无法确认/);
+  assert.match(experience, /等待下一次事件发布/);
+  assert.match(experience, /正式内容正在编排/);
 });

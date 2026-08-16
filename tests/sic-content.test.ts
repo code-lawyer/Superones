@@ -31,7 +31,7 @@ test("SiC reading groups keep only the newest update from each fixed source", ()
   assert.deepEqual(selected.map((entry) => entry.title), ["latest lesson", "latest lecture"]);
 });
 
-test("SiC page distinguishes data failures from legitimate empty results", async () => {
+test("SiC keeps read diagnostics internal and renders neutral public empty states", async () => {
   const [page, snapshot, groups, rankings] = await Promise.all([
     readFile(path.join(process.cwd(), "app", "sic", "page.tsx"), "utf8"),
     readFile(path.join(process.cwd(), "lib", "sic-public-snapshot.ts"), "utf8"),
@@ -40,10 +40,11 @@ test("SiC page distinguishes data failures from legitimate empty results", async
   ]);
   assert.match(snapshot, /contentUnavailable: sicResult\.unavailable/);
   assert.match(snapshot, /documentsSupplementUnavailable: publicContent\.unavailable/);
-  assert.match(page, /sicSnapshot\.contentUnavailable/);
-  assert.match(page, /boardsResult\.unavailable/);
-  assert.match(groups, /固定来源读取失败/);
-  assert.match(rankings, /没有把故障伪装成空榜/);
+  assert.doesNotMatch(page, /sicSnapshot\.contentUnavailable|boardsResult\.unavailable/);
+  assert.doesNotMatch(groups, /固定来源读取失败|部分内容暂时无法更新|上一成功快照/);
+  assert.doesNotMatch(rankings, /读取失败|更新延迟|没有把故障伪装成空榜/);
+  assert.match(groups, /group\.emptyMessage/);
+  assert.match(rankings, /当前平台榜单暂不可用/);
 });
 
 test("SiC papers keep every item in the current weekly snapshot", () => {

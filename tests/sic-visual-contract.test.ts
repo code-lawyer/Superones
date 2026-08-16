@@ -15,16 +15,20 @@ test("SiC paper records preserve a readable title track when the desktop rail is
   );
 });
 
-test("SiC delayed paper status stays inside the paper rail grid item", async () => {
-  const overview = await readFile(path.join(root, "components", "sic-overview.tsx"), "utf8");
-  const railStart = overview.indexOf('<aside className="sic-overview-papers"');
-  const railEnd = overview.indexOf("</aside>", railStart);
-  const delayedStatus = overview.indexOf("{delayedPaperSources.length ? (");
+test("public content pages keep pipeline delay diagnostics out of the browser UI", async () => {
+  const sicPublicSources = await Promise.all([
+    path.join(root, "app", "page.tsx"),
+    path.join(root, "app", "sic", "page.tsx"),
+    path.join(root, "components", "home-experience.tsx"),
+    path.join(root, "components", "sic-overview.tsx"),
+    path.join(root, "components", "sic-content-groups.tsx"),
+    path.join(root, "components", "sic-rankings.tsx"),
+  ].map((file) => readFile(file, "utf8")));
+  const feedPage = await readFile(path.join(root, "app", "feed", "page.tsx"), "utf8");
 
-  assert.ok(railStart >= 0, "the paper rail must exist");
-  assert.ok(railEnd > railStart, "the paper rail must have a closing element");
-  assert.ok(
-    delayedStatus > railStart && delayedStatus < railEnd,
-    "the conditional delayed-source status must not become a separate lead-grid child",
+  assert.doesNotMatch(
+    sicPublicSources.join("\n"),
+    /更新延迟|上一成功快照|读取失败|服务降级|暂时无法更新|暂时无法确认|delayedSources|board\.stale|sicContent\.state\.stale|data\.unavailable/,
   );
+  assert.doesNotMatch(feedPage, /更新延迟/);
 });

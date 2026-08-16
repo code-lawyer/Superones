@@ -8,6 +8,7 @@ import { PageIntro } from "@/components/page-intro";
 import { RoadsideList } from "@/components/statement-list";
 import { beijingTime, compareEventsNewest, compareInformationNewest } from "@/lib/feed-format";
 import { getPublicContent } from "@/lib/public-content";
+import { publicPreviewLabel } from "@/lib/public-preview-label";
 
 export const metadata: Metadata = { title: "Vault 信息流" };
 export const dynamic = "force-dynamic";
@@ -70,12 +71,10 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const visibleInformation = informationItems.slice(0, state.waterfallLimit);
   const visibleRoadside = roadsideItems.slice(0, state.roadsideLimit);
   const updatedAt = content.state.updatedAt;
-  const previewLabel = process.env.VAULT2077_CONTENT_PREVIEW_LABEL?.trim();
+  const previewLabel = publicPreviewLabel();
   const modeLabel = previewLabel
     ? ` / ${previewLabel}`
-    : content.state.mode === "degraded"
-        ? " / 更新延迟"
-        : "";
+    : "";
 
   return (
     <div className="feed-page">

@@ -7,6 +7,7 @@ import { formatNumber } from "@/lib/number-format";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
 import { getFrontierSeasonLaunchState } from "@/lib/frontier-store";
+import { publicPreviewLabel } from "@/lib/public-preview-label";
 import {
   getCachedDirectRankingBoards,
   getCachedFrontierRanking,
@@ -92,7 +93,7 @@ export default async function HomePage() {
         hour12: false,
         timeZone: "Asia/Shanghai",
       }).format(new Date(content.state.updatedAt))
-    : content?.state.mode === "degraded" ? "服务降级" : contentResult.unavailable ? "读取失败" : "更新中";
+    : "待发布";
   const sicItems = sicContent
     ? Object.values(sicContent.groups).flat().sort((left, right) => {
         const leftTime = left.publishedAt ?? left.collectedAt;
@@ -101,6 +102,7 @@ export default async function HomePage() {
       })
     : [];
   const latestSicItem = sicItems[0] ?? null;
+  const previewLabel = publicPreviewLabel();
   const kindLabel = {
     papers: "论文",
     documents: "档案",
@@ -108,19 +110,9 @@ export default async function HomePage() {
     podcasts: "播客",
   } as const;
   const homeData: HomeExperienceData = {
-    stateLabel: content?.state.mode === "live"
-      ? "最近一次成功发布"
-      : content?.state.mode === "degraded" ? "服务降级" : contentResult.unavailable ? "暂时无法更新" : "本地预览",
+    stateLabel: previewLabel || (content?.state.updatedAt ? "最近一次成功发布" : "公开内容准备中"),
     updatedAt: content?.state.updatedAt ? `${compactDateTime(content.state.updatedAt)} CST` : updatedAt,
     sourceCount: content?.state.sourceCount ?? 0,
-    unavailable: {
-      feed: contentResult.unavailable,
-      opc: opcResult.unavailable,
-      sic: sicResult.unavailable,
-      rankings: rankingResult.unavailable,
-      frontierRanking: frontierRankingResult.unavailable,
-      frontierLaunch: frontierLaunchResult.unavailable,
-    },
     events: latestEvents.slice(0, 3).map((event) => ({
       slug: event.slug,
       category: eventCategory(event),

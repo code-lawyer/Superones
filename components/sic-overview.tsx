@@ -6,7 +6,7 @@
  * FORM: user-approved Variant C, an editorial column overview; staging fixed by the approved prototype.
  */
 
-import type { SicContentByGroup, SicDelayedSource } from "@/lib/sic-content";
+import type { SicContentByGroup } from "@/lib/sic-content";
 import type { SicBoard } from "@/lib/sic";
 import type { SicContentGroupId } from "@/lib/sic-content-types";
 import { decodeHtmlEntities } from "@/lib/decode-html-entities";
@@ -19,24 +19,15 @@ import { SicRankings } from "./sic-rankings";
 export function SicOverview({
   content,
   boards,
-  contentUnavailable,
-  documentsSupplementUnavailable,
-  rankingsUnavailable,
-  delayedSources,
   updatedLabel,
   snapshotIds,
 }: {
   content: SicContentByGroup;
   boards: SicBoard[];
-  contentUnavailable: boolean;
-  documentsSupplementUnavailable: boolean;
-  rankingsUnavailable: boolean;
-  delayedSources: SicDelayedSource[];
   updatedLabel: string;
   snapshotIds: Record<SicContentGroupId, string>;
 }) {
   const lead = content.papers[0];
-  const delayedPaperSources = delayedSources.filter((source) => source.group === "papers");
   const totalItems = Object.values(content).reduce((total, items) => total + items.length, 0);
 
   return (
@@ -58,14 +49,9 @@ export function SicOverview({
               aria-label={`${decodeHtmlEntities(lead.translatedTitle ?? lead.title)}论文原文（在新标签页打开）`}
             >查看论文原文 ↗</a>
           </article>
-        ) : <p className="sic-overview-empty">{contentUnavailable ? "论文读取失败；暂无可用缓存。" : "论文内容正在准备中。"}</p>}
+        ) : <p className="sic-overview-empty">论文内容正在准备中。</p>}
         <aside className="sic-overview-papers" aria-label="更多论文">
           <header><span>更多论文</span><b>共 {content.papers.length} 篇</b></header>
-          {delayedPaperSources.length ? (
-            <p className="sic-overview-group__status" role="status">
-              论文更新延迟：{delayedPaperSources.map((source) => source.sourceName).join("、")}；当前展示上一成功快照。
-            </p>
-          ) : null}
           <SicProgressiveRecords
             key={`papers:${snapshotIds.papers}`}
             group="papers"
@@ -86,24 +72,17 @@ export function SicOverview({
           <header>
             <span>PLATFORM-NATIVE / 原始口径</span>
             <h2 id="sic-rankings-title">趋势榜</h2>
-            <p>{
-              rankingsUnavailable
-                ? "趋势榜当前读取失败；恢复后将显示采集时间与原始来源。"
-                : boards.length > 0
-                  ? "切换平台榜单；每个榜单保留采集时间与原始来源。"
-                  : "当前没有可用平台榜单；页面不会用样例填补空缺。"
-            }</p>
+            <p>{boards.length > 0
+              ? "切换平台榜单；每个榜单保留采集时间与原始来源。"
+              : "当前没有可用平台榜单；页面不会用样例填补空缺。"}</p>
           </header>
-          <SicRankings boards={boards} unavailable={rankingsUnavailable} />
+          <SicRankings boards={boards} />
         </div>
       </section>
 
       <SicContentGroups
         groups={sicContentGroups.filter((group) => group.id !== "papers")}
         content={content}
-        unavailable={contentUnavailable}
-        unavailableGroups={{ documents: documentsSupplementUnavailable }}
-        delayedSources={delayedSources}
         snapshotIds={snapshotIds}
       />
 

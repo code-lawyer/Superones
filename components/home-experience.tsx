@@ -5,14 +5,6 @@ export type HomeExperienceData = {
   stateLabel: string;
   updatedAt: string;
   sourceCount: number;
-  unavailable: {
-    feed: boolean;
-    opc: boolean;
-    sic: boolean;
-    rankings: boolean;
-    frontierRanking: boolean;
-    frontierLaunch: boolean;
-  };
   events: Array<{
     slug: string;
     category: string;
@@ -68,25 +60,25 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
           <Link href={leadEvent ? `/feed/${leadEvent.slug}` : "/feed"}>
             <span className="mono">INTEL / {data.updatedAt}</span>
             <strong>Vault 信息流</strong>
-            <small>{leadEvent ? leadEvent.title : data.unavailable.feed ? "信息流暂时无法更新" : "等待下一次事件发布"}</small>
+            <small>{leadEvent ? leadEvent.title : "等待下一次事件发布"}</small>
             <i aria-hidden="true">→</i>
           </Link>
           <Link href="/opc">
             <span className="mono">OPERATE / {String(data.opcEntries.length).padStart(2, "0")} ENTRIES</span>
             <strong>OPC 服务台</strong>
-            <small>{data.unavailable.opc ? "服务目录暂时无法更新" : "选择标准服务或联系独立顾问"}</small>
+            <small>选择标准服务或联系独立顾问</small>
             <i aria-hidden="true">→</i>
           </Link>
           <Link href="/sic">
             <span className="mono">EVOLVE / {data.sicLatest?.date ?? "PENDING"}</span>
             <strong>SiC 学院</strong>
-            <small>{data.sicLatest ? `${data.sicLatest.kind} · ${data.sicLatest.title}` : data.unavailable.sic ? "学院内容暂时无法更新" : "正式内容正在编排"}</small>
+            <small>{data.sicLatest ? `${data.sicLatest.kind} · ${data.sicLatest.title}` : "正式内容正在编排"}</small>
             <i aria-hidden="true">→</i>
           </Link>
           <Link href={data.frontier.writesEnabled ? "/frontier/submit" : "/frontier"}>
             <span className="mono">BUILD / {data.frontier.seasonName}</span>
             <strong>边境计划</strong>
-            <small>{data.frontier.settlementDate} 结算 · {data.unavailable.frontierLaunch ? "开放状态暂时无法确认" : data.frontier.writesEnabled ? "参加本赛季" : "报名准备中"}</small>
+            <small>{data.frontier.settlementDate} 结算 · {data.frontier.writesEnabled ? "参加本赛季" : "报名准备中"}</small>
             <i aria-hidden="true">→</i>
           </Link>
         </nav>
@@ -107,7 +99,7 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
                 <h3>{leadEvent.title}</h3>
                 <span>{leadEvent.judgment}</span>
               </Link>
-            ) : <p className="home-experience__empty">{data.unavailable.feed ? "信息流读取失败；请稍后重试。" : "当前没有可发布事件，请稍后返回。"}</p>}
+            ) : <p className="home-experience__empty">当前没有可发布事件，请稍后返回。</p>}
 
             <div className="home-refined-feed__secondary">
               {secondaryEvents.map((event) => (
@@ -144,7 +136,6 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
                   </Link>
                 ))}
               </div>
-              {data.unavailable.opc ? <p className="home-experience__empty" role="status">服务目录读取失败；当前计数不可用，请进入服务台稍后重试。</p> : null}
               <p className="home-refined-opc__boundary">基础设施与专项服务由 Vault2077 直接交付；游骑兵由用户直接联系，双方自行约定后续事项。</p>
             </section>
 
@@ -165,7 +156,7 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
                       <h3>{data.sicLatest.title}</h3>
                       <strong>查看原始内容 ↗</strong>
                     </a>
-                  ) : <p className="home-experience__empty">{data.unavailable.sic ? "学院内容读取失败；请稍后重试。" : "正式内容正在编排。"}</p>}
+                  ) : <p className="home-experience__empty">正式内容正在编排。</p>}
                 </section>
                 <section>
                   <p className="mono">CODE REPOSITORY / TODAY</p>
@@ -175,7 +166,7 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
                       <h3>{leadingProject.name} ↗</h3>
                       <p>{leadingProject.description}</p>
                     </a>
-                  ) : <p className="home-experience__empty">{data.unavailable.rankings ? "平台原生榜读取失败；请稍后重试。" : "当前没有平台原生榜数据。"}</p>}
+                  ) : <p className="home-experience__empty">当前没有平台原生榜数据。</p>}
                   {remainingProjects.map((project) => (
                     <a className="home-refined-sic__project" href={project.href} target="_blank" rel="noreferrer" key={project.id}>
                       <span className="mono">#{String(project.rank).padStart(2, "0")}</span>
@@ -199,12 +190,12 @@ export function HomeExperience({ data }: { data: HomeExperienceData }) {
             <p className="mono">CURRENT SEASON / {data.frontier.updatedAt}</p>
             {leadingFrontierEntry ? (
               <Link href="/frontier/ranking"><span>当前 #01</span><strong>{leadingFrontierEntry.repo}</strong><small>{leadingFrontierEntry.delta}</small></Link>
-            ) : <p>{data.unavailable.frontierRanking ? "赛季榜单暂时无法更新。" : "本赛季尚无通过验证的项目。"}</p>}
+            ) : <p>本赛季尚无通过验证的项目。</p>}
           </div>
           <div className="home-refined-frontier__action">
             <p className="mono">{data.frontier.settlementDate} 结算</p>
             <Link href={data.frontier.writesEnabled ? "/frontier/submit" : "/frontier"}>
-              {data.unavailable.frontierLaunch ? "开放状态暂时无法确认" : data.frontier.writesEnabled ? "参与计划" : "查看开放状态"}
+              {data.frontier.writesEnabled ? "参与计划" : "查看开放状态"}
             </Link>
           </div>
         </section>

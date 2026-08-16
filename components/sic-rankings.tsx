@@ -20,10 +20,8 @@ function capturedAtLabel(value: string | null | undefined) {
 
 export function SicRankings({
   boards,
-  unavailable = false,
 }: {
   boards: SicBoard[];
-  unavailable?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -32,9 +30,6 @@ export function SicRankings({
   const activeIndex = requestedIndex >= 0 ? requestedIndex : 0;
   const boardCount = boards.length;
 
-  if (unavailable) {
-    return <p className="sic-overview-ranking__status" role="status">趋势榜读取失败；没有把故障伪装成空榜，请稍后重试。</p>;
-  }
   if (!boardCount) return <p className="sic-overview-ranking__status">当前平台榜单暂不可用。</p>;
 
   const move = (direction: -1 | 1) => {
@@ -79,7 +74,7 @@ export function SicRankings({
                 <span>{board.eyebrow}</span>
                 <h3>{board.title}</h3>
                 <div className="sic-overview-ranking__trust">
-                  <b>{board.stale ? "更新延迟" : "已采集"}</b>
+                  <b>采集时间</b>
                   <time dateTime={board.capturedAt}>{capturedAtLabel(board.capturedAt)}</time>
                   {board.sourceUrl ? (
                     <a
