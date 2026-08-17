@@ -26,6 +26,7 @@ function catalogCounts(value: unknown) {
   return {
     infrastructure: Array.isArray(catalog.infrastructure) ? catalog.infrastructure.length : 0,
     specialties: Array.isArray(catalog.specialties) ? catalog.specialties.length : 0,
+    serviceCategoryDescriptions: Array.isArray(catalog.serviceCategoryDescriptions) ? catalog.serviceCategoryDescriptions.length : 0,
     rangerIdentities: Array.isArray(catalog.rangerIdentities) ? catalog.rangerIdentities.length : 0,
     rangers: Array.isArray(catalog.rangers) ? catalog.rangers.length : 0,
   };

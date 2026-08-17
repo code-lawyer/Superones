@@ -52,7 +52,15 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
       saveServiceCatalogDraft(incompleteCatalog, initial.revision),
       (error: unknown) => error instanceof Error
         && error.name === ServiceCatalogValidationError.name
-        && error.message.includes("必须包含顾问身份数组"),
+        && error.message.includes("必须包含服务分类说明和顾问身份数组"),
+    );
+    const missingDescriptions = structuredClone(initial.draft) as unknown as Record<string, unknown>;
+    delete missingDescriptions.serviceCategoryDescriptions;
+    await assert.rejects(
+      saveServiceCatalogDraft(missingDescriptions, initial.revision),
+      (error: unknown) => error instanceof Error
+        && error.name === ServiceCatalogValidationError.name
+        && error.message.includes("必须包含服务分类说明和顾问身份数组"),
     );
     const legacyWrite = structuredClone(initial.draft);
     legacyWrite.rangers.push(rangerFixture({ avatarUrl: "data:image/png;base64,AAAA" }));
@@ -107,6 +115,8 @@ test("OPC service catalog keeps drafts private until an atomic validated publish
     assert.equal(seed.sourceRevision, published.revision);
     assert.equal(seed.publishedAt, published.publishedAt);
     assert.equal(seed.catalog.infrastructure[0].name, "已修改但未发布的服务");
+    assert.equal(seed.catalog.serviceCategoryDescriptions.length, 9);
+    assert.equal(seed.catalog.rangerIdentities[0].description, "合同、治理与经营风险的独立专业支持");
     assert.equal(seed.catalog.rangers[0].signature, "让复杂问题回到可以行动的尺度。");
     await assert.rejects(
       saveServiceCatalogDraft(publishable, saved.revision),
@@ -132,6 +142,25 @@ test("OPC service catalog rejects an uncontrolled specialty taxonomy", async () 
   const result = validateOpcCatalog(normalizeOpcCatalog(catalog));
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.includes("专项服务领域无效")));
+});
+
+test("OPC service category descriptions keep the controlled set and order", async () => {
+  const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+  const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
+  const reordered = createDefaultOpcCatalog();
+  [reordered.serviceCategoryDescriptions[0], reordered.serviceCategoryDescriptions[1]] = [
+    reordered.serviceCategoryDescriptions[1],
+    reordered.serviceCategoryDescriptions[0],
+  ];
+  const reorderedResult = validateOpcCatalog(normalizeOpcCatalog(reordered));
+  assert.equal(reorderedResult.valid, false);
+  assert.ok(reorderedResult.errors.some((error) => error.includes("分类顺序无效")));
+
+  const uncontrolled = createDefaultOpcCatalog();
+  uncontrolled.serviceCategoryDescriptions[0].section = "uncontrolled" as "infrastructure";
+  const uncontrolledResult = validateOpcCatalog(normalizeOpcCatalog(uncontrolled));
+  assert.equal(uncontrolledResult.valid, false);
+  assert.ok(uncontrolledResult.errors.some((error) => error.includes("不是受控的 OPC 服务分类")));
 });
 
 test("OPC service catalog requires globally unique service slugs", async () => {
@@ -372,7 +401,7 @@ test("OPC service catalog accepts managed ranger identities and rejects orphaned
   const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
   const { normalizeOpcCatalog, validateOpcCatalog } = await import("../lib/managed-service-catalog.ts");
   const catalog = createDefaultOpcCatalog();
-  catalog.rangerIdentities.push({ id: "people-advisor", name: "人才与组织顾问" });
+  catalog.rangerIdentities.push({ id: "people-advisor", name: "人才与组织顾问", description: "组织设计、人才配置与协作机制支持" });
   catalog.rangers.push(rangerFixture({ identityId: "people-advisor" }));
 
   const managed = normalizeOpcCatalog(catalog);
@@ -432,11 +461,13 @@ test("OPC state schema v1 migrates identity labels across current and historical
     const published = await readPublishedServiceCatalog();
     assert.equal(managed.schemaVersion, 2);
     assert.equal(managed.draft.rangerIdentities.length, 10);
+    assert.equal(managed.draft.serviceCategoryDescriptions.length, 9);
+    assert.equal(managed.draft.rangerIdentities[0].description, "合同、治理与经营风险的独立专业支持");
     assert.equal(published.rangers[0].identityId, "legal-advisor");
     assert.equal(managed.publicationHistory[0].rangerIdentities, 10);
 
     const migratedDraft = structuredClone(managed.draft);
-    migratedDraft.rangerIdentities.push({ id: "people-advisor", name: "人才与组织顾问" });
+    migratedDraft.rangerIdentities.push({ id: "people-advisor", name: "人才与组织顾问", description: "组织设计、人才配置与协作机制支持" });
     migratedDraft.rangers.push(rangerFixture({
       slug: "verified-people-advisor",
       publicName: "经授权的人才顾问",
@@ -446,6 +477,8 @@ test("OPC state schema v1 migrates identity labels across current and historical
     const persisted = JSON.parse(await readFile(path.join(root, "opc-service-catalog.json"), "utf8"));
     assert.equal(persisted.schemaVersion, 2);
     assert.equal(persisted.draft.rangerIdentities[0].id, "legal-advisor");
+    assert.equal(persisted.draft.serviceCategoryDescriptions[0].description, "主体设立、财税启用与首年治理");
+    assert.equal(persisted.draft.rangerIdentities[0].description, "合同、治理与经营风险的独立专业支持");
     assert.equal(persisted.draft.rangers[0].identityId, "legal-advisor");
     assert.equal(persisted.draft.rangers[0].identity, "法律顾问");
     assert.equal(persisted.draft.rangers[1].identityId, "people-advisor");
@@ -453,6 +486,60 @@ test("OPC state schema v1 migrates identity labels across current and historical
     assert.equal(persisted.publications[0].catalog.rangers[0].identityId, "legal-advisor");
     const runtimeDraft = (await readManagedServiceCatalog()).draft as unknown as { rangers: Array<Record<string, unknown>> };
     assert.equal("identity" in runtimeDraft.rangers[0], false);
+  } finally {
+    if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
+    else process.env.VAULT2077_DATA_DIR = previousDataDir;
+    if (previousSeedPath === undefined) delete process.env.VAULT2077_OPC_SEED_PATH;
+    else process.env.VAULT2077_OPC_SEED_PATH = previousSeedPath;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("OPC schema v2 catalogs gain authored category descriptions without weakening complete writes", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "vault2077-opc-description-v2-"));
+  const previousDataDir = process.env.VAULT2077_DATA_DIR;
+  const previousSeedPath = process.env.VAULT2077_OPC_SEED_PATH;
+  process.env.VAULT2077_DATA_DIR = root;
+  process.env.VAULT2077_OPC_SEED_PATH = path.join(root, "missing-seed.json");
+  try {
+    const { createDefaultOpcCatalog } = await import("../lib/opc-catalog.ts");
+    const legacyCatalog = createDefaultOpcCatalog() as unknown as Record<string, unknown>;
+    delete legacyCatalog.serviceCategoryDescriptions;
+    legacyCatalog.rangerIdentities = (legacyCatalog.rangerIdentities as Array<Record<string, unknown>>).map((identity) => {
+      const legacyIdentity = { ...identity };
+      delete legacyIdentity.description;
+      return legacyIdentity;
+    });
+    const publishedAt = "2099-01-02T00:00:00.000Z";
+    await writeFile(
+      path.join(root, "opc-service-catalog.json"),
+      `${JSON.stringify({
+        schemaVersion: 2,
+        revision: 9,
+        draftUpdatedAt: publishedAt,
+        publishedAt,
+        draft: legacyCatalog,
+        published: legacyCatalog,
+        publications: [{ revision: 9, publishedAt, catalog: legacyCatalog }],
+      }, null, 2)}\n`,
+    );
+
+    const { readManagedServiceCatalog, readPublishedServiceCatalog, saveServiceCatalogDraft } = await import(
+      `../lib/managed-service-catalog.ts?description-v2=${Date.now()}`
+    );
+    const managed = await readManagedServiceCatalog();
+    const published = await readPublishedServiceCatalog();
+    assert.equal(managed.draft.serviceCategoryDescriptions.length, 9);
+    assert.equal(managed.draft.rangerIdentities[0].description, "合同、治理与经营风险的独立专业支持");
+    assert.equal(published.serviceCategoryDescriptions[3].description, "合同文件、交易规则与经营合规检查");
+    assert.equal(managed.publicationHistory.length, 1);
+
+    await saveServiceCatalogDraft(managed.draft, managed.revision);
+    const persisted = JSON.parse(await readFile(path.join(root, "opc-service-catalog.json"), "utf8"));
+    assert.equal(persisted.schemaVersion, 2);
+    assert.equal(persisted.draft.serviceCategoryDescriptions.length, 9);
+    assert.ok(persisted.draft.rangerIdentities.every((identity: Record<string, unknown>) => identity.description));
+    assert.equal(persisted.publications[0].catalog.serviceCategoryDescriptions.length, 9);
   } finally {
     if (previousDataDir === undefined) delete process.env.VAULT2077_DATA_DIR;
     else process.env.VAULT2077_DATA_DIR = previousDataDir;

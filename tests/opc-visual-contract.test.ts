@@ -136,6 +136,17 @@ test("compact OPC directory items center their complete label group", async () =
   assert.ok(refinedCodeRule.includes("padding-top: 0"));
 });
 
+test("OPC category rows use authored descriptions and the shared secondary gutter", async () => {
+  const styles = await readOpcStyles();
+  const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
+
+  assert.match(styles, /\.opc-accordion__trigger\s*\{[\s\S]*?padding:\s*16px var\(--opc-secondary-pad\)/);
+  assert.match(workspace, /serviceCategoryDescriptionByKey\.get\(`infrastructure:\$\{group\}`\)/);
+  assert.match(workspace, /serviceCategoryDescriptionByKey\.get\(`specialties:\$\{domain\}`\)/);
+  assert.match(workspace, /note:\s*identity\.description/);
+  assert.doesNotMatch(workspace, /项完整经营能力|项固定范围服务|flatMap\(\(profile\) => profile\.tags\)/);
+});
+
 test("OPC keeps three distinct workspace roles without silently choosing a service", async () => {
   const styles = await readOpcStyles();
   const workspace = await readFile(path.join(root, "components", "opc-workspace.tsx"), "utf8");
@@ -465,6 +476,9 @@ test("OPC admin manages ranger identities in the same atomic catalog draft", asy
   const styles = await readFile(path.join(root, "app", "globals.css"), "utf8");
 
   assert.match(admin, /rangerIdentities:\s*"顾问身份"/);
+  assert.match(admin, /serviceCategoryDescriptions:\s*"分类说明"/);
+  assert.match(admin, /label="分类说明"/);
+  assert.match(admin, /label="类别说明"/);
   assert.match(admin, /function newRangerIdentity/);
   assert.match(admin, /nextRangerIdentityId\(draft\.rangerIdentities\)/);
   assert.match(admin, /assignedCount = draft\.rangers\.filter\(\(ranger\) => ranger\.identityId === selected\.id\)\.length/);
@@ -474,7 +488,7 @@ test("OPC admin manages ranger identities in the same atomic catalog draft", asy
   assert.match(managed, /引用的顾问身份不存在/);
   assert.match(managed, /serializeManagedServiceCatalog/);
   assert.match(managed, /schemaVersion:\s*2/);
-  assert.match(styles, /\.admin-opc-editor__sections\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.admin-opc-editor__sections\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
 });
 
 test("OPC uses one workspace and has no duplicate public register pages", async () => {

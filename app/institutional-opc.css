@@ -141,7 +141,7 @@
   text-align: left;
   min-height: 76px;
   border: 0;
-  padding-block: 16px;
+  padding: 16px var(--opc-secondary-pad);
   transition: background-color 160ms ease;
 }
 

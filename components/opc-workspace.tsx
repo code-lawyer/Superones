@@ -11,6 +11,7 @@ import {
   type OpcService,
   type RangerIdentity,
   type RangerProfile,
+  type ServiceCategoryDescription,
 } from "@/lib/opc-catalog";
 import { legacyRangerAvatarPublicUrl, rangerAvatarPublicUrl } from "@/lib/ranger-avatar";
 import { buildRangerShelfEntries } from "@/lib/ranger-shelf-order";
@@ -20,6 +21,7 @@ type WorkspaceView = "infrastructure" | "specialties" | "rangers";
 type OpcWorkspaceProps = {
   infrastructure: OpcService[];
   specialties: OpcService[];
+  serviceCategoryDescriptions: ServiceCategoryDescription[];
   rangerIdentities: RangerIdentity[];
   rangers: RangerProfile[];
   orderingAvailable: boolean;
@@ -61,6 +63,7 @@ function revealHeading(heading: HTMLHeadingElement | null) {
 export function OpcWorkspace({
   infrastructure,
   specialties,
+  serviceCategoryDescriptions,
   rangerIdentities,
   rangers,
   orderingAvailable,
@@ -69,29 +72,30 @@ export function OpcWorkspace({
   initialServiceSlug,
 }: OpcWorkspaceProps) {
   const router = useRouter();
+  const serviceCategoryDescriptionByKey = useMemo(() => new Map(
+    serviceCategoryDescriptions.map((category) => [`${category.section}:${category.name}`, category.description]),
+  ), [serviceCategoryDescriptions]);
   const groupedInfrastructure = useMemo<ServiceGroup[]>(() => infrastructureGroups.map((group) => {
     const items = infrastructure.filter((service) => service.group === group);
     return {
       id: group,
       label: group,
-      note: `${items.length} 项完整经营能力`,
+      note: serviceCategoryDescriptionByKey.get(`infrastructure:${group}`) ?? "",
       items,
     };
-  }), [infrastructure]);
+  }), [infrastructure, serviceCategoryDescriptionByKey]);
   const specialtyGroups = useMemo<ServiceGroup[]>(() => specialtyDomains.map((domain) => ({
     id: domain,
     label: domain,
-    note: `${specialties.filter((service) => service.domain === domain).length} 项固定范围服务`,
+    note: serviceCategoryDescriptionByKey.get(`specialties:${domain}`) ?? "",
     items: specialties.filter((service) => service.domain === domain),
-  })), [specialties]);
+  })), [specialties, serviceCategoryDescriptionByKey]);
   const rangerGroups = useMemo<RangerGroup[]>(() => rangerIdentities.map((identity) => {
     const items = rangers.filter((profile) => profile.identityId === identity.id);
     return {
       id: identity.id,
       label: identity.name,
-      note: items.length > 0
-        ? items.flatMap((profile) => profile.tags).slice(0, 2).join(" / ")
-        : "档案待补充",
+      note: identity.description,
       items,
     };
   }), [rangerIdentities, rangers]);

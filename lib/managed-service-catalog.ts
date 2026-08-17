@@ -3,13 +3,16 @@ import "server-only";
 import {
   createDefaultOpcCatalog,
   defaultRangerIdentities,
+  defaultServiceCategoryDescriptions,
   infrastructureGroups,
+  OPC_CATEGORY_DESCRIPTION_MAX_LENGTH,
   RANGER_SIGNATURE_MAX_LENGTH,
   specialtyDomains,
   type OpcCatalogContent,
   type OpcService,
   type RangerIdentity,
   type RangerProfile,
+  type ServiceCategoryDescription,
 } from "./opc-catalog.ts";
 import {
   opcCatalogSeedPath,
@@ -86,12 +89,16 @@ const legacyRangerIdentityFallback = defaultRangerIdentities.find((identity) => 
 
 type CatalogNormalizationOptions = {
   migrateLegacyRangerIdentities?: boolean;
+  migrateLegacyDescriptions?: boolean;
 };
 
 function initialState(): ManagedServiceCatalog {
   const seed = readOpcCatalogSeedDocument();
   const defaults = seed
-    ? normalizeOpcCatalog(seed.catalog, { migrateLegacyRangerIdentities: seed.schemaVersion === 1 })
+    ? normalizeOpcCatalog(seed.catalog, {
+      migrateLegacyRangerIdentities: seed.schemaVersion === 1,
+      migrateLegacyDescriptions: !Array.isArray((seed.catalog as unknown as Record<string, unknown>).serviceCategoryDescriptions),
+    })
     : createDefaultOpcCatalog();
   const validation = validateOpcCatalog(defaults, Boolean(seed?.publishedAt));
   if (!validation.valid) {
@@ -168,11 +175,29 @@ function normalizeService(value: unknown, kind: OpcService["kind"]): OpcService 
   };
 }
 
-function normalizeRangerIdentity(value: unknown): RangerIdentity {
+function normalizeServiceCategoryDescription(value: unknown): ServiceCategoryDescription {
   const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return {
-    id: cleanText(item.id, 80).toLowerCase(),
+    section: cleanText(item.section, 20) as ServiceCategoryDescription["section"],
     name: cleanText(item.name, 60),
+    description: cleanText(item.description, OPC_CATEGORY_DESCRIPTION_MAX_LENGTH),
+  };
+}
+
+function legacyRangerDescription(id: string, name: string) {
+  return defaultRangerIdentities.find((identity) => identity.id === id)?.description
+    ?? `${name || "该领域"}相关的外部独立专业支持`;
+}
+
+function normalizeRangerIdentity(value: unknown, migrateLegacyDescriptions = false): RangerIdentity {
+  const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const id = cleanText(item.id, 80).toLowerCase();
+  const name = cleanText(item.name, 60);
+  return {
+    id,
+    name,
+    description: cleanText(item.description, OPC_CATEGORY_DESCRIPTION_MAX_LENGTH)
+      || (migrateLegacyDescriptions ? legacyRangerDescription(id, name) : ""),
   };
 }
 
@@ -209,7 +234,7 @@ export function normalizeOpcCatalog(
   const rangerIdentities = options.migrateLegacyRangerIdentities
     ? structuredClone(defaultRangerIdentities)
     : Array.isArray(catalog.rangerIdentities)
-      ? catalog.rangerIdentities.slice(0, 50).map(normalizeRangerIdentity)
+      ? catalog.rangerIdentities.slice(0, 50).map((item) => normalizeRangerIdentity(item, options.migrateLegacyDescriptions))
       : [];
   return {
     infrastructure: Array.isArray(catalog.infrastructure)
@@ -218,6 +243,11 @@ export function normalizeOpcCatalog(
     specialties: Array.isArray(catalog.specialties)
       ? catalog.specialties.slice(0, 200).map((item) => normalizeService(item, "specialty"))
       : [],
+    serviceCategoryDescriptions: options.migrateLegacyDescriptions
+      ? structuredClone(defaultServiceCategoryDescriptions)
+      : Array.isArray(catalog.serviceCategoryDescriptions)
+        ? catalog.serviceCategoryDescriptions.slice(0, 20).map(normalizeServiceCategoryDescription)
+        : [],
     rangerIdentities,
     rangers: Array.isArray(catalog.rangers)
       ? catalog.rangers.slice(0, 200).map((item) => normalizeRanger(item, rangerIdentities))
@@ -227,8 +257,8 @@ export function normalizeOpcCatalog(
 
 function normalizeCatalogMutation(value: unknown) {
   const catalog = value && typeof value === "object" ? value as Record<string, unknown> : null;
-  if (!catalog || !Array.isArray(catalog.rangerIdentities)) {
-    throw new ServiceCatalogValidationError(["OPC 完整目录必须包含顾问身份数组，不能使用默认分类静默补全。"]);
+  if (!catalog || !Array.isArray(catalog.rangerIdentities) || !Array.isArray(catalog.serviceCategoryDescriptions)) {
+    throw new ServiceCatalogValidationError(["OPC 完整目录必须包含服务分类说明和顾问身份数组，不能使用默认内容静默补全。"]);
   }
   return normalizeOpcCatalog(catalog);
 }
@@ -248,17 +278,40 @@ export function validateOpcCatalog(catalog: OpcCatalogContent, forPublication = 
   const services = [...catalog.infrastructure, ...catalog.specialties];
   const slugs = new Set<string>();
   const codes = new Set<string>();
+  const serviceCategoryKeys = new Set<string>();
   const rangerIdentityIds = new Set<string>();
   const rangerIdentityNames = new Set<string>();
+  const expectedServiceCategoryKeys = new Set(defaultServiceCategoryDescriptions.map((category) => `${category.section}:${category.name}`));
 
   if (forPublication && catalog.infrastructure.length === 0) errors.push("基础设施至少需要一个已发布项目");
   if (forPublication && catalog.specialties.length === 0) errors.push("专项服务至少需要一个已发布项目");
   if (forPublication && catalog.rangerIdentities.length === 0) errors.push("至少需要一个可发布的顾问身份");
 
+  for (const category of catalog.serviceCategoryDescriptions) {
+    const key = `${category.section}:${category.name}`;
+    const label = category.name || "未命名服务分类";
+    if (!expectedServiceCategoryKeys.has(key)) errors.push(`${label}：不是受控的 OPC 服务分类`);
+    if (serviceCategoryKeys.has(key)) errors.push(`${label}：分类说明重复`);
+    serviceCategoryKeys.add(key);
+    required(errors, `${label}：分类说明`, category.description);
+  }
+  for (const expected of defaultServiceCategoryDescriptions) {
+    if (!serviceCategoryKeys.has(`${expected.section}:${expected.name}`)) {
+      errors.push(`${expected.name}：缺少分类说明`);
+    }
+  }
+  catalog.serviceCategoryDescriptions.forEach((category, index) => {
+    const expected = defaultServiceCategoryDescriptions[index];
+    if (expected && (category.section !== expected.section || category.name !== expected.name)) {
+      errors.push(`${category.name || "未命名服务分类"}：分类顺序无效`);
+    }
+  });
+
   for (const identity of catalog.rangerIdentities) {
     const label = identity.name || identity.id || "未命名顾问身份";
     required(errors, `${label}：稳定 ID`, identity.id);
     required(errors, `${label}：公开名称`, identity.name);
+    required(errors, `${label}：类别说明`, identity.description);
     if (identity.id && !slugPattern.test(identity.id)) errors.push(`${label}：稳定 ID 只能使用小写字母、数字和连字符`);
     if (rangerIdentityIds.has(identity.id)) errors.push(`${label}：稳定 ID 重复`);
     if (rangerIdentityNames.has(identity.name)) errors.push(`${label}：公开名称重复`);
@@ -397,6 +450,11 @@ function retainVerifiedPublicRangers(rangers: RangerProfile[]) {
   return rangers.filter((ranger) => !isLegacyPreviewRanger(ranger) && hasPublishableRangerContact(ranger));
 }
 
+function catalogNeedsDescriptionMigration(value: unknown) {
+  const catalog = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  return !catalog || !Array.isArray(catalog.serviceCategoryDescriptions);
+}
+
 function parseState(value: unknown): ManagedServiceCatalog {
   if (!value || typeof value !== "object") throw new Error("OPC 服务目录状态无效。");
   const record = value as Partial<ManagedServiceCatalog>;
@@ -413,9 +471,14 @@ function parseState(value: unknown): ManagedServiceCatalog {
       }
     }
   }
-  const normalizationOptions = { migrateLegacyRangerIdentities };
-  const draft = normalizeOpcCatalog(record.draft, normalizationOptions);
-  const published = normalizeOpcCatalog(record.published, normalizationOptions);
+  const draft = normalizeOpcCatalog(record.draft, {
+    migrateLegacyRangerIdentities,
+    migrateLegacyDescriptions: catalogNeedsDescriptionMigration(record.draft),
+  });
+  const published = normalizeOpcCatalog(record.published, {
+    migrateLegacyRangerIdentities,
+    migrateLegacyDescriptions: catalogNeedsDescriptionMigration(record.published),
+  });
   const untouchedPreview = record.revision === 1
     && record.draftUpdatedAt == null
     && record.publishedAt == null
@@ -424,10 +487,12 @@ function parseState(value: unknown): ManagedServiceCatalog {
     const currentCatalog = createDefaultOpcCatalog();
     draft.infrastructure = structuredClone(currentCatalog.infrastructure);
     draft.specialties = structuredClone(currentCatalog.specialties);
+    draft.serviceCategoryDescriptions = structuredClone(currentCatalog.serviceCategoryDescriptions);
     draft.rangerIdentities = structuredClone(currentCatalog.rangerIdentities);
     draft.rangers = structuredClone(currentCatalog.rangers);
     published.infrastructure = structuredClone(currentCatalog.infrastructure);
     published.specialties = structuredClone(currentCatalog.specialties);
+    published.serviceCategoryDescriptions = structuredClone(currentCatalog.serviceCategoryDescriptions);
     published.rangerIdentities = structuredClone(currentCatalog.rangerIdentities);
     published.rangers = structuredClone(currentCatalog.rangers);
   } else {
@@ -452,7 +517,10 @@ function parseState(value: unknown): ManagedServiceCatalog {
           throw new Error("OPC schema v2 历史发布快照缺少顾问身份数组。");
         }
       }
-      const catalog = normalizeOpcCatalog(item.catalog, normalizationOptions);
+      const catalog = normalizeOpcCatalog(item.catalog, {
+        migrateLegacyRangerIdentities,
+        migrateLegacyDescriptions: catalogNeedsDescriptionMigration(item.catalog),
+      });
       catalog.rangers = retainVerifiedPublicRangers(catalog.rangers);
       return validateOpcCatalog(catalog, true).valid
         ? [{ revision: Number(item.revision), publishedAt: item.publishedAt, catalog }]

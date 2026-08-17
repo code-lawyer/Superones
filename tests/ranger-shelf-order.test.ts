@@ -48,8 +48,8 @@ test("ranger shelf keeps multiple profiles in the same identity in catalog order
 
 test("ranger shelf uses the published identity set and its order for vacant slots", () => {
   const identities: RangerIdentity[] = [
-    { id: "security-advisor", name: "安全顾问" },
-    { id: "growth-advisor", name: "增长顾问" },
+    { id: "security-advisor", name: "安全顾问", description: "安全治理与风险控制支持" },
+    { id: "growth-advisor", name: "增长顾问", description: "获客、转化与增长策略支持" },
   ];
   const profiles = [ranger("security-one", "安全一号", "security-advisor")];
 

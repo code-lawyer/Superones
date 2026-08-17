@@ -5,12 +5,14 @@ import { useCallback, useEffect, useId, useMemo, useState, type ChangeEvent } fr
 import {
   infrastructureGroups,
   nextRangerIdentityId,
+  OPC_CATEGORY_DESCRIPTION_MAX_LENGTH,
   RANGER_SIGNATURE_MAX_LENGTH,
   specialtyDomains,
   type OpcCatalogContent,
   type OpcService,
   type RangerIdentity,
   type RangerProfile,
+  type ServiceCategoryDescription,
 } from "@/lib/opc-catalog";
 import {
   legacyRangerAvatarPublicUrl,
@@ -20,7 +22,7 @@ import {
 import { reauthenticateAdminWithPasskey } from "@/lib/admin-passkey-browser";
 
 type CatalogSection = keyof OpcCatalogContent;
-type CatalogItem = OpcService | RangerIdentity | RangerProfile;
+type CatalogItem = OpcService | RangerIdentity | RangerProfile | ServiceCategoryDescription;
 
 type ManagedCatalogView = {
   revision: number;
@@ -59,6 +61,7 @@ class AdminCatalogError extends Error {
 const sectionLabels: Record<CatalogSection, string> = {
   infrastructure: "基础设施",
   specialties: "专项服务",
+  serviceCategoryDescriptions: "分类说明",
   rangerIdentities: "顾问身份",
   rangers: "游骑兵协会",
 };
@@ -125,6 +128,7 @@ function newRangerIdentity(id: string): RangerIdentity {
   return {
     id,
     name: "未命名顾问身份",
+    description: "",
   };
 }
 
@@ -169,6 +173,7 @@ export function AdminOpcCatalogEditor() {
   const counts = useMemo(() => draft ? {
     infrastructure: draft.infrastructure.length,
     specialties: draft.specialties.length,
+    serviceCategoryDescriptions: draft.serviceCategoryDescriptions.length,
     rangerIdentities: draft.rangerIdentities.length,
     rangers: draft.rangers.length,
   } : null, [draft]);
@@ -185,7 +190,7 @@ export function AdminOpcCatalogEditor() {
   }
 
   function addItem() {
-    if (!draft) return;
+    if (!draft || section === "serviceCategoryDescriptions") return;
     const ordinal = nextOrdinal(draft, section);
     const item = section === "rangerIdentities"
       ? newRangerIdentity(nextRangerIdentityId(draft.rangerIdentities))
@@ -198,7 +203,7 @@ export function AdminOpcCatalogEditor() {
   }
 
   function removeItem() {
-    if (!selected || !draft) return;
+    if (!selected || !draft || section === "serviceCategoryDescriptions") return;
     if (section === "rangerIdentities" && "id" in selected) {
       const assignedCount = draft.rangers.filter((ranger) => ranger.identityId === selected.id).length;
       if (assignedCount > 0) {
@@ -214,6 +219,7 @@ export function AdminOpcCatalogEditor() {
   }
 
   function moveItem(direction: -1 | 1) {
+    if (section === "serviceCategoryDescriptions") return;
     const target = selectedIndex + direction;
     if (target < 0 || target >= items.length) return;
     const next = [...items] as CatalogItem[];
@@ -331,11 +337,19 @@ export function AdminOpcCatalogEditor() {
       <div className="admin-opc-editor__workspace">
         <aside className="admin-opc-editor__records">
           <div className="admin-opc-editor__records-actions">
-            <button className="text-action" type="button" onClick={addItem}>新增项目</button>
+            {section === "serviceCategoryDescriptions"
+              ? <p className="form-note">分类及顺序由 OPC 规格控制；这里只维护公开说明。</p>
+              : <button className="text-action" type="button" onClick={addItem}>新增项目</button>}
           </div>
           {items.length === 0 ? <p className="ranking-empty">当前草稿没有项目。</p> : items.map((item, index) => (
             <button className={selectedIndex === index ? "is-active" : ""} type="button" onClick={() => setSelectedIndex(index)} key={`${"slug" in item ? item.slug : index}-${index}`}>
-              <span className="mono">{"code" in item ? item.code : "identityId" in item ? item.identityId : item.id}</span>
+              <span className="mono">{"code" in item
+                ? item.code
+                : "identityId" in item
+                  ? item.identityId
+                  : "id" in item
+                    ? item.id
+                    : item.section === "infrastructure" ? "INFRA" : "SPECIAL"}</span>
               <strong>{"publicName" in item ? item.publicName : item.name}</strong>
             </button>
           ))}
@@ -344,12 +358,14 @@ export function AdminOpcCatalogEditor() {
         <div className="admin-opc-editor__form">
           {selected ? (
             <>
-              <div className="admin-opc-editor__item-actions">
+              {section === "serviceCategoryDescriptions" ? null : <div className="admin-opc-editor__item-actions">
                 <button type="button" onClick={() => moveItem(-1)} disabled={selectedIndex === 0}>上移</button>
                 <button type="button" onClick={() => moveItem(1)} disabled={selectedIndex === items.length - 1}>下移</button>
                 <button className="is-danger" type="button" onClick={removeItem}>从草稿移除</button>
-              </div>
-              {"kind" in selected
+              </div>}
+              {section === "serviceCategoryDescriptions"
+                ? <ServiceCategoryDescriptionFields category={selected as ServiceCategoryDescription} onChange={updateSelected} />
+                : "kind" in selected
                 ? <ServiceFields service={selected} onChange={updateSelected} />
                 : "publicName" in selected
                   ? <RangerFields
@@ -359,8 +375,8 @@ export function AdminOpcCatalogEditor() {
                     onChange={updateSelected}
                   />
                   : <RangerIdentityFields
-                    identity={selected}
-                    locked={state.published.rangerIdentities.some((identity) => identity.id === selected.id)}
+                    identity={selected as RangerIdentity}
+                    locked={state.published.rangerIdentities.some((identity) => identity.id === (selected as RangerIdentity).id)}
                     onChange={updateSelected}
                   />}
             </>
@@ -480,6 +496,38 @@ function RangerIdentityFields({ identity, locked, onChange }: {
         : "首次发布前可设置；只能使用小写字母、数字和连字符。"}
     />
     <TextField label="公开身份名称" value={identity.name} onChange={(name) => onChange({ ...identity, name })} />
+    <TextField
+      label="类别说明"
+      value={identity.description}
+      multiline
+      maxLength={OPC_CATEGORY_DESCRIPTION_MAX_LENGTH}
+      help="描述这一类独立顾问能提供的专业支持，不填写某位顾问的个人专长。"
+      onChange={(description) => onChange({ ...identity, description })}
+    />
+  </div>;
+}
+
+function ServiceCategoryDescriptionFields({ category, onChange }: {
+  category: ServiceCategoryDescription;
+  onChange: (value: ServiceCategoryDescription) => void;
+}) {
+  return <div className="admin-opc-editor__fields">
+    <TextField
+      label="所属入口"
+      value={category.section === "infrastructure" ? "基础设施" : "专项服务"}
+      readOnly
+      onChange={() => undefined}
+      help="所属入口、分类名称和顺序由 OPC 规格控制。"
+    />
+    <TextField label="公开分类名称" value={category.name} readOnly onChange={() => undefined} />
+    <TextField
+      label="分类说明"
+      value={category.description}
+      multiline
+      maxLength={OPC_CATEGORY_DESCRIPTION_MAX_LENGTH}
+      help="说明这一分类解决的问题或覆盖的经营能力，不重复项目数量。"
+      onChange={(description) => onChange({ ...category, description })}
+    />
   </div>;
 }
 

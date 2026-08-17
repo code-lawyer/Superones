@@ -67,6 +67,13 @@ test("publishing the OPC catalog immediately expires its public cache", () => {
   assert.match(adminOpcRoute, /revalidateTag\(PUBLISHED_SERVICE_CATALOG_CACHE_TAG, \{ expire: 0 \}\)/);
 });
 
+test("OPC cached payloads use a schema-versioned key", () => {
+  assert.match(
+    publicReadCache,
+    /\[PUBLISHED_SERVICE_CATALOG_CACHE_TAG, "catalog-v2"\]/,
+  );
+});
+
 test("the default PostgreSQL pool fits the 2C2G runtime baseline", () => {
   assert.match(stateDocumentStore, /VAULT2077_DATABASE_POOL_SIZE \?\? 4/);
   assert.match(environmentExample, /^VAULT2077_DATABASE_POOL_SIZE=4$/m);

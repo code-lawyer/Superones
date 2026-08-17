@@ -42,7 +42,7 @@ export const getCachedSicContent = unstable_cache(
 
 export const getCachedPublishedServiceCatalog = unstable_cache(
   readPublishedServiceCatalog,
-  [PUBLISHED_SERVICE_CATALOG_CACHE_TAG],
+  [PUBLISHED_SERVICE_CATALOG_CACHE_TAG, "catalog-v2"],
   { revalidate: 60, tags: [PUBLISHED_SERVICE_CATALOG_CACHE_TAG] },
 );
 

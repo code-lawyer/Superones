@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   allOpcServices,
+  defaultServiceCategoryDescriptions,
   defaultRangerIdentities,
   infrastructureServices,
   nextRangerIdentityId,
@@ -71,15 +72,18 @@ test("Every first-version OPC SKU is page-ready and uses an explicit RMB price",
 });
 
 test("OPC specialty and ranger taxonomies remain separate", () => {
+  assert.equal(defaultServiceCategoryDescriptions.length, 9);
+  assert.ok(defaultServiceCategoryDescriptions.every((category) => category.description.trim()));
   assert.equal(defaultRangerIdentities.length, 10);
   assert.equal(new Set(defaultRangerIdentities.map((identity) => identity.id)).size, 10);
+  assert.ok(defaultRangerIdentities.every((identity) => identity.description.trim()));
   assert.ok(defaultRangerIdentities.every((identity) => !specialtyDomains.includes(identity.name as never)));
 });
 
 test("managed ranger identities receive an unused generated ID after deletions", () => {
   const identities = [
     ...defaultRangerIdentities.slice(1),
-    { id: "new-ranger-identity-11", name: "新增身份" },
+    { id: "new-ranger-identity-11", name: "新增身份", description: "新增身份的专业支持范围" },
   ];
   assert.equal(nextRangerIdentityId(identities), "new-ranger-identity-12");
 });
