@@ -200,9 +200,9 @@ ADR-0023 将游骑兵顾问身份纳入同一 OPC 目录事实源：身份使用
 
 ### 7.2 2026-08-18 修复执行状态
 
-全面审查后的 R1 紧急修复已在本地工作区形成候选：生产配置只接受校验证书链和主机名的 PostgreSQL TLS，并在运行时、迁移和门禁共用的解析器中拒绝连接串 SSL 覆盖参数；Frontier 回退仅隔离 payload 解析错误，资格判断和四类持久化失败都会交回 inbox 统一重试，且下一轮可重新领取；Nginx 模板让直接 404/405 在自身 location 加载安全头、关闭版本标记并隐藏应用层重复安全头；精确头像上传路由单独使用 6MB 代理上限；新增 `npm run edge:check` 只读验证公网 200/404/405、有效 HSTS、精确 CSP、重复值一致性和版本/系统信息隐藏。移动卷宗流候选把共享断点骨架与 Home/Feed/SiC/Frontier 路由样式分离，覆盖式菜单具备背景隔离、滚动锁定、焦点约束、Escape 返回及离开移动断点时的完整清理，SiC 移动功能文字与包括原始榜单入口在内的链接命中区满足新设计合同。
+全面审查后的 R1 紧急修复已整理为独立本地提交：生产配置只接受校验证书链和主机名的 PostgreSQL TLS，并在运行时、迁移和门禁共用的解析器中拒绝连接串 SSL 覆盖参数；Frontier 回退仅隔离 payload 解析错误，资格判断和四类持久化失败都会交回 inbox 统一重试，且下一轮可重新领取；Nginx 模板让直接 404/405 在自身 location 加载安全头、关闭版本标记并隐藏应用层重复安全头；精确头像上传路由单独使用 6MB 代理上限；新增 `npm run edge:check` 只读验证公网 200/404/405、有效 HSTS、精确 CSP、重复值一致性和版本/系统信息隐藏。移动卷宗流也已整理为后续独立本地提交：共享断点骨架与 Home/Feed/SiC/Frontier 路由样式分离，覆盖式菜单具备背景隔离、滚动锁定、焦点约束、Escape 返回及离开移动断点时的完整清理，SiC 移动功能文字与包括原始榜单入口在内的链接命中区满足新设计合同。
 
-以上是尚未提交或部署的代码候选，不是生产事实。2026-08-18 三次修复后的当前混合工作区已通过 109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E；此前同一候选还通过 33 个 Python 测试、Ruff 和生产依赖审计（0 vulnerability），本轮不涉及 Python 或依赖变更。R1 与移动端候选必须保持独立提交边界，并在各自发布候选上由 CI 重跑适用门禁。Linux release artifact、`nginx -t`、真实公网 edge probe 和 1MB/5MB/超限头像代理验证仍是 R1 发布前置。生产 release、Nginx 实际安装状态、功能开关和回滚点继续以本机私有记忆及发布时重新核验为准。
+以上代码已在 `codex/r1-mobile-remediation` 本地分支按“R1 安全与可靠性 → 移动端 UI”顺序形成两个独立提交，但尚未推送、构建 Linux release artifact 或部署，因此不是生产事实。2026-08-18 三次修复后的提交前组合工作区已通过 109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E；此前同一候选还通过 33 个 Python 测试、Ruff 和生产依赖审计（0 vulnerability），本轮不涉及 Python 或依赖变更。两个发布候选仍须由 CI 分别重跑适用门禁。Linux release artifact、`nginx -t`、真实公网 edge probe 和 1MB/5MB/超限头像代理验证仍是 R1 发布前置。生产 release、Nginx 实际安装状态、功能开关和回滚点继续以本机私有记忆及发布时重新核验为准。
 
 ## 8. 自主完成提交、同步和部署所需权限
 

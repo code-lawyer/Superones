@@ -136,7 +136,7 @@ updated: 2026-08-18
 - Frontier processor 使用表驱动测试覆盖资格拒绝、验证推进、Star 快照和任务完成四类持久化失败；四类均冒泡，资格判断不在 payload 解析 catch 内，且确定性的单条 malformed observation 仍不阻断同批合法记录。真实 processor+worker 组合另证明首次失败进入 `retryable`、下一轮以递增 attempt 重新领取并完成。
 - Nginx 静态合同测试证明公开/管理直接 404、跨境接口 405 在 location 自身加载安全 snippet，生产 server 关闭版本标记；只有精确头像上传路由具有 6MB 代理上限。
 - `scripts/check-public-edge.ts` 已有模拟响应测试，覆盖只读 200/404/405、有效非零 HSTS、精确 `'none'` CSP、常见 Server 版本/系统泄露失败；尚未把本候选安装到生产，也尚未完成真实 1MB/5MB/超限头像代理验收。
-- 三次修复后的当前混合工作区已通过：109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E。此前同一候选另通过 33 个 Python 测试、Ruff 和 0 vulnerability 生产依赖审计；本轮不涉及 Python 或依赖变更。R1 与移动端候选必须保持独立提交边界，并在各自发布候选上由 CI 重跑适用门禁。
+- 三次修复后的提交前组合工作区已通过：109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E。此前同一候选另通过 33 个 Python 测试、Ruff 和 0 vulnerability 生产依赖审计；本轮不涉及 Python 或依赖变更。代码已在 `codex/r1-mobile-remediation` 本地分支按 R1、移动端 UI 两个独立提交落盘，尚未推送或部署；两个发布候选仍须由 CI 分别重跑适用门禁。
 
 ## 5. 推荐推进顺序
 
