@@ -1,13 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/manrope";
 import "./globals.css";
 import "./institutional.css";
+import "./mobile.css";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
   title: { default: "Vault2077 — 一人公司，全栈运行", template: "%s — Vault2077" },
   description: "为超级个体提供持续情报、标准化经营服务、技术趋势与开放实验场。",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 // The proxy issues a fresh CSP nonce for every document request. Dynamic

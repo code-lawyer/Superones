@@ -1,0 +1,49 @@
+@media (max-width: 820px) {
+  .frontier-landing .frontier-doctrine {
+    padding-top: 64px;
+    padding-bottom: 72px;
+  }
+
+  .frontier-landing .frontier-principles {
+    margin-top: 56px;
+    padding-top: 0;
+  }
+
+  .frontier-landing .frontier-live,
+  .frontier-landing .frontier-rewards,
+  .frontier-landing .frontier-archive {
+    padding-top: 76px;
+    padding-bottom: 84px;
+  }
+
+  .frontier-landing .frontier-season-card,
+  .frontier-landing .frontier-ranking-panel,
+  .frontier-landing .frontier-official-reward,
+  .frontier-landing .frontier-random-pool,
+  .frontier-landing .frontier-archive__empty {
+    border: 0;
+  }
+
+  .frontier-landing .frontier-season-card__facts {
+    gap: 8px;
+  }
+
+  .frontier-landing .frontier-season-card__facts > div {
+    border: 0;
+  }
+
+  .frontier-landing .frontier-ranking-empty,
+  .frontier-landing .frontier-pool-empty {
+    border: 0;
+    background: var(--paper);
+  }
+}
+
+@media (max-width: 420px) {
+  .frontier-season-card,
+  .frontier-ranking-panel,
+  .frontier-official-reward,
+  .frontier-random-pool {
+    padding: 24px;
+  }
+}

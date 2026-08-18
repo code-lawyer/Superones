@@ -1,0 +1,106 @@
+@media (max-width: 820px) {
+  .sic-overview .sic-overview-lead,
+  .sic-overview .sic-overview-papers,
+  .sic-overview .sic-overview-grid,
+  .sic-overview .sic-overview-group,
+  .sic-overview .sic-overview-group:not(:last-child) {
+    border: 0;
+  }
+
+  .sic-overview .sic-overview-lead__mark {
+    min-height: 82px;
+    border: 0;
+    padding-inline: var(--gutter);
+    background: var(--paper-soft);
+  }
+
+  .sic-overview .sic-overview-lead > article {
+    padding: 54px var(--gutter) 62px;
+  }
+
+  .sic-overview .sic-overview-papers {
+    padding-inline: var(--gutter);
+  }
+
+  .sic-overview .sic-overview-record summary {
+    min-height: 76px;
+  }
+
+  .sic-overview .sic-overview-record__open {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .sic-overview .sic-overview-ranking__controls button,
+  .sic-overview .sic-overview-more,
+  .sic-overview .sic-overview-end a {
+    min-height: 44px;
+  }
+
+  .sic-overview .sic-overview-ranking__slide > header {
+    border-right-color: var(--rule-dark);
+  }
+
+  .sic-overview .sic-overview-ranking__position > small,
+  .sic-overview .sic-overview-ranking__position b,
+  .sic-overview .sic-overview-ranking__position em,
+  .sic-overview .sic-overview-ranking__slide > header > span,
+  .sic-overview .sic-overview-ranking__slide > header > small,
+  .sic-overview .sic-overview-ranking__trust,
+  .sic-overview .sic-overview-ranking__slide li > span,
+  .sic-overview .sic-overview-ranking__slide li b {
+    font-size: var(--type-label);
+  }
+
+  .sic-overview .sic-overview-ranking__slide li a {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .sic-overview .sic-overview-ranking__trust a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .sic-overview .sic-overview-group,
+  .sic-overview .sic-overview-group:first-of-type {
+    padding-top: 76px;
+    padding-bottom: 82px;
+  }
+
+  .sic-overview .sic-overview-group:nth-child(even) {
+    background: transparent;
+  }
+
+  .sic-overview .sic-overview-group .sic-overview-record summary,
+  .sic-overview .sic-overview-group:first-of-type .sic-overview-record summary,
+  .sic-overview .sic-overview-group:nth-of-type(2) .sic-overview-record summary,
+  .sic-overview .sic-overview-group:last-child .sic-overview-record summary {
+    padding-top: 22px;
+    padding-bottom: 22px;
+  }
+
+  .sic-overview .sic-overview-end {
+    border: 0;
+    background: var(--paper-soft);
+  }
+
+  .sic-overview .sic-overview-lead__mark span,
+  .sic-overview .sic-overview-lead > article > span,
+  .sic-overview .sic-overview-papers > header,
+  .sic-overview .sic-overview-record__index,
+  .sic-overview .sic-overview-record__meta,
+  .sic-overview .sic-overview-group__header > span,
+  .sic-overview .sic-overview-rankings__inner > header span,
+  .sic-overview .sic-overview-end > div > span {
+    font-size: var(--type-label);
+  }
+
+  .sic-overview .sic-overview-record__detail a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+}
