@@ -1,7 +1,7 @@
 ---
 type: traceability
 status: active
-updated: 2026-08-16
+updated: 2026-08-18
 ---
 
 # Vault2077 实现追踪矩阵
@@ -19,7 +19,7 @@ updated: 2026-08-16
 | OPC 三入口业务模型 | partial | 三入口、七项基础设施、十四项专项服务、六领域和可发布顾问身份已实现；21 项服务已有完整页面字段、人民币公开价和无账号线下付款入口；旧在线支付已退役，默认游骑兵名录为空，不展示样例档案 |
 | SiC 内容组 | partial | 正式页面已实现连续聚合、轻量投影与分组分页；逐条规范化发布表、旧文档事务双写／摘要回滚兼容、空／部分非破坏更新、inbox 恢复 dry-run 和原子候选替换已实现。生产迁移、恢复写入与内容验收尚待本次发布闭环 |
 | SiC 平台原生榜 | done | 原生顺序与 last-success 保留已实现；stale、失败和延迟只在 `/pipeline` 明示 |
-| 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等、后台逐赛季奖励草稿/发布和预览边界已实现；当前赛季真实奖励仍待运营发布 |
+| 边境计划页面与本地业务 | partial | 基础流程、重复已验证报名恢复、结算租约/失败/重试/幂等、后台逐赛季奖励草稿/发布和预览边界已实现；R1 候选只隔离 malformed payload，资格判断异常与资格拒绝、验证推进、Star 快照、任务完成写入失败均由 inbox 重试，且测试证明后续 worker run 可重新领取成功，生产发布与当前赛季真实奖励仍待验收/运营发布 |
 | 无账户公开产品 | done | 公开用户无需站内账户 |
 | 运营后台 | partial | 原生 Passkey 的引导、注册、登录、五分钟再认证、恢复与撤销，以及 PostgreSQL 可撤销会话、同源写请求防护、不可变审计、结构化 OPC 服务目录编辑和订单状态处理已实现；资讯、事件、SiC、榜单与逐条纠错处置均不进入后台；真实认证器、TLS 与防火墙绕过测试仍待目标环境验收 |
 | 统一采集批次/inbox | done | 四 lane、带 key ID 的签名密钥环、幂等、revision 白名单、规范状态、租约、重试上限、quarantine、文件 E2E 与 PostgreSQL `SKIP LOCKED` adapter 已实现 |
@@ -98,7 +98,7 @@ updated: 2026-08-16
 | 来源清单兼容门禁 | done | `AcquisitionBatch v2` 携带已签名的 lane 来源快照；接收端校验快照 schema、来源映射和 adapter 能力，不要求 revision 完全一致；旧 `v1` 继续使用显式修订白名单 |
 | inbox 幂等与重放防护 | done | 接收代码与 E2E 存在 |
 | 批次写入原子性 | done | PostgreSQL 模式下采集批次、后台 OPC/Frontier/订单业务写入与对应成功审计均使用同一事务；审计失败会回滚业务写入；文件预览存储不作为生产原子性保证 |
-| worker 重试/隔离 | done | retryable/quarantined、最大尝试、租约恢复和隔离测试已实现 |
+| worker 重试/隔离 | done | retryable/quarantined、最大尝试、租约恢复和隔离测试已实现；Frontier 持久化失败已通过真实 processor+worker 组合验证首次进入 retryable、下一轮 attempt 递增并完成 |
 | 后台身份入口 | done | 生产只接受独立 HTTPS 管理来源上的原生 WebAuthn/Passkey，校验 RP ID、来源、挑战、签名、用户验证和计数器后创建可撤销服务端会话；本地开发密码适配器在生产关闭 |
 | 后台会话与再认证 | done | PostgreSQL 只保存不透明令牌摘要，支持单会话撤销、30 分钟空闲和 4 小时绝对过期；OPC 发布和奖品状态操作要求最近 5 分钟再认证 |
 | 不可变审计日志 | done | 后台写操作、登录与 GitHub 请求写入 append-only 审计表；更新/删除由触发器拒绝 |
@@ -109,7 +109,7 @@ updated: 2026-08-16
 | 备份恢复演练 | missing | 无日期、RPO/RTO 和恢复结果 |
 | 监控告警 | partial | 受保护 `/api/internal/health` 已覆盖迁移、inbox、内容新鲜度、榜单 stale、Frontier 回退和编辑配置；待接入目标告警平台并演练 |
 | 编辑处理容量隔离 | partial | Vault/SiC 独立并发、批大小、超时、熔断和备用配置已实现；普通结构化任务显式关闭 thinking，任务级开启使用官方 Chat Completions 字段，审计记录策略；额度无限且 PostgreSQL 支持并发 worker，尚缺目标容量和持续积压演练 |
-| 生产配置门禁 | done | `npm run deploy:check` 额外拒绝旧单值数据/管线密钥和未使用标准可信代理模板，同时拒绝预览存储、弱/示例密钥、非 TLS 数据库、本地后台密码、同主机入口、已退役 OIDC/在线支付变量、有限生产模型额度和旧共享模型 |
+| 生产配置门禁 | done | `npm run deploy:check` 只接受启用证书链/主机名校验的 `VAULT2077_DATABASE_SSL=require`，同时拒绝连接串中的 SSL 覆盖参数；运行时与迁移脚本共用同一 TLS 解析合同。门禁还拒绝旧单值数据/管线密钥、未使用标准可信代理模板、预览存储、弱/示例密钥、本地后台密码、同主机入口、已退役 OIDC/在线支付变量、有限生产模型额度和旧共享模型 |
 | 生产依赖安全 | done | Next.js 固定为 16.2.11，PostCSS/Sharp 覆盖到修复版本；`npm audit --omit=dev --audit-level=high` 为 0 漏洞 |
 
 ## 4. 2026-07-29 工程证据
@@ -129,6 +129,14 @@ updated: 2026-08-16
 - 浏览器验收：核心页面在 360/768/1280/1440 检查标题、主区、表单与横向溢出；修复首页/OPC 的 360px 溢出后复验通过，跳到正文焦点、移动菜单、纠错表单标签与后台登录保护可用。
 
 测试通过说明现有实现没有已知回归，不代表生产门禁已满足。
+
+### 4.1 2026-08-18 R1 修复候选证据
+
+- 生产配置定向测试证明仅 `VAULT2077_DATABASE_SSL=require` 可通过；`disable`、`allow-self-signed`、未知值及连接串 `ssl`/`sslmode`/证书路径/libpq 兼容覆盖均失败，运行时和迁移命令使用同一解析器。
+- Frontier processor 使用表驱动测试覆盖资格拒绝、验证推进、Star 快照和任务完成四类持久化失败；四类均冒泡，资格判断不在 payload 解析 catch 内，且确定性的单条 malformed observation 仍不阻断同批合法记录。真实 processor+worker 组合另证明首次失败进入 `retryable`、下一轮以递增 attempt 重新领取并完成。
+- Nginx 静态合同测试证明公开/管理直接 404、跨境接口 405 在 location 自身加载安全 snippet，生产 server 关闭版本标记；只有精确头像上传路由具有 6MB 代理上限。
+- `scripts/check-public-edge.ts` 已有模拟响应测试，覆盖只读 200/404/405、有效非零 HSTS、精确 `'none'` CSP、常见 Server 版本/系统泄露失败；尚未把本候选安装到生产，也尚未完成真实 1MB/5MB/超限头像代理验收。
+- 三次修复后的当前混合工作区已通过：109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E。此前同一候选另通过 33 个 Python 测试、Ruff 和 0 vulnerability 生产依赖审计；本轮不涉及 Python 或依赖变更。R1 与移动端候选必须保持独立提交边界，并在各自发布候选上由 CI 重跑适用门禁。
 
 ## 5. 推荐推进顺序
 

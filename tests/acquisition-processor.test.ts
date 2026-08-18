@@ -84,6 +84,55 @@ function mixedBatch(): AcquisitionBatch {
   };
 }
 
+function frontierFallbackBatch({
+  scenario,
+  taskKind,
+  isFork = false,
+}: {
+  scenario: string;
+  taskKind: "verify_submission" | "observe_stars";
+  isFork?: boolean;
+}): AcquisitionBatch {
+  const value = mixedBatch();
+  value.lane = "rankings";
+  value.scheduleId = `schedule:test:frontier-${scenario}`;
+  value.records = [{
+    ...value.records[0],
+    kind: "repository_observation",
+    recordId: `repository:frontier:${scenario}`,
+    externalId: `frontier:${scenario}-task`,
+    sourceId: "frontier-public-fallback",
+    canonicalUrl: "https://github.com/owner/repo",
+    payload: taskKind === "observe_stars"
+      ? {
+        target: "frontier",
+        taskKind,
+        season: "2099-Q1",
+        submissionId: `submission-${scenario}`,
+        stars: 42,
+      }
+      : {
+        target: "frontier",
+        taskKind,
+        season: "2099-Q1",
+        submissionId: `submission-${scenario}`,
+        stars: 42,
+        defaultBranch: "main",
+        isFork,
+        isArchived: false,
+        isPrivate: false,
+        license: "MIT",
+        challenge: "challenge-value",
+      },
+  }];
+  value.sourceReports = [{
+    ...value.sourceReports[0],
+    sourceId: "frontier-public-fallback",
+    recordCount: 1,
+  }];
+  return value;
+}
+
 test("processor routes information and publications through domestic adapters", async () => {
   const calls: Array<{ kind: string; value: unknown; hash?: string }> = [];
   let requireNoQuarantine = false;
@@ -429,6 +478,142 @@ test("Frontier verification fallback persists an exact eligibility rejection bef
   assert.equal(result.repositories, 1);
   assert.deepEqual(rejected, [{ id: "submission-rejected", reason: "纯 Fork 仓库不能参加边境计划。" }]);
   assert.deepEqual(completed, ["submission-rejected"]);
+});
+
+type FrontierProcessorOverrides = NonNullable<Parameters<typeof createAcquisitionBatchProcessor>[0]>;
+
+const frontierPersistenceFailureCases: Array<{
+  name: string;
+  scenario: string;
+  taskKind: "verify_submission" | "observe_stars";
+  isFork?: boolean;
+  error: RegExp;
+  overrides: FrontierProcessorOverrides;
+}> = [
+  {
+    name: "eligibility rejection persistence",
+    scenario: "rejection-failure",
+    taskKind: "verify_submission",
+    isFork: true,
+    error: /rejection persistence unavailable/,
+    overrides: {
+      async rejectFrontierSubmission() {
+        throw new Error("rejection persistence unavailable");
+      },
+    },
+  },
+  {
+    name: "verification persistence",
+    scenario: "verification-failure",
+    taskKind: "verify_submission",
+    error: /verification persistence unavailable/,
+    overrides: {
+      async applyFrontierVerification() {
+        throw new Error("verification persistence unavailable");
+      },
+    },
+  },
+  {
+    name: "star snapshot persistence",
+    scenario: "snapshot-failure",
+    taskKind: "observe_stars",
+    error: /snapshot persistence unavailable/,
+    overrides: {
+      async recordFrontierSnapshots() {
+        throw new Error("snapshot persistence unavailable");
+      },
+    },
+  },
+  {
+    name: "task completion persistence",
+    scenario: "completion-failure",
+    taskKind: "observe_stars",
+    error: /task completion persistence unavailable/,
+    overrides: {
+      async recordFrontierSnapshots() {
+        return 1;
+      },
+      async completeFrontierFallbackTasks() {
+        throw new Error("task completion persistence unavailable");
+      },
+    },
+  },
+];
+
+for (const [index, scenario] of frontierPersistenceFailureCases.entries()) {
+  test(`Frontier fallback batches remain retryable when ${scenario.name} fails`, async () => {
+    const value = frontierFallbackBatch(scenario);
+    let completed = false;
+    const processor = createAcquisitionBatchProcessor({
+      async completeFrontierFallbackTasks() {
+        completed = true;
+        return 1;
+      },
+      ...scenario.overrides,
+    });
+
+    await assert.rejects(
+      processor(value, { payloadHash: String(index + 5).repeat(64), attempt: 1 }),
+      scenario.error,
+    );
+    assert.equal(completed, false);
+  });
+}
+
+test("a malformed Frontier observation is isolated without blocking valid observations", async () => {
+  const value = mixedBatch();
+  value.lane = "rankings";
+  value.scheduleId = "schedule:test:frontier-malformed-isolation";
+  const baseRecord = {
+    ...value.records[0],
+    kind: "repository_observation" as const,
+    sourceId: "frontier-public-fallback",
+    canonicalUrl: "https://github.com/owner/repo",
+  };
+  value.records = [
+    {
+      ...baseRecord,
+      recordId: "repository:frontier:malformed",
+      externalId: "frontier:malformed-task",
+      payload: {
+        target: "frontier",
+        taskKind: "unsupported-task-kind",
+        season: "2099-Q1",
+        submissionId: "submission-malformed",
+        stars: 1,
+      },
+    },
+    {
+      ...baseRecord,
+      recordId: "repository:frontier:valid",
+      externalId: "frontier:valid-task",
+      payload: {
+        target: "frontier",
+        taskKind: "observe_stars",
+        season: "2099-Q1",
+        submissionId: "submission-valid",
+        stars: 42,
+      },
+    },
+  ];
+  value.sourceReports = [{ ...value.sourceReports[0], sourceId: "frontier-public-fallback", recordCount: 2 }];
+  const persisted: string[] = [];
+  const completed: string[] = [];
+  const processor = createAcquisitionBatchProcessor({
+    async recordFrontierSnapshots(season, updates) {
+      persisted.push(`${season}:${updates[0]?.submissionId}:${updates[0]?.stars}`);
+      return updates.length;
+    },
+    async completeFrontierFallbackTasks(ids) {
+      completed.push(...ids);
+      return ids.length;
+    },
+  });
+
+  const result = await processor(value, { payloadHash: "9".repeat(64), attempt: 1 });
+  assert.equal(result.repositories, 1);
+  assert.deepEqual(persisted, ["2099-Q1:submission-valid:42"]);
+  assert.deepEqual(completed, ["submission-valid"]);
 });
 
 test("processor fails visibly when a record kind has no domestic adapter", async () => {

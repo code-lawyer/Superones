@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-15
+updated: 2026-08-18
 ---
 
 # Vault2077 部署配置手册
@@ -121,7 +121,7 @@ Frontier 生产开放配置：
 | `VAULT2077_OSS_INTERNAL` | 必须明确为 `true` 或 `false` | 同地域内网 Endpoint 可用时设为 `true` |
 | `VAULT2077_RANGER_MEDIA_DIR` | 仅本地可选 | 覆盖本地头像预览目录，生产不使用 |
 
-Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入。应用 RAM 身份只授予该前缀的对象写入和元数据读取能力。上传上限为 5MB，Nginx 当前 `client_max_body_size 8m` 足以容纳 multipart 开销；如果修改任一侧上限，必须同步校验浏览器、应用路由和 Nginx。生产启用前验证 CNAME/TLS、320/800 WebP、发布前 HEAD、`Cache-Control: public, max-age=31536000, immutable`、替换、撤回、无引用对象清理和费用告警。
+Bucket 匿名权限最多允许读取 `rangers/*`，绝不能允许匿名写入。应用 RAM 身份只授予该前缀的对象写入和元数据读取能力。应用文件上限为 5MB；Nginx 只在精确的 `/api/admin/opc/ranger-avatar` location 设置 `client_max_body_size 6m` 以容纳 multipart 开销，其余管理 API 保持默认小请求体边界。如果修改任一侧上限，必须同步校验浏览器、应用路由和 Nginx。生产启用前验证 CNAME/TLS、1MB/5MB/超限三档上传、320/800 WebP、发布前 HEAD、`Cache-Control: public, max-age=31536000, immutable`、替换、撤回、无引用对象清理和费用告警。
 
 ### OPC 线下对公转账订单
 
@@ -182,7 +182,7 @@ ADR-0022 已删除旧在线支付 SDK、通知、查询、恢复付款、关单�
 
 游骑兵头像媒体每天执行一次 `npm run opc:cleanup-ranger-media`：未被草稿、当前发布或发布历史引用的孤儿对象保留 7 天；只存在于发布历史的已替换对象保留 30 天。本人撤回授权时，先从草稿和公开目录移除头像并发布，再执行 `npm run opc:purge-revoked-ranger-media -- <ranger-slug>`；该命令会枚举并删除当前对象、全部历史 versionId 和删除标记。RAM 清理权限必须同时允许列举对象版本和按 versionId 删除。
 
-生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速、可撤销后台会话、退役在线付款历史中性化和 SiC 逐条发布表；迁移后、Web 与 health 启动前必须运行幂等的 `npm run sic:initialize-publications`，确认逐条表与旧投影摘要、总数和四组计数对齐。健康检查必须确认最新迁移名为 `0008_sic_published_items.sql`，迁移文件应用后不得修改。
+生产 v1 配置 `VAULT2077_DATABASE_URL`、`VAULT2077_DATABASE_SSL` 与 `VAULT2077_DATABASE_POOL_SIZE`（2C2G 基线为 4），并在启动前运行 `npm run db:migrate`。数据库 URL 不得携带任何 `ssl`/`sslmode`/证书路径/libpq 兼容参数；TLS 只由独立的 `VAULT2077_DATABASE_SSL=require` 控制，运行时、迁移和门禁共用同一解析合同。当前迁移覆盖业务聚合、统一 inbox、claim token/退避、不可变审计、登录锁定、分布式限速、可撤销后台会话、退役在线付款历史中性化和 SiC 逐条发布表；迁移后、Web 与 health 启动前必须运行幂等的 `npm run sic:initialize-publications`，确认逐条表与旧投影摘要、总数和四组计数对齐。健康检查必须确认最新迁移名为 `0008_sic_published_items.sql`，迁移文件应用后不得修改。
 
 阿里云首个商用版本使用 RDS PostgreSQL 17，而不是把 PostgreSQL 与 Node 放在同一台服务器。2026-08-06 现网实例为 Basic、2 核 4 GB、100 GB general ESSD，连接池仍按 4 起步；控制面已启用 SSL、自动快照和日志备份，并返回本地时间点恢复区间。系列名称不再单独决定 PITR 门禁；必须开启删除保护，从真实时间点恢复到隔离实例并记录 RPO/RTO，若实际恢复能力或高可用性不足再升级多可用区。服务器与 RDS 必须使用受控私网链路，并限制 RDS 白名单/安全组。容量在 50%/70%/80% 分级告警。Redis 当前不需要。OSS 用途保持隔离：公开游骑兵头像按 ADR-0016 使用公开媒体 Bucket；ADR-0018 的专用私有合同 Bucket 已预创建并锁定 10 年，但只在未来电子签约启用前进入验收。当前纸质合同原件的线下保管不进入系统或 OSS。原始包、授权材料和其他长期归档不得写入头像或电子合同 Bucket。
 
@@ -216,6 +216,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 - 监控以 Bearer 密钥读取 `/api/internal/health`；`503` 或任一 degraded 检查触发告警，不向公网匿名暴露检查详情。
 - `/pipeline` 只允许回环/内部网络或认证后台访问，并设置 `noindex`。
 - 配置 TLS、HSTS、逐请求 nonce CSP、MIME 防护、Referrer Policy、请求体限制与日志脱敏。nonce 使页面采用动态渲染；首发 VPS 必须以压测确认可接受的 CPU、TTFB 和并发。
+- 直接返回的 404/405 location 自身加载边缘安全头，`server_tokens off` 在实际加载的作用域生效；安装或 reload 后运行 `npm run edge:check`，确认 200/404/405 安全头一致且 `Server` 不含版本或操作系统。
 
 ## 8. 部署步骤
 
@@ -225,7 +226,7 @@ Frontier 境内 GitHub 请求必须使用服务端只读凭证、短超时、限
 4. 生成彼此独立的高熵秘密与两个版本化密钥环；把采集签名密钥环、活动 ID 和 Frontier 公开任务只读密钥配置到 GitHub Secrets，把完整验签密钥环配置在境内。不得复制 worker、LLM、后台或用户数据秘密到 GitHub。
 5. 注入 PostgreSQL、OSS、Passkey、管线、模型与功能开关的最终生产变量，先运行 `npm run deploy:check`，再运行会实际调用全部已配置主/备用模型的 `npm run deploy:verify-editorial`；两者全绿后再运行文档、ESLint、Ruff、类型、单元、采集器、构建和 E2E。
 6. 运行 PostgreSQL 迁移，确认健康检查识别最新迁移；创建自动备份后执行一次隔离恢复演练。
-7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer`、`vault2077-healthcheck.timer`、`vault2077-frontier-tick.timer`、`vault2077-ranger-media-cleanup.timer` 与 `vault2077-opc-order-maintenance.timer`；执行 `nginx -t`、`systemd-analyze verify` 并接入失败告警。生产主告警接收人为 `lanzhouda@163.com`，当前无备用接收人。
+7. 安装 Nginx、`vault2077-web.service`、`vault2077-acquisition-worker.timer`、`vault2077-healthcheck.timer`、`vault2077-frontier-tick.timer`、`vault2077-ranger-media-cleanup.timer` 与 `vault2077-opc-order-maintenance.timer`；执行 `nginx -t`、`systemd-analyze verify` 和 `npm run edge:check` 并接入失败告警。生产主告警接收人为 `lanzhouda@163.com`，当前无备用接收人。
 8. 部署应用但暂不开放内容频道；执行一次性 bootstrap，把 SiC 每个 approved 来源的最近一条合格内容与 Vault 最近 30 天真实内容写入生产事实源。
 9. 验证 bootstrap 的逐来源覆盖、原始日期、稳定 ID、分批处理和幂等补跑，再启用统一增量计划和境内两个 timer。
 10. 在生产等价预发布环境验证投递重试、GitHub 漏跑补跑、worker 积压恢复、四通道新鲜度、Frontier 快速路径与异步回退、公开降级、后台会话与再认证、头像 OSS 上传/访问/发布/撤回/清理、OPC 下单/到账/完成/退款状态流转、反向代理伪造头拒绝和 `/pipeline` 边界。

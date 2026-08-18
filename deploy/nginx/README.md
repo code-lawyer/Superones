@@ -18,7 +18,9 @@
 10. `limit_req_zone` 必须位于 Nginx `http` 上下文；若发行版不从该上下文 include 站点文件，应把声明移动到 `nginx.conf` 的 `http {}` 内。
 11. 监控、worker、Frontier tick 和 `/pipeline` 使用回环或受控内网，不得为方便重新公开内部路径。
 12. 保留 `vault2077.conf.example` 中协议 PDF 精确路径的同源预览例外：该路径必须隐藏上游通用 `X-Frame-Options: DENY`、完整重复公开安全头，并仅返回 `X-Frame-Options: SAMEORIGIN`；不得把例外扩展到二维码、目录或通配路径。
-13. 运行 `nginx -t` 后，从公网验证：公开域名的内部/管理路径为 `404`；接收入口非 POST 为 `405`；匿名管理写接口为 `401`；伪造转发头和身份断言头无效；服务器 IP 与 Node 端口不能绕过管理域名；协议 PDF 在本站弹窗内可预览且跨站嵌入失败，其他页面仍返回 `X-Frame-Options: DENY`。
-14. 验证 Passkey 注册、登录、注销、五分钟内再认证、凭证撤销、恢复码兑换和紧急 `--revoke-existing` 流程，并保存验收证据。
+13. 公开域和管理域的直接 `404/405` location 必须在自身 include `vault2077-edge-error-security.conf` 后 `return`，不要只依赖 `error_page` 继承；`server_tokens off` 同时保留在 `http` 模板和各生产 `server`。
+14. 只有精确的 `/api/admin/opc/ranger-avatar` 使用 `client_max_body_size 6m`，为应用 5MB 文件上限保留 multipart 开销；不得扩大整个 `/api/admin/`。
+15. 运行 `nginx -t`、reload 后执行 `npm run edge:check`，再从公网验证：公开域名的内部/管理路径为 `404`；接收入口非 POST 为 `405`；匿名管理写接口为 `401`；200/404/405 均有预期安全头且 `Server` 不含版本/OS；代理响应的共享安全头由 Nginx 输出单值，多跳代理即使合并重复值也不得夹带宽松值；伪造转发头和身份断言头无效；服务器 IP 与 Node 端口不能绕过管理域名；协议 PDF 在本站弹窗内可预览且跨站嵌入失败，其他页面仍返回 `X-Frame-Options: DENY`。
+16. 验证 Passkey 注册、登录、注销、五分钟内再认证、凭证撤销、恢复码兑换和紧急 `--revoke-existing` 流程，并保存验收证据。
 
 完整配置与恢复步骤见 `docs/Vault2077-Deployment-Configuration-Manual.md` 和 `docs/Vault2077-Admin-Operations-Spec.md`。

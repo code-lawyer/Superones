@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-15
+updated: 2026-08-18
 ---
 
 # Vault2077 阿里云中国大陆生产部署与迁移 Handoff
@@ -195,7 +195,7 @@ NODE_EXTRA_CA_CERTS=/etc/vault2077/rds-ca.pem
 VAULT2077_DATABASE_POOL_SIZE=4
 ```
 
-这里的 `VAULT2077_DATABASE_SSL=require` 是**本项目自己的配置语义**：代码会设置 `rejectUnauthorized=true`，使用 RDS DNS 主机名并校验证书链/主机名；它不同于 libpq 连接串里只加密、不校验身份的 `sslmode=require`。`NODE_EXTRA_CA_CERTS` 用于把阿里云 RDS CA 加入 Node 信任链。不要在生产使用 `disable` 或 `allow-self-signed`。证书轮换前先把新旧 CA 都纳入受控证书包并演练重连。
+这里的 `VAULT2077_DATABASE_SSL=require` 是**本项目自己的配置语义**：代码会设置 `rejectUnauthorized=true`，使用 RDS DNS 主机名并校验证书链/主机名；它不同于 libpq 连接串里只加密、不校验身份的 `sslmode=require`。连接串不得附加 `ssl`、`sslmode`、`sslcert`、`sslkey`、`sslrootcert`、`sslnegotiation` 或 `uselibpqcompat`；运行时、迁移和 `deploy:check` 都会在 `pg` 解析前拒绝这些覆盖参数。`NODE_EXTRA_CA_CERTS` 用于把阿里云 RDS CA 加入 Node 信任链。不要在生产使用 `disable` 或 `allow-self-signed`。证书轮换前先把新旧 CA 都纳入受控证书包并演练重连。
 
 从 VPS 做基础检查：
 
@@ -561,9 +561,10 @@ sudo ln -sfn /etc/nginx/sites-available/vault2077.conf /etc/nginx/sites-enabled/
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
+npm run edge:check
 ```
 
-保留模板中覆盖写入的 `X-Forwarded-For`、`X-Real-IP`、`X-Forwarded-Proto` 和清空身份断言头的行为。增加 CDN/SLB 前必须先配置仅信任其出口地址，不能盲目信任客户端转发头。
+直接返回的公开/管理 `404`、跨境接口方法错误 `405` 必须由对应 location 自身加载 `vault2077-edge-error-security.conf`，不能只依赖 `error_page` 的头继承；`npm run edge:check` 必须确认 200/404/405 的安全头完整且 `Server` 不含 Nginx 版本或操作系统。精确头像上传路由 `/api/admin/opc/ranger-avatar` 单独使用 6MB 代理请求体上限以容纳应用允许的 5MB 文件和 multipart 开销，其余管理 API 不得随之扩大。保留模板中覆盖写入的 `X-Forwarded-For`、`X-Real-IP`、`X-Forwarded-Proto` 和清空身份断言头的行为。增加 CDN/SLB 前必须先配置仅信任其出口地址，不能盲目信任客户端转发头。
 
 ## 11. 数据库迁移与 bootstrap
 

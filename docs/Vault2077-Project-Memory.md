@@ -1,14 +1,24 @@
 ---
 type: project-memory
 status: active
-updated: 2026-08-17
+updated: 2026-08-18
 ---
 
 # Vault2077 项目长期记忆
 
 本文是供长期共同开发、发布和运维使用的项目地图。它记录代码与外部环境交叉核验后的稳定事实、当前状态、未知项和凭证边界，不创造产品需求，也不替代 [文档权威索引](README.md)、[系统交付规格](Vault2077-System-Delivery-Spec.md)、[上线清单](Vault2077-Launch-Checklist.md) 或已接受 ADR。
 
-## 1. 项目定位与产品边界
+## 1. 最高目标与项目定位
+
+### 1.1 最高目标（项目北极星）
+
+2026-08-17，项目负责人确认以下表述为 Vault2077 的最高目标：
+
+> 我们押注于这样一个未来：AI带来的生产力平权将摧毁传统公司存在的基础，正如公司代替手工作坊和行会一样，超级个体将成为新时代的基本生产经营单位，而变换缓慢的社会秩序将与之发生剧烈摩擦，严重影响超级个体们发挥自身的最大价值——Vault2077为此而来。
+
+这一最高目标是项目长期战略、产品取舍和优先级判断的北极星。它说明 Vault2077 为何存在，但不直接创造具体产品需求；具体产品规则、架构边界、工程合同与上线门禁仍按 [文档权威索引](README.md) 所定义的权威层级落实。
+
+### 1.2 当前产品边界
 
 Vault2077 是面向超级个体与一人公司的公开网站，固定包含四个一级频道：
 
@@ -75,7 +85,7 @@ Nginx 的公开主机只允许两个精确内部路由：
 - `POST /api/internal/acquisition`：验证版本化 HMAC、时间窗、批次幂等、大小和来源快照后，只写入 PostgreSQL inbox，立即返回。
 - `GET /api/internal/frontier/tasks`：使用独立只读秘密返回脱敏的公开仓库观察任务。
 
-`/api/internal/acquisition/process`、`/api/internal/health`、Frontier tick、后台、数据库和 Node 3000 都不得暴露公网。管理主机只代理 `/admin`、`/api/admin/*`、`/pipeline` 和所需的 `/_next/*`。Nginx 自行生成的 `404/405` 也必须带 HSTS、禁止 MIME 探测、禁止嵌入和限制性 CSP，并隐藏具体版本号。
+`/api/internal/acquisition/process`、`/api/internal/health`、Frontier tick、后台、数据库和 Node 3000 都不得暴露公网。管理主机只代理 `/admin`、`/api/admin/*`、`/pipeline` 和所需的 `/_next/*`。Nginx 自行生成的 `404/405` 也必须带 HSTS、禁止 MIME 探测、禁止嵌入和限制性 CSP，并隐藏具体版本号；代理响应的共享安全头由 Nginx 统一输出，模板隐藏应用层同名值，公网探针仍能识别多跳代理合并出的重复但完全一致的严格值，并拒绝任何混入的宽松值。
 
 ## 4. 内容与任务运行逻辑
 
@@ -99,6 +109,8 @@ Nginx 的公开主机只允许两个精确内部路由：
 `received → processing → processed`，失败进入 `retryable` 或 `quarantined`。
 
 worker 使用 claim token、租约和 PostgreSQL `SKIP LOCKED` 防止旧 worker 迟到提交；瞬时失败最多六次指数退避。单轮 worker 固定使用 45 分钟处理预算，达到截止时间后停止领取新批次，SiC 无效响应恢复也使用同一截止时间，预算耗尽时回滚并交给 inbox 退避。成功记录保留 30 天，隔离记录保留 180 天。发布业务状态和批次完成状态在同一事务提交，避免页面读到半批结果。
+
+Frontier 回退只在单条 observation payload 无法确定性解析时隔离该条；资格判断异常以及资格拒绝、验证推进、Star 快照、公开任务完成的持久化失败全部退出 processor，使 inbox 标记 `retryable`。后续 worker run 可以重新领取同一批次并以递增 attempt 完成处理。
 
 ### 4.3 编辑与公开状态
 
@@ -185,6 +197,12 @@ ADR-0023 将游骑兵顾问身份纳入同一 OPC 目录事实源：身份使用
 ### 7.1 当前运行状态
 
 实时 release、Actions run、健康降级项和 timer 状态变化频繁，只记录在本机私有生产记忆中。开始任何生产操作前必须从 GitHub Actions、systemd、health、RDS 和 OSS 重新获取当前证据，不能把公开文档中的历史快照当成健康证明。
+
+### 7.2 2026-08-18 修复执行状态
+
+全面审查后的 R1 紧急修复已在本地工作区形成候选：生产配置只接受校验证书链和主机名的 PostgreSQL TLS，并在运行时、迁移和门禁共用的解析器中拒绝连接串 SSL 覆盖参数；Frontier 回退仅隔离 payload 解析错误，资格判断和四类持久化失败都会交回 inbox 统一重试，且下一轮可重新领取；Nginx 模板让直接 404/405 在自身 location 加载安全头、关闭版本标记并隐藏应用层重复安全头；精确头像上传路由单独使用 6MB 代理上限；新增 `npm run edge:check` 只读验证公网 200/404/405、有效 HSTS、精确 CSP、重复值一致性和版本/系统信息隐藏。移动卷宗流候选把共享断点骨架与 Home/Feed/SiC/Frontier 路由样式分离，覆盖式菜单具备背景隔离、滚动锁定、焦点约束、Escape 返回及离开移动断点时的完整清理，SiC 移动功能文字与包括原始榜单入口在内的链接命中区满足新设计合同。
+
+以上是尚未提交或部署的代码候选，不是生产事实。2026-08-18 三次修复后的当前混合工作区已通过 109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E；此前同一候选还通过 33 个 Python 测试、Ruff 和生产依赖审计（0 vulnerability），本轮不涉及 Python 或依赖变更。R1 与移动端候选必须保持独立提交边界，并在各自发布候选上由 CI 重跑适用门禁。Linux release artifact、`nginx -t`、真实公网 edge probe 和 1MB/5MB/超限头像代理验证仍是 R1 发布前置。生产 release、Nginx 实际安装状态、功能开关和回滚点继续以本机私有记忆及发布时重新核验为准。
 
 ## 8. 自主完成提交、同步和部署所需权限
 

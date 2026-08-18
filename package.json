@@ -31,6 +31,7 @@
     "opc:maintain-orders": "node --env-file-if-exists=.env.local --conditions=react-server --experimental-strip-types scripts/run-opc-order-maintenance.ts",
     "opc:publish-offline-payment-profile": "node --env-file-if-exists=.env.local --conditions=react-server --experimental-strip-types scripts/publish-opc-offline-payment-profile.ts",
     "deploy:check": "node --conditions=react-server --experimental-strip-types scripts/check-production-config.ts",
+    "edge:check": "node --experimental-strip-types scripts/check-public-edge.ts",
     "deploy:verify-editorial": "node --conditions=react-server --experimental-strip-types scripts/verify-editorial-providers.ts",
     "health:check": "node --experimental-strip-types scripts/check-operations-health.ts",
     "frontier:tick": "node --conditions=react-server --experimental-strip-types scripts/run-frontier-tick.ts",

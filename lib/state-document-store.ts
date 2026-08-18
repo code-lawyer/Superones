@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Pool, type PoolClient } from "pg";
+import { postgresSslConfiguration } from "./postgres-ssl.mjs";
 
 export type StateDocumentDefinition<T> = {
   namespace: string;
@@ -36,12 +37,17 @@ export function configuredPostgresPool() {
   const connectionString = databaseUrl();
   if (!connectionString) throw new Error("PostgreSQL 连接未配置。");
   const sslMode = process.env.VAULT2077_DATABASE_SSL ?? "require";
+  const ssl = postgresSslConfiguration({
+    connectionString,
+    mode: sslMode,
+    production: process.env.NODE_ENV === "production",
+  });
   pool = new Pool({
     connectionString,
     max: Number(process.env.VAULT2077_DATABASE_POOL_SIZE ?? 4),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
-    ssl: sslMode === "disable" ? false : { rejectUnauthorized: sslMode !== "allow-self-signed" },
+    ssl,
   });
   pool.on("error", (error) => {
     console.error("PostgreSQL 连接池发生未处理错误。", error);

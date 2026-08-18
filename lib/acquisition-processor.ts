@@ -488,52 +488,58 @@ export function createAcquisitionBatchProcessor(input: {
     const frontierBySeason = new Map<string, Array<{ submissionId: string; stars: number }>>();
     const completedFrontierTasks: string[] = [];
     for (const record of frontierRecords) {
+      let value: ReturnType<typeof frontierObservation>;
       try {
-        const value = frontierObservation(record);
-        if (value.taskKind === "observe_stars") {
-          const entries = frontierBySeason.get(value.season) ?? [];
-          entries.push({ submissionId: value.submissionId, stars: value.stars });
-          frontierBySeason.set(value.season, entries);
+        value = frontierObservation(record);
+      } catch {
+        // Only deterministically malformed payloads are isolated. Eligibility
+        // and persistence failures below must reach the worker so the batch can retry.
+        continue;
+      }
+      const eligibilityError = value.taskKind === "observe_stars"
+        ? null
+        : repositoryEligibilityError({
+          owner: record.canonicalUrl,
+          repo: record.canonicalUrl,
+          fullName: record.canonicalUrl,
+          defaultBranch: value.defaultBranch!,
+          stars: value.stars,
+          isFork: value.isFork,
+          isArchived: value.isArchived,
+          isPrivate: value.isPrivate,
+          license: value.license,
+        });
+
+      if (value.taskKind === "observe_stars") {
+        const entries = frontierBySeason.get(value.season) ?? [];
+        entries.push({ submissionId: value.submissionId, stars: value.stars });
+        frontierBySeason.set(value.season, entries);
+      } else {
+        if (eligibilityError) {
+          await rejectFrontierSubmission(value.submissionId, eligibilityError);
         } else {
-          const eligibilityError = repositoryEligibilityError({
-            owner: record.canonicalUrl,
-            repo: record.canonicalUrl,
-            fullName: record.canonicalUrl,
+          const outcome = await applyFrontierVerification({
+            submissionId: value.submissionId,
+            season: value.season,
             defaultBranch: value.defaultBranch!,
             stars: value.stars,
-            isFork: value.isFork,
-            isArchived: value.isArchived,
-            isPrivate: value.isPrivate,
-            license: value.license,
+            challenge: value.taskKind === "verify_submission" ? value.challenge : undefined,
+            capturedAt: batch.collectedAt,
           });
-          if (eligibilityError) {
-            await rejectFrontierSubmission(value.submissionId, eligibilityError);
-          } else {
-            const outcome = await applyFrontierVerification({
-              submissionId: value.submissionId,
-              season: value.season,
-              defaultBranch: value.defaultBranch!,
-              stars: value.stars,
-              challenge: value.taskKind === "verify_submission" ? value.challenge : undefined,
-              capturedAt: batch.collectedAt,
-            });
-            const terminalVerificationOutcomes = new Set([
-              "verified",
-              "challenge-expired",
-              "season-closed",
-              "missing",
-              "ineligible",
-            ]);
-            if (value.taskKind === "verify_submission" && !terminalVerificationOutcomes.has(outcome)) {
-              throw new Error(`Frontier 异步验证未完成：${outcome}。`);
-            }
+          const terminalVerificationOutcomes = new Set([
+            "verified",
+            "challenge-expired",
+            "season-closed",
+            "missing",
+            "ineligible",
+          ]);
+          if (value.taskKind === "verify_submission" && !terminalVerificationOutcomes.has(outcome)) {
+            throw new Error(`Frontier 异步验证未完成：${outcome}。`);
           }
         }
-        completedFrontierTasks.push(value.submissionId);
-        processedRepositories += 1;
-      } catch {
-        // Malformed observations are isolated; valid observations still publish.
       }
+      completedFrontierTasks.push(value.submissionId);
+      processedRepositories += 1;
     }
     for (const [season, updates] of frontierBySeason) {
       await persistFrontier(season, updates, batch.collectedAt);

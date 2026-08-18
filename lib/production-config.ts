@@ -179,14 +179,20 @@ export function validateProductionConfiguration(
       if (!parsed.username || !parsed.hostname || !parsed.pathname.slice(1)) {
         errors.push("VAULT2077_DATABASE_URL 必须包含用户、主机和数据库名。");
       }
+      const sslParameters = postgresConnectionStringSslParameters(databaseUrl);
+      if (sslParameters.length > 0) {
+        errors.push(
+          `VAULT2077_DATABASE_URL 不得包含 SSL 参数（${sslParameters.join(", ")}）；生产 TLS 只由 VAULT2077_DATABASE_SSL=require 控制。`,
+        );
+      }
       if (placeholder(databaseUrl)) errors.push("VAULT2077_DATABASE_URL 仍含示例占位值。");
       databaseHost = parsed.hostname || null;
     } catch {
       errors.push("VAULT2077_DATABASE_URL 不是有效 URL。");
     }
   }
-  if ((environment.VAULT2077_DATABASE_SSL ?? "require") === "disable") {
-    errors.push("生产数据库连接不得关闭 TLS。");
+  if ((environment.VAULT2077_DATABASE_SSL ?? "require") !== "require") {
+    errors.push("VAULT2077_DATABASE_SSL 在生产环境必须设为 require，以校验证书链和数据库主机名。");
   }
   positiveInteger(environment, "VAULT2077_DATABASE_POOL_SIZE", errors, 100);
 
@@ -511,3 +517,4 @@ export function validateProductionConfiguration(
     },
   };
 }
+import { postgresConnectionStringSslParameters } from "./postgres-ssl.mjs";

@@ -1,7 +1,7 @@
 ---
 type: runbook
 status: active
-updated: 2026-08-15
+updated: 2026-08-18
 ---
 
 # Vault2077 统一采集运行手册
@@ -108,7 +108,7 @@ GitHub Actions 不配置 worker 或 LLM 密钥。境内侧至少配置完整验�
 
 每个编辑配置分别设置主处理提供方、受控备用、队列并发、超时与熔断阈值。生产基线每轮请求数为 Vault 300、SiC 200，也可显式设为 `unlimited`；额度不等于并发，批次仍按固定时刻错峰进入 inbox，境内 systemd worker 再按配置的有界并发消费。不得把一个批次内的全部记录同时发起模型请求。密钥不得进入仓库、日志或 artifact。
 
-当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和熔断状态；生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 通过 `SKIP LOCKED` 和 claim token 领取不同批次，失败最多六次指数退避。生产 PostgreSQL 模式下，业务写模型与 inbox 完成状态在同一数据库事务中原子提交；模型未配置、DNS/TLS/HTTP 请求失败、额度耗尽或非合规 JSON 会冒泡为编辑基础设施故障，使事务整体回滚且 inbox 标记为 `retryable`。确定性单条内容校验失败才进入内容 quarantine，并允许同批合格记录提交。稳定批次 ID、单调快照时间与 claim token 保证重试幂等；文件模式只用于本地开发，不提供跨文档事务保证。
+当前实现已按 `vault_editorial` 与 `sic_editorial` 读取两套主/备用提供方、超时、批大小、并发和熔断状态；生产不接受旧的全局 `VAULT2077_LLM_*` 兼容配置。PostgreSQL inbox 通过 `SKIP LOCKED` 和 claim token 领取不同批次，失败最多六次指数退避。生产 PostgreSQL 模式下，业务写模型与 inbox 完成状态在同一数据库事务中原子提交；模型未配置、DNS/TLS/HTTP 请求失败、额度耗尽或非合规 JSON 会冒泡为编辑基础设施故障，使事务整体回滚且 inbox 标记为 `retryable`。Frontier 回退同样只隔离确定性的单条 payload 格式错误；资格拒绝、验证推进、Star 快照和任务完成写入失败必须冒泡到 worker，不能把批次标记为 processed。确定性单条内容校验失败才进入内容 quarantine，并允许同批合格记录提交。稳定批次 ID、单调快照时间与 claim token 保证重试幂等；文件模式只用于本地开发，不提供跨文档事务保证。
 
 Frontier 境内侧另配置只读 GitHub 服务端凭证和 tick 鉴权。交互式核验先写报名再尝试短时直读；失败必须保持待验证并写公开回退任务。北京时间 08:45–22:45 每两小时观察一次当前已验证仓库，保存最近成功时间、限流信息和失败分类；页面不触发 GitHub 请求。
 
@@ -172,4 +172,4 @@ npm run content:migrate-markup -- data/content-store.json data/bootstrap/content
 
 监控服务从回环或受控内网使用独立 `VAULT2077_HEALTH_SECRET` 读取 `GET /api/internal/health`；公开 Nginx 不转发该路径。检查覆盖最新数据库迁移、inbox received/processing/retryable/quarantined、四个采集通道的最近接收/处理/最终发布时间、information 独立条目数、平台榜 stale、Frontier 回退积压和两套编辑配置。四通道新鲜度按 ADR-0015 的北京时间计划计算最近一个已经超过宽限期、理应完成的批次：information/roadside/rankings 默认宽限 90 分钟，SiC 默认宽限 180 分钟；00:00–08:00 的计划停采不会按固定小时数误报。最近 30 分钟内新增 quarantine（详情包含 batchId/lane）、received 超过 10 分钟、processing 超过 20 分钟、retryable 超过 6 小时或数量越界均 degraded；历史 quarantine 仍保留并显示计数，但不会让健康检查在 180 天保留期内永久降级。返回 `503` 表示至少一项 degraded；`vault2077-healthcheck.timer` 每五分钟把该结果转换为可监控的 systemd 退出码，告警平台还必须采集 worker、health 与 Frontier timer 的最近成功和失败，不能只以 Web 进程存活代替业务健康。
 
-部署前先在最终生产环境变量下运行 `npm run deploy:check`，然后运行 `npm run deploy:verify-editorial`。前者拒绝文件预览、无 TLS 数据库、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、任何已退役 OIDC 配置、旧共享模型配置、错误的 MiMo 域名、缺失的独立处理密钥和不完整的两套编辑配置；后者向两套配置的每条主/备用线路发送最小真实 JSON 探针，验证 DNS、TLS、凭证、模型名与响应协议。任一失败都不得启用 worker timer；warning 必须在发布记录中解释。
+部署前先在最终生产环境变量下运行 `npm run deploy:check`，然后运行 `npm run deploy:verify-editorial`。前者拒绝文件预览、除 `require` 外的数据库 TLS 模式、数据库连接串中的 `ssl`/`sslmode`/证书路径/libpq 兼容参数、单值旧密钥、未信任的标准代理头、示例密钥、任何本地后台密码变量、同主机公开/管理入口、任何已退役 OIDC 配置、旧共享模型配置、错误的 MiMo 域名、缺失的独立处理密钥和不完整的两套编辑配置；其中本项目的 `require` 明确启用证书链与数据库主机名校验，不等同于仅加密。后者向两套配置的每条主/备用线路发送最小真实 JSON 探针，验证 DNS、TLS、凭证、模型名与响应协议。任一失败都不得启用 worker timer；warning 必须在发布记录中解释。

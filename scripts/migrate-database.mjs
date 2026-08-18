@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import pg from "pg";
+import { postgresSslConfiguration } from "../lib/postgres-ssl.mjs";
 import {
   acceptedMigrationChecksums,
   migrationChecksum,
@@ -11,9 +12,14 @@ const connectionString = process.env.VAULT2077_DATABASE_URL || process.env.DATAB
 if (!connectionString) throw new Error("请设置 VAULT2077_DATABASE_URL 后再运行数据库迁移。");
 
 const sslMode = process.env.VAULT2077_DATABASE_SSL ?? "require";
+const ssl = postgresSslConfiguration({
+  connectionString,
+  mode: sslMode,
+  production: process.env.NODE_ENV === "production",
+});
 const client = new pg.Client({
   connectionString,
-  ssl: sslMode === "disable" ? false : { rejectUnauthorized: sslMode !== "allow-self-signed" },
+  ssl,
 });
 const migrationsDirectory = path.join(process.cwd(), "migrations");
 

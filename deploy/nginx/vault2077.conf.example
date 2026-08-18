@@ -11,12 +11,14 @@ server_tokens off;
 server {
     listen 80;
     server_name superones.top www.superones.top;
+    server_tokens off;
     return 301 https://superones.top$request_uri;
 }
 
 server {
     listen 80;
     server_name admin.superones.top;
+    server_tokens off;
     return 301 https://admin.superones.top$request_uri;
 }
 
@@ -24,6 +26,7 @@ server {
 server {
     listen 443 ssl http2;
     server_name superones.top www.superones.top;
+    server_tokens off;
 
     ssl_certificate /etc/letsencrypt/live/superones.top/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/superones.top/privkey.pem;
@@ -36,6 +39,17 @@ server {
     add_header Cross-Origin-Opener-Policy "same-origin" always;
     add_header Cross-Origin-Resource-Policy "same-origin" always;
     add_header X-DNS-Prefetch-Control "off" always;
+
+    # The edge owns this baseline. Suppress identical application headers so
+    # clients receive one unambiguous value after proxying through Nginx.
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header Cross-Origin-Opener-Policy;
+    proxy_hide_header Cross-Origin-Resource-Policy;
+    proxy_hide_header X-DNS-Prefetch-Control;
 
     error_page 404 = @public_edge_not_found;
     error_page 405 = @public_edge_method_not_allowed;
@@ -50,13 +64,23 @@ server {
         return 405;
     }
 
-    location = /admin { return 404; }
-    location ^~ /api/admin/ { return 404; }
-    location = /pipeline { return 404; }
+    location = /admin {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
+    location ^~ /api/admin/ {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
+    location = /pipeline {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
 
     # The write-side cross-border endpoint. Authentication remains HMAC-based
     # in the application; this edge limit protects it before Node reads the body.
     location = /api/internal/acquisition {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
         if ($request_method != POST) { return 405; }
         limit_req zone=vault2077_ingest burst=20 nodelay;
         client_max_body_size 8m;
@@ -77,6 +101,7 @@ server {
     # read-only credential. It never receives worker, database, LLM, or admin
     # credentials.
     location = /api/internal/frontier/tasks {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
         if ($request_method != GET) { return 405; }
         limit_req zone=vault2077_ingest burst=10 nodelay;
         proxy_pass http://vault2077_app;
@@ -94,7 +119,10 @@ server {
 
     # All other internal routes, especially the domestic processing route, are
     # unreachable from the public Internet.
-    location ^~ /api/internal/ { return 404; }
+    location ^~ /api/internal/ {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
 
     # The checkout previews the immutable agreement PDF in a same-origin iframe.
     # Hide Next's general DENY header and replace it at this exact route only;
@@ -108,7 +136,16 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header Connection "";
+        # A location-level proxy_hide_header replaces inherited declarations,
+        # so repeat the complete edge-owned list here.
+        proxy_hide_header Strict-Transport-Security;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Permissions-Policy;
         proxy_hide_header X-Frame-Options;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Cross-Origin-Resource-Policy;
+        proxy_hide_header X-DNS-Prefetch-Control;
 
         # A location-level add_header stops inheritance, so repeat the public
         # security baseline before applying the one narrow frame exception.
@@ -139,6 +176,7 @@ server {
 server {
     listen 443 ssl http2;
     server_name admin.superones.top;
+    server_tokens off;
 
     ssl_certificate /etc/letsencrypt/live/admin.superones.top/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/admin.superones.top/privkey.pem;
@@ -153,6 +191,16 @@ server {
     add_header X-DNS-Prefetch-Control "off" always;
     add_header X-Robots-Tag "noindex, nofollow" always;
 
+    # Keep the administration edge authoritative for the shared baseline too.
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header Cross-Origin-Opener-Policy;
+    proxy_hide_header Cross-Origin-Resource-Policy;
+    proxy_hide_header X-DNS-Prefetch-Control;
+
     error_page 404 = @admin_edge_not_found;
 
     location @admin_edge_not_found {
@@ -161,6 +209,12 @@ server {
     }
 
     location = /admin {
+        proxy_pass http://vault2077_app;
+        include /etc/nginx/snippets/vault2077-admin-proxy.conf;
+    }
+
+    location = /api/admin/opc/ranger-avatar {
+        client_max_body_size 6m;
         proxy_pass http://vault2077_app;
         include /etc/nginx/snippets/vault2077-admin-proxy.conf;
     }
@@ -180,5 +234,8 @@ server {
         include /etc/nginx/snippets/vault2077-admin-proxy.conf;
     }
 
-    location / { return 404; }
+    location / {
+        include /etc/nginx/snippets/vault2077-edge-error-security.conf;
+        return 404;
+    }
 }

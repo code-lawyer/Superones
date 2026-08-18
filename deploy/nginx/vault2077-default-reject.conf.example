@@ -3,12 +3,14 @@
 server {
     listen 80 default_server;
     server_name _;
+    server_tokens off;
     return 444;
 }
 
 server {
     listen 443 ssl default_server;
     server_name _;
+    server_tokens off;
 
     # Older distribution Nginx builds may not support ssl_reject_handshake.
     # Reuse the public certificate only to complete TLS, then close without a

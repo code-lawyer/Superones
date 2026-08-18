@@ -5,6 +5,7 @@ import {
   createAcquisitionWorker,
   type AcquisitionWorkerInbox,
 } from "../lib/acquisition-worker.ts";
+import { createAcquisitionBatchProcessor } from "../lib/acquisition-processor.ts";
 import type { AcquisitionBatch } from "../lib/acquisition-contract.ts";
 import type { AcquisitionWorkItem } from "../lib/acquisition-inbox.ts";
 
@@ -25,6 +26,38 @@ function batch(id: string): AcquisitionBatch {
     records: [],
     sourceReports: [],
   };
+}
+
+function frontierBatch(id: string): AcquisitionBatch {
+  const value = batch(id);
+  value.lane = "rankings";
+  value.scheduleId = "schedule:test:frontier-worker-retry";
+  value.records = [{
+    schemaVersion: 1,
+    kind: "repository_observation",
+    recordId: "repository:frontier:worker-retry",
+    sourceId: "frontier-public-fallback",
+    externalId: "frontier:worker-retry-task",
+    canonicalUrl: "https://github.com/owner/repo",
+    observedAt: "2026-07-24T00:30:00.000Z",
+    contentHash: "9".repeat(64),
+    payload: {
+      target: "frontier",
+      taskKind: "observe_stars",
+      season: "2099-Q1",
+      submissionId: "submission-worker-retry",
+      stars: 42,
+    },
+  }];
+  value.sourceReports = [{
+    sourceId: "frontier-public-fallback",
+    adapter: "github-api",
+    status: "succeeded",
+    startedAt: "2026-07-24T00:00:00.000Z",
+    completedAt: "2026-07-24T00:00:10.000Z",
+    recordCount: 1,
+  }];
+  return value;
 }
 
 test("worker continues after one batch fails and reports queue health", async () => {
@@ -109,6 +142,70 @@ test("worker does not retry the same failed batch again during one run", async (
   const result = await worker.run(50);
   assert.equal(attempts, 1);
   assert.equal(result.failed.length, 1);
+});
+
+test("Frontier persistence failures become retryable and a later worker run can reclaim the batch", async () => {
+  const value = frontierBatch("batch:frontier-worker-retry");
+  let status: "received" | "processing" | "retryable" | "processed" = "received";
+  let attempts = 0;
+  let persistenceAvailable = false;
+  const inbox: AcquisitionWorkerInbox = {
+    async claimNext(excluded = new Set()) {
+      if (status === "processed" || status === "processing" || excluded.has(value.batchId)) return null;
+      status = "processing";
+      attempts += 1;
+      return {
+        batch: value,
+        payloadHash: "9".repeat(64),
+        rawPayload: "{}",
+        attempt: attempts,
+        claimToken: `claim-frontier-${attempts}`,
+      };
+    },
+    async complete() {
+      status = "processed";
+    },
+    async fail() {
+      status = "retryable";
+      return status;
+    },
+    async stats() {
+      return {
+        received: status === "received" ? 1 : 0,
+        processing: status === "processing" ? 1 : 0,
+        processed: status === "processed" ? 1 : 0,
+        retryable: status === "retryable" ? 1 : 0,
+        quarantined: 0,
+      };
+    },
+  };
+  const processor = createAcquisitionBatchProcessor({
+    async recordFrontierSnapshots() {
+      if (!persistenceAvailable) throw new Error("snapshot persistence unavailable");
+      return 1;
+    },
+    async completeFrontierFallbackTasks(ids) {
+      return ids.length;
+    },
+  });
+  const worker = createAcquisitionWorker({
+    inbox,
+    processBatch: processor,
+    async runAtomically(operation) {
+      return operation();
+    },
+  });
+
+  const first = await worker.run();
+  assert.equal(first.failed[0]?.status, "retryable");
+  assert.equal(first.queue.retryable, 1);
+  assert.equal(attempts, 1);
+
+  persistenceAvailable = true;
+  const second = await worker.run();
+  assert.equal(second.processed[0]?.attempt, 2);
+  assert.equal(second.queue.processed, 1);
+  assert.equal(attempts, 2);
 });
 
 test("worker stops claiming new batches after its fixed run deadline", async () => {

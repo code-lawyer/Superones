@@ -203,7 +203,7 @@ test("the public proxy exposes only the two cross-border routes and the domestic
   assert.match(nginx, /if \(\$request_method != POST\) \{ return 405; \}/);
   assert.match(nginx, /location = \/api\/internal\/frontier\/tasks \{/);
   assert.match(nginx, /if \(\$request_method != GET\) \{ return 405; \}/);
-  assert.match(nginx, /location \^~ \/api\/internal\/ \{ return 404; \}/);
+  assert.match(nginx, /location \^~ \/api\/internal\/ \{[\s\S]*?vault2077-edge-error-security\.conf;[\s\S]*?return 404;[\s\S]*?\}/);
   assert.match(nginx, /proxy_set_header X-Forwarded-For \$remote_addr;/);
   assert.match(nginx, /server_tokens off;/);
   assert.match(nginx, /error_page 404 = @public_edge_not_found;/);
@@ -226,6 +226,66 @@ test("the public proxy exposes only the two cross-border routes and the domestic
   assert.match(healthService, /^LogsDirectory=vault2077$/m);
   assert.match(healthService, /^Environment=VAULT2077_HEALTH_HEARTBEAT_FILE=\/var\/log\/vault2077\/health-heartbeat\.log$/m);
   assert.match(healthService, /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK/);
+});
+
+test("direct Nginx 404 and 405 responses apply the edge security baseline at their own locations", () => {
+  for (const locationPattern of [
+    "location = /admin",
+    "location ^~ /api/admin/",
+    "location = /pipeline",
+    "location ^~ /api/internal/",
+  ]) {
+    const start = nginx.indexOf(locationPattern);
+    assert.notEqual(start, -1, locationPattern);
+    const block = nginx.slice(start, nginx.indexOf("}", start) + 1);
+    assert.match(block, /include \/etc\/nginx\/snippets\/vault2077-edge-error-security\.conf;/, locationPattern);
+    assert.match(block, /return 404;/, locationPattern);
+  }
+
+  for (const locationPattern of [
+    "location = /api/internal/acquisition",
+    "location = /api/internal/frontier/tasks",
+  ]) {
+    const start = nginx.indexOf(locationPattern);
+    assert.notEqual(start, -1, locationPattern);
+    const block = nginx.slice(start, nginx.indexOf("    }", start) + 5);
+    assert.match(block, /include \/etc\/nginx\/snippets\/vault2077-edge-error-security\.conf;/, locationPattern);
+    assert.match(block, /return 405;/, locationPattern);
+  }
+
+  const adminFallbackStart = nginx.lastIndexOf("location /");
+  const adminFallback = nginx.slice(adminFallbackStart, nginx.indexOf("}", adminFallbackStart) + 1);
+  assert.match(adminFallback, /include \/etc\/nginx\/snippets\/vault2077-edge-error-security\.conf;/);
+  assert.match(adminFallback, /return 404;/);
+  assert.match(nginx, /server_tokens off;/);
+});
+
+test("Nginx owns proxied security headers without forwarding duplicate application values", () => {
+  for (const header of [
+    "Strict-Transport-Security",
+    "X-Content-Type-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "X-Frame-Options",
+    "Cross-Origin-Opener-Policy",
+    "Cross-Origin-Resource-Policy",
+    "X-DNS-Prefetch-Control",
+  ]) {
+    assert.match(nginx, new RegExp(`proxy_hide_header ${header};`), header);
+  }
+});
+
+test("the ranger avatar upload alone receives a bounded larger proxy body limit", () => {
+  const route = "location = /api/admin/opc/ranger-avatar";
+  const start = nginx.indexOf(route);
+  assert.notEqual(start, -1);
+  const block = nginx.slice(start, nginx.indexOf("}", start) + 1);
+  assert.match(block, /client_max_body_size 6m;/);
+
+  const withoutAvatarRoute = `${nginx.slice(0, start)}${nginx.slice(nginx.indexOf("}", start) + 1)}`;
+  const adminServerStart = withoutAvatarRoute.lastIndexOf("server_name admin.superones.top;");
+  const adminServer = withoutAvatarRoute.slice(adminServerStart);
+  assert.doesNotMatch(adminServer, /client_max_body_size/);
 });
 
 test("production services emit a uniform journal event when systemd marks them failed", () => {

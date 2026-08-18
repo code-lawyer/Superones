@@ -48,6 +48,39 @@ test("production configuration accepts the bank-transfer-only payment path", () 
   assert.deepEqual(paymentErrors, []);
 });
 
+test("production configuration accepts only verified PostgreSQL TLS", () => {
+  const verified = validateProductionConfiguration(validEnvironment());
+  assert.equal(verified.errors.some((issue) => issue.includes("VAULT2077_DATABASE_SSL")), false);
+
+  for (const mode of ["disable", "allow-self-signed", "prefer", "unknown"]) {
+    const report = validateProductionConfiguration({
+      ...validEnvironment(),
+      VAULT2077_DATABASE_SSL: mode,
+    });
+    assert.ok(
+      report.errors.some((issue) => issue.includes("VAULT2077_DATABASE_SSL")),
+      `production mode ${mode} must be rejected`,
+    );
+  }
+
+  for (const query of [
+    "sslmode=disable",
+    "sslmode=no-verify",
+    "sslmode=require&uselibpqcompat=true",
+    "ssl=false",
+    "sslrootcert=%2Ftmp%2Funtrusted-ca.pem",
+  ]) {
+    const report = validateProductionConfiguration({
+      ...validEnvironment(),
+      VAULT2077_DATABASE_URL: `${validEnvironment().VAULT2077_DATABASE_URL}?${query}`,
+    });
+    assert.ok(
+      report.errors.some((issue) => issue.includes("不得包含 SSL 参数")),
+      `connection-string override ${query} must be rejected`,
+    );
+  }
+});
+
 test("production configuration rejects reopening retired paper checkout", () => {
   const report = validateProductionConfiguration({ ...validEnvironment(), VAULT2077_OPC_PAPER_CHECKOUT_ENABLED: "true" });
   assert.ok(report.errors.some((issue) => issue.includes("已经退役")));
