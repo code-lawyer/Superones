@@ -86,7 +86,12 @@ export function SiteHeader() {
 
   return (
     <header className="site-header">
-      <div className="site-header__inner shell">
+      <div
+        className="site-header__inner shell"
+        aria-label={open ? "频道菜单" : undefined}
+        aria-modal={open ? true : undefined}
+        role={open ? "dialog" : undefined}
+      >
         <Link className="wordmark" href="/" aria-label="Vault2077 首页">
           <span>VAULT</span><span>2077</span>
         </Link>

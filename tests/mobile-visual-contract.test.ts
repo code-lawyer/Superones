@@ -29,6 +29,9 @@ test("the viewport-covering mobile channel index remains reachable and traps int
   assert.match(header, /matchMedia\("\(max-width: 820px\)"\)/);
   assert.match(header, /addEventListener\("change", handleViewportChange\)/);
   assert.match(header, /if \(!event\.matches\) setOpenPath\(null\)/);
+  assert.match(header, /className="site-header__inner shell"[\s\S]*?aria-label=\{open \? "频道菜单" : undefined\}[\s\S]*?aria-modal=\{open \? true : undefined\}[\s\S]*?role=\{open \? "dialog" : undefined\}/);
+  assert.doesNotMatch(header, /<nav[^>]*aria-modal=/);
+  assert.doesNotMatch(header, /<nav[^>]*role=\{open \? "dialog"/);
 });
 
 test("the mobile dossier layer replaces border density with type, space, and touch-safe rails", async () => {
@@ -43,8 +46,12 @@ test("the mobile dossier layer replaces border density with type, space, and tou
   assert.match(shared, /@media \(max-width: 820px\)/);
   assert.match(shared, /--type-micro:\s*11px/);
   assert.match(shared, /--type-body:\s*16px/);
+  assert.match(shared, /--type-mobile-channel-display:\s*clamp\(40px, 6\.8vw, 52px\)/);
   assert.match(shared, /\.channel-page-intro\s*\{[\s\S]*?border:\s*0/);
-  assert.match(shared, /\.mobile-task-nav\s*\{[\s\S]*?display:\s*flex[\s\S]*?overflow-x:\s*auto/);
+  assert.match(shared, /\.channel-page-intro\s*\{[\s\S]*?padding-top:\s*24px[\s\S]*?padding-bottom:\s*26px/);
+  assert.match(shared, /\.channel-page-intro h1\s*\{[\s\S]*?font-size:\s*var\(--type-mobile-channel-display\)/);
+  assert.match(shared, /\.mobile-task-nav\s*\{[\s\S]*?display:\s*grid[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.doesNotMatch(shared, /\.mobile-task-nav\s*\{[\s\S]*?overflow-x:\s*auto/);
   assert.match(shared, /\.mobile-task-nav__item\s*\{[\s\S]*?min-height:\s*46px/);
   assert.match(shared, /\.footer-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(home, /\.home-experience \.home-mobile-status/);
@@ -54,6 +61,14 @@ test("the mobile dossier layer replaces border density with type, space, and tou
   assert.match(sic, /\.sic-overview \.sic-overview-ranking__position > small,[\s\S]*?font-size:\s*var\(--type-label\)/);
   assert.match(sic, /\.sic-overview \.sic-overview-ranking__slide li a\s*\{[\s\S]*?min-height:\s*44px/);
   assert.match(sic, /\.sic-overview \.sic-overview-ranking__trust a\s*\{[\s\S]*?min-height:\s*44px/);
+  assert.match(home, /\.home-experience \.home-refined-hero__main\s*\{[\s\S]*?min-height:\s*min\(54svh, 440px\)/);
+});
+
+test("mobile OPC presents its formal workspace as the only three-way choice", async () => {
+  const page = await readFile(path.join(root, "app", "opc", "page.tsx"), "utf8");
+
+  assert.doesNotMatch(page, /MobileTaskNav|OPC 服务快速入口/);
+  assert.match(page, /<OpcWorkspace/);
 });
 
 test("viewport-fit cover maps each physical safe area to its matching side", async () => {

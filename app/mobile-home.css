@@ -5,7 +5,7 @@
   }
 
   .home-experience .home-refined-hero__main {
-    min-height: min(68svh, 540px);
+    min-height: min(54svh, 440px);
   }
 
   .home-experience .home-mobile-status {
@@ -137,6 +137,6 @@
 
 @media (max-width: 420px) {
   .home-refined-hero__main {
-    min-height: min(64svh, 500px);
+    min-height: min(52svh, 420px);
   }
 }
