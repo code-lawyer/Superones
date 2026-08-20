@@ -1,13 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import {
   adminCookieName,
   adminCookieOptions,
   isValidLocalAdminPassword,
 } from "@/lib/admin-auth";
 import { adminAccessMode, localAdminIdentity } from "@/lib/admin-identity";
-import { adminPasskeyStatus } from "@/lib/admin-passkey-store";
+import { discoverAdminLoginState } from "@/lib/admin-login-discovery";
 import { assertAdminHost, assertAdminMutationRequest, AdminRequestSecurityError } from "@/lib/admin-request-security";
 import { createAdminSession } from "@/lib/admin-session-store";
+import {
+  AdminAccessError,
+  adminAccessErrorResponse,
+  authenticatedAdminJson,
+} from "@/lib/admin-access";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 import {
@@ -22,14 +27,12 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     assertAdminHost(request);
-    const mode = adminAccessMode();
-    const passkey = mode === "passkey" ? await adminPasskeyStatus() : null;
-    return NextResponse.json({
-      mode,
-      enrollmentRequired: passkey ? passkey.activeCredentials === 0 : false,
-      recoveryCodesRemaining: passkey?.unusedRecoveryCodes ?? 0,
-    });
+    const { access, body } = await discoverAdminLoginState(request);
+    return access
+      ? authenticatedAdminJson(access, body)
+      : NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    if (error instanceof AdminAccessError) return adminAccessErrorResponse(error);
     if (error instanceof AdminRequestSecurityError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PublicPrizeDonation } from "@/lib/frontier-store";
+import type { PublicPrizeDonation } from "@/lib/frontier/prizes";
 
 const COLLAPSED_PRIZE_COUNT = 3;
 

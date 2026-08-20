@@ -7,14 +7,14 @@ import {
 } from "@/lib/admin-access";
 import { hasRecentAdminReauthentication } from "@/lib/admin-session-store";
 import {
-  currentSeason,
   getFrontierSeasonConfiguration,
   listAdminPrizeDonations,
   listAdminSubmissions,
   publishFrontierSeasonReward,
   saveFrontierSeasonRewardDraft,
   setPrizeDonationStatus,
-} from "@/lib/frontier-store";
+} from "@/lib/frontier/admin";
+import { currentSeason } from "@/lib/frontier/rankings";
 import { recordAuditEvent } from "@/lib/security-audit";
 import { withPersistenceTransaction } from "@/lib/state-document-store";
 

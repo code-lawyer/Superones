@@ -35,6 +35,7 @@
     "deploy:verify-editorial": "node --conditions=react-server --experimental-strip-types scripts/verify-editorial-providers.ts",
     "health:check": "node --experimental-strip-types scripts/check-operations-health.ts",
     "frontier:tick": "node --conditions=react-server --experimental-strip-types scripts/run-frontier-tick.ts",
+    "frontier:diagnose-storage": "node --conditions=react-server --experimental-strip-types scripts/diagnose-frontier-storage.ts",
     "dev:check": "node scripts/check-dev-server.mjs",
     "sources:extract": "node scripts/build-source-registry.mjs",
     "sources:classify": "node scripts/classify-source-registry.mjs",

@@ -23,9 +23,38 @@ import { PRODUCTION_ADMIN_EMAIL } from "./admin-profile.ts";
 import { configuredAdminOrigin } from "./admin-request-security.ts";
 import { withPersistenceTransaction } from "./state-document-store.ts";
 
-// Require the platform or security key to complete PIN/biometric verification
-// and return the authenticator's signed UV flag for every ceremony.
-const PASSKEY_BROWSER_USER_VERIFICATION = "required" as const;
+// Let the browser negotiate platform/security-key PIN or biometric verification.
+// The server still requires and checks the authenticator's signed UV flag.
+export const ADMIN_PASSKEY_VERIFICATION_POLICY = Object.freeze({
+  browser: "preferred" as const,
+  requireUserPresence: true,
+  requireUserVerification: true,
+});
+
+export function assertAdminPasskeyUserVerified(userVerified: boolean, message: string, code?: string) {
+  if (userVerified) return;
+  throw code ? passkeyVerificationError(code, message) : new Error(message);
+}
+
+export type AdminPasskeyRegistrationDependencies = {
+  verify: typeof verifyRegistrationResponse;
+  complete: typeof completeAdminPasskeyRegistration;
+};
+
+export type AdminPasskeyAuthenticationDependencies = {
+  verify: typeof verifyAuthenticationResponse;
+  complete: typeof completeAdminPasskeyAuthentication;
+};
+
+const defaultRegistrationDependencies: AdminPasskeyRegistrationDependencies = {
+  verify: verifyRegistrationResponse,
+  complete: completeAdminPasskeyRegistration,
+};
+
+const defaultAuthenticationDependencies: AdminPasskeyAuthenticationDependencies = {
+  verify: verifyAuthenticationResponse,
+  complete: completeAdminPasskeyAuthentication,
+};
 
 function passkeyVerificationError(code: string, message: string) {
   return Object.assign(new Error(message), { code });
@@ -60,7 +89,7 @@ export async function beginAdminPasskeyRegistration(input: {
     })),
     authenticatorSelection: {
       residentKey: "required",
-      userVerification: PASSKEY_BROWSER_USER_VERIFICATION,
+      userVerification: ADMIN_PASSKEY_VERIFICATION_POLICY.browser,
     },
   });
   const ceremony = await createAdminPasskeyCeremony({
@@ -76,23 +105,27 @@ export async function finishAdminPasskeyRegistration(input: {
   ceremonyId: string;
   response: RegistrationResponseJSON;
   authorizeCompletion?: () => Promise<void>;
-}) {
+}, dependencies: AdminPasskeyRegistrationDependencies = defaultRegistrationDependencies) {
   const ceremony = await getAdminPasskeyCeremony(input.ceremonyId, "registration");
   if (!ceremony) throw new Error("Passkey 注册会话无效或已过期。");
   const { origin, rpID } = passkeyConfiguration();
-  const verification = await verifyRegistrationResponse({
+  const verification = await dependencies.verify({
     response: input.response,
     expectedChallenge: ceremony.challenge,
     expectedOrigin: origin,
     expectedRPID: rpID,
-    requireUserPresence: true,
-    requireUserVerification: true,
+    requireUserPresence: ADMIN_PASSKEY_VERIFICATION_POLICY.requireUserPresence,
+    requireUserVerification: ADMIN_PASSKEY_VERIFICATION_POLICY.requireUserVerification,
   });
-  if (!verification.verified || !verification.registrationInfo.userVerified) {
+  if (!verification.verified || !verification.registrationInfo) {
     throw new Error("Passkey 注册必须完成设备 PIN 或生物识别验证。");
   }
+  assertAdminPasskeyUserVerified(
+    verification.registrationInfo.userVerified,
+    "Passkey 注册必须完成设备 PIN 或生物识别验证。",
+  );
   return withPersistenceTransaction(async () => {
-    return completeAdminPasskeyRegistration({
+    return dependencies.complete({
       ceremonyId: ceremony.id,
       credential: verification.registrationInfo.credential,
       deviceType: verification.registrationInfo.credentialDeviceType,
@@ -112,7 +145,7 @@ export async function beginAdminPasskeyAuthentication(input: {
   const options = await generateAuthenticationOptions({
     rpID,
     timeout: 5 * 60 * 1000,
-    userVerification: PASSKEY_BROWSER_USER_VERIFICATION,
+    userVerification: ADMIN_PASSKEY_VERIFICATION_POLICY.browser,
     allowCredentials: credentials.map((credential) => ({
       id: credential.credentialId,
       transports: credential.transports,
@@ -131,7 +164,7 @@ export async function finishAdminPasskeyAuthentication(input: {
   purpose: "login" | "reauthentication";
   response: AuthenticationResponseJSON;
   actorHash?: string;
-}) {
+}, dependencies: AdminPasskeyAuthenticationDependencies = defaultAuthenticationDependencies) {
   const ceremony = await getAdminPasskeyCeremony(input.ceremonyId, input.purpose);
   if (!ceremony || (input.actorHash && ceremony.actorHash !== input.actorHash)) {
     throw passkeyVerificationError("webauthn-ceremony-invalid", "Passkey 验证会话无效或已过期。");
@@ -142,21 +175,23 @@ export async function finishAdminPasskeyAuthentication(input: {
   }
   const credential = storedAdminPasskeyCredential(passkey);
   const { origin, rpID } = passkeyConfiguration();
-  const verification = await verifyAuthenticationResponse({
+  const verification = await dependencies.verify({
     response: input.response,
     expectedChallenge: ceremony.challenge,
     expectedOrigin: origin,
     expectedRPID: rpID,
     credential,
-    requireUserVerification: true,
+    requireUserVerification: ADMIN_PASSKEY_VERIFICATION_POLICY.requireUserVerification,
   });
   if (!verification.verified) {
     throw passkeyVerificationError("webauthn-signature-invalid", "Passkey 签名校验失败。");
   }
-  if (!verification.authenticationInfo.userVerified) {
-    throw passkeyVerificationError("webauthn-user-verification-missing", "Passkey 登录必须完成设备 PIN 或生物识别验证。");
-  }
-  await completeAdminPasskeyAuthentication({
+  assertAdminPasskeyUserVerified(
+    verification.authenticationInfo.userVerified,
+    "Passkey 登录必须完成设备 PIN 或生物识别验证。",
+    "webauthn-user-verification-missing",
+  );
+  await dependencies.complete({
     ceremonyId: ceremony.id,
     purpose: input.purpose,
     credentialId: passkey.credentialId,

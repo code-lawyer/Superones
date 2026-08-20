@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { currentSeason, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
+import { currentSeason } from "@/lib/frontier/rankings";
+import { getFrontierSeasonLaunchState } from "@/lib/frontier/season";
 import { DonationForm } from "./donation-form";
 
 export const metadata: Metadata = { title: "捐献奖品 — 边境计划" };

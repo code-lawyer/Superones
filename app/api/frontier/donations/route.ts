@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentSeason, createPrizeDonation, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
+import { createPrizeDonation } from "@/lib/frontier/prizes";
+import { currentSeason } from "@/lib/frontier/rankings";
+import { getFrontierSeasonLaunchState } from "@/lib/frontier/season";
 import { withinDurableRateLimit } from "@/lib/rate-limit";
 import { anonymizeClientAddress, requestClientAddress } from "@/lib/request-client";
 

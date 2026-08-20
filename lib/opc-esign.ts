@@ -156,11 +156,14 @@ function readConfiguration(environment: Record<string, string | undefined>): Opc
   return configuration;
 }
 
-export function readOpcEsignConfiguration(environment: Record<string, string | undefined> = process.env) {
-  const enabled = environment.NODE_ENV === "production"
+export function opcEsignEnabled(environment: Record<string, string | undefined> = process.env) {
+  return environment.NODE_ENV === "production"
     ? environment.VAULT2077_OPC_ESIGN_ENABLED === "true"
     : environment.VAULT2077_OPC_ESIGN_ENABLED !== "false";
-  if (!enabled) return null;
+}
+
+export function readOpcEsignConfiguration(environment: Record<string, string | undefined> = process.env) {
+  if (!opcEsignEnabled(environment)) return null;
   try {
     return readConfiguration(environment);
   } catch {
@@ -176,10 +179,7 @@ export function requireOpcEsignConfiguration() {
 
 export function opcEsignConfigurationErrors(environment: Record<string, string | undefined> = process.env) {
   try {
-    const enabled = environment.NODE_ENV === "production"
-      ? environment.VAULT2077_OPC_ESIGN_ENABLED === "true"
-      : environment.VAULT2077_OPC_ESIGN_ENABLED !== "false";
-    if (!enabled) return [];
+    if (!opcEsignEnabled(environment)) return [];
     readConfiguration(environment);
     return [];
   } catch (error) {

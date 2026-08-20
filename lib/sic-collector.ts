@@ -13,6 +13,7 @@ import {
 import { fetchTextBounded } from "./sic-fetch.ts";
 import { decodeHtmlEntities } from "./decode-html-entities.ts";
 import { listCollectableSicSources, type SicSource } from "./sic-source-registry.ts";
+import { resolveSicSourceAdapter, type SicSourceAdapterId } from "./sic-source-adapters.ts";
 import {
   getSicStoredContent,
   mergeSicStoredContent,
@@ -774,6 +775,46 @@ async function fetchText(
   return payload;
 }
 
+type SicSourceAdapterContext = {
+  source: SicSource;
+  fetcher: Fetcher;
+  payload: string;
+  endpoint: string;
+  collectedAt: string;
+  windowFrom?: string;
+  runMode: "incremental" | "bootstrap";
+};
+
+type SicSourceCollector = (context: SicSourceAdapterContext) => Promise<Candidate[]>;
+
+const sicSourceCollectors: Record<SicSourceAdapterId, SicSourceCollector> = {
+  "hugging-face-weekly": ({ source, fetcher, payload, endpoint }) => collectHuggingFacePapers(source, fetcher, payload, endpoint),
+  "trusted-json-feed": async ({ source, payload, collectedAt }) => {
+    const parsed = JSON.parse(payload) as { generatedAt?: unknown };
+    const generatedAt = validDate(parsed.generatedAt);
+    const staleHours = source.group === "podcasts" ? 360 : 96;
+    if (!generatedAt || Date.parse(generatedAt) < Date.parse(collectedAt) - staleHours * 60 * 60 * 1000) {
+      throw new Error(`Follow Builders ${source.group} feed is stale or missing generatedAt.`);
+    }
+    return followBuildersJsonEntries(source, payload);
+  },
+  "xml-feed": async ({ source, payload }) => xmlEntries(source, payload),
+  "github-commit-feed": async ({ source, payload }) => githubCommitEntries(source, payload),
+  sitemap: async ({ source, fetcher, payload, windowFrom, runMode }) => {
+    const pages = selectCandidates(sitemapUrls(source, payload, windowFrom), windowFrom, runMode);
+    const details = await Promise.all(pages.map(async (page) => {
+      try {
+        return pageMetadata(source, await fetchText(fetcher, page.url, source), page.url) ?? page;
+      } catch {
+        return page;
+      }
+    }));
+    return details.filter((item) => item.title);
+  },
+  "dated-index": async ({ source, payload }) => [...datedIndexEntries(source, payload), ...jsonLdEntries(source, payload)],
+  "generic-html": async ({ source, payload }) => [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)],
+};
+
 async function collectSource(
   source: SicSource,
   fetcher: Fetcher,
@@ -794,36 +835,16 @@ async function collectSource(
   const windowFrom = runMode === "bootstrap"
     ? undefined
     : new Date(Date.parse(collectedAt) - SIC_LOOKBACK_MS).toISOString();
-  let candidates: Candidate[];
-  if (source.id === "hugging-face-daily-papers") {
-    candidates = await collectHuggingFacePapers(source, fetcher, payload, endpoint);
-  } else if (source.kind === "trusted_feed_json") {
-    const parsed = JSON.parse(payload) as { generatedAt?: unknown };
-    const generatedAt = validDate(parsed.generatedAt);
-    const staleHours = source.group === "podcasts" ? 360 : 96;
-    if (!generatedAt || Date.parse(generatedAt) < Date.parse(collectedAt) - staleHours * 60 * 60 * 1000) {
-      throw new Error(`Follow Builders ${source.group} feed is stale or missing generatedAt.`);
-    }
-    candidates = followBuildersJsonEntries(source, payload);
-  } else if (["official_rss", "official_atom", "official_channel", "hosted_podcast"].includes(source.kind)) {
-    candidates = xmlEntries(source, payload);
-  } else if (source.kind === "official_api" && source.id === "dair-ai-papers-of-the-week") {
-    candidates = githubCommitEntries(source, payload);
-  } else if (source.kind === "official_sitemap") {
-    const pages = selectCandidates(sitemapUrls(source, payload, windowFrom), windowFrom, runMode);
-    const details = await Promise.all(pages.map(async (page) => {
-      try {
-        return pageMetadata(source, await fetchText(fetcher, page.url, source), page.url) ?? page;
-      } catch {
-        return page;
-      }
-    }));
-    candidates = details.filter((item) => item.title);
-  } else if (source.kind === "official_dated_index") {
-    candidates = [...datedIndexEntries(source, payload), ...jsonLdEntries(source, payload)];
-  } else {
-    candidates = [...jsonLdEntries(source, payload), ...anchorEntries(source, payload)];
-  }
+  const adapter: SicSourceAdapterId = resolveSicSourceAdapter(source);
+  const candidates = await sicSourceCollectors[adapter]({
+    source,
+    fetcher,
+    payload,
+    endpoint,
+    collectedAt,
+    windowFrom,
+    runMode,
+  });
   const admittedCandidates = completeCandidates(
     candidates.filter((candidate) => candidatePassesAdmission(source, candidate)),
   );

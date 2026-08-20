@@ -124,14 +124,12 @@ test("OPC bank-transfer verification requires reauthentication, exact evidence, 
   const route = await readFile(path.join(root, "app", "api", "admin", "opc", "orders", "[id]", "verify-bank-transfer", "route.ts"), "utf8");
   const payment = await readFile(path.join(root, "lib", "opc-orders", "payment.ts"), "utf8");
   const adminConsole = await readFile(path.join(root, "app", "admin", "admin-console.tsx"), "utf8");
+  const adminOrdersPanel = await readFile(path.join(root, "components", "admin-opc-orders-panel.tsx"), "utf8");
   const bankVerificationBehavior = adminConsole.slice(
     adminConsole.indexOf("function openBankVerification"),
     adminConsole.indexOf("async function reconcileOpcSignature"),
   );
-  const bankVerificationUi = adminConsole.slice(
-    adminConsole.indexOf("<form id={`bank-verification-"),
-    adminConsole.indexOf("function OpcDossierView"),
-  );
+  const bankVerificationUi = adminOrdersPanel.slice(adminOrdersPanel.indexOf("<form id={`bank-verification-"));
 
   assert.match(route, /authenticateAdminRequest/);
   assert.match(route, /hasRecentAdminReauthentication/);

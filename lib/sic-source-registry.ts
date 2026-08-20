@@ -6,6 +6,19 @@ const registry = JSON.parse(readFileSync(new URL("../config/sic-source-registry.
 
 export const SIC_SOURCE_GROUPS = ["papers", "documents", "courses", "podcasts"] as const;
 export const SIC_SOURCE_STATUSES = ["pending_review", "approved", "paused", "retired", "rejected"] as const;
+export const SIC_SOURCE_KINDS = [
+  "official_rss",
+  "official_atom",
+  "official_sitemap",
+  "official_dated_index",
+  "official_index",
+  "official_catalog",
+  "official_channel",
+  "official_api",
+  "official_repository",
+  "hosted_podcast",
+  "trusted_feed_json",
+] as const;
 
 export type SicSourceGroup = (typeof SIC_SOURCE_GROUPS)[number];
 export type SicSourceStatus = (typeof SIC_SOURCE_STATUSES)[number];
@@ -17,18 +30,7 @@ export type SicSource = {
   statusReason?: string;
   name: string;
   publisher: string;
-  kind:
-    | "official_rss"
-    | "official_atom"
-    | "official_sitemap"
-    | "official_dated_index"
-    | "official_index"
-    | "official_catalog"
-    | "official_channel"
-    | "official_api"
-    | "official_repository"
-    | "hosted_podcast"
-    | "trusted_feed_json";
+  kind: (typeof SIC_SOURCE_KINDS)[number];
   failureMode?: "blocking" | "isolated";
   homeUrl: string;
   endpoint: string;
@@ -41,6 +43,7 @@ export type SicSource = {
 function assertSource(source: SicSource) {
   if (!SIC_SOURCE_GROUPS.includes(source.group)) throw new Error(`SiC 来源 ${source.id} 的内容组无效。`);
   if (!SIC_SOURCE_STATUSES.includes(source.status)) throw new Error(`SiC 来源 ${source.id} 的审批状态无效。`);
+  if (!SIC_SOURCE_KINDS.includes(source.kind)) throw new Error(`SiC 来源 ${source.id} 的采集类型无效。`);
   if (source.status === "retired" && !source.statusReason?.trim()) throw new Error(`SiC 来源 ${source.id} 缺少退役原因。`);
   if (source.failureMode && !["blocking", "isolated"].includes(source.failureMode)) throw new Error(`SiC 来源 ${source.id} 的失败策略无效。`);
   for (const field of [source.id, source.name, source.publisher, source.homeUrl, source.endpoint, source.admissionRule, source.rationale]) {

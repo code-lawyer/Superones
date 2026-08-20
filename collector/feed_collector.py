@@ -17,7 +17,9 @@ import re
 import socket
 import sys
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -722,27 +724,63 @@ def collect_generic(source: dict, payload, start: datetime, end: datetime) -> li
     return results
 
 
+@dataclass(frozen=True)
+class SourceAdapter:
+    name: str
+    accepts: Callable[[dict], bool]
+    collect: Callable[[dict, datetime, datetime], tuple[list[dict], list[dict]]]
+
+
+def _simple_adapter(collector):
+    return lambda source, start, end: (collector(source, start, end), [])
+
+
+def _json_adapter(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
+    payload = fetch_json(source["endpoint"])
+    if source.get("connector") == "github-releases":
+        return collect_github(source, payload, start, end), []
+    return collect_generic(source, payload, start, end), []
+
+
+_SOURCE_ADAPTERS = (
+    SourceAdapter("rss", lambda source: source.get("connector") == "rss", _simple_adapter(collect_rss)),
+    SourceAdapter("follow-builders-x", lambda source: source.get("connector") == "follow-builders-x", _simple_adapter(collect_follow_builders_x)),
+    SourceAdapter("hackernews", lambda source: source.get("connector") == "hackernews", collect_hackernews),
+    SourceAdapter("lobsters", lambda source: source.get("connector") == "json" and source.get("channelIdentifier") == "lobsters", collect_lobsters),
+    SourceAdapter("sitemap", lambda source: source.get("connector") == "sitemap", _simple_adapter(collect_sitemap)),
+    SourceAdapter("dated-index", lambda source: source.get("connector") == "dated-index", _simple_adapter(collect_dated_index)),
+    SourceAdapter(
+        "json",
+        lambda source: source.get("connector")
+        in {
+            "github-releases",
+            "github-trending-html",
+            "github-user-events",
+            "html-index",
+            "json",
+            "newsnow",
+            "reddit",
+            "telegram-html",
+            "x-api",
+        },
+        _json_adapter,
+    ),
+)
+
+
+def resolve_source_adapter(source: dict) -> SourceAdapter:
+    adapter = next((candidate for candidate in _SOURCE_ADAPTERS if candidate.accepts(source)), None)
+    if adapter is None:
+        raise ValueError(f"No deployed collector adapter for connector: {source.get('connector')!r}")
+    return adapter
+
+
 def collect_source(source: dict, start: datetime, end: datetime) -> tuple[list[dict], list[dict]]:
     host = urlparse(source["endpoint"]).hostname or "unknown"
     with _host_lock:
         semaphore = _host_semaphores.setdefault(host, BoundedSemaphore(PER_HOST_WORKERS))
     with semaphore:
-        if source.get("connector") == "rss":
-            return collect_rss(source, start, end), []
-        if source.get("connector") == "follow-builders-x":
-            return collect_follow_builders_x(source, start, end), []
-        if source.get("connector") == "hackernews":
-            return collect_hackernews(source, start, end)
-        if source.get("connector") == "json" and source.get("channelIdentifier") == "lobsters":
-            return collect_lobsters(source, start, end)
-        if source.get("connector") == "sitemap":
-            return collect_sitemap(source, start, end), []
-        if source.get("connector") == "dated-index":
-            return collect_dated_index(source, start, end), []
-        payload = fetch_json(source["endpoint"])
-        if source.get("connector") == "github-releases":
-            return collect_github(source, payload, start, end), []
-        return collect_generic(source, payload, start, end), []
+        return resolve_source_adapter(source).collect(source, start, end)
 
 
 def load_bundle(path: Path) -> tuple[dict, list[dict]]:

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentSeason, latestRankingUpdate, listPublicRankings } from "@/lib/frontier-store";
+import { currentSeason, latestRankingUpdate, listPublicRankings } from "@/lib/frontier/rankings";
 
 export const runtime = "nodejs";
 

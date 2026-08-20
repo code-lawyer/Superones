@@ -7,11 +7,11 @@ import {
 import { seasonFromCode } from "@/lib/frontier-domain";
 import {
   challengeMatches,
-  getFrontierSeasonLaunchState,
   getSubmission,
   markSubmissionVerified,
   updatePendingSubmissionRepository,
-} from "@/lib/frontier-store";
+} from "@/lib/frontier/submissions";
+import { getFrontierSeasonLaunchState } from "@/lib/frontier/season";
 import { repositoryEligibilityError } from "@/lib/frontier-service";
 import { inspectGitHubRepository, readGitHubChallengeFile } from "@/lib/github";
 import { enqueueFrontierObservationTask } from "@/lib/frontier-public-tasks";

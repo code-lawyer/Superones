@@ -19,6 +19,7 @@ const expectations: EdgeExpectation[] = [
   { origin: "public", path: "/opc", method: "GET", status: 200 },
   { origin: "public", path: "/sic", method: "GET", status: 200 },
   { origin: "public", path: "/frontier", method: "GET", status: 200 },
+  { origin: "public", path: "/api/opc/esign/callback", method: "POST", status: 404 },
   { origin: "admin", path: "/admin", method: "GET", status: 200 },
   { origin: "public", path: "/admin", method: "GET", status: 404, edge: true },
   { origin: "public", path: "/api/internal/health", method: "GET", status: 404, edge: true },

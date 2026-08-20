@@ -7,7 +7,7 @@ import "./mobile-home.css";
 import { formatNumber } from "@/lib/number-format";
 import { beijingTime, compareEventsNewest, eventCategory, eventJudgment } from "@/lib/feed-format";
 import { seasonForDate } from "@/lib/frontier-domain";
-import { getFrontierSeasonLaunchState } from "@/lib/frontier-store";
+import { getFrontierSeasonLaunchState } from "@/lib/frontier/season";
 import { publicPreviewLabel } from "@/lib/public-preview-label";
 import {
   getCachedDirectRankingBoards,

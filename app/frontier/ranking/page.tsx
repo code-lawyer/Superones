@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FrontierRanking } from "@/components/frontier-ranking";
 import { PageIntro } from "@/components/page-intro";
 import { beijingSeasonDate } from "@/lib/frontier-domain";
-import { currentSeason } from "@/lib/frontier-store";
+import { currentSeason } from "@/lib/frontier/rankings";
 import { getCachedFrontierRanking } from "@/lib/public-read-cache";
 
 export const metadata: Metadata = { title: "边境计划排行榜" };

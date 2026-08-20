@@ -28,6 +28,9 @@ function expectedResponse(url: string, method: string) {
   if (parsed.origin === publicOrigin && ["/", "/feed", "/opc", "/sic", "/frontier"].includes(parsed.pathname)) {
     return response(200);
   }
+  if (parsed.origin === publicOrigin && method === "POST" && parsed.pathname === "/api/opc/esign/callback") {
+    return response(404);
+  }
   if (parsed.origin === publicOrigin && method === "GET" && ["/admin", "/api/internal/health", "/api/internal/frontier/tick"].includes(parsed.pathname)) {
     return response(404, true);
   }
@@ -62,7 +65,8 @@ test("the public edge probe verifies only read-only public and method-boundary r
     },
   });
 
-  assert.equal(result.checked, 11);
+  assert.equal(result.checked, 12);
+  assert.ok(requests.includes("POST https://public.example/api/opc/esign/callback"));
   assert.ok(requests.includes("GET https://public.example/api/internal/acquisition"));
   assert.ok(requests.includes("POST https://public.example/api/internal/frontier/tasks"));
 });
@@ -76,7 +80,7 @@ test("the public edge probe accepts repeated security headers when every value i
     ),
   });
 
-  assert.equal(result.checked, 11);
+  assert.equal(result.checked, 12);
 });
 
 test("the public edge probe rejects a permissive value hidden among repeated security headers", async () => {

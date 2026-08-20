@@ -15,9 +15,9 @@ import type {
 import { assertAcquisitionLaneKinds } from "./acquisition-contract.ts";
 import {
   applyFrontierVerificationObservation,
-  recordStarSnapshots,
   rejectPendingSubmission,
-} from "./frontier-store.ts";
+} from "./frontier/submissions.ts";
+import { recordStarSnapshots } from "./frontier/rankings.ts";
 import { completeFrontierObservationTasks } from "./frontier-public-tasks.ts";
 import { repositoryEligibilityError } from "./frontier-service.ts";
 import {

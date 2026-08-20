@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { beijingSeasonDate } from "@/lib/frontier-domain";
-import { currentSeason, getFrontierSeasonLaunchState } from "@/lib/frontier-store";
+import { currentSeason } from "@/lib/frontier/rankings";
+import { getFrontierSeasonLaunchState } from "@/lib/frontier/season";
 import { SubmitForm } from "./submit-form";
 
 export const metadata: Metadata = { title: "提交仓库 — 边境计划" };

@@ -13,11 +13,23 @@ from collector.feed_collector import (
     collection_window,
     document,
     plain_text,
+    resolve_source_adapter,
     validate_public_https_url,
 )
 
 
 class CollectorContractTests(unittest.TestCase):
+    def test_source_connectors_resolve_through_explicit_adapters(self):
+        self.assertEqual(resolve_source_adapter({"connector": "rss"}).name, "rss")
+        self.assertEqual(resolve_source_adapter({"connector": "sitemap"}).name, "sitemap")
+        self.assertEqual(resolve_source_adapter({"connector": "github-releases"}).name, "json")
+        self.assertEqual(
+            resolve_source_adapter({"connector": "json", "channelIdentifier": "lobsters"}).name,
+            "lobsters",
+        )
+        with self.assertRaisesRegex(ValueError, "No deployed collector adapter"):
+            resolve_source_adapter({"connector": "misspelled-connector"})
+
     def test_inline_spans_preserve_word_boundaries_without_spacing_punctuation(self):
         self.assertEqual(
             plain_text("<p><span>Hello</span><span>,</span> world</p>").strip(),

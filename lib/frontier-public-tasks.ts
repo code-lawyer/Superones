@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { removePendingSubmissions } from "./frontier-store.ts";
+import { removePendingSubmissions } from "./frontier/submissions.ts";
 import { mutateStateDocument, readStateDocument, withPersistenceTransaction, type StateDocumentDefinition } from "./state-document-store.ts";
 
 export type FrontierPublicObservationTask = {

@@ -1,7 +1,7 @@
 ---
 type: project-memory
 status: active
-updated: 2026-08-18
+updated: 2026-08-19
 ---
 
 # Vault2077 项目长期记忆
@@ -49,7 +49,9 @@ Vault2077 是面向超级个体与一人公司的公开网站，固定包含四�
 - `app/`：公开页面、后台页面和 API Route Handlers。
 - `lib/`：领域逻辑、存储适配、采集协议、安全、支付、OSS、Passkey 和健康检查。
 - `lib/opc-orders/`：OPC 无账号订单的深模块；`model`、`checkout`、`signature`、`payment`、`refund`、`admin` 提供业务 interface，`internal-store` 是唯一持有 `opc-orders` 状态文档 schema 与迁移解析的内部持久化核心；`lib/opc-order-store.ts` 只保留兼容 facade。
-- `collector/`：Python feed collector 与隔离的第三方采集能力。
+- `lib/frontier/`：Frontier 深模块；报名、排行、奖池、赛季、后台和只读存储诊断提供聚焦 interface，`internal-store` 独占 `frontier` 状态文档 schema 与迁移，`lib/frontier-store.ts` 只保留兼容 facade。
+- `lib/admin-contract.ts` 与 `lib/admin-transport.ts`：后台共享 DTO、变更请求头、无缓存读取与结构化错误边界；控制器只编排认证和写操作，Frontier、管线摘要与 OPC 订单视图由独立组件呈现。
+- `collector/`：Python feed collector 与隔离的第三方采集能力；Node SiC 和 Python 通用采集均通过显式适配器注册表选择来源实现，不在主循环继续扩展来源 `if/elif` 链。
 - `migrations/`：版本化 PostgreSQL 迁移；历史迁移受 checksum 保护。
 - `scripts/`：迁移、采集、worker、bootstrap、提供方探针、健康检查和运维命令。
 - `deploy/`：Nginx、systemd 与 logrotate 的生产模板。
@@ -130,6 +132,8 @@ Frontier 回退只在单条 observation payload 无法确定性解析时隔离�
 
 报名先写入生产事实源。境内服务端用只读 GitHub token 对已知公开仓库进行短超时核验；失败时生成不含私人信息的公开任务，由 rankings 通道回传观察结果。`vault2077-frontier-tick.timer` 在北京时间 08:45–22:45 每两小时观察当前参赛仓库并推进结算。真实写入必须同时满足环境开关和后台已发布的当季真实奖励。
 
+Frontier 当前继续使用单一 PostgreSQL 状态文档，不在缺少瓶颈证据时提前拆表；schema 仍保持 v6，并以旧 release 可忽略的可选扩展字段在每次状态文档 mutation 成功后累计最近七天的小时写入计数，保证回滚窗口内的旧 parser 仍能读取新文档。`npm run frontier:diagnose-storage` 只读输出文档字节数、报名／奖品／快照／赛季计数和真实状态文档每小时 mutation 峰值，不返回仓库或联系人，也不把快照条数误作写事务数；文档达到 4 MiB、报名达到 500 条或 mutation 峰值达到每小时 120 次时标记复核关系化存储。命令会明确指出应用侧没有数据库锁等待证据，未命中阈值只表示“未观察到应用触发条件”，不能宣称存储已经充分可接受；任何拆表仍需结合 PostgreSQL 查询延迟与行锁等待遥测、迁移和回滚方案另行决策。
+
 ### 4.5 OPC
 
 公开服务目录只读取后台发布的结构化快照。ADR-0020/0021/0022 的订单主路径为：同页展示企业账户、协议 PDF 与联系人二维码 → 填写真实姓名、手机号、加密居民身份证号码和必需通知邮箱 → 分别确认服务协议与敏感信息处理 → 生成固定金额订单/付款附言 → 用户自行线下对公转账 → 最近五分钟再认证的后台按金额、付款户名、唯一银行流水和时间核验 → `paid` → `completed`。订单创建和到账确认各在业务事务内写入面向用户/负责人的两个 outbox 事件；页脚退款入口以订单号加原恢复凭证授权，幂等保存加密理由并只向负责人写一个 `refund_requested` 事件。邮件不包含身份证、申请理由或联系人明文。SMTP 失败不改变业务事实。退役在线渠道仅保留中性只读历史凭证，不再具备外部查询、关单或退款能力。
@@ -138,7 +142,7 @@ ADR-0023 将游骑兵顾问身份纳入同一 OPC 目录事实源：身份使用
 
 付款资料以一个修订存入 PostgreSQL `opc-offline-payment-profile` 状态文档，冻结账户、PDF 与二维码哈希；`/srv/vault2077/shared/opc-offline-payment/` 仅作替换暂存，通过 `opc:publish-offline-payment-profile` 原子发布。现有头像和私有合同 OSS 权限不扩大。负责人已于 2026-08-11 提供并确认真实企业账户、联系人二维码，完成首版协议业务审阅并授权上线测试；在目标 VPS 完成资料发布、release 部署和生产验收前，线下付款开关仍保持关闭。
 
-首次银行到账核验在同一事务创建唯一付款凭证和 outbox；付款户名加密，审计只留流水指纹。`vault2077-opc-order-maintenance.timer` 发送脱敏订单、到账和退款申请通知并执行联系人／身份证保留清理。退款申请只建立客服入口，不改变订单状态；线下退款资金自动闭环仍未实现，不得调用退役渠道或用普通状态写入冒充退款完成。e 签宝代码保留但当前入口关闭。
+首次银行到账核验在同一事务创建唯一付款凭证和 outbox；付款户名加密，审计只留流水指纹。`vault2077-opc-order-maintenance.timer` 发送脱敏订单、到账和退款申请通知并执行联系人／身份证保留清理。退款申请只建立客服入口，不改变订单状态；线下退款资金自动闭环仍未实现，不得调用退役渠道或用普通状态写入冒充退款完成。e 签宝代码保留但当前入口关闭；`VAULT2077_OPC_ESIGN_ENABLED` 未显式启用时，公开回调在读取请求体或验签前直接返回 `404`，公网门禁持续探测这一关闭状态。
 
 ## 5. 数据与安全模型
 
@@ -198,11 +202,11 @@ ADR-0023 将游骑兵顾问身份纳入同一 OPC 目录事实源：身份使用
 
 实时 release、Actions run、健康降级项和 timer 状态变化频繁，只记录在本机私有生产记忆中。开始任何生产操作前必须从 GitHub Actions、systemd、health、RDS 和 OSS 重新获取当前证据，不能把公开文档中的历史快照当成健康证明。
 
-### 7.2 2026-08-18 修复执行状态
+### 7.2 2026-08-18 修复基线
 
-全面审查后的 R1 紧急修复已整理为独立本地提交：生产配置只接受校验证书链和主机名的 PostgreSQL TLS，并在运行时、迁移和门禁共用的解析器中拒绝连接串 SSL 覆盖参数；Frontier 回退仅隔离 payload 解析错误，资格判断和四类持久化失败都会交回 inbox 统一重试，且下一轮可重新领取；Nginx 模板让直接 404/405 在自身 location 加载安全头、关闭版本标记并隐藏应用层重复安全头；精确头像上传路由单独使用 6MB 代理上限；新增 `npm run edge:check` 只读验证公网 200/404/405、有效 HSTS、精确 CSP、重复值一致性和版本/系统信息隐藏。移动卷宗流也已整理为后续独立本地提交：共享断点骨架与 Home/Feed/SiC/Frontier 路由样式分离，覆盖式菜单具备背景隔离、滚动锁定、焦点约束、Escape 返回及离开移动断点时的完整清理，SiC 移动功能文字与包括原始榜单入口在内的链接命中区满足新设计合同。
+2026-08-18 的 R1 安全、可靠性和移动端修复已经成为后续版本继续演进的基线：生产配置只接受校验证书链和主机名的 PostgreSQL TLS，并在运行时、迁移和门禁共用的解析器中拒绝连接串 SSL 覆盖参数；Frontier 回退仅隔离 payload 解析错误，资格判断和四类持久化失败都会交回 inbox 统一重试，且下一轮可重新领取；Nginx 模板让直接 404/405 在自身 location 加载安全头、关闭版本标记并隐藏应用层重复安全头；精确头像上传路由单独使用 6MB 代理上限；`npm run edge:check` 只读验证公网 200/404/405、有效 HSTS、精确 CSP、重复值一致性和版本/系统信息隐藏。移动卷宗流使用共享断点骨架并与 Home/Feed/SiC/Frontier 路由样式分离，覆盖式菜单具备背景隔离、滚动锁定、焦点约束、Escape 返回及离开移动断点时的完整清理，SiC 移动功能文字与包括原始榜单入口在内的链接命中区满足设计合同。
 
-以上代码已在 `codex/r1-mobile-remediation` 本地分支按“R1 安全与可靠性 → 移动端 UI”顺序形成两个独立提交，但尚未推送、构建 Linux release artifact 或部署，因此不是生产事实。2026-08-18 三次修复后的提交前组合工作区已通过 109 个 Markdown 文档检查、ESLint、TypeScript、469 个 Node 测试、bootstrap 校验、生产构建、统一采集 inbox E2E 和内容管线 E2E；此前同一候选还通过 33 个 Python 测试、Ruff 和生产依赖审计（0 vulnerability），本轮不涉及 Python 或依赖变更。两个发布候选仍须由 CI 分别重跑适用门禁。Linux release artifact、`nginx -t`、真实公网 edge probe 和 1MB/5MB/超限头像代理验证仍是 R1 发布前置。生产 release、Nginx 实际安装状态、功能开关和回滚点继续以本机私有记忆及发布时重新核验为准。
+该段只记录稳定的代码与运行合同，不作为当前生产健康或部署版本的证明。生产 release、Actions run、Nginx 实际安装状态、功能开关、回滚点和最新门禁结果继续以本机私有记忆及发布时重新核验为准。
 
 ## 8. 自主完成提交、同步和部署所需权限
 

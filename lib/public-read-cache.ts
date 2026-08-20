@@ -9,10 +9,10 @@ import {
 import { getDirectRankingBoards } from "./direct-rankings";
 import {
   latestRankingUpdate,
-  listPublicPrizePool,
   listPublicRankings,
-  listSeasonHistory,
-} from "./frontier-store";
+} from "./frontier/rankings";
+import { listPublicPrizePool } from "./frontier/prizes";
+import { listSeasonHistory } from "./frontier/season";
 import { readPublishedServiceCatalog } from "./managed-service-catalog";
 import { getPublicContentIndex } from "./public-content";
 import { getSicContent } from "./sic-content";
