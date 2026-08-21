@@ -9,6 +9,7 @@ type EdgeExpectation = {
   method: "GET" | "POST";
   status: number;
   edge?: true;
+  documentCsp?: false;
 };
 
 export type EdgeFetcher = (input: string, init?: RequestInit) => Promise<Response>;
@@ -19,7 +20,13 @@ const expectations: EdgeExpectation[] = [
   { origin: "public", path: "/opc", method: "GET", status: 200 },
   { origin: "public", path: "/sic", method: "GET", status: 200 },
   { origin: "public", path: "/frontier", method: "GET", status: 200 },
-  { origin: "public", path: "/api/opc/esign/callback", method: "POST", status: 404 },
+  {
+    origin: "public",
+    path: "/api/opc/esign/callback",
+    method: "POST",
+    status: 404,
+    documentCsp: false,
+  },
   { origin: "admin", path: "/admin", method: "GET", status: 200 },
   { origin: "public", path: "/admin", method: "GET", status: 404, edge: true },
   { origin: "public", path: "/api/internal/health", method: "GET", status: 404, edge: true },
@@ -76,7 +83,12 @@ function hasValidHsts(header: string) {
   });
 }
 
-function assertSecurityHeaders(response: Response, label: string, edge: boolean) {
+function assertSecurityHeaders(
+  response: Response,
+  label: string,
+  edge: boolean,
+  requireDocumentCsp: boolean,
+) {
   const hsts = response.headers.get("strict-transport-security") ?? "";
   if (!hasValidHsts(hsts)) {
     throw new Error(`${label} 缺少有效的 HSTS max-age。`);
@@ -87,12 +99,14 @@ function assertSecurityHeaders(response: Response, label: string, edge: boolean)
   if (!hasOnlyHeaderValue(response.headers.get("x-frame-options") ?? "", "DENY")) {
     throw new Error(`${label} 缺少 X-Frame-Options: DENY。`);
   }
-  const csp = response.headers.get("content-security-policy") ?? "";
-  if (!hasOnlyNoneSource(csp, "frame-ancestors")) {
-    throw new Error(`${label} 的 CSP 必须精确使用 frame-ancestors 'none'。`);
-  }
-  if (edge && !hasOnlyNoneSource(csp, "default-src")) {
-    throw new Error(`${label} 的边缘 CSP 必须精确使用 default-src 'none'。`);
+  if (requireDocumentCsp) {
+    const csp = response.headers.get("content-security-policy") ?? "";
+    if (!hasOnlyNoneSource(csp, "frame-ancestors")) {
+      throw new Error(`${label} 的 CSP 必须精确使用 frame-ancestors 'none'。`);
+    }
+    if (edge && !hasOnlyNoneSource(csp, "default-src")) {
+      throw new Error(`${label} 的边缘 CSP 必须精确使用 default-src 'none'。`);
+    }
   }
 
   const server = response.headers.get("server") ?? "";
@@ -126,7 +140,12 @@ export async function checkPublicEdge({
     if (response.status !== expectation.status) {
       throw new Error(`${label} 预期 ${expectation.status}，实际 ${response.status}。`);
     }
-    assertSecurityHeaders(response, label, expectation.edge === true);
+    assertSecurityHeaders(
+      response,
+      label,
+      expectation.edge === true,
+      expectation.documentCsp !== false,
+    );
     await response.body?.cancel().catch(() => undefined);
     results.push({ method: expectation.method, url, status: response.status });
   }

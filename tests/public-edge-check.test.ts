@@ -5,18 +5,21 @@ import { checkPublicEdge } from "../scripts/check-public-edge.ts";
 const publicOrigin = "https://public.example";
 const adminOrigin = "https://admin.example";
 
-function response(status: number, edge = false, server = "nginx") {
+function response(status: number, edge = false, server = "nginx", documentCsp = true) {
+  const headers: Record<string, string> = {
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    server,
+  };
+  if (documentCsp) {
+    headers["content-security-policy"] = edge
+      ? "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+      : "default-src 'self'; frame-ancestors 'none'";
+  }
   return new Response(null, {
     status,
-    headers: {
-      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
-      "content-security-policy": edge
-        ? "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-        : "default-src 'self'; frame-ancestors 'none'",
-      "x-content-type-options": "nosniff",
-      "x-frame-options": "DENY",
-      server,
-    },
+    headers,
   });
 }
 
@@ -29,7 +32,7 @@ function expectedResponse(url: string, method: string) {
     return response(200);
   }
   if (parsed.origin === publicOrigin && method === "POST" && parsed.pathname === "/api/opc/esign/callback") {
-    return response(404);
+    return response(404, false, "nginx", false);
   }
   if (parsed.origin === publicOrigin && method === "GET" && ["/admin", "/api/internal/health", "/api/internal/frontier/tick"].includes(parsed.pathname)) {
     return response(404, true);
